@@ -11,6 +11,7 @@ export type SidebarTriggerProps = {
   title?: string;
   className?: string;
   onToggle?: (open: boolean) => void;
+  closeOnToggle?: boolean;
   style?: React.CSSProperties;
 };
 
@@ -26,6 +27,8 @@ export type SidebarProps<P = {}> = {
    */
   onDock?: (docked: boolean) => void;
   docked?: boolean;
+  closeOnOutsideClick?: boolean;
+  closeOnEscape?: boolean;
   className?: string;
   // NOTE sidebars we use internally inside the editor must have this flag set.
   // It indicates that this sidebar should have lower precedence over host

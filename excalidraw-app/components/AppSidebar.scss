@@ -33,4 +33,38 @@
   .link-button {
     margin: 0 auto;
   }
+
+  .default-sidebar {
+    box-sizing: border-box;
+    top: var(--editor-container-padding);
+    right: var(--editor-container-padding);
+    bottom: var(--editor-container-padding);
+    max-width: calc(100vw - var(--editor-container-padding) * 2);
+    border-radius: var(--border-radius-lg);
+    border: 1px solid var(--sidebar-border-color);
+    overflow: hidden;
+  }
+
+  .default-sidebar .sidebar-tabs-root {
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .default-sidebar [role="tabpanel"] {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .AIGenerationLogPanelTab {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  @media (max-width: 520px) {
+    .default-sidebar {
+      left: var(--editor-container-padding);
+      width: auto;
+    }
+  }
 }

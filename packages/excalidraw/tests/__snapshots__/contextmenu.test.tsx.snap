@@ -437,6 +437,19 @@ exports[`contextMenu element > right-clicking on a group should select whole gro
       },
       "separator",
       {
+        "keyTest": [Function],
+        "keywords": [
+          "ai",
+          "reference",
+          "image",
+        ],
+        "label": "labels.addSelectionToAIReference",
+        "name": "addSelectionToAIReference",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": false,
+      },
+      {
         "label": "labels.addToLibrary",
         "name": "addToLibrary",
         "perform": [Function],
@@ -5061,6 +5074,19 @@ exports[`contextMenu element > shows 'Group selection' in context menu for multi
       },
       "separator",
       {
+        "keyTest": [Function],
+        "keywords": [
+          "ai",
+          "reference",
+          "image",
+        ],
+        "label": "labels.addSelectionToAIReference",
+        "name": "addSelectionToAIReference",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": false,
+      },
+      {
         "label": "labels.addToLibrary",
         "name": "addToLibrary",
         "perform": [Function],
@@ -6277,6 +6303,19 @@ exports[`contextMenu element > shows 'Ungroup selection' in context menu for gro
         },
       },
       "separator",
+      {
+        "keyTest": [Function],
+        "keywords": [
+          "ai",
+          "reference",
+          "image",
+        ],
+        "label": "labels.addSelectionToAIReference",
+        "name": "addSelectionToAIReference",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": false,
+      },
       {
         "label": "labels.addToLibrary",
         "name": "addToLibrary",
@@ -8235,6 +8274,19 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
       },
       "separator",
       {
+        "keyTest": [Function],
+        "keywords": [
+          "ai",
+          "reference",
+          "image",
+        ],
+        "label": "labels.addSelectionToAIReference",
+        "name": "addSelectionToAIReference",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": false,
+      },
+      {
         "label": "labels.addToLibrary",
         "name": "addToLibrary",
         "perform": [Function],
@@ -9225,6 +9277,19 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
         },
       },
       "separator",
+      {
+        "keyTest": [Function],
+        "keywords": [
+          "ai",
+          "reference",
+          "image",
+        ],
+        "label": "labels.addSelectionToAIReference",
+        "name": "addSelectionToAIReference",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": false,
+      },
       {
         "label": "labels.addToLibrary",
         "name": "addToLibrary",

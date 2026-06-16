@@ -65,6 +65,7 @@ import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconc
 import type { RestoredDataState } from "@excalidraw/excalidraw/data/restore";
 import type {
   FileId,
+  ExcalidrawFreeDrawElement,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
@@ -140,6 +141,10 @@ import DebugCanvas, {
   loadSavedDebugState,
 } from "./components/DebugCanvas";
 import { AIComponents } from "./components/AI";
+import {
+  AIMaskEditingController,
+  type AIMaskEditingControllerHandle,
+} from "./components/AIMaskEditingController";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
 
 import "./index.scss";
@@ -148,6 +153,7 @@ import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanne
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
+import type { AIMaskReadyPayload } from "./ai/types";
 
 polyfill();
 
@@ -374,6 +380,13 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
+  const maskEditingControllerRef = useRef<AIMaskEditingControllerHandle>(null);
+  const workbenchMaskReadyHandlerRef = useRef<
+    ((payload: AIMaskReadyPayload) => void) | null
+  >(null);
+  const pendingWorkbenchMaskPayloadRef = useRef<AIMaskReadyPayload | null>(
+    null,
+  );
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -418,6 +431,9 @@ const ExcalidrawWrapper = () => {
   });
 
   const [, forceRefresh] = useState(false);
+  const refreshApp = useCallback(() => {
+    forceRefresh((prev) => !prev);
+  }, []);
 
   useEffect(() => {
     if (isDevEnv()) {
@@ -430,9 +446,9 @@ const ExcalidrawWrapper = () => {
       } else {
         delete window.visualDebug;
       }
-      forceRefresh((prev) => !prev);
+      refreshApp();
     }
-  }, [excalidrawAPI]);
+  }, [excalidrawAPI, refreshApp]);
 
   // ---------------------------------------------------------------------------
   // Hoisted loadImages
@@ -792,6 +808,37 @@ const ExcalidrawWrapper = () => {
     [setShareDialogState],
   );
 
+  const requestEnterMaskEditing = useCallback(
+    (imageId: string, maskElements?: readonly ExcalidrawFreeDrawElement[]) => {
+      maskEditingControllerRef.current?.requestEnterMaskEditing(
+        imageId,
+        maskElements,
+      );
+    },
+    [],
+  );
+
+  const registerWorkbenchMaskReadyHandler = useCallback(
+    (handler: ((payload: AIMaskReadyPayload) => void) | null) => {
+      workbenchMaskReadyHandlerRef.current = handler;
+
+      if (handler && pendingWorkbenchMaskPayloadRef.current) {
+        handler(pendingWorkbenchMaskPayloadRef.current);
+        pendingWorkbenchMaskPayloadRef.current = null;
+      }
+    },
+    [],
+  );
+
+  const handleMaskReady = useCallback((payload: AIMaskReadyPayload) => {
+    if (workbenchMaskReadyHandlerRef.current) {
+      workbenchMaskReadyHandlerRef.current(payload);
+      return;
+    }
+
+    pendingWorkbenchMaskPayloadRef.current = payload;
+  }, []);
+
   // ---------------------------------------------------------------------------
   // onExport — intercepts file save to wait for pending image loads
   // ---------------------------------------------------------------------------
@@ -988,7 +1035,7 @@ const ExcalidrawWrapper = () => {
           isCollaborating={isCollaborating}
           isCollabEnabled={!isCollabDisabled}
           theme={appTheme}
-          refresh={() => forceRefresh((prev) => !prev)}
+          refresh={refreshApp}
         />
         <AppWelcomeScreen
           onCollabDialogOpen={onCollabDialogOpen}
@@ -1056,7 +1103,11 @@ const ExcalidrawWrapper = () => {
           }}
         />
 
-        <AppSidebar />
+        <AppSidebar
+          excalidrawAPI={excalidrawAPI}
+          onEnterMaskEditing={requestEnterMaskEditing}
+          onMaskReady={registerWorkbenchMaskReadyHandler}
+        />
 
         {errorMessage && (
           <ErrorDialog onClose={() => setErrorMessage("")}>
@@ -1253,6 +1304,11 @@ const ExcalidrawWrapper = () => {
           />
         )}
       </Excalidraw>
+      <AIMaskEditingController
+        ref={maskEditingControllerRef}
+        excalidrawAPI={excalidrawAPI}
+        onMaskReady={handleMaskReady}
+      />
     </div>
   );
 };

@@ -1,0 +1,621 @@
+.excalidraw {
+  .AIImageWorkbenchTab {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .AIImageWorkbench {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: 0.75rem;
+    padding-bottom: 1rem;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 0.875rem;
+  }
+
+  .AIImageWorkbench__section {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    max-width: 100%;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--default-border-color);
+  }
+
+  .AIImageWorkbench__sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+
+    h3 {
+      min-width: 0;
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AIImageWorkbench__segmentedControl {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.25rem;
+    min-width: 0;
+    padding: 0.25rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    background: var(--island-bg-color);
+  }
+
+  .AIImageWorkbench__segment {
+    min-height: 2rem;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--text-primary-color);
+    font: inherit;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+
+    &.is-selected {
+      background: var(--color-primary);
+      color: #fff;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+  }
+
+  .AIImageWorkbench__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+
+    span {
+      color: var(--text-primary-color);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.45rem;
+      padding: 0.5rem;
+      background: var(--island-bg-color);
+      color: var(--text-primary-color);
+      font: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+  }
+
+  .AIImageWorkbench__promptBlock {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__promptInput.has-warning {
+    border-color: #d99a00;
+    box-shadow: 0 0 0 1px rgba(217, 154, 0, 0.2);
+  }
+
+  .AIImageWorkbench__templateRow,
+  .AIImageWorkbench__referenceHeader,
+  .AIImageWorkbench__referenceToolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__templateRow {
+    justify-content: space-between;
+  }
+
+  .AIImageWorkbench__templateMenu,
+  .AIImageWorkbench__referencePicker {
+    box-sizing: border-box;
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.45rem;
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+    box-shadow: 0 0.35rem 1.2rem rgba(0, 0, 0, 0.12);
+  }
+
+  .AIImageWorkbench__referencePicker {
+    position: absolute;
+    z-index: 3;
+    top: calc(100% - 0.2rem);
+    left: 0;
+    right: 0;
+  }
+
+  .AIImageWorkbench__templateGroup {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__templateGroupLabel {
+    color: var(--text-primary-color);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    opacity: 0.68;
+    text-transform: uppercase;
+  }
+
+  .AIImageWorkbench__templateItem,
+  .AIImageWorkbench__referencePickerItem {
+    display: grid;
+    min-width: 0;
+    border: 0;
+    border-radius: 0.35rem;
+    padding: 0.4rem 0.45rem;
+    background: transparent;
+    color: var(--text-primary-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &.is-active {
+      background: var(--color-gray-10);
+    }
+
+    span,
+    small {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      font-size: 0.68rem;
+      opacity: 0.65;
+    }
+  }
+
+  .AIImageWorkbench__referencePickerItem {
+    grid-template-columns: 2.2rem 2.4rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.45rem;
+
+    img {
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 0.3rem;
+      object-fit: cover;
+      background: var(--default-bg-color);
+    }
+  }
+
+  .AIImageWorkbench__warning {
+    border-radius: 0.4rem;
+    padding: 0.45rem 0.55rem;
+    background: rgba(217, 154, 0, 0.16);
+    color: var(--text-primary-color);
+    font-size: 0.76rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .AIImageWorkbench__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__primaryButton {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    width: 100%;
+    min-width: 0;
+    background: var(--sidebar-bg-color);
+    justify-content: center;
+    box-shadow: 0 -0.25rem 0.75rem var(--sidebar-bg-color);
+  }
+
+  .AIImageWorkbench__textButton {
+    border: 0;
+    background: transparent;
+    color: var(--color-primary);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .AIImageWorkbench__inlineStatus {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: var(--text-primary-color);
+  }
+
+  .AIImageWorkbench__referencePanel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.55rem;
+    background: var(--default-bg-color);
+  }
+
+  .AIImageWorkbench__referenceHeader {
+    justify-content: space-between;
+
+    > span {
+      min-width: 0;
+      font-size: 0.78rem;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AIImageWorkbench__referenceToolbar {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+
+    button {
+      min-height: 1.8rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.45rem;
+      background: var(--island-bg-color);
+      color: var(--text-primary-color);
+      font: inherit;
+      font-size: 0.74rem;
+      white-space: nowrap;
+      cursor: pointer;
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+    }
+  }
+
+  .AIImageWorkbench__referenceHint,
+  .AIImageWorkbench__emptyState {
+    color: var(--text-primary-color);
+    font-size: 0.74rem;
+    line-height: 1.3;
+    opacity: 0.72;
+    overflow-wrap: anywhere;
+  }
+
+  .AIImageWorkbench__referenceGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__referenceCard {
+    position: relative;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: 4rem auto auto;
+    gap: 0.25rem;
+    min-width: 0;
+    min-height: 7.1rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.35rem;
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+    cursor: pointer;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    &.is-dragging {
+      opacity: 0.48;
+    }
+
+    &.is-missing {
+      filter: grayscale(1);
+      opacity: 0.62;
+    }
+  }
+
+  .AIImageWorkbench__referenceBadge,
+  .AIImageWorkbench__referenceWeightBadge {
+    position: absolute;
+    z-index: 1;
+    top: 0.25rem;
+    border-radius: 999px;
+    padding: 0.1rem 0.4rem;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .AIImageWorkbench__referenceBadge {
+    left: 0.25rem;
+    background: var(--color-primary);
+
+    &.is-warning {
+      background: #d99a00;
+    }
+  }
+
+  .AIImageWorkbench__referenceWeightBadge {
+    top: 1.65rem;
+    right: 0.25rem;
+    background: var(--color-gray-60);
+  }
+
+  .AIImageWorkbench__referenceRemoveButton {
+    position: absolute;
+    z-index: 2;
+    top: 0.25rem;
+    right: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 999px;
+    padding: 0;
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      border-color: var(--color-danger-color);
+      color: var(--color-danger-color);
+    }
+  }
+
+  .AIImageWorkbench__referenceCheckbox {
+    position: absolute;
+    z-index: 2;
+    top: 0.25rem;
+    left: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    border-radius: 999px;
+    padding: 0.08rem 0.35rem;
+    background: var(--default-bg-color);
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+
+  .AIImageWorkbench__referenceThumb {
+    width: 100%;
+    min-width: 0;
+    height: 4rem;
+    border-radius: 0.35rem;
+    object-fit: cover;
+    background: linear-gradient(45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.06) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.06) 75%);
+    background-position: 0 0, 0 0.35rem, 0.35rem -0.35rem, -0.35rem 0;
+    background-size: 0.7rem 0.7rem;
+  }
+
+  .AIImageWorkbench__referenceMeta,
+  .AIImageWorkbench__referenceCardActions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__referenceMeta {
+    font-size: 0.66rem;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .AIImageWorkbench__referenceCardActions {
+    button {
+      min-width: 0;
+      min-height: 1.45rem;
+      border: 0;
+      border-radius: 0.3rem;
+      padding: 0.1rem 0.25rem;
+      background: var(--default-bg-color);
+      color: var(--text-primary-color);
+      font: inherit;
+      font-size: 0.64rem;
+      cursor: pointer;
+    }
+  }
+
+  .AIImageWorkbench__batchPanel,
+  .AIImageWorkbench__weightPanel,
+  .AIImageWorkbench__advanced {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.5rem;
+    background: var(--island-bg-color);
+  }
+
+  .AIImageWorkbench__advanced {
+    summary {
+      color: var(--text-primary-color);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  }
+
+  .AIImageWorkbench__maskControls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__maskStatus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.45rem 0.5rem;
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    button {
+      flex: 0 0 auto;
+      min-height: 1.75rem;
+      border: 0;
+      background: transparent;
+      color: var(--color-primary);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  .AIImageWorkbench__secondaryButton {
+    min-height: 2.25rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+    font: inherit;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  .AIImageWorkbench__notice,
+  .AIImageWorkbench__message {
+    border-radius: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--color-gray-10);
+    color: var(--text-primary-color);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .AIImageWorkbench__message.is-error {
+    background: var(--color-danger-background);
+    color: var(--color-danger-color);
+  }
+
+  .AIImageWorkbench__metadata {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: 0;
+
+    div {
+      display: grid;
+      grid-template-columns: 4rem minmax(0, 1fr);
+      gap: 0.5rem;
+    }
+
+    dt {
+      color: var(--text-primary-color);
+      font-weight: 600;
+    }
+
+    dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AIImageWorkbench__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+
+    button {
+      min-height: 2rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.45rem;
+      background: var(--island-bg-color);
+      color: var(--text-primary-color);
+      font: inherit;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      cursor: pointer;
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+  }
+
+  @media (max-width: 360px) {
+    .AIImageWorkbench__grid,
+    .AIImageWorkbench__actions,
+    .AIImageWorkbench__referenceGrid {
+      grid-template-columns: 1fr;
+    }
+  }
+}

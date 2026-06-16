@@ -27,6 +27,8 @@ const RE_YOUTUBE =
 
 const RE_VIMEO =
   /^(?:http(?:s)?:\/\/)?(?:(?:w){3}\.)?(?:player\.)?vimeo\.com\/(?:video\/)?([^?\s]+)(?:\?.*)?$/;
+const RE_BILIBILI_PLAYER =
+  /^(?:https?:)?\/\/player\.bilibili\.com\/player\.html(?:\?[^#\s]*)?(?:#[^\s]*)?$/;
 const RE_FIGMA = /^https:\/\/(?:www\.)?figma\.com/;
 
 const RE_GH_GIST = /^https:\/\/gist\.github\.com\/([\w_-]+)\/([\w_-]+)/;
@@ -135,6 +137,7 @@ const ALLOWED_DOMAINS = new Set([
   "youtu.be",
   "vimeo.com",
   "player.vimeo.com",
+  "player.bilibili.com",
   "drive.google.com",
   "figma.com",
   "link.excalidraw.com",
@@ -154,6 +157,7 @@ const ALLOW_SAME_ORIGIN = new Set([
   "youtu.be",
   "vimeo.com",
   "player.vimeo.com",
+  "player.bilibili.com",
   "drive.google.com",
   "figma.com",
   "twitter.com",
@@ -168,6 +172,14 @@ export const createSrcDoc = (body: string) => {
   return `<html><body>${body}</body></html>`;
 };
 
+const normalizeProtocolRelativeUrl = (url: string) => {
+  return url.startsWith("//") ? `https:${url}` : url;
+};
+
+const normalizeEmbedSrc = (url: string) => {
+  return normalizeProtocolRelativeUrl(url.replace(/&amp;/gi, "&"));
+};
+
 export const getEmbedLink = (
   link: string | null | undefined,
 ): IframeDataWithSandbox | null => {
@@ -180,6 +192,7 @@ export const getEmbedLink = (
   }
 
   const originalLink = link;
+  link = normalizeProtocolRelativeUrl(link);
 
   const allowSameOrigin = ALLOW_SAME_ORIGIN.has(
     matchHostname(link, ALLOW_SAME_ORIGIN) || "",
@@ -208,6 +221,23 @@ export const getEmbedLink = (
         break;
     }
     aspectRatio = isPortrait ? { w: 315, h: 560 } : { w: 560, h: 315 };
+    embeddedLinkCache.set(originalLink, {
+      link,
+      intrinsicSize: aspectRatio,
+      type,
+      sandbox: { allowSameOrigin },
+    });
+    return {
+      link,
+      intrinsicSize: aspectRatio,
+      type,
+      sandbox: { allowSameOrigin },
+    };
+  }
+
+  if (RE_BILIBILI_PLAYER.test(link)) {
+    type = "video";
+    aspectRatio = { w: 560, h: 315 };
     embeddedLinkCache.set(originalLink, {
       link,
       intrinsicSize: aspectRatio,
@@ -442,6 +472,7 @@ const matchHostname = (
   allowedHostnames: Set<string> | string,
 ): string | null => {
   try {
+    url = normalizeProtocolRelativeUrl(url);
     const { hostname } = new URL(url);
 
     const bareDomain = hostname.replace(/^www\./, "");
@@ -474,17 +505,17 @@ const matchHostname = (
 export const maybeParseEmbedSrc = (str: string): string => {
   const twitterMatch = str.match(RE_TWITTER_EMBED);
   if (twitterMatch && twitterMatch.length === 2) {
-    return twitterMatch[1];
+    return normalizeEmbedSrc(twitterMatch[1]);
   }
 
   const redditMatch = str.match(RE_REDDIT_EMBED);
   if (redditMatch && redditMatch.length === 2) {
-    return redditMatch[1];
+    return normalizeEmbedSrc(redditMatch[1]);
   }
 
   const gistMatch = str.match(RE_GH_GIST_EMBED);
   if (gistMatch && gistMatch.length === 2) {
-    return gistMatch[1];
+    return normalizeEmbedSrc(gistMatch[1]);
   }
 
   if (RE_GIPHY.test(str)) {
@@ -493,7 +524,7 @@ export const maybeParseEmbedSrc = (str: string): string => {
 
   const match = str.match(RE_GENERIC_EMBED);
   if (match && match.length === 2) {
-    return match[1];
+    return normalizeEmbedSrc(match[1]);
   }
 
   return str;

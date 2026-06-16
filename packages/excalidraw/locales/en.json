@@ -108,6 +108,7 @@
     "collaborators": "Collaborators",
     "toggleGrid": "Toggle grid",
     "addToLibrary": "Add to library",
+    "addSelectionToAIReference": "Add to Reference Images",
     "removeFromLibrary": "Remove from library",
     "libraryLoadingMessage": "Loading library…",
     "libraries": "Browse libraries",

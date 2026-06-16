@@ -15,6 +15,7 @@ export const SidebarTrigger = ({
   children,
   onToggle,
   className,
+  closeOnToggle = true,
   style,
 }: SidebarTriggerProps) => {
   const setAppState = useExcalidrawSetAppState();
@@ -30,6 +31,17 @@ export const SidebarTrigger = ({
             .querySelector(".layer-ui__wrapper")
             ?.classList.remove("animate");
           const isOpen = event.target.checked;
+          if (!isOpen && !closeOnToggle) {
+            if (tab && appState.openSidebar?.tab !== tab) {
+              setAppState({
+                openSidebar: { name, tab },
+                openMenu: null,
+                openPopup: null,
+              });
+              onToggle?.(true);
+            }
+            return;
+          }
           setAppState({
             openSidebar: isOpen ? { name, tab } : null,
             openMenu: null,

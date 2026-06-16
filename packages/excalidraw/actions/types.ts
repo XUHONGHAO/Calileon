@@ -143,6 +143,7 @@ export type ActionName =
   | "linkToElement"
   | "cropEditor"
   | "wrapSelectionInFrame"
+  | "addSelectionToAIReference"
   | "toggleLassoTool"
   | "toggleShapeSwitch"
   | "togglePolygon";
