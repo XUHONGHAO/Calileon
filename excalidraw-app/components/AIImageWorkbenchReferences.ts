@@ -1,4 +1,5 @@
 import type { FileId } from "@excalidraw/element/types";
+import { t } from "@excalidraw/excalidraw/i18n";
 import type { BinaryFiles, DataURL } from "@excalidraw/excalidraw/types";
 
 import { dataURLToFile } from "../ai/imageCanvas";
@@ -118,9 +119,10 @@ export const validatePromptReferences = (
       (referenceIndex < 1 || referenceIndex > imageCount)
     ) {
       warnings.add(
-        `Warning: #${referenceIndex} not found (${imageCount} reference${
-          imageCount === 1 ? "" : "s"
-        }).`,
+        t("ai.workbench.referenceNotFoundWarning", {
+          index: referenceIndex,
+          count: imageCount,
+        }),
       );
     }
   }

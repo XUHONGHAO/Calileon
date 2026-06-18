@@ -1,3 +1,5 @@
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import type { AIImageGenerationMode, AIModelMediaType } from "../ai/types";
 
 export type AIImageWorkbenchStatusItem = {
@@ -44,12 +46,12 @@ export const getAIImageWorkbenchModeLabel = ({
   }
 
   if (mode === "text-to-image") {
-    return "Text";
+    return t("ai.common.text");
   }
   if (mode === "image-to-image") {
-    return "Reference";
+    return t("ai.common.reference");
   }
-  return "Inpaint";
+  return t("ai.common.inpaint");
 };
 
 export const createAIImageWorkbenchStatus = (
@@ -79,35 +81,43 @@ export const createAIImageWorkbenchStatus = (
 
   const statusStripItems: AIImageWorkbenchStatusItem[] = [
     {
-      label: "Mode",
+      label: t("ai.workbench.status.labels.mode"),
       value: getAIImageWorkbenchModeLabel(input),
       tone: "default",
     },
     {
-      label: "Model",
+      label: t("ai.workbench.status.labels.model"),
       value: modelStatus.value,
       tone: modelStatus.tone,
     },
     {
-      label: "Prompt",
-      value: hasPrompt ? "Ready" : "Empty",
+      label: t("ai.workbench.status.labels.prompt"),
+      value: hasPrompt
+        ? t("ai.workbench.status.values.ready")
+        : t("ai.workbench.status.values.empty"),
       tone: hasPrompt ? "ready" : "warning",
     },
     {
-      label: "Refs",
+      label: t("ai.workbench.status.labels.refs"),
       value:
         input.mediaType === "image" &&
         (requiresReference || input.referenceCount)
-          ? `${activeReferenceCount} active`
-          : "Optional",
+          ? t("ai.workbench.status.values.active", {
+              count: activeReferenceCount,
+            })
+          : t("ai.workbench.status.values.optional"),
       tone:
         requiresReference && activeReferenceCount === 0
           ? "warning"
           : "reference",
     },
     {
-      label: "Mask",
-      value: input.hasCurrentMask ? "Ready" : requiresMask ? "Needed" : "None",
+      label: t("ai.workbench.status.labels.mask"),
+      value: input.hasCurrentMask
+        ? t("ai.workbench.status.values.ready")
+        : requiresMask
+        ? t("ai.workbench.status.values.needed")
+        : t("ai.workbench.status.values.none"),
       tone: input.hasCurrentMask
         ? "mask"
         : requiresMask
@@ -115,7 +125,7 @@ export const createAIImageWorkbenchStatus = (
         : "default",
     },
     {
-      label: "Run",
+      label: t("ai.workbench.status.labels.run"),
       value: getRunStatusLabel(runStatus),
       tone: getRunStatusTone(runStatus),
     },
@@ -135,21 +145,21 @@ const getModelStatus = (
 ): Pick<AIImageWorkbenchStatusItem, "value" | "tone"> => {
   if (!input.selectedModelId || !input.selectedModelLabel) {
     return {
-      value: "No model",
+      value: t("ai.workbench.status.values.noModel"),
       tone: "warning",
     };
   }
 
   if (!input.hasSelectedModelBaseURL) {
     return {
-      value: "Missing endpoint",
+      value: t("ai.workbench.status.values.missingEndpoint"),
       tone: "warning",
     };
   }
 
   if (!input.modelSupportsMode) {
     return {
-      value: "Unsupported mode",
+      value: t("ai.workbench.status.values.unsupportedMode"),
       tone: "warning",
     };
   }
@@ -177,24 +187,24 @@ export const getAIImageWorkbenchConfigurationNotice = ({
 }): AIImageWorkbenchConfigurationNotice => {
   if (!hasModelsForMediaType) {
     return {
-      message: `Add ${getMediaTypeLabel(
-        mediaType,
-      ).toLowerCase()} model in AI Settings.`,
-      actionLabel: "Open AI Settings",
+      message: t("ai.workbench.status.notice.addModel", {
+        mediaType: getMediaTypeLabel(mediaType).toLowerCase(),
+      }),
+      actionLabel: t("ai.common.openSettings"),
     };
   }
 
   if (selectedModelId && !hasSelectedModelBaseURL) {
     return {
-      message: "Add a model endpoint before generating.",
-      actionLabel: "Open AI Settings",
+      message: t("ai.workbench.status.notice.addEndpoint"),
+      actionLabel: t("ai.common.openSettings"),
     };
   }
 
   if (selectedModelId && !modelSupportsMode) {
     return {
-      message: "Selected model does not support this mode.",
-      actionLabel: "Open AI Settings",
+      message: t("ai.workbench.status.notice.unsupportedMode"),
+      actionLabel: t("ai.common.openSettings"),
     };
   }
 
@@ -203,21 +213,21 @@ export const getAIImageWorkbenchConfigurationNotice = ({
 
 const getRunStatusLabel = (runStatus: AIImageWorkbenchRunStatus) => {
   if (runStatus === "generating") {
-    return "Generating";
+    return t("ai.workbench.status.values.generating");
   }
   if (runStatus === "succeeded") {
-    return "Succeeded";
+    return t("ai.workbench.status.values.succeeded");
   }
   if (runStatus === "failed") {
-    return "Failed";
+    return t("ai.workbench.status.values.failed");
   }
   if (runStatus === "canceled") {
-    return "Canceled";
+    return t("ai.workbench.status.values.canceled");
   }
   if (runStatus === "inserted") {
-    return "Inserted";
+    return t("ai.workbench.status.values.inserted");
   }
-  return "Ready";
+  return t("ai.workbench.status.values.ready");
 };
 
 const getRunStatusTone = (
@@ -237,10 +247,10 @@ const getRunStatusTone = (
 
 const getMediaTypeLabel = (mediaType: AIModelMediaType) => {
   if (mediaType === "video") {
-    return "Video";
+    return t("ai.common.video");
   }
   if (mediaType === "audio") {
-    return "Audio";
+    return t("ai.common.audio");
   }
-  return "Image";
+  return t("ai.common.image");
 };

@@ -9,6 +9,7 @@ import {
   settingsIcon,
   sidebarRightIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   memo,
   useCallback,
@@ -97,8 +98,9 @@ export const AppSidebar = memo(
     generationLogReuseRequest,
     onAddSelectionAsReference,
     onEnterMaskEditing,
-    onMaskReady,
+  onMaskReady,
   }: AppSidebarProps) => {
+    const { t } = useI18n();
     const [workbenchDraftState, setWorkbenchDraftState] =
       useState<AIImageWorkbenchDraftState>(
         createInitialAIImageWorkbenchDraftState,
@@ -126,11 +128,11 @@ export const AppSidebar = memo(
           force: true,
         });
         excalidrawAPI?.setToast({
-          message: "Prompt loaded in AI Assistant.",
+          message: t("ai.sidebar.promptLoadedInAssistant"),
           duration: 3000,
         });
       },
-      [excalidrawAPI],
+      [excalidrawAPI, t],
     );
     const applyPromptTemplateToWorkbench = useCallback(
       (template: PromptTemplate) => {
@@ -138,11 +140,13 @@ export const AppSidebar = memo(
           applyPromptTemplateToWorkbenchDraft(current, template),
         );
         excalidrawAPI?.setToast({
-          message: `${template.label} sent to AI Workbench.`,
+          message: t("ai.sidebar.templateSentToWorkbench", {
+            template: template.label,
+          }),
           duration: 3000,
         });
       },
-      [excalidrawAPI],
+      [excalidrawAPI, t],
     );
     const reuseGenerationLog = useCallback(
       (log: AIGenerationLogEntry) => {
@@ -155,11 +159,11 @@ export const AppSidebar = memo(
           force: true,
         });
         excalidrawAPI?.setToast({
-          message: "Generation settings loaded in AI Workbench.",
+          message: t("ai.sidebar.generationSettingsLoaded"),
           duration: 3000,
         });
       },
-      [excalidrawAPI],
+      [excalidrawAPI, t],
     );
 
     useEffect(() => {
@@ -281,72 +285,84 @@ export const AppSidebar = memo(
 
 AppSidebar.displayName = "AppSidebar";
 
-const AppSidebarTrigger = memo(() => (
-  <DefaultSidebar.Trigger
-    icon={sidebarRightIcon}
-    tab="ai-image"
-    title="AI Workbench"
-    closeOnToggle={false}
-  />
-));
+const AppSidebarTrigger = memo(() => {
+  const { t } = useI18n();
+
+  return (
+    <DefaultSidebar.Trigger
+      icon={sidebarRightIcon}
+      tab="ai-image"
+      title={t("ai.sidebar.workbenchTitle")}
+      closeOnToggle={false}
+    />
+  );
+});
 
 AppSidebarTrigger.displayName = "AppSidebarTrigger";
 
-const AppSidebarTabTriggers = memo(() => (
-  <DefaultSidebar.TabTriggers>
-    <Sidebar.TabTrigger
-      tab="ai-image"
-      title="Create with AI"
-      aria-label="Create with AI"
-    >
-      <AppSidebarTabTriggerContent
-        icon={MagicIcon}
-        label="Create"
-        kind="primary"
-      />
-    </Sidebar.TabTrigger>
-    <Sidebar.TabTrigger
-      tab="ai-assistant"
-      title="AI assistant"
-      aria-label="AI assistant"
-    >
-      <AppSidebarTabTriggerContent
-        icon={brainIcon}
-        label="Assistant"
-        kind="primary"
-      />
-    </Sidebar.TabTrigger>
-    <Sidebar.TabTrigger
-      tab="ai-generation-logs"
-      title="Generation history"
-      aria-label="Generation history"
-    >
-      <AppSidebarTabTriggerContent
-        icon={clipboard}
-        label="History"
-        kind="primary"
-      />
-    </Sidebar.TabTrigger>
-    <Sidebar.TabTrigger tab="comments" title="Comments" aria-label="Comments">
-      <AppSidebarTabTriggerContent
-        icon={messageCircleIcon}
-        label="Comments"
-        kind="secondary"
-      />
-    </Sidebar.TabTrigger>
-    <Sidebar.TabTrigger
-      tab="presentation"
-      title="Presentations"
-      aria-label="Presentations"
-    >
-      <AppSidebarTabTriggerContent
-        icon={presentationIcon}
-        label="Present"
-        kind="secondary"
-      />
-    </Sidebar.TabTrigger>
-  </DefaultSidebar.TabTriggers>
-));
+const AppSidebarTabTriggers = memo(() => {
+  const { t } = useI18n();
+
+  return (
+    <DefaultSidebar.TabTriggers>
+      <Sidebar.TabTrigger
+        tab="ai-image"
+        title={t("ai.sidebar.createWithAI")}
+        aria-label={t("ai.sidebar.createWithAI")}
+      >
+        <AppSidebarTabTriggerContent
+          icon={MagicIcon}
+          label={t("ai.common.create")}
+          kind="primary"
+        />
+      </Sidebar.TabTrigger>
+      <Sidebar.TabTrigger
+        tab="ai-assistant"
+        title={t("ai.sidebar.assistant")}
+        aria-label={t("ai.sidebar.assistant")}
+      >
+        <AppSidebarTabTriggerContent
+          icon={brainIcon}
+          label={t("ai.sidebar.assistantLabel")}
+          kind="primary"
+        />
+      </Sidebar.TabTrigger>
+      <Sidebar.TabTrigger
+        tab="ai-generation-logs"
+        title={t("ai.sidebar.generationHistory")}
+        aria-label={t("ai.sidebar.generationHistory")}
+      >
+        <AppSidebarTabTriggerContent
+          icon={clipboard}
+          label={t("ai.sidebar.history")}
+          kind="primary"
+        />
+      </Sidebar.TabTrigger>
+      <Sidebar.TabTrigger
+        tab="comments"
+        title={t("ai.sidebar.comments")}
+        aria-label={t("ai.sidebar.comments")}
+      >
+        <AppSidebarTabTriggerContent
+          icon={messageCircleIcon}
+          label={t("ai.sidebar.comments")}
+          kind="secondary"
+        />
+      </Sidebar.TabTrigger>
+      <Sidebar.TabTrigger
+        tab="presentation"
+        title={t("ai.sidebar.presentations")}
+        aria-label={t("ai.sidebar.presentations")}
+      >
+        <AppSidebarTabTriggerContent
+          icon={presentationIcon}
+          label={t("ai.sidebar.present")}
+          kind="secondary"
+        />
+      </Sidebar.TabTrigger>
+    </DefaultSidebar.TabTriggers>
+  );
+});
 
 AppSidebarTabTriggers.displayName = "AppSidebarTabTriggers";
 
@@ -377,19 +393,28 @@ const AppSidebarCommandHeader = ({
   activeArea: "Create" | "Assistant" | "History";
   onAddSelectionAsReference: () => void;
   onOpenAISettings: () => void;
-}) => (
-  <div className="app-sidebar-commandHeader">
-    <div className="app-sidebar-commandHeader__title">
-      <span>AI office whiteboard</span>
-      <strong>{activeArea}</strong>
-    </div>
+}) => {
+  const { t } = useI18n();
+  const activeAreaLabel =
+    activeArea === "Create"
+      ? t("ai.common.create")
+      : activeArea === "Assistant"
+      ? t("ai.sidebar.assistantLabel")
+      : t("ai.sidebar.history");
+
+  return (
+    <div className="app-sidebar-commandHeader">
+      <div className="app-sidebar-commandHeader__title">
+        <span>{t("ai.sidebar.officeWhiteboard")}</span>
+        <strong>{activeAreaLabel}</strong>
+      </div>
     <div className="app-sidebar-commandHeader__actions">
       <button
         type="button"
         className="app-sidebar-commandHeader__button"
         onClick={onAddSelectionAsReference}
       >
-        Add selection
+        {t("ai.sidebar.addSelection")}
       </button>
       <button
         type="button"
@@ -397,38 +422,39 @@ const AppSidebarCommandHeader = ({
         onClick={onOpenAISettings}
       >
         <span aria-hidden="true">{settingsIcon}</span>
-        Settings
+        {t("ai.common.settings")}
       </button>
     </div>
     <div
       className="app-sidebar-commandHeader__flow"
       role="list"
-      aria-label="AI workflow"
+      aria-label={t("ai.sidebar.workflow")}
     >
       <span
         role="listitem"
         className={activeArea === "Create" ? "is-active" : undefined}
       >
-        Create
+        {t("ai.common.create")}
       </span>
       <span role="listitem" className="is-disabled" data-disabled="true">
-        References
+        {t("ai.sidebar.references")}
       </span>
       <span role="listitem" className="is-disabled" data-disabled="true">
-        Inpaint
+        {t("ai.common.inpaint")}
       </span>
       <span
         role="listitem"
         className={activeArea === "Assistant" ? "is-active" : undefined}
       >
-        Assistant
+        {t("ai.sidebar.assistantLabel")}
       </span>
       <span
         role="listitem"
         className={activeArea === "History" ? "is-active" : undefined}
       >
-        History
+        {t("ai.sidebar.history")}
       </span>
     </div>
   </div>
-);
+  );
+};

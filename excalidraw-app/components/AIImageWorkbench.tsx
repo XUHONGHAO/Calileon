@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 import { Button } from "@excalidraw/excalidraw/components/Button";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import {
   getSelectedElements,
   isInitializedImageElement,
@@ -97,6 +98,7 @@ import type {
   AIMaskReadyPayload,
   AIReferenceExportOptions,
   PromptTemplate,
+  PromptTemplateCategory,
 } from "../ai/types";
 import type { AIImageWorkbenchRunStatus } from "./AIImageWorkbenchStatus";
 import type { GeneratedAsset } from "./AIImageWorkbenchAssets";
@@ -118,17 +120,20 @@ const DEFAULT_PARAMS: AIImageGenerationParams = {
 
 const MODE_OPTIONS: Array<{
   value: AIImageGenerationMode;
-  label: string;
+  labelKey: "ai.common.text" | "ai.common.reference" | "ai.common.inpaint";
 }> = [
-  { value: "text-to-image", label: "Text" },
-  { value: "image-to-image", label: "Reference" },
-  { value: "inpaint", label: "Inpaint" },
+  { value: "text-to-image", labelKey: "ai.common.text" },
+  { value: "image-to-image", labelKey: "ai.common.reference" },
+  { value: "inpaint", labelKey: "ai.common.inpaint" },
 ];
 
-const MEDIA_TYPE_OPTIONS: Array<{ value: AIModelMediaType; label: string }> = [
-  { value: "image", label: "Image" },
-  { value: "video", label: "Video" },
-  { value: "audio", label: "Audio" },
+const MEDIA_TYPE_OPTIONS: Array<{
+  value: AIModelMediaType;
+  labelKey: "ai.common.image" | "ai.common.video" | "ai.common.audio";
+}> = [
+  { value: "image", labelKey: "ai.common.image" },
+  { value: "video", labelKey: "ai.common.video" },
+  { value: "audio", labelKey: "ai.common.audio" },
 ];
 
 const MAX_IMAGE_COUNT = 10;
@@ -244,6 +249,7 @@ export const AIImageWorkbench = ({
   onSendPromptToAssistant,
   referenceAddRequest,
 }: AIImageWorkbenchProps) => {
+  const { t } = useI18n();
   const [initialState] = useState(() => ({
     config: loadAIImageConfig(),
   }));
@@ -957,7 +963,7 @@ export const AIImageWorkbench = ({
     const selectedElements = getSelectedElements(elements, appState);
 
     if (!selectedElements.length) {
-      setErrorMessage("Select elements on canvas first.");
+      setErrorMessage(t("ai.workbench.selectElementsFirst"));
       setStatusMessage("");
       return;
     }
@@ -975,17 +981,20 @@ export const AIImageWorkbench = ({
       setSelectedSources((current) =>
         reindexReferenceImages([...current, source]),
       );
-      setStatusMessage(warning || `Reference #${source.index} added.`);
+      const successMessage = t("ai.workbench.referenceAdded", {
+        index: source.index,
+      });
+      setStatusMessage(warning || successMessage);
       setErrorMessage("");
       excalidrawAPI.setToast({
-        message: warning || `Reference #${source.index} added.`,
+        message: warning || successMessage,
       });
     } catch (error: any) {
       console.error("Could not export reference selection", error);
-      setErrorMessage(error?.message || "Could not export selection.");
+      setErrorMessage(error?.message || t("ai.workbench.exportSelectionFailed"));
       setStatusMessage("");
     }
-  }, [excalidrawAPI, referenceExportOptions, selectedSources.length]);
+  }, [excalidrawAPI, referenceExportOptions, selectedSources.length, t]);
 
   const removeReferenceImage = useCallback((createdAt: number) => {
     setSelectedSources((current) =>
@@ -1003,7 +1012,7 @@ export const AIImageWorkbench = ({
   const clearReferenceImages = useCallback(() => {
     if (
       selectedSources.length > 2 &&
-      !window.confirm("Clear all references?")
+      !window.confirm(t("ai.workbench.clearAllReferencesConfirm"))
     ) {
       return;
     }
@@ -1011,7 +1020,7 @@ export const AIImageWorkbench = ({
     setSelectedSources([]);
     setSelectedBatchIds(new Set());
     setBatchMode(false);
-  }, [selectedSources.length]);
+  }, [selectedSources.length, t]);
 
   const toggleReferenceLock = useCallback(() => {
     setIsReferenceLocked((current) => {
@@ -1048,7 +1057,7 @@ export const AIImageWorkbench = ({
           ),
         );
         excalidrawAPI.setToast({
-          message: "Original element not found.",
+          message: t("ai.workbench.originalNotFound"),
         });
         return;
       }
@@ -1066,7 +1075,7 @@ export const AIImageWorkbench = ({
         // Older API builds may only support selection changes here.
       }
     },
-    [excalidrawAPI],
+    [excalidrawAPI, t],
   );
 
   const moveReferenceImage = useCallback((fromId: number, toId: number) => {
@@ -1336,14 +1345,14 @@ export const AIImageWorkbench = ({
         : undefined;
 
       if (mediaType !== "image") {
-        setErrorMessage("Only image generation is wired in this phase.");
+        setErrorMessage(t("ai.workbench.onlyImageGeneration"));
         setStatusMessage("");
         setRunStatus("failed");
         return;
       }
 
       if (!activePrompt.trim()) {
-        setErrorMessage("Prompt is required.");
+        setErrorMessage(t("ai.workbench.promptRequired"));
         setRunStatus("failed");
         return;
       }
@@ -1366,14 +1375,14 @@ export const AIImageWorkbench = ({
 
       if (activeMode === "inpaint") {
         if (activeSources.length !== 1) {
-          setErrorMessage("Select exactly one image before generating.");
+          setErrorMessage(t("ai.workbench.selectOneImageBeforeGenerating"));
           setStatusMessage("");
           setRunStatus("failed");
           return;
         }
 
         if (!activeMaskRecord) {
-          setErrorMessage("Draw a mask before generating.");
+          setErrorMessage(t("ai.workbench.drawMaskBeforeGenerating"));
           setStatusMessage("");
           setRunStatus("failed");
           return;
@@ -1400,7 +1409,7 @@ export const AIImageWorkbench = ({
       generationTimeoutRef.current = timeoutId;
       setIsGenerating(true);
       setRunStatus("generating");
-      setStatusMessage("Generating image...");
+      setStatusMessage(t("ai.workbench.generatingImage"));
       setErrorMessage("");
 
       try {
@@ -1448,7 +1457,7 @@ export const AIImageWorkbench = ({
 
         if (!isValidGenerationOutputs(outputs)) {
           throw new AIImageGenerationError(
-            "Generation failed: provider returned malformed image data.",
+            t("ai.workbench.malformedOutput"),
             "invalid-response",
             { outputs },
           );
@@ -1539,19 +1548,23 @@ export const AIImageWorkbench = ({
             endpoint,
             responseSummary:
               insertedCount === 1
-                ? "Generated image inserted."
-                : `${insertedCount} generated images inserted.`,
+                ? t("ai.workbench.generatedImageInserted")
+                : t("ai.workbench.generatedImagesInserted", {
+                    count: insertedCount,
+                  }),
             responseDetails: createSuccessResponseDetails(outputs),
           }),
         );
         setStatusMessage(
           insertedCount === 1
-            ? "Generated image inserted."
-            : `${insertedCount} generated images inserted.`,
+            ? t("ai.workbench.generatedImageInserted")
+            : t("ai.workbench.generatedImagesInserted", {
+                count: insertedCount,
+              }),
         );
         setRunStatus("inserted");
         excalidrawAPI.setToast({
-          message: "Generated image inserted.",
+          message: t("ai.workbench.generatedImageInserted"),
         });
       } catch (error: any) {
         if (!isActiveRun()) {
@@ -1578,12 +1591,16 @@ export const AIImageWorkbench = ({
                 params: effectiveParams,
                 baseURL: activeBaseURL,
                 endpoint,
-                responseSummary: `Generation timed out after ${timeoutSeconds} seconds.`,
+                responseSummary: t("ai.workbench.generationTimedOut", {
+                  seconds: timeoutSeconds,
+                }),
                 responseDetails: createErrorResponseDetails(error),
               }),
             );
             setErrorMessage(
-              `Generation timed out after ${timeoutSeconds} seconds.`,
+              t("ai.workbench.generationTimedOut", {
+                seconds: timeoutSeconds,
+              }),
             );
             setStatusMessage("");
             setRunStatus("failed");
@@ -1604,11 +1621,11 @@ export const AIImageWorkbench = ({
                 params: effectiveParams,
                 baseURL: activeBaseURL,
                 endpoint,
-                responseSummary: "Generation canceled.",
+                responseSummary: t("ai.workbench.generationCanceled"),
                 responseDetails: createErrorResponseDetails(error),
               }),
             );
-            setStatusMessage("Generation canceled.");
+            setStatusMessage(t("ai.workbench.generationCanceled"));
             setRunStatus("canceled");
           }
           return;
@@ -1653,7 +1670,7 @@ export const AIImageWorkbench = ({
         }
       }
     },
-    [excalidrawAPI],
+    [excalidrawAPI, t],
   );
 
   const cancelGeneration = useCallback(() => {
@@ -1697,8 +1714,8 @@ export const AIImageWorkbench = ({
     }
 
     await copyTextToSystemClipboard(selectedAIMetadata.prompt);
-    excalidrawAPI?.setToast({ message: "Prompt copied." });
-  }, [excalidrawAPI, selectedAIMetadata]);
+    excalidrawAPI?.setToast({ message: t("ai.common.promptCopied") });
+  }, [excalidrawAPI, selectedAIMetadata, t]);
 
   const copyCurrentPrompt = useCallback(async () => {
     if (!copyPromptActionState.canCopy) {
@@ -1706,19 +1723,19 @@ export const AIImageWorkbench = ({
     }
 
     await copyTextToSystemClipboard(copyPromptActionState.prompt);
-    excalidrawAPI?.setToast({ message: "Prompt copied." });
-    setStatusMessage("Prompt copied.");
+    excalidrawAPI?.setToast({ message: t("ai.common.promptCopied") });
+    setStatusMessage(t("ai.common.promptCopied"));
     setErrorMessage("");
-  }, [copyPromptActionState, excalidrawAPI]);
+  }, [copyPromptActionState, excalidrawAPI, t]);
   const sendCurrentPromptToAssistant = useCallback(() => {
     if (!onSendPromptToAssistant || !sendPromptToAssistantActionState.canSend) {
       return;
     }
 
     onSendPromptToAssistant(sendPromptToAssistantActionState.prompt);
-    setStatusMessage("Prompt sent to AI Assistant.");
+    setStatusMessage(t("ai.workbench.promptSentToAssistant"));
     setErrorMessage("");
-  }, [onSendPromptToAssistant, sendPromptToAssistantActionState]);
+  }, [onSendPromptToAssistant, sendPromptToAssistantActionState, t]);
 
   const loadSelectedMetadata = useCallback(() => {
     if (!selectedAIMetadata) {
@@ -1727,9 +1744,9 @@ export const AIImageWorkbench = ({
 
     loadMetadataIntoWorkbench(
       selectedAIMetadata,
-      "Selected image parameters loaded.",
+      t("ai.workbench.selectedImageParamsLoaded"),
     );
-  }, [loadMetadataIntoWorkbench, selectedAIMetadata]);
+  }, [loadMetadataIntoWorkbench, selectedAIMetadata, t]);
 
   const regenerateSelectedImage = useCallback(() => {
     if (!selectedAIMetadata) {
@@ -1751,19 +1768,19 @@ export const AIImageWorkbench = ({
   const copyGeneratedAssetPrompt = useCallback(
     async (asset: GeneratedAsset) => {
       await copyTextToSystemClipboard(asset.metadata.prompt);
-      excalidrawAPI?.setToast({ message: "Prompt copied." });
+      excalidrawAPI?.setToast({ message: t("ai.common.promptCopied") });
     },
-    [excalidrawAPI],
+    [excalidrawAPI, t],
   );
 
   const loadGeneratedAssetMetadata = useCallback(
     (asset: GeneratedAsset) => {
       loadMetadataIntoWorkbench(
         asset.metadata,
-        "Generated asset parameters loaded.",
+        t("ai.sidebar.generationSettingsLoaded"),
       );
     },
-    [loadMetadataIntoWorkbench],
+    [loadMetadataIntoWorkbench, t],
   );
 
   const insertGeneratedAssetCopy = useCallback(
@@ -1782,7 +1799,7 @@ export const AIImageWorkbench = ({
           },
           index: asset.index,
         });
-        setStatusMessage("Generated asset copy inserted.");
+        setStatusMessage(t("ai.workbench.copyInserted"));
         setErrorMessage("");
         setRunStatus("inserted");
       } catch (error: any) {
@@ -1800,7 +1817,7 @@ export const AIImageWorkbench = ({
     const sourceBase = createGeneratedAssetReferenceSource(asset, createdAt);
 
     if (!sourceBase) {
-      setErrorMessage("This generated result is a remote image URL.");
+      setErrorMessage(t("ai.workbench.remoteImageUrl"));
       setStatusMessage("");
       return;
     }
@@ -1815,7 +1832,7 @@ export const AIImageWorkbench = ({
         },
       ]),
     );
-    setStatusMessage("Generated asset added to references.");
+    setStatusMessage(t("ai.workbench.assetAddedToReferences"));
     setErrorMessage("");
   }, []);
 
@@ -1993,7 +2010,7 @@ export const AIImageWorkbench = ({
       disabled={!copyPromptActionState.canCopy}
       onClick={copyCurrentPrompt}
     >
-      Copy prompt
+      {t("ai.common.copyPrompt")}
     </button>
   );
 
@@ -2006,7 +2023,7 @@ export const AIImageWorkbench = ({
       }
       onClick={sendCurrentPromptToAssistant}
     >
-      Send to assistant
+      {t("ai.workbench.sendToAssistant")}
     </button>
   );
 
@@ -2024,7 +2041,7 @@ export const AIImageWorkbench = ({
   const renderPromptEditor = () => (
     <div className="AIImageWorkbench__promptBlock">
       <label className="AIImageWorkbench__field">
-        <span>Prompt</span>
+        <span>{t("ai.common.prompt")}</span>
         <textarea
           ref={promptInputRef}
           className={
@@ -2040,7 +2057,7 @@ export const AIImageWorkbench = ({
           }}
           onClick={(event) => updateReferencePicker(event.currentTarget)}
           onKeyDown={handlePromptKeyDown}
-          placeholder="Describe the image"
+          placeholder={t("ai.workbench.describeImage")}
         />
       </label>
 
@@ -2050,7 +2067,7 @@ export const AIImageWorkbench = ({
           className="AIImageWorkbench__secondaryButton"
           onClick={() => setIsTemplateMenuOpen((current) => !current)}
         >
-          Templates
+          {t("ai.workbench.templates")}
         </button>
         <div className="AIImageWorkbench__promptActions">
           {renderSendPromptToAssistantButton()}
@@ -2060,7 +2077,7 @@ export const AIImageWorkbench = ({
             className="AIImageWorkbench__textButton"
             onClick={openTemplateSettings}
           >
-            Manage
+            {t("ai.common.manage")}
           </button>
         </div>
       </div>
@@ -2069,10 +2086,10 @@ export const AIImageWorkbench = ({
         <div className="AIImageWorkbench__templateMenu">
           {promptTemplates.length === 0 && (
             <div className="AIImageWorkbench__emptyState">
-              No templates for this mode.
+              {t("ai.workbench.noTemplates")}
             </div>
           )}
-          {groupPromptTemplates(promptTemplates).map((group) => (
+          {groupPromptTemplates(promptTemplates, t).map((group) => (
             <div className="AIImageWorkbench__templateGroup" key={group.label}>
               <div className="AIImageWorkbench__templateGroupLabel">
                 {group.label}
@@ -2085,7 +2102,11 @@ export const AIImageWorkbench = ({
                   onClick={() => insertPromptTemplate(template)}
                 >
                   <span>{template.label}</span>
-                  <small>{template.category || "custom"}</small>
+                  <small>
+                    {template.category
+                      ? getPromptTemplateCategoryLabel(template.category, t)
+                      : t("ai.common.custom")}
+                  </small>
                 </button>
               ))}
             </div>
@@ -2095,7 +2116,7 @@ export const AIImageWorkbench = ({
             className="AIImageWorkbench__templateItem"
             onClick={openTemplateSettings}
           >
-            <span>Manage templates...</span>
+            <span>{t("ai.workbench.manageTemplates")}</span>
           </button>
         </div>
       )}
@@ -2103,7 +2124,7 @@ export const AIImageWorkbench = ({
       {referencePickerState.isOpen && (
         <div className="AIImageWorkbench__referencePicker">
           <div className="AIImageWorkbench__templateGroupLabel">
-            Insert reference
+            {t("ai.workbench.insertReference")}
           </div>
           {selectedSources.map((source, index) => (
             <button
@@ -2124,7 +2145,7 @@ export const AIImageWorkbench = ({
             >
               <strong>#{source.index}</strong>
               <img src={source.dataURL} alt="" />
-              <span>{SOURCE_TYPE_LABELS[source.sourceType]}</span>
+              <span>{getSourceTypeLabel(source.sourceType, t)}</span>
             </button>
           ))}
         </div>
@@ -2150,33 +2171,39 @@ export const AIImageWorkbench = ({
     return (
       <div className="AIImageWorkbench__referencePanel">
         <div className="AIImageWorkbench__referenceHeader">
-          <span>Reference Images ({selectedSources.length})</span>
+          <span>
+            {t("ai.workbench.referenceImages", {
+              count: selectedSources.length,
+            })}
+          </span>
           <div className="AIImageWorkbench__referenceToolbar">
             <button type="button" onClick={toggleReferenceLock}>
-              {isReferenceLocked ? "Locked" : "Unlocked"}
+              {isReferenceLocked
+                ? t("ai.workbench.locked")
+                : t("ai.workbench.unlocked")}
             </button>
             {isReferenceLocked && (
               <button type="button" onClick={syncReferenceImagesFromSelection}>
-                Sync
+                {t("ai.workbench.sync")}
               </button>
             )}
             <button
               type="button"
-              aria-label="Add current selection to references"
-              title="Add current selection to references"
+              aria-label={t("ai.workbench.addCurrentSelection")}
+              title={t("ai.workbench.addCurrentSelection")}
               disabled={!selectedElementCount}
               onClick={addSelectionAsReference}
             >
-              Add selection
+              {t("ai.sidebar.addSelection")}
             </button>
             <button
               type="button"
-              aria-label="Clear references"
-              title="Clear references"
+              aria-label={t("ai.workbench.clearReferences")}
+              title={t("ai.workbench.clearReferences")}
               disabled={!selectedSources.length}
               onClick={clearReferenceImages}
             >
-              Clear refs
+              {t("ai.workbench.clearRefs")}
             </button>
             {selectedSources.length >= 3 && (
               <button
@@ -2186,7 +2213,7 @@ export const AIImageWorkbench = ({
                   setSelectedBatchIds(new Set());
                 }}
               >
-                {batchMode ? "Done" : "Batch"}
+                {batchMode ? t("ai.workbench.done") : t("ai.workbench.batch")}
               </button>
             )}
           </div>
@@ -2194,7 +2221,7 @@ export const AIImageWorkbench = ({
 
         {!selectedElementCount && selectedSources.length === 0 && (
           <div className="AIImageWorkbench__referenceHint">
-            Select elements on canvas first.
+            {t("ai.workbench.selectElementsFirst")}
           </div>
         )}
 
@@ -2207,8 +2234,8 @@ export const AIImageWorkbench = ({
               draggable={selectedSources.length > 1}
               title={
                 source.missingElement
-                  ? "Original element not found"
-                  : "Select original elements on canvas"
+                  ? t("ai.workbench.originalNotFound")
+                  : t("ai.workbench.selectOriginalElements")
               }
               className={[
                 "AIImageWorkbench__referenceCard",
@@ -2270,8 +2297,8 @@ export const AIImageWorkbench = ({
               <button
                 type="button"
                 className="AIImageWorkbench__referenceRemoveButton"
-                aria-label={`Remove reference #${source.index}`}
-                title="Remove reference"
+                aria-label={t("ai.workbench.removeReference")}
+                title={t("ai.workbench.removeReference")}
                 onClick={(event) => {
                   event.stopPropagation();
                   removeReferenceImage(source.createdAt);
@@ -2283,7 +2310,7 @@ export const AIImageWorkbench = ({
               {source.weight != null && (
                 <span
                   className="AIImageWorkbench__referenceWeightBadge"
-                  title="Custom weight"
+                  title={t("ai.workbench.customWeight")}
                 >
                   W
                 </span>
@@ -2292,11 +2319,13 @@ export const AIImageWorkbench = ({
               <img
                 className="AIImageWorkbench__referenceThumb"
                 src={source.dataURL}
-                alt={`Reference #${source.index}`}
+                alt={t("ai.workbench.referenceAlt", {
+                  index: source.index,
+                })}
               />
 
               <div className="AIImageWorkbench__referenceMeta">
-                <span>{SOURCE_TYPE_LABELS[source.sourceType]}</span>
+                <span>{getSourceTypeLabel(source.sourceType, t)}</span>
                 <span>
                   {(source.weight ?? params.referenceStrength ?? 0.6).toFixed(
                     2,
@@ -2312,7 +2341,7 @@ export const AIImageWorkbench = ({
                     openWeightEditor(source);
                   }}
                 >
-                  Weight
+                  {t("ai.workbench.weight")}
                 </button>
               </div>
             </div>
@@ -2321,7 +2350,7 @@ export const AIImageWorkbench = ({
 
         {selectedSources.length > 0 && (
           <div className="AIImageWorkbench__referenceHint">
-            Use #1, #2, #3 in the prompt to refer to images.
+            {t("ai.workbench.referencePromptHint")}
           </div>
         )}
 
@@ -2329,18 +2358,22 @@ export const AIImageWorkbench = ({
           <div className="AIImageWorkbench__batchPanel">
             <div className="AIImageWorkbench__referenceToolbar">
               <button type="button" onClick={selectAllBatchReferences}>
-                Select all
+                {t("ai.workbench.selectAll")}
               </button>
               <button
                 type="button"
                 disabled={!selectedBatchIds.size}
                 onClick={deleteSelectedBatchReferences}
               >
-                Delete selected
+                {t("ai.workbench.deleteSelected")}
               </button>
             </div>
             <label className="AIImageWorkbench__field">
-              <span>Batch weight ({selectedBatchIds.size})</span>
+              <span>
+                {t("ai.workbench.batchWeight", {
+                  count: selectedBatchIds.size,
+                })}
+              </span>
               <input
                 min={0}
                 max={1}
@@ -2358,7 +2391,7 @@ export const AIImageWorkbench = ({
               disabled={!selectedBatchIds.size}
               onClick={applyBatchWeight}
             >
-              Apply to selected
+              {t("ai.workbench.applyToSelected")}
             </button>
           </div>
         )}
@@ -2366,13 +2399,17 @@ export const AIImageWorkbench = ({
         {weightEditorSource && (
           <div className="AIImageWorkbench__weightPanel">
             <div className="AIImageWorkbench__referenceHeader">
-              <span>Reference #{weightEditorSource.index} weight</span>
+              <span>
+                {t("ai.workbench.referenceWeight", {
+                  index: weightEditorSource.index,
+                })}
+              </span>
               <button
                 type="button"
                 className="AIImageWorkbench__textButton"
                 onClick={() => setWeightEditorId(null)}
               >
-                Close
+                {t("ai.common.close")}
               </button>
             </div>
             <label className="AIImageWorkbench__field">
@@ -2388,7 +2425,7 @@ export const AIImageWorkbench = ({
             </label>
             <div className="AIImageWorkbench__referenceToolbar">
               <button type="button" onClick={applyWeightEditor}>
-                Apply
+                {t("ai.common.apply")}
               </button>
               <button
                 type="button"
@@ -2397,7 +2434,7 @@ export const AIImageWorkbench = ({
                   setWeightEditorId(null);
                 }}
               >
-                Use global
+                {t("ai.workbench.useGlobal")}
               </button>
             </div>
           </div>
@@ -2409,15 +2446,15 @@ export const AIImageWorkbench = ({
             className="AIImageWorkbench__textButton"
             onClick={resetAllReferenceWeights}
           >
-            Reset all weights
+            {t("ai.workbench.resetAllWeights")}
           </button>
         )}
 
         <details className="AIImageWorkbench__advanced">
-          <summary>Export options</summary>
+          <summary>{t("ai.workbench.exportOptions")}</summary>
           <div className="AIImageWorkbench__grid">
             <label className="AIImageWorkbench__field">
-              <span>Background</span>
+              <span>{t("ai.workbench.background")}</span>
               <select
                 value={referenceExportOptions.background}
                 onChange={(event) =>
@@ -2428,14 +2465,16 @@ export const AIImageWorkbench = ({
                   }))
                 }
               >
-                <option value="transparent">Transparent</option>
-                <option value="white">White</option>
-                <option value="canvas">Canvas</option>
+                <option value="transparent">
+                  {t("ai.workbench.transparent")}
+                </option>
+                <option value="white">{t("ai.workbench.white")}</option>
+                <option value="canvas">{t("ai.workbench.canvas")}</option>
               </select>
             </label>
 
             <label className="AIImageWorkbench__field">
-              <span>Padding</span>
+              <span>{t("ai.workbench.padding")}</span>
               <select
                 value={referenceExportOptions.padding}
                 onChange={(event) =>
@@ -2447,13 +2486,13 @@ export const AIImageWorkbench = ({
                 }
               >
                 <option value="padded">16px</option>
-                <option value="tight">Tight</option>
+                <option value="tight">{t("ai.workbench.tight")}</option>
               </select>
             </label>
           </div>
 
           <label className="AIImageWorkbench__field">
-            <span>Max size</span>
+            <span>{t("ai.workbench.maxSize")}</span>
             <select
               value={referenceExportOptions.maxSize}
               onChange={(event) =>
@@ -2464,7 +2503,7 @@ export const AIImageWorkbench = ({
                 }))
               }
             >
-              <option value="auto">Auto</option>
+              <option value="auto">{t("ai.workbench.auto")}</option>
               <option value="1024">1024px</option>
               <option value="2048">2048px</option>
             </select>
@@ -2497,6 +2536,7 @@ export const AIImageWorkbench = ({
     selectedSources,
     selectAllBatchReferences,
     syncReferenceImagesFromSelection,
+    t,
     toggleBatchSelection,
     toggleReferenceLock,
     weightDraft,
@@ -2511,15 +2551,15 @@ export const AIImageWorkbench = ({
     return (
       <div className="AIImageWorkbench__section">
         <div className="AIImageWorkbench__sectionHeader">
-          <h3>Generated assets</h3>
+          <h3>{t("ai.workbench.generatedAssets")}</h3>
           <button
             type="button"
             className="AIImageWorkbench__textButton"
-            aria-label="Clear generated assets"
-            title="Clear generated assets"
+            aria-label={t("ai.workbench.clearGeneratedAssets")}
+            title={t("ai.workbench.clearGeneratedAssets")}
             onClick={clearGeneratedAssets}
           >
-            Clear
+            {t("ai.common.clear")}
           </button>
         </div>
 
@@ -2533,7 +2573,9 @@ export const AIImageWorkbench = ({
                 <div className="AIImageWorkbench__assetPreview">
                   <img
                     src={asset.output.dataURL}
-                    alt={`Generated asset #${asset.index + 1}`}
+                    alt={t("ai.workbench.assetActions.assetLabel", {
+                      index: asset.index + 1,
+                    })}
                   />
                   <span className="AIImageWorkbench__assetBadge">
                     #{asset.index + 1}
@@ -2553,7 +2595,7 @@ export const AIImageWorkbench = ({
                     className="AIImageWorkbench__assetRevision"
                     title={asset.output.revisedPrompt}
                   >
-                    Revised: {asset.output.revisedPrompt}
+                    {t("ai.workbench.revised")} {asset.output.revisedPrompt}
                   </div>
                 )}
 
@@ -2564,7 +2606,7 @@ export const AIImageWorkbench = ({
                     title={actionLabels.insert}
                     onClick={() => insertGeneratedAssetCopy(asset)}
                   >
-                    Insert
+                    {t("ai.workbench.insert")}
                   </button>
                   <button
                     type="button"
@@ -2573,11 +2615,11 @@ export const AIImageWorkbench = ({
                     title={
                       canUseAsReference
                         ? actionLabels.useAsReference
-                        : "Remote URL cannot be used as a reference"
+                        : t("ai.workbench.remoteUrlCannotReference")
                     }
                     onClick={() => addGeneratedAssetAsReference(asset)}
                   >
-                    Use ref
+                    {t("ai.workbench.useRef")}
                   </button>
                   <button
                     type="button"
@@ -2585,7 +2627,7 @@ export const AIImageWorkbench = ({
                     title={actionLabels.reuseSettings}
                     onClick={() => loadGeneratedAssetMetadata(asset)}
                   >
-                    Reuse settings
+                    {t("ai.workbench.reuseSettings")}
                   </button>
                   <button
                     type="button"
@@ -2593,23 +2635,23 @@ export const AIImageWorkbench = ({
                     title={actionLabels.copyPrompt}
                     onClick={() => copyGeneratedAssetPrompt(asset)}
                   >
-                    Copy prompt
+                    {t("ai.common.copyPrompt")}
                   </button>
                 </div>
 
                 <details className="AIImageWorkbench__assetDetails">
-                  <summary>Details</summary>
+                  <summary>{t("ai.workbench.details")}</summary>
                   <dl>
                     <div>
-                      <dt>Model</dt>
+                      <dt>{t("ai.common.model")}</dt>
                       <dd>{asset.metadata.model}</dd>
                     </div>
                     <div>
-                      <dt>Size</dt>
+                      <dt>{t("ai.workbench.size")}</dt>
                       <dd>{asset.metadata.params.size}</dd>
                     </div>
                     <div>
-                      <dt>Prompt</dt>
+                      <dt>{t("ai.common.prompt")}</dt>
                       <dd>{asset.metadata.prompt}</dd>
                     </div>
                   </dl>
@@ -2627,6 +2669,7 @@ export const AIImageWorkbench = ({
     generatedAssets,
     insertGeneratedAssetCopy,
     loadGeneratedAssetMetadata,
+    t,
   ]);
 
   const referenceImagesPanel = useMemo(
@@ -2640,7 +2683,7 @@ export const AIImageWorkbench = ({
 
   const renderModelSelect = (disabled = false) => (
     <label className="AIImageWorkbench__field">
-      <span>Model ID</span>
+      <span>{t("ai.workbench.modelId")}</span>
       <select
         value={selectedModelId}
         disabled={disabled}
@@ -2648,8 +2691,10 @@ export const AIImageWorkbench = ({
       >
         <option value="">
           {modelsForMediaType.length
-            ? "Select model"
-            : `No ${mediaType} models`}
+            ? t("ai.workbench.selectModel")
+            : t("ai.workbench.noMediaModels", {
+                mediaType: getMediaTypeLabel(mediaType, t),
+              })}
         </option>
         {modelsForMediaType.map((model) => (
           <option key={model.id} value={model.id}>
@@ -2681,7 +2726,7 @@ export const AIImageWorkbench = ({
             }
             onClick={() => setMode(option.value)}
           >
-            {option.label}
+            {t(option.labelKey)}
           </button>
         ))}
       </div>
@@ -2689,7 +2734,7 @@ export const AIImageWorkbench = ({
       {renderPromptEditor()}
 
       <label className="AIImageWorkbench__field">
-        <span>Negative prompt</span>
+        <span>{t("ai.common.negativePrompt")}</span>
         <textarea
           value={negativePrompt}
           rows={2}
@@ -2705,7 +2750,7 @@ export const AIImageWorkbench = ({
 
       <div className="AIImageWorkbench__grid">
         <label className="AIImageWorkbench__field">
-          <span>Aspect ratio</span>
+          <span>{t("ai.workbench.aspectRatio")}</span>
           <select
             value={params.aspectRatio || "auto"}
             onChange={(event) =>
@@ -2721,7 +2766,7 @@ export const AIImageWorkbench = ({
         </label>
 
         <label className="AIImageWorkbench__field">
-          <span>Resolution</span>
+          <span>{t("ai.workbench.resolution")}</span>
           <select
             value={params.resolution || "auto"}
             onChange={(event) =>
@@ -2739,7 +2784,7 @@ export const AIImageWorkbench = ({
 
       <div className="AIImageWorkbench__grid">
         <label className="AIImageWorkbench__field">
-          <span>Count</span>
+          <span>{t("ai.workbench.count")}</span>
           <input
             min={1}
             max={MAX_IMAGE_COUNT}
@@ -2754,7 +2799,7 @@ export const AIImageWorkbench = ({
         </label>
 
         <label className="AIImageWorkbench__field">
-          <span>Seed</span>
+          <span>{t("ai.workbench.seed")}</span>
           <input
             type="number"
             disabled={
@@ -2772,7 +2817,7 @@ export const AIImageWorkbench = ({
 
       <div className="AIImageWorkbench__grid">
         <label className="AIImageWorkbench__field">
-          <span>Quality</span>
+          <span>{t("ai.workbench.quality")}</span>
           <select
             value={params.quality || ""}
             disabled={
@@ -2781,16 +2826,16 @@ export const AIImageWorkbench = ({
             onChange={(event) => updateParams({ quality: event.target.value })}
           >
             <option value="auto">AUTO</option>
-            <option value="standard">Standard</option>
+            <option value="standard">{t("ai.workbench.standard")}</option>
             <option value="hd">HD</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
+            <option value="low">{t("ai.workbench.low")}</option>
+            <option value="medium">{t("ai.workbench.medium")}</option>
+            <option value="high">{t("ai.workbench.high")}</option>
           </select>
         </label>
 
         <label className="AIImageWorkbench__field">
-          <span>Style</span>
+          <span>{t("ai.workbench.style")}</span>
           <input
             type="text"
             disabled={
@@ -2806,17 +2851,19 @@ export const AIImageWorkbench = ({
 
       {requiresReference &&
         selectedSources.length === 0 &&
-        renderNotice("Add at least one reference image.")}
+        renderNotice(t("ai.workbench.addReferenceImage"))}
 
       {requiresMask &&
         currentSelectedImageSources.length > 1 &&
-        renderNotice("Select exactly one image before editing a mask.")}
+        renderNotice(t("ai.workbench.selectOneImageBeforeMask"))}
 
       {requiresMask && (
         <div className="AIImageWorkbench__maskControls">
           {currentMask && (
             <div className="AIImageWorkbench__maskStatus">
-              <span>Mask: {currentMask.file.name}</span>
+              <span>
+                {t("ai.workbench.mask", { name: currentMask.file.name })}
+              </span>
               <button
                 type="button"
                 onClick={() => {
@@ -2825,7 +2872,7 @@ export const AIImageWorkbench = ({
                   }
                 }}
               >
-                Clear mask
+                {t("ai.workbench.clearMask")}
               </button>
             </div>
           )}
@@ -2850,7 +2897,7 @@ export const AIImageWorkbench = ({
 
       {requiresReference && (
         <label className="AIImageWorkbench__field">
-          <span>Reference strength</span>
+          <span>{t("ai.workbench.referenceStrength")}</span>
           <input
             min={0}
             max={1}
@@ -2877,7 +2924,9 @@ export const AIImageWorkbench = ({
         disabled={!canGenerate}
         onSelect={() => generate()}
       >
-        {isGenerating ? "Generating..." : "Generate image"}
+        {isGenerating
+          ? t("ai.workbench.generating")
+          : t("ai.workbench.generateImage")}
       </Button>
     </>
   );
@@ -2885,13 +2934,13 @@ export const AIImageWorkbench = ({
   const renderVideoParameters = () => (
     <>
       <label className="AIImageWorkbench__field">
-        <span>Prompt</span>
+        <span>{t("ai.common.prompt")}</span>
         <textarea
           value={prompt}
           rows={4}
           disabled
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="Video preview only"
+          placeholder={t("ai.workbench.videoPreviewOnly")}
         />
       </label>
 
@@ -2904,7 +2953,7 @@ export const AIImageWorkbench = ({
         {renderModelSelect(true)}
 
         <label className="AIImageWorkbench__field">
-          <span>Aspect ratio</span>
+          <span>{t("ai.workbench.aspectRatio")}</span>
           <select
             value={params.aspectRatio || "16:9"}
             disabled
@@ -2920,7 +2969,7 @@ export const AIImageWorkbench = ({
         </label>
 
         <label className="AIImageWorkbench__field">
-          <span>Duration</span>
+          <span>{t("ai.workbench.duration")}</span>
           <input
             min={1}
             max={30}
@@ -2936,7 +2985,7 @@ export const AIImageWorkbench = ({
         </label>
 
         <label className="AIImageWorkbench__field">
-          <span>Resolution</span>
+          <span>{t("ai.workbench.resolution")}</span>
           <select
             value={
               ["720p", "1080p", "4k"].includes(params.resolution || "")
@@ -2972,14 +3021,14 @@ export const AIImageWorkbench = ({
       </div>
 
       {renderConfigurationNotice()}
-      {renderNotice("Video controls are preview-only in this phase.")}
+      {renderNotice(t("ai.workbench.videoControlsPreviewOnly"))}
 
       <Button
         className="AIImageWorkbench__primaryButton"
         disabled
         onSelect={() => null}
       >
-        Video preview only
+        {t("ai.workbench.videoPreviewOnly")}
       </Button>
     </>
   );
@@ -2987,13 +3036,13 @@ export const AIImageWorkbench = ({
   const renderAudioParameters = () => (
     <>
       <label className="AIImageWorkbench__field">
-        <span>Prompt</span>
+        <span>{t("ai.common.prompt")}</span>
         <textarea
           value={prompt}
           rows={4}
           disabled
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="Audio preview only"
+          placeholder={t("ai.workbench.audioPreviewOnly")}
         />
       </label>
 
@@ -3006,7 +3055,7 @@ export const AIImageWorkbench = ({
         {renderModelSelect(true)}
 
         <label className="AIImageWorkbench__field">
-          <span>Duration</span>
+          <span>{t("ai.workbench.duration")}</span>
           <input
             min={1}
             max={300}
@@ -3022,7 +3071,7 @@ export const AIImageWorkbench = ({
         </label>
 
         <label className="AIImageWorkbench__field">
-          <span>Format</span>
+          <span>{t("ai.workbench.format")}</span>
           <select
             value={params.audioFormat || "mp3"}
             disabled
@@ -3037,7 +3086,7 @@ export const AIImageWorkbench = ({
         </label>
 
         <label className="AIImageWorkbench__field">
-          <span>Voice</span>
+          <span>{t("ai.workbench.voice")}</span>
           <input
             type="text"
             disabled
@@ -3048,14 +3097,14 @@ export const AIImageWorkbench = ({
       </div>
 
       {renderConfigurationNotice()}
-      {renderNotice("Audio controls are preview-only in this phase.")}
+      {renderNotice(t("ai.workbench.audioControlsPreviewOnly"))}
 
       <Button
         className="AIImageWorkbench__primaryButton"
         disabled
         onSelect={() => null}
       >
-        Audio preview only
+        {t("ai.workbench.audioPreviewOnly")}
       </Button>
     </>
   );
@@ -3064,14 +3113,14 @@ export const AIImageWorkbench = ({
     <div className="AIImageWorkbench">
       <div className="AIImageWorkbench__section">
         <div className="AIImageWorkbench__sectionHeader">
-          <h3>Create</h3>
+          <h3>{t("ai.workbench.title")}</h3>
           {isGenerating && (
             <button
               className="AIImageWorkbench__textButton"
               type="button"
               onClick={cancelGeneration}
             >
-              Cancel
+              {t("ai.common.cancel")}
             </button>
           )}
         </div>
@@ -3099,7 +3148,7 @@ export const AIImageWorkbench = ({
               }
               onClick={() => setMediaType(option.value)}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
@@ -3114,35 +3163,35 @@ export const AIImageWorkbench = ({
       {selectedAIMetadata && (
         <div className="AIImageWorkbench__section">
           <div className="AIImageWorkbench__sectionHeader">
-            <h3>Selected AI image</h3>
+            <h3>{t("ai.workbench.selectedAIImage")}</h3>
           </div>
           <dl className="AIImageWorkbench__metadata">
             <div>
-              <dt>Mode</dt>
+              <dt>{t("ai.common.mode")}</dt>
               <dd>{selectedAIMetadata.mode}</dd>
             </div>
             <div>
-              <dt>Model ID</dt>
+              <dt>{t("ai.workbench.modelId")}</dt>
               <dd>{selectedAIMetadata.model}</dd>
             </div>
             <div>
-              <dt>Prompt</dt>
+              <dt>{t("ai.common.prompt")}</dt>
               <dd>{selectedAIMetadata.prompt}</dd>
             </div>
           </dl>
           <div className="AIImageWorkbench__actions">
             <button type="button" onClick={copySelectedPrompt}>
-              Copy prompt
+              {t("ai.common.copyPrompt")}
             </button>
             <button type="button" onClick={loadSelectedMetadata}>
-              Load params
+              {t("ai.workbench.loadParams")}
             </button>
             <button
               type="button"
               onClick={regenerateSelectedImage}
               disabled={isGenerating}
             >
-              Regenerate
+              {t("ai.workbench.regenerate")}
             </button>
           </div>
         </div>
@@ -3245,12 +3294,47 @@ const renderNotice = (
   );
 };
 
-const SOURCE_TYPE_LABELS: Record<AIImageSourceEnhanced["sourceType"], string> =
-  {
-    imported: "Imported",
-    canvas: "Canvas",
-    mixed: "Mixed",
-  };
+const getSourceTypeLabel = (
+  sourceType: AIImageSourceEnhanced["sourceType"],
+  t: ReturnType<typeof useI18n>["t"],
+) => {
+  if (sourceType === "canvas") {
+    return t("ai.workbench.sourceType.canvas");
+  }
+  if (sourceType === "mixed") {
+    return t("ai.workbench.sourceType.mixed");
+  }
+  return t("ai.workbench.sourceType.imported");
+};
+
+const getPromptTemplateCategoryLabel = (
+  category: PromptTemplateCategory,
+  t: ReturnType<typeof useI18n>["t"],
+) => {
+  if (category === "composition") {
+    return t("ai.settings.options.composition");
+  }
+  if (category === "style") {
+    return t("ai.settings.options.style");
+  }
+  if (category === "editing") {
+    return t("ai.settings.options.editing");
+  }
+  return t("ai.settings.options.custom");
+};
+
+const getMediaTypeLabel = (
+  mediaType: AIModelMediaType,
+  t: ReturnType<typeof useI18n>["t"],
+) => {
+  if (mediaType === "video") {
+    return t("ai.common.video");
+  }
+  if (mediaType === "audio") {
+    return t("ai.common.audio");
+  }
+  return t("ai.common.image");
+};
 
 const createGeneratedAssetId = (index: number) => {
   return `generated-asset-${Date.now()}-${index}-${Math.random()
@@ -3271,12 +3355,15 @@ const formatGeneratedAssetTime = (createdAt: string) => {
   });
 };
 
-const groupPromptTemplates = (templates: readonly PromptTemplate[]) => {
+const groupPromptTemplates = (
+  templates: readonly PromptTemplate[],
+  t: ReturnType<typeof useI18n>["t"],
+) => {
   const groups: Array<{ label: string; templates: PromptTemplate[] }> = [];
   const labels: Record<NonNullable<PromptTemplate["language"]>, string> = {
-    en: "English",
-    zh: "中文",
-    multi: "Multilingual",
+    en: t("ai.common.english"),
+    zh: t("ai.common.chinese"),
+    multi: t("ai.common.multilingual"),
   };
 
   for (const language of ["en", "zh", "multi"] as const) {
@@ -3297,7 +3384,7 @@ const groupPromptTemplates = (templates: readonly PromptTemplate[]) => {
 
   if (customTemplates.length) {
     groups.push({
-      label: "Custom",
+      label: t("ai.workbench.templateGroups.custom"),
       templates: customTemplates,
     });
   }

@@ -113,9 +113,9 @@ export const AppMainMenu: React.FC<{
               onSelect={() => {
                 setInitialAISettingsTab("models");
                 setIsAISettingsOpen(true);
-              }}
-            >
-              AI settings
+            }}
+          >
+              {t("ai.common.settings")}
             </MainMenu.Item>
           }
         />
@@ -132,7 +132,7 @@ export const AppMainMenu: React.FC<{
       {isAISettingsOpen && (
         <Dialog
           className="AISettingsDialog"
-          title="AI settings"
+          title={t("ai.common.settings")}
           size="wide"
           onCloseRequest={() => setIsAISettingsOpen(false)}
         >

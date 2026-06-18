@@ -1,3 +1,5 @@
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import { dataURLToFile } from "../ai/imageCanvas";
 
 import type {
@@ -53,12 +55,12 @@ export const isLocalImageDataURL = (value: string) => {
 
 export const getGeneratedAssetModeLabel = (mode: AIImageGenerationMode) => {
   if (mode === "text-to-image") {
-    return "Text to image";
+    return t("ai.settings.options.textToImage");
   }
   if (mode === "image-to-image") {
-    return "Reference";
+    return t("ai.common.reference");
   }
-  return "Inpaint";
+  return t("ai.common.inpaint");
 };
 
 export const getGeneratedAssetReferenceFileName = (
@@ -73,13 +75,21 @@ export const getGeneratedAssetReferenceFileName = (
 export const getGeneratedAssetActionLabels = (
   asset: Pick<GeneratedAsset, "index">,
 ) => {
-  const assetLabel = `generated asset #${asset.index + 1}`;
+  const assetLabel = t("ai.workbench.assetActions.assetLabel", {
+    index: asset.index + 1,
+  });
 
   return {
-    insert: `Insert ${assetLabel} into canvas`,
-    useAsReference: `Use ${assetLabel} as reference`,
-    reuseSettings: `Reuse generation settings from ${assetLabel}`,
-    copyPrompt: `Copy prompt from ${assetLabel}`,
+    insert: t("ai.workbench.assetActions.insert", { asset: assetLabel }),
+    useAsReference: t("ai.workbench.assetActions.useAsReference", {
+      asset: assetLabel,
+    }),
+    reuseSettings: t("ai.workbench.assetActions.reuseSettings", {
+      asset: assetLabel,
+    }),
+    copyPrompt: t("ai.workbench.assetActions.copyPrompt", {
+      asset: assetLabel,
+    }),
   };
 };
 

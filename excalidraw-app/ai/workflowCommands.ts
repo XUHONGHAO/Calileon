@@ -10,6 +10,7 @@ import {
   share,
   usersIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { t } from "@excalidraw/excalidraw/i18n";
 import { getSelectedElements } from "@excalidraw/element";
 
 import type { CommandPaletteItem } from "@excalidraw/excalidraw/components/CommandPalette/types";
@@ -74,8 +75,8 @@ export const createCoreAIWorkflowCommands = (
 
   return [
     {
-      label: "AI: Create",
-      category: "AI",
+      label: t("ai.commands.create"),
+      category: t("ai.commands.categoryAI"),
       order: 0,
       keywords: [
         "ai",
@@ -93,8 +94,8 @@ export const createCoreAIWorkflowCommands = (
       },
     },
     {
-      label: "AI: Add selection as reference",
-      category: "AI",
+      label: t("ai.commands.addSelectionAsReference"),
+      category: t("ai.commands.categoryAI"),
       order: 0,
       keywords: ["ai", "reference", "selection", "canvas", "context", "image"],
       icon: MagicIcon,
@@ -105,8 +106,8 @@ export const createCoreAIWorkflowCommands = (
       },
     },
     {
-      label: "AI: Assistant",
-      category: "AI",
+      label: t("ai.commands.assistant"),
+      category: t("ai.commands.categoryAI"),
       order: 0,
       keywords: ["ai", "assistant", "agent", "skills", "chat"],
       icon: brainIcon,
@@ -115,8 +116,8 @@ export const createCoreAIWorkflowCommands = (
       },
     },
     {
-      label: "AI: Generation history",
-      category: "AI",
+      label: t("ai.commands.generationHistory"),
+      category: t("ai.commands.categoryAI"),
       order: 0,
       keywords: ["ai", "history", "logs", "recent", "reuse", "retry"],
       icon: clipboard,
@@ -137,8 +138,8 @@ export const createAIPromptTemplateCommands = ({
   onApplyPromptTemplate?: (template: PromptTemplate) => void;
 }): CommandPaletteItem[] =>
   templates.map((template) => ({
-    label: `Template: ${template.label}`,
-    category: "AI Templates",
+    label: t("ai.commands.template", { label: template.label }),
+    category: t("ai.commands.categoryTemplates"),
     order: 1,
     keywords: [
       "ai",
@@ -170,8 +171,8 @@ export const createAISkillCommands = ({
   onApplySkill?: (skill: AISkill) => void;
 }): CommandPaletteItem[] =>
   skills.map((skill) => ({
-    label: `Skill: ${skill.name}`,
-    category: "AI Skills",
+    label: t("ai.commands.skill", { name: skill.name }),
+    category: t("ai.commands.categorySkills"),
     order: 1,
     keywords: [
       "ai",
@@ -204,8 +205,10 @@ export const createAIGenerationLogCommands = ({
   onReuseGenerationLog?: (log: AIGenerationLogEntry) => void;
 }): CommandPaletteItem[] =>
   logs.slice(0, 8).map((log) => ({
-    label: `Reuse: ${formatGenerationLogCommandLabel(log)}`,
-    category: "AI History",
+    label: t("ai.commands.reuse", {
+      label: formatGenerationLogCommandLabel(log),
+    }),
+    category: t("ai.commands.categoryHistory"),
     order: 2,
     keywords: [
       "ai",
@@ -233,22 +236,22 @@ export const createAIGenerationLogCommands = ({
   }));
 
 const AI_SETTINGS_COMMAND_ENTRIES: Array<{
-  label: string;
+  label: Parameters<typeof t>[0];
   keywords: string[];
   tab: AISettingsTab;
 }> = [
   {
-    label: "AI Settings: Models",
+    label: "ai.commands.settingsModels",
     keywords: ["ai", "settings", "models", "providers", "endpoint"],
     tab: "models",
   },
   {
-    label: "AI Settings: Agents",
+    label: "ai.commands.settingsAgents",
     keywords: ["ai", "settings", "agents", "skills", "assistant"],
     tab: "agents",
   },
   {
-    label: "AI Settings: Prompt templates",
+    label: "ai.commands.settingsPromptTemplates",
     keywords: ["ai", "settings", "prompt", "templates"],
     tab: "templates",
   },
@@ -257,8 +260,8 @@ const AI_SETTINGS_COMMAND_ENTRIES: Array<{
 export const createAISettingsCommands = (): CommandPaletteItem[] =>
   AI_SETTINGS_COMMAND_ENTRIES.map(
     (entry): CommandPaletteItem => ({
-      label: entry.label,
-      category: "AI Settings",
+      label: t(entry.label),
+      category: t("ai.commands.categorySettings"),
       order: 3,
       keywords: entry.keywords,
       icon: settingsIcon,
@@ -290,8 +293,8 @@ export const createOfficeWorkflowCommands = (
   } = commandOptions;
   const commands: CommandPaletteItem[] = [
     {
-      label: "Office: Comments",
-      category: "Office",
+      label: t("ai.commands.officeComments"),
+      category: t("ai.commands.categoryOffice"),
       order: 4,
       keywords: ["comments", "review", "feedback", "team", "office"],
       icon: messageCircleIcon,
@@ -303,8 +306,8 @@ export const createOfficeWorkflowCommands = (
 
   if (onOpenCollaboration) {
     commands.push({
-      label: "Office: Live collaboration",
-      category: "Office",
+      label: t("ai.commands.officeLiveCollaboration"),
+      category: t("ai.commands.categoryOffice"),
       order: 4,
       keywords: [
         "collaboration",
@@ -323,8 +326,8 @@ export const createOfficeWorkflowCommands = (
 
   if (onOpenShare) {
     commands.push({
-      label: "Office: Share",
-      category: "Office",
+      label: t("ai.commands.officeShare"),
+      category: t("ai.commands.categoryOffice"),
       order: 4,
       keywords: [
         "share",
@@ -344,8 +347,8 @@ export const createOfficeWorkflowCommands = (
   }
 
   commands.push({
-    label: "Office: Presentation",
-    category: "Office",
+    label: t("ai.commands.officePresentation"),
+    category: t("ai.commands.categoryOffice"),
     order: 4,
     keywords: ["present", "presentation", "slides", "office"],
     icon: presentationIcon,

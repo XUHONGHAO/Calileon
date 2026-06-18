@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@excalidraw/excalidraw/components/Button";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 
 import {
   createAIAgentId,
@@ -523,6 +524,7 @@ export const AISettings = ({
 }: {
   initialTab?: AISettingsTab;
 }) => {
+  const { t } = useI18n();
   const [config, setConfig] =
     useState<AIImageProviderConfig>(loadAIImageConfig);
   const [agentConfig, setAgentConfig] =
@@ -576,12 +578,14 @@ export const AISettings = ({
         setErrorMessage("");
         return savedConfig;
       } catch (error: any) {
-        setErrorMessage(error.message || "Could not save AI settings.");
+        setErrorMessage(
+          error.message || t("ai.settings.messages.couldNotSaveSettings"),
+        );
         setStatusMessage("");
         return null;
       }
     },
-    [],
+    [t],
   );
 
   const persistAgentConfig = useCallback(
@@ -593,12 +597,14 @@ export const AISettings = ({
         setErrorMessage("");
         return savedConfig;
       } catch (error: any) {
-        setErrorMessage(error.message || "Could not save AI agent settings.");
+        setErrorMessage(
+          error.message || t("ai.settings.messages.couldNotSaveAgents"),
+        );
         setStatusMessage("");
         return null;
       }
     },
-    [],
+    [t],
   );
 
   const openCreateModel = useCallback(() => {
@@ -679,9 +685,11 @@ export const AISettings = ({
       };
     });
     setActiveMediaType(preset.mediaType);
-    setStatusMessage(`${preset.name} defaults applied. Add your API key.`);
+    setStatusMessage(
+      t("ai.settings.messages.defaultsApplied", { name: preset.name }),
+    );
     setErrorMessage("");
-  }, []);
+  }, [t]);
 
   const toggleCapability = useCallback(
     (
@@ -717,7 +725,7 @@ export const AISettings = ({
           defaultModel,
           models,
         },
-        "Models removed.",
+        t("ai.settings.messages.modelsRemoved"),
       );
 
       if (savedConfig) {
@@ -725,7 +733,7 @@ export const AISettings = ({
         setEditorState({ mode: "list" });
       }
     },
-    [activeMediaType, config, persistConfig],
+    [activeMediaType, config, persistConfig, t],
   );
 
   const makeDefaultModelGroup = useCallback(
@@ -741,10 +749,12 @@ export const AISettings = ({
           ...config,
           defaultModel: defaultModel.id,
         },
-        `${defaultModel.siteName} is now the default model.`,
+        t("ai.settings.messages.modelDefault", {
+          name: defaultModel.siteName,
+        }),
       );
     },
-    [config, persistConfig],
+    [config, persistConfig, t],
   );
 
   const submitDraft = useCallback(() => {
@@ -762,19 +772,19 @@ export const AISettings = ({
     const draft = savedModels[0];
 
     if (!editorState.draft.siteName.trim()) {
-      setErrorMessage("Site name is required.");
+      setErrorMessage(t("ai.settings.messages.siteNameRequired"));
       setStatusMessage("");
       return;
     }
 
     if (!editorState.draft.baseURL.trim()) {
-      setErrorMessage("Base URL is required.");
+      setErrorMessage(t("ai.settings.messages.baseURLRequired"));
       setStatusMessage("");
       return;
     }
 
     if (!savedModels.length || !draft) {
-      setErrorMessage("At least one Model ID is required.");
+      setErrorMessage(t("ai.settings.messages.modelIdsRequired"));
       setStatusMessage("");
       return;
     }
@@ -816,14 +826,16 @@ export const AISettings = ({
         defaultModel,
         models,
       },
-      editorState.mode === "edit" ? "Models saved." : "Models created.",
+      editorState.mode === "edit"
+        ? t("ai.settings.messages.modelsSaved")
+        : t("ai.settings.messages.modelsCreated"),
     );
 
     if (savedConfig) {
       setActiveMediaType(draft.mediaType);
       setEditorState({ mode: "list" });
     }
-  }, [config, editorState, persistConfig, setAsDefault]);
+  }, [config, editorState, persistConfig, setAsDefault, t]);
 
   const openCreateAgent = useCallback(
     (type: AIAgentType, provider: AIAgentProvider = "openai-compatible") => {
@@ -910,13 +922,14 @@ export const AISettings = ({
       };
     });
     setStatusMessage(
-      `${
-        AGENT_PROVIDER_OPTIONS.find((option) => option.value === provider)
-          ?.label
-      } defaults applied.`,
+      t("ai.settings.messages.defaultsApplied", {
+        name:
+          AGENT_PROVIDER_OPTIONS.find((option) => option.value === provider)
+            ?.label || provider,
+      }),
     );
     setErrorMessage("");
-  }, []);
+  }, [t]);
 
   const submitAgentDraft = useCallback(() => {
     if (agentEditorState.mode === "list") {
@@ -926,61 +939,78 @@ export const AISettings = ({
     const draft = normalizeAgentDraftForSave(agentEditorState.draft);
 
     if (!draft.name.trim()) {
-      setErrorMessage("Agent name is required.");
+      setErrorMessage(t("ai.settings.messages.agentNameRequired"));
       setStatusMessage("");
       return;
     }
 
     if (!draft.baseURL.trim()) {
-      setErrorMessage("Base URL is required.");
+      setErrorMessage(t("ai.settings.messages.baseURLRequired"));
       setStatusMessage("");
       return;
     }
 
     if (!draft.model.trim()) {
-      setErrorMessage("Model is required.");
+      setErrorMessage(t("ai.settings.messages.modelRequired"));
       setStatusMessage("");
       return;
     }
 
     const savedConfig = persistAgentConfig(
       upsertAIAgent(agentConfig, draft, setAgentAsDefault),
-      agentEditorState.mode === "edit" ? "Agent saved." : "Agent created.",
+      agentEditorState.mode === "edit"
+        ? t("ai.settings.messages.agentSaved", {
+            type: getAgentTypeLabel(draft.type, t),
+          })
+        : t("ai.settings.messages.agentCreated", {
+            type: getAgentTypeLabel(draft.type, t),
+          }),
     );
 
     if (savedConfig) {
       setAgentEditorState({ mode: "list" });
     }
-  }, [agentConfig, agentEditorState, persistAgentConfig, setAgentAsDefault]);
+  }, [agentConfig, agentEditorState, persistAgentConfig, setAgentAsDefault, t]);
 
   const removeAgent = useCallback(
     (agent: AIAgent) => {
-      if (!window.confirm(`Delete agent "${agent.name}"?`)) {
+      if (
+        !window.confirm(
+          t("ai.settings.messages.deleteAgentConfirm", {
+            type: getAgentTypeLabel(agent.type, t),
+            name: agent.name,
+            suffix: "",
+          }),
+        )
+      ) {
         return;
       }
 
       const savedConfig = persistAgentConfig(
         deleteAIAgent(agentConfig, agent),
-        "Agent deleted.",
+        t("ai.settings.messages.agentDeleted", {
+          type: getAgentTypeLabel(agent.type, t),
+        }),
       );
 
       if (savedConfig) {
         setAgentEditorState({ mode: "list" });
       }
     },
-    [agentConfig, persistAgentConfig],
+    [agentConfig, persistAgentConfig, t],
   );
 
   const makeDefaultAgent = useCallback(
     (agent: AIAgent) => {
       persistAgentConfig(
         setDefaultAIAgent(agentConfig, agent),
-        `${agent.name} is now the default ${AGENT_TYPE_LABELS[
-          agent.type
-        ].toLowerCase()} agent.`,
+        t("ai.settings.messages.agentDefault", {
+          name: agent.name,
+          type: getAgentTypeLabel(agent.type, t).toLowerCase(),
+        }),
       );
     },
-    [agentConfig, persistAgentConfig],
+    [agentConfig, persistAgentConfig, t],
   );
 
   const updateUseTextAgentForVision = useCallback(
@@ -991,16 +1021,16 @@ export const AISettings = ({
           useTextAgentForVision,
         },
         useTextAgentForVision
-          ? "Vision tasks will use the default Text Agent."
-          : "Vision tasks will use Vision Agents.",
+          ? t("ai.settings.messages.visionUsesTextAgent")
+          : t("ai.settings.messages.visionUsesVisionAgents"),
       );
     },
-    [agentConfig, persistAgentConfig],
+    [agentConfig, persistAgentConfig, t],
   );
 
   const openCreateCustomAgent = useCallback(() => {
     if (!agentConfig.llmAgents.length) {
-      setErrorMessage("Create an LLM Agent before adding a Custom Agent.");
+      setErrorMessage(t("ai.settings.messages.needLLMAgent"));
       setStatusMessage("");
       setActiveAgentSubTab("base");
       return;
@@ -1014,7 +1044,7 @@ export const AISettings = ({
     setSetCustomAgentAsDefault(!agentConfig.defaultCustomAgentId);
     setStatusMessage("");
     setErrorMessage("");
-  }, [agentConfig]);
+  }, [agentConfig, t]);
 
   const openEditCustomAgent = useCallback(
     (agent: CustomAIAgent) => {
@@ -1066,7 +1096,7 @@ export const AISettings = ({
     );
 
     if (!draft.name) {
-      setErrorMessage("Custom Agent name is required.");
+      setErrorMessage(t("ai.settings.messages.customAgentNameRequired"));
       setStatusMessage("");
       return;
     }
@@ -1078,13 +1108,15 @@ export const AISettings = ({
           agent.name.toLowerCase() === draft.name.toLowerCase(),
       )
     ) {
-      setErrorMessage("Custom Agent name must be unique.");
+      setErrorMessage(t("ai.settings.messages.customAgentNameUnique"));
       setStatusMessage("");
       return;
     }
 
     if (!draft.description) {
-      setErrorMessage("Custom Agent description is required.");
+      setErrorMessage(
+        t("ai.settings.messages.customAgentDescriptionRequired"),
+      );
       setStatusMessage("");
       return;
     }
@@ -1093,13 +1125,13 @@ export const AISettings = ({
       !draft.baseLLMAgentId ||
       !agentConfig.llmAgents.some((agent) => agent.id === draft.baseLLMAgentId)
     ) {
-      setErrorMessage("Select an LLM Agent for this Custom Agent.");
+      setErrorMessage(t("ai.settings.messages.selectLLMAgent"));
       setStatusMessage("");
       return;
     }
 
     if (!draft.systemPrompt) {
-      setErrorMessage("System Prompt is required.");
+      setErrorMessage(t("ai.settings.messages.systemPromptRequired"));
       setStatusMessage("");
       return;
     }
@@ -1107,8 +1139,8 @@ export const AISettings = ({
     const savedConfig = persistAgentConfig(
       upsertCustomAgent(agentConfig, draft, setCustomAgentAsDefault),
       customAgentEditorState.mode === "edit"
-        ? "Custom Agent saved."
-        : "Custom Agent created.",
+        ? t("ai.settings.messages.customAgentSaved")
+        : t("ai.settings.messages.customAgentCreated"),
     );
 
     if (savedConfig) {
@@ -1119,6 +1151,7 @@ export const AISettings = ({
     customAgentEditorState,
     persistAgentConfig,
     setCustomAgentAsDefault,
+    t,
   ]);
 
   const removeCustomAgent = useCallback(
@@ -1127,40 +1160,47 @@ export const AISettings = ({
         (skill) => skill.agentId === agent.id,
       ).length;
       const suffix = linkedSkillCount
-        ? ` This will also remove ${linkedSkillCount} linked skill${
-            linkedSkillCount === 1 ? "" : "s"
-          }.`
+        ? t("ai.settings.messages.linkedSkillsDeletedSuffix", {
+            count: linkedSkillCount,
+          })
         : "";
 
-      if (!window.confirm(`Delete Custom Agent "${agent.name}"?${suffix}`)) {
+      if (
+        !window.confirm(
+          t("ai.settings.messages.deleteCustomAgentConfirm", {
+            name: agent.name,
+            suffix,
+          }),
+        )
+      ) {
         return;
       }
 
       const savedConfig = persistAgentConfig(
         deleteCustomAgent(agentConfig, agent),
-        "Custom Agent deleted.",
+        t("ai.settings.messages.customAgentDeleted"),
       );
 
       if (savedConfig) {
         setCustomAgentEditorState({ mode: "list" });
       }
     },
-    [agentConfig, persistAgentConfig],
+    [agentConfig, persistAgentConfig, t],
   );
 
   const makeDefaultCustomAgent = useCallback(
     (agent: CustomAIAgent) => {
       persistAgentConfig(
         setDefaultCustomAgent(agentConfig, agent),
-        `${agent.name} is now the default Custom Agent.`,
+        t("ai.settings.messages.customAgentDefault", { name: agent.name }),
       );
     },
-    [agentConfig, persistAgentConfig],
+    [agentConfig, persistAgentConfig, t],
   );
 
   const openCreateSkill = useCallback(() => {
     if (!agentConfig.customAgents.length) {
-      setErrorMessage("Create a Custom Agent before adding a Skill.");
+      setErrorMessage(t("ai.settings.messages.needCustomAgent"));
       setStatusMessage("");
       setActiveAgentSubTab("custom");
       return;
@@ -1173,7 +1213,7 @@ export const AISettings = ({
     });
     setStatusMessage("");
     setErrorMessage("");
-  }, [agentConfig]);
+  }, [agentConfig, t]);
 
   const openEditSkill = useCallback((skill: AISkill) => {
     setActiveAgentSubTab("skills");
@@ -1216,7 +1256,7 @@ export const AISettings = ({
     const draft = normalizeSkillDraftForSave(skillEditorState.draft);
 
     if (!draft.name) {
-      setErrorMessage("Skill name is required.");
+      setErrorMessage(t("ai.settings.messages.skillNameRequired"));
       setStatusMessage("");
       return;
     }
@@ -1228,13 +1268,13 @@ export const AISettings = ({
           skill.name.toLowerCase() === draft.name.toLowerCase(),
       )
     ) {
-      setErrorMessage("Skill name must be unique.");
+      setErrorMessage(t("ai.settings.messages.skillNameUnique"));
       setStatusMessage("");
       return;
     }
 
     if (!draft.description) {
-      setErrorMessage("Skill description is required.");
+      setErrorMessage(t("ai.settings.messages.skillDescriptionRequired"));
       setStatusMessage("");
       return;
     }
@@ -1243,37 +1283,43 @@ export const AISettings = ({
       !draft.agentId ||
       !agentConfig.customAgents.some((agent) => agent.id === draft.agentId)
     ) {
-      setErrorMessage("Select a Custom Agent for this Skill.");
+      setErrorMessage(t("ai.settings.messages.selectCustomAgent"));
       setStatusMessage("");
       return;
     }
 
     const savedConfig = persistAgentConfig(
       upsertSkill(agentConfig, draft),
-      skillEditorState.mode === "edit" ? "Skill saved." : "Skill created.",
+      skillEditorState.mode === "edit"
+        ? t("ai.settings.messages.skillSaved")
+        : t("ai.settings.messages.skillCreated"),
     );
 
     if (savedConfig) {
       setSkillEditorState({ mode: "list" });
     }
-  }, [agentConfig, persistAgentConfig, skillEditorState]);
+  }, [agentConfig, persistAgentConfig, skillEditorState, t]);
 
   const removeSkill = useCallback(
     (skill: AISkill) => {
-      if (!window.confirm(`Delete Skill "${skill.name}"?`)) {
+      if (
+        !window.confirm(
+          t("ai.settings.messages.deleteSkillConfirm", { name: skill.name }),
+        )
+      ) {
         return;
       }
 
       const savedConfig = persistAgentConfig(
         deleteSkill(agentConfig, skill),
-        "Skill deleted.",
+        t("ai.settings.messages.skillDeleted"),
       );
 
       if (savedConfig) {
         setSkillEditorState({ mode: "list" });
       }
     },
-    [agentConfig, persistAgentConfig],
+    [agentConfig, persistAgentConfig, t],
   );
 
   const openCreateTemplate = useCallback(() => {
@@ -1355,19 +1401,19 @@ export const AISettings = ({
     const draft = templateEditorState.draft;
 
     if (!draft.label.trim()) {
-      setErrorMessage("Template label is required.");
+      setErrorMessage(t("ai.settings.messages.templateLabelRequired"));
       setStatusMessage("");
       return;
     }
 
     if (!draft.template.trim()) {
-      setErrorMessage("Template content is required.");
+      setErrorMessage(t("ai.settings.messages.templateContentRequired"));
       setStatusMessage("");
       return;
     }
 
     if (!draft.modes.length) {
-      setErrorMessage("Select at least one applicable mode.");
+      setErrorMessage(t("ai.settings.messages.templateModeRequired"));
       setStatusMessage("");
       return;
     }
@@ -1387,25 +1433,29 @@ export const AISettings = ({
     setTemplateEditorState({ mode: "list" });
     setStatusMessage(
       templateEditorState.mode === "edit"
-        ? "Template saved."
-        : "Template created.",
+        ? t("ai.settings.messages.templateSaved")
+        : t("ai.settings.messages.templateCreated"),
     );
     setErrorMessage("");
-  }, [templateEditorState]);
+  }, [templateEditorState, t]);
 
   const removeTemplate = useCallback((template: PromptTemplate) => {
     if (
       template.isBuiltIn ||
-      !window.confirm(`Delete template "${template.label}"?`)
+      !window.confirm(
+        t("ai.settings.messages.deleteTemplateConfirm", {
+          label: template.label,
+        }),
+      )
     ) {
       return;
     }
 
     deleteCustomPromptTemplate(template.id);
     setCustomTemplates(loadCustomPromptTemplates());
-    setStatusMessage("Template deleted.");
+    setStatusMessage(t("ai.settings.messages.templateDeleted"));
     setErrorMessage("");
-  }, []);
+  }, [t]);
 
   const exportTemplates = useCallback(() => {
     const blob = new Blob([serializePromptTemplates(customTemplates)], {
@@ -1436,26 +1486,36 @@ export const AISettings = ({
 
       saveCustomPromptTemplates(mergedTemplates);
       setCustomTemplates(loadCustomPromptTemplates());
-      setStatusMessage(`${importedTemplates.length} templates imported.`);
+      setStatusMessage(
+        t("ai.settings.messages.templatesImportedCount", {
+          count: importedTemplates.length,
+        }),
+      );
       setErrorMessage("");
     } catch (error: any) {
-      setErrorMessage(error?.message || "Could not import templates.");
+      setErrorMessage(
+        error?.message || t("ai.settings.messages.templateImportFailed"),
+      );
       setStatusMessage("");
     }
-  }, []);
+  }, [t]);
 
   const renderList = () => (
     <>
       <div className="AISettings__toolbar">
-        <span>Models</span>
+        <span>{t("ai.settings.modelList.title")}</span>
         <span className="AISettings__toolbarActions">
           <button type="button" onClick={openCreateModel}>
-            Add model
+            {t("ai.settings.modelList.addModel")}
           </button>
         </span>
       </div>
 
-      <div className="AISettings__tabs" role="tablist" aria-label="AI models">
+      <div
+        className="AISettings__tabs"
+        role="tablist"
+        aria-label={t("ai.settings.modelList.ariaLabel")}
+      >
         {AI_MODEL_MEDIA_TYPES.map((mediaType) => (
           <button
             key={mediaType}
@@ -1469,7 +1529,7 @@ export const AISettings = ({
             }
             onClick={() => setActiveMediaType(mediaType)}
           >
-            {MEDIA_TYPE_LABELS[mediaType]}
+            {getMediaTypeLabel(mediaType, t)}
           </button>
         ))}
       </div>
@@ -1477,13 +1537,19 @@ export const AISettings = ({
       <div className="AISettings__models">
         {visibleModelGroups.length === 0 && (
           <div className="AISettings__emptyState">
-            <span>No {activeMediaType} models.</span>
+            <span>
+              {t("ai.settings.modelList.empty", {
+                mediaType: getMediaTypeLabel(activeMediaType, t),
+              })}
+            </span>
             <button
               type="button"
               className="AISettings__textButton"
               onClick={openCreateModel}
             >
-              Add {activeMediaType} model
+              {t("ai.settings.modelList.addMediaModel", {
+                mediaType: getMediaTypeLabel(activeMediaType, t),
+              })}
             </button>
           </div>
         )}
@@ -1498,20 +1564,30 @@ export const AISettings = ({
               <div className="AISettings__agentCardHeader">
                 <strong>{group.model.siteName}</strong>
                 <span className="AISettings__templateMeta">
-                  <span>{MEDIA_TYPE_LABELS[group.model.mediaType]}</span>
+                  <span>{getMediaTypeLabel(group.model.mediaType, t)}</span>
                   {group.models.length > 1 && (
-                    <span>{group.models.length} models</span>
+                    <span>
+                      {t("ai.settings.modelList.modelCount", {
+                        count: group.models.length,
+                      })}
+                    </span>
                   )}
-                  {isDefault && <span>Default</span>}
+                  {isDefault && <span>{t("ai.common.default")}</span>}
                 </span>
               </div>
 
               <div className="AISettings__agentMeta">
-                <span>Models: {formatModelGroupNames(group.models)}</span>
-                <span>Base URL: {group.model.baseURL}</span>
+                <span>
+                  {t("ai.settings.modelList.modelsPrefix")}{" "}
+                  {formatModelGroupNames(group.models)}
+                </span>
+                <span>
+                  {t("ai.settings.modelList.baseURLPrefix")}{" "}
+                  {group.model.baseURL}
+                </span>
                 {group.model.mediaType === "image" && (
                   <span>
-                    Native model:{" "}
+                    {t("ai.settings.modelList.nativeModelPrefix")}{" "}
                     {group.model.nativeModel || DEFAULT_AI_IMAGE_NATIVE_MODEL}
                   </span>
                 )}
@@ -1519,20 +1595,20 @@ export const AISettings = ({
 
               <div className="AISettings__agentActions">
                 <button type="button" onClick={() => openEditModelGroup(group)}>
-                  Edit
+                  {t("ai.common.edit")}
                 </button>
                 <button
                   type="button"
                   onClick={() => removeModelGroup(group.indexes)}
                 >
-                  Delete
+                  {t("ai.common.delete")}
                 </button>
                 <button
                   type="button"
                   disabled={isDefault}
                   onClick={() => makeDefaultModelGroup(group)}
                 >
-                  Set as Default
+                  {t("ai.settings.modelList.setAsDefault")}
                 </button>
               </div>
             </div>
@@ -1546,12 +1622,12 @@ export const AISettings = ({
     <div
       className="AISettings__tabs AISettings__tabs--agents"
       role="tablist"
-      aria-label="AI agent sections"
+      aria-label={t("ai.settings.agents.sectionsAriaLabel")}
     >
       {[
-        { id: "base", label: "Base Agents" },
-        { id: "custom", label: "Custom Agents" },
-        { id: "skills", label: "Skills" },
+        { id: "base", label: t("ai.settings.agents.base") },
+        { id: "custom", label: t("ai.settings.agents.custom") },
+        { id: "skills", label: t("ai.settings.agents.skills") },
       ].map((tab) => (
         <button
           key={tab.id}

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 
 import {
   AI_GENERATION_LOGS_UPDATED_EVENT,
@@ -27,6 +28,7 @@ type AIGenerationLogPanelProps = {
 export const AIGenerationLogPanel = ({
   onReuseLog,
 }: AIGenerationLogPanelProps) => {
+  const { t } = useI18n();
   const [logs, setLogs] =
     useState<AIGenerationLogEntry[]>(loadAIGenerationLogs);
   const [expandedLogId, setExpandedLogId] = useState("");
@@ -59,26 +61,26 @@ export const AIGenerationLogPanel = ({
 
   const copyPrompt = async (log: AIGenerationLogEntry) => {
     await copyTextToSystemClipboard(log.prompt);
-    setStatusMessage("Prompt copied.");
+    setStatusMessage(t("ai.common.promptCopied"));
   };
 
   const reuseLog = (log: AIGenerationLogEntry) => {
     onReuseLog?.(log);
-    setStatusMessage("Generation settings sent to Create.");
+    setStatusMessage(t("ai.generationLog.settingsSent"));
   };
 
   return (
     <div className="AIGenerationLogPanel">
       <div className="AIGenerationLogPanel__header">
-        <h3>Generation logs</h3>
+        <h3>{t("ai.generationLog.title")}</h3>
         <button type="button" onClick={clearLogs} disabled={!logs.length}>
-          Clear logs
+          {t("ai.generationLog.clear")}
         </button>
       </div>
 
       {!logs.length && (
         <div className="AIGenerationLogPanel__emptyState">
-          No generation logs.
+          {t("ai.generationLog.empty")}
         </div>
       )}
 
@@ -116,7 +118,7 @@ export const AIGenerationLogPanel = ({
                 <span
                   className={`AIGenerationLogPanel__status is-${log.status}`}
                 >
-                  {getStatusLabel(log.status)}
+                  {getStatusLabel(log.status, t)}
                 </span>
               </button>
 
@@ -124,27 +126,27 @@ export const AIGenerationLogPanel = ({
                 <div className="AIGenerationLogPanel__details">
                   <div className="AIGenerationLogPanel__actions">
                     <button type="button" onClick={() => reuseLog(log)}>
-                      Reuse settings
+                      {t("ai.generationLog.reuseSettings")}
                     </button>
                     <button type="button" onClick={() => copyPrompt(log)}>
-                      Copy prompt
+                      {t("ai.common.copyPrompt")}
                     </button>
                   </div>
                   <dl>
                     <div>
-                      <dt>Type</dt>
+                      <dt>{t("ai.generationLog.fields.type")}</dt>
                       <dd>{log.mediaType}</dd>
                     </div>
                     <div>
-                      <dt>Mode</dt>
+                      <dt>{t("ai.generationLog.fields.mode")}</dt>
                       <dd>{log.mode}</dd>
                     </div>
                     <div>
-                      <dt>Completed</dt>
+                      <dt>{t("ai.generationLog.fields.completed")}</dt>
                       <dd>{formatDate(log.completedAt)}</dd>
                     </div>
                     <div>
-                      <dt>Summary</dt>
+                      <dt>{t("ai.generationLog.fields.summary")}</dt>
                       <dd>{log.response.summary}</dd>
                     </div>
                   </dl>
@@ -165,16 +167,19 @@ const formatDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? value : DATE_FORMAT.format(date);
 };
 
-const getStatusLabel = (status: AIGenerationLogEntry["status"]) => {
+const getStatusLabel = (
+  status: AIGenerationLogEntry["status"],
+  t: ReturnType<typeof useI18n>["t"],
+) => {
   if (status === "success") {
-    return "Success";
+    return t("ai.generationLog.status.success");
   }
 
   if (status === "canceled") {
-    return "Canceled";
+    return t("ai.generationLog.status.canceled");
   }
 
-  return "Failed";
+  return t("ai.generationLog.status.failed");
 };
 
 const stringifyLogDetails = (log: AIGenerationLogEntry) => {
