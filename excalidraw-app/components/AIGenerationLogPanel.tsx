@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 
 import {
   AI_GENERATION_LOGS_UPDATED_EVENT,
@@ -19,10 +20,17 @@ const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   second: "2-digit",
 });
 
-export const AIGenerationLogPanel = () => {
+type AIGenerationLogPanelProps = {
+  onReuseLog?: (log: AIGenerationLogEntry) => void;
+};
+
+export const AIGenerationLogPanel = ({
+  onReuseLog,
+}: AIGenerationLogPanelProps) => {
   const [logs, setLogs] =
     useState<AIGenerationLogEntry[]>(loadAIGenerationLogs);
   const [expandedLogId, setExpandedLogId] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
 
   useEffect(() => {
     const reloadLogs = () => {
@@ -46,6 +54,17 @@ export const AIGenerationLogPanel = () => {
   const clearLogs = () => {
     clearAIGenerationLogs();
     setExpandedLogId("");
+    setStatusMessage("");
+  };
+
+  const copyPrompt = async (log: AIGenerationLogEntry) => {
+    await copyTextToSystemClipboard(log.prompt);
+    setStatusMessage("Prompt copied.");
+  };
+
+  const reuseLog = (log: AIGenerationLogEntry) => {
+    onReuseLog?.(log);
+    setStatusMessage("Generation settings sent to Create.");
   };
 
   return (
@@ -60,6 +79,12 @@ export const AIGenerationLogPanel = () => {
       {!logs.length && (
         <div className="AIGenerationLogPanel__emptyState">
           No generation logs.
+        </div>
+      )}
+
+      {statusMessage && (
+        <div className="AIGenerationLogPanel__message" role="status">
+          {statusMessage}
         </div>
       )}
 
@@ -79,6 +104,7 @@ export const AIGenerationLogPanel = () => {
               <button
                 type="button"
                 className="AIGenerationLogPanel__cardButton"
+                aria-expanded={isExpanded}
                 onClick={() => setExpandedLogId(isExpanded ? "" : log.id)}
               >
                 <span className="AIGenerationLogPanel__cardDate">
@@ -96,6 +122,14 @@ export const AIGenerationLogPanel = () => {
 
               {isExpanded && (
                 <div className="AIGenerationLogPanel__details">
+                  <div className="AIGenerationLogPanel__actions">
+                    <button type="button" onClick={() => reuseLog(log)}>
+                      Reuse settings
+                    </button>
+                    <button type="button" onClick={() => copyPrompt(log)}>
+                      Copy prompt
+                    </button>
+                  </div>
                   <dl>
                     <div>
                       <dt>Type</dt>

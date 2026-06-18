@@ -86,6 +86,7 @@ const lastUsedPaletteItem = atom<CommandPaletteItem | null>(null);
 export const DEFAULT_CATEGORIES = {
   app: "App",
   export: "Export",
+  canvas: "Canvas",
   tools: "Tools",
   editor: "Editor",
   elements: "Elements",
@@ -99,14 +100,18 @@ const getCategoryOrder = (category: string) => {
       return 1;
     case DEFAULT_CATEGORIES.export:
       return 2;
-    case DEFAULT_CATEGORIES.editor:
+    case DEFAULT_CATEGORIES.canvas:
       return 3;
-    case DEFAULT_CATEGORIES.tools:
+    case DEFAULT_CATEGORIES.editor:
       return 4;
-    case DEFAULT_CATEGORIES.elements:
+    case DEFAULT_CATEGORIES.tools:
       return 5;
-    case DEFAULT_CATEGORIES.links:
+    case DEFAULT_CATEGORIES.elements:
       return 6;
+    case DEFAULT_CATEGORIES.links:
+      return 7;
+    case DEFAULT_CATEGORIES.library:
+      return 8;
     default:
       return 10;
   }
@@ -362,9 +367,7 @@ function CommandPaletteInner({
         actionManager.actions.toggleLassoTool,
       ].map((action) => actionToCommand(action, DEFAULT_CATEGORIES.tools));
 
-      const editorCommands: CommandPaletteItem[] = [
-        actionManager.actions.undo,
-        actionManager.actions.redo,
+      const canvasCommands: CommandPaletteItem[] = [
         actionManager.actions.zoomIn,
         actionManager.actions.zoomOut,
         actionManager.actions.resetZoom,
@@ -373,11 +376,16 @@ function CommandPaletteInner({
         actionManager.actions.viewMode,
         actionManager.actions.gridMode,
         actionManager.actions.objectsSnapMode,
+        actionManager.actions.stats,
+      ].map((action) => actionToCommand(action, DEFAULT_CATEGORIES.canvas));
+
+      const editorCommands: CommandPaletteItem[] = [
+        actionManager.actions.undo,
+        actionManager.actions.redo,
         actionManager.actions.toggleShortcuts,
         actionManager.actions.selectAll,
         actionManager.actions.toggleElementLock,
         actionManager.actions.unlockAllElements,
-        actionManager.actions.stats,
       ].map((action) => actionToCommand(action, DEFAULT_CATEGORIES.editor));
 
       const exportCommands: CommandPaletteItem[] = [
@@ -389,6 +397,7 @@ function CommandPaletteInner({
 
       commandsFromActions = [
         ...elementsCommands,
+        ...canvasCommands,
         ...editorCommands,
         {
           label: getActionLabel(actionClearCanvas),
@@ -396,8 +405,8 @@ function CommandPaletteInner({
           shortcut: getShortcutFromShortcutName(
             actionClearCanvas.name as ShortcutName,
           ),
-          category: DEFAULT_CATEGORIES.editor,
-          keywords: ["delete", "destroy"],
+          category: DEFAULT_CATEGORIES.canvas,
+          keywords: ["canvas", "delete", "destroy"],
           viewMode: false,
           perform: () => {
             editorJotaiStore.set(activeConfirmDialogAtom, "clearCanvas");
@@ -428,8 +437,9 @@ function CommandPaletteInner({
         actionToCommand(actionToggleTheme, DEFAULT_CATEGORIES.app),
         {
           label: t("toolBar.library"),
-          category: DEFAULT_CATEGORIES.app,
+          category: DEFAULT_CATEGORIES.library,
           icon: LibraryIcon,
+          keywords: ["library", "assets", "items"],
           viewMode: false,
           perform: () => {
             if (uiAppState.openSidebar) {
@@ -620,7 +630,7 @@ function CommandPaletteInner({
           order: command.order ?? getCategoryOrder(command.category),
           haystack: `${deburr(command.label.toLocaleLowerCase())} ${
             command.keywords?.join(" ") || ""
-          }`,
+          } ${deburr(command.category.toLocaleLowerCase())}`,
         };
       });
 
@@ -918,17 +928,16 @@ function CommandPaletteInner({
         </div>
       )}
 
-      <div className="commands">
+      <div
+        className="commands"
+        role="listbox"
+        aria-label={t("commandPalette.title")}
+      >
         {lastUsed && !commandSearch && (
           <div className="command-category">
             <div className="command-category-title">
               {t("commandPalette.recents")}
-              <div
-                className="icon"
-                style={{
-                  marginLeft: "6px",
-                }}
-              >
+              <div className="icon command-category-title__icon">
                 {historyCommandIcon}
               </div>
             </div>
@@ -945,13 +954,15 @@ function CommandPaletteInner({
         )}
 
         {Object.keys(commandsByCategory).length > 0 ? (
-          Object.keys(commandsByCategory).map((category, idx) => {
+          Object.keys(commandsByCategory).map((category) => {
             return (
               <div className="command-category" key={category}>
                 <div className="command-category-title">{category}</div>
-                {commandsByCategory[category].map((command) => (
+                {commandsByCategory[category].map((command, commandIndex) => (
                   <CommandItem
-                    key={command.label}
+                    key={`${category}-${command.label}-${
+                      command.shortcut || ""
+                    }-${commandIndex}`}
                     command={command}
                     isSelected={command.label === currentCommand?.label}
                     onClick={(event) => executeCommand(command, event)}
@@ -1012,6 +1023,9 @@ const CommandItem = ({
 
   return (
     <div
+      role="option"
+      aria-selected={isSelected}
+      aria-disabled={disabled || undefined}
       className={clsx("command-item", {
         "item-selected": isSelected,
         "item-disabled": disabled,

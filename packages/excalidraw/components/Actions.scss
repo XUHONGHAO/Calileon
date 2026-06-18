@@ -120,9 +120,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s ease;
+      transition: background-color var(--ui-transition),
+        border-color var(--ui-transition), box-shadow var(--ui-transition),
+        color var(--ui-transition);
 
       background: var(--mobile-action-button-bg);
+
+      &:focus-visible {
+        outline: var(--ui-focus-outline);
+        outline-offset: var(--ui-focus-outline-offset);
+      }
 
       svg {
         width: 1rem;
@@ -184,7 +191,7 @@
 }
 
 .mobile-shape-actions {
-  z-index: 999;
+  z-index: var(--zIndex-ui-top);
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -205,4 +212,10 @@
 :root.theme--dark .shape-actions-theme-scope {
   --button-hover-bg: #363541;
   --button-bg: var(--color-surface-high);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compact-shape-actions .compact-action-item .compact-action-button {
+    transition: none;
+  }
 }

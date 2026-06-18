@@ -31,6 +31,7 @@ export const DEFAULT_AI_AGENT_CONFIG: AIAgentConfig = {
   defaultCustomAgentId: null,
   useTextAgentForVision: false,
 };
+const AI_AGENT_CONFIG_STORE_VERSION = 1;
 
 export const createAIAgentId = (type: AIAgentType = "text") => {
   return `ai-agent-${type}-${Date.now()}-${Math.random()
@@ -264,6 +265,14 @@ export const normalizeAIAgentConfig = (
   };
 };
 
+const migrateAIAgentConfigStore = (value: unknown) => {
+  if (value && typeof value === "object" && "version" in value) {
+    return normalizeAIAgentConfig(value as Partial<AIAgentConfig>);
+  }
+
+  return normalizeAIAgentConfig(value as Partial<AIAgentConfig>);
+};
+
 export const loadAIAgentConfig = (): AIAgentConfig => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_AGENT);
@@ -272,7 +281,7 @@ export const loadAIAgentConfig = (): AIAgentConfig => {
       return DEFAULT_AI_AGENT_CONFIG;
     }
 
-    return normalizeAIAgentConfig(JSON.parse(raw));
+    return migrateAIAgentConfigStore(JSON.parse(raw));
   } catch (error: any) {
     console.error(error);
     return DEFAULT_AI_AGENT_CONFIG;
@@ -284,7 +293,10 @@ export const saveAIAgentConfig = (config: AIAgentConfig) => {
 
   localStorage.setItem(
     STORAGE_KEYS.LOCAL_STORAGE_AI_AGENT,
-    JSON.stringify(normalizedConfig),
+    JSON.stringify({
+      version: AI_AGENT_CONFIG_STORE_VERSION,
+      ...normalizedConfig,
+    }),
   );
 
   if (typeof window !== "undefined") {

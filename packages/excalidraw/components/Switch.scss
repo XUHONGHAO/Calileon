@@ -17,7 +17,7 @@
     height: 20px;
     border-radius: 12px;
 
-    transition-property: background, border;
+    transition-property: background-color, border-color;
     transition-duration: 150ms;
     transition-timing-function: ease-out;
 
@@ -61,7 +61,8 @@
       position: absolute;
 
       border-radius: 100%;
-      transition: all 150ms ease-out;
+      transition: left 150ms ease-out, top 150ms ease-out, width 150ms ease-out,
+        height 150ms ease-out, background-color 150ms ease-out;
 
       width: 10px;
       height: 10px;
@@ -112,6 +113,13 @@
 
       &:disabled {
         cursor: unset;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &,
+      &:before {
+        transition: none;
       }
     }
   }

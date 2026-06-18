@@ -23,6 +23,20 @@
     color: var(--text-primary-color);
   }
 
+  .AISettings button,
+  .AISettings input,
+  .AISettings select,
+  .AISettings textarea {
+    transition: background-color var(--ui-transition),
+      border-color var(--ui-transition), box-shadow var(--ui-transition),
+      color var(--ui-transition);
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
   .AISettings__toolbar,
   .AISettings__editorHeader,
   .AISettings__editorActions {
@@ -40,10 +54,14 @@
       min-height: 2rem;
       border: 1px solid var(--default-border-color);
       border-radius: 0.45rem;
-      background: var(--island-bg-color);
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
       cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      }
 
       &:disabled {
         cursor: default;
@@ -69,7 +87,7 @@
     padding: 0.25rem;
     border: 1px solid var(--default-border-color);
     border-radius: 0.5rem;
-    background: var(--island-bg-color);
+    background: var(--color-surface-mid);
   }
 
   .AISettings__tabs--top {
@@ -91,8 +109,13 @@
     cursor: pointer;
 
     &.is-selected {
-      background: var(--color-primary);
-      color: #fff;
+      background: var(--color-surface-primary-container);
+      color: var(--color-on-primary-container);
+      box-shadow: 0 0 0 1px var(--color-surface-primary-container);
+    }
+
+    &:hover:not(.is-selected) {
+      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
     }
   }
 
@@ -190,8 +213,8 @@
       cursor: pointer;
 
       &:focus-visible {
-        outline: 2px solid var(--color-primary);
-        outline-offset: 2px;
+        outline: var(--ui-focus-outline);
+        outline-offset: var(--ui-focus-outline-offset);
       }
     }
 
@@ -222,6 +245,12 @@
     color: var(--color-primary);
     font: inherit;
     cursor: pointer;
+
+    &:hover {
+      color: var(--color-primary-hover);
+      text-decoration: underline;
+      text-underline-offset: 0.15rem;
+    }
   }
 
   .AISettings__dangerButton {
@@ -251,7 +280,7 @@
       border: 1px solid var(--default-border-color);
       border-radius: 0.4rem;
       padding: 0.4rem 0.5rem;
-      background: var(--island-bg-color);
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
     }
@@ -893,6 +922,15 @@
       .AISettings__field:last-child {
         grid-column: 2;
       }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .AISettings button,
+    .AISettings input,
+    .AISettings select,
+    .AISettings textarea {
+      transition: none;
     }
   }
 }

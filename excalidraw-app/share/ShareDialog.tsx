@@ -109,15 +109,15 @@ const ActiveRoomDialog = ({
       </h3>
       <TextField
         defaultValue={collabAPI.getUsername()}
-        placeholder="Your name"
-        label="Your name"
+        placeholder={t("labels.yourName")}
+        label={t("labels.yourName")}
         onChange={collabAPI.setUsername}
         onKeyDown={(event) => event.key === KEYS.ENTER && handleClose()}
       />
       <div className="ShareDialog__active__linkRow">
         <TextField
           ref={ref}
-          label="Link"
+          label={t("roomDialog.shareLinkLabel")}
           readonly
           fullWidth
           value={activeRoomLink}
@@ -126,7 +126,7 @@ const ActiveRoomDialog = ({
           <FilledButton
             size="large"
             variant="icon"
-            label="Share"
+            label={t("labels.share")}
             icon={getShareIcon()}
             className="ShareDialog__active__share"
             onClick={shareRoomLink}
@@ -190,7 +190,9 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
       </div>
 
       <div className="ShareDialog__picker__description">
-        <div style={{ marginBottom: "1em" }}>{t("roomDialog.desc_intro")}</div>
+        <div className="ShareDialog__picker__description__intro">
+          {t("roomDialog.desc_intro")}
+        </div>
         {t("roomDialog.desc_privacy")}
       </div>
 

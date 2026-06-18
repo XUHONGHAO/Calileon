@@ -54,7 +54,7 @@ const Header = () => (
       rel="noopener noreferrer"
     >
       <div className="HelpDialog__link-icon">{youtubeIcon}</div>
-      YouTube
+      {t("helpDialog.youtube")}
     </a>
   </div>
 );

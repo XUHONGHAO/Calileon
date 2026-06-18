@@ -14,6 +14,7 @@ import type {
 } from "@excalidraw/element/types";
 
 import { dataURLToFile } from "./imageCanvas";
+import { createAIReferenceId } from "./referenceIds";
 
 import type {
   AIImageSourceEnhanced,
@@ -46,7 +47,7 @@ export const createImportedReferenceSource = ({
   element,
   fileData,
   index,
-  createdAt = Date.now(),
+  createdAt = createAIReferenceId(),
 }: {
   element: InitializedExcalidrawImageElement;
   fileData: BinaryFileData;
@@ -87,7 +88,7 @@ export const exportSelectionToReferenceSource = async ({
   source: AIImageSourceEnhanced;
   warning?: string;
 }> => {
-  const createdAt = Date.now();
+  const createdAt = createAIReferenceId();
   const maxWidthOrHeight =
     options.maxSize === "auto" ? undefined : Number(options.maxSize);
   const sourceType = detectSourceType(elements);

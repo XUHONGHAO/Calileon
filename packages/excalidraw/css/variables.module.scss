@@ -101,6 +101,14 @@ $color-blue-8: #1971c2;
   background-color: var(--button-bg, var(--island-bg-color));
   color: var(--button-color, var(--color-on-surface));
   font-family: var(--ui-font);
+  transition: background-color var(--ui-transition),
+    border-color var(--ui-transition), box-shadow var(--ui-transition),
+    color var(--ui-transition);
+
+  &:focus-visible {
+    outline: var(--ui-focus-outline);
+    outline-offset: var(--ui-focus-outline-offset);
+  }
 
   svg {
     width: var(--button-width, var(--lg-icon-size));
@@ -149,6 +157,10 @@ $color-blue-8: #1971c2;
   @include isMobile() {
     width: var(--mobile-action-button-size, var(--default-button-size));
     height: var(--mobile-action-button-size, var(--default-button-size));
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
   }
 }
 

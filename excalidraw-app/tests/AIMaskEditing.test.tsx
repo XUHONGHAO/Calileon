@@ -361,7 +361,7 @@ describe("AI mask editing", () => {
 
     expect(screen.getByText("Mask: mask-target-image.png")).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Edit mask on canvas" }),
+      screen.getByRole("button", { name: "Re-edit mask on canvas" }),
     );
 
     expect(onEnterMaskEditing).toHaveBeenCalledWith(

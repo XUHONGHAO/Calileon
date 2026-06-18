@@ -205,7 +205,8 @@
       "inputPlaceholder": "Search library",
       "heading": "Library matches",
       "noResults": "No matching items found...",
-      "clearSearch": "Clear search"
+      "clearSearch": "Clear search",
+      "clearSearchHint": "Esc to clear"
     }
   },
   "search": {
@@ -233,6 +234,8 @@
     "scrollBackToContent": "Scroll back to content",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
+    "next": "Next",
+    "previous": "Previous",
     "resetZoom": "Reset zoom",
     "menu": "Menu",
     "done": "Done",
@@ -256,6 +259,8 @@
     "publishLibrary": "Rename or publish",
     "submit": "Submit",
     "confirm": "Confirm",
+    "signIn": "Sign in",
+    "signUp": "Sign up",
     "embeddableInteractionButton": "Click to interact"
   },
   "alerts": {
@@ -331,6 +336,7 @@
     "laser": "Laser pointer",
     "hand": "Hand (panning tool)",
     "extraTools": "More tools",
+    "generate": "Generate",
     "mermaidToExcalidraw": "Mermaid to Excalidraw",
     "convertElementType": "Toggle shape type"
   },
@@ -408,6 +414,7 @@
     "button_stopSession": "Stop session",
     "desc_inProgressIntro": "Live-collaboration session is now in progress.",
     "desc_shareLink": "Share this link with anyone you want to collaborate with:",
+    "shareLinkLabel": "Collaboration link",
     "desc_exitSession": "Stopping the session will disconnect you from the room, but you'll be able to continue working with the scene, locally. Note that this won't affect other people, and they'll still be able to collaborate on their version.",
     "shareTitle": "Join a live collaboration session on Excalidraw"
   },
@@ -447,6 +454,7 @@
     "github": "Found an issue? Submit",
     "howto": "Follow our guides",
     "or": "or",
+    "youtube": "YouTube",
     "preventBinding": "Prevent arrow binding",
     "tools": "Tools",
     "shortcuts": "Keyboard shortcuts",

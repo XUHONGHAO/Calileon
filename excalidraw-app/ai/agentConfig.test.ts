@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from "../app_constants";
+
 import {
   createAIAgentId,
   createCustomAgentId,
@@ -96,6 +98,11 @@ describe("AI Agent Configuration", () => {
     saveAIAgentConfig(config);
 
     expect(loadAIAgentConfig()).toEqual(config);
+    expect(
+      JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_AGENT) || "{}",
+      ).version,
+    ).toBe(1);
   });
 
   it("creates unique agent IDs", () => {

@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from "../app_constants";
+
 import {
   DEFAULT_AI_MODEL_PROVIDER_PRESETS,
   DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS,
@@ -87,6 +89,11 @@ describe("AI image config", () => {
       requestTimeoutSeconds: DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS,
     });
     expect(loadAIImageConfig()).toEqual(savedConfig);
+    expect(
+      JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE) || "{}",
+      ).version,
+    ).toBe(1);
   });
 
   it("normalizes per-model request timeout seconds", () => {

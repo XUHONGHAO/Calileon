@@ -32,9 +32,8 @@
 
     user-select: none;
 
-    &:hover {
-      transition: all 150ms ease-out;
-    }
+    transition: background-color var(--ui-transition),
+      border-color var(--ui-transition), color var(--ui-transition);
 
     .Spinner {
       --spinner-color: var(--color-surface-lowest);
@@ -325,6 +324,16 @@
     &__icon {
       width: 1.25rem;
       height: 1.25rem;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      & {
+        transition: none;
+      }
+
+      .ExcButton__statusIcon {
+        animation: none;
+      }
     }
   }
 }

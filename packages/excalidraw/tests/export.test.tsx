@@ -208,6 +208,10 @@ describe("export", () => {
     const svg = await exportToSvg(elements, appState, files);
 
     const svgText = svg.outerHTML;
+    const snapshotSvgText = svgText.replace(
+      /\sdata-id="[^"]+"/g,
+      ' data-id="<normalized>"',
+    );
 
     // expect 1 <image> element (deduped)
     expect(svgText.match(/<image/g)?.length).toBe(1);
@@ -216,6 +220,6 @@ describe("export", () => {
 
     // in case of regressions, save the SVG to a file and visually compare to:
     // src/tests/fixtures/svg-image-exporting-reference.svg
-    expect(svgText).toMatchSnapshot(`svg export output`);
+    expect(snapshotSvgText).toMatchSnapshot(`svg export output`);
   });
 });

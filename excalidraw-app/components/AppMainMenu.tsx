@@ -5,6 +5,7 @@ import {
   MagicIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
+import { useI18n } from "@excalidraw/excalidraw/i18n";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
 
@@ -13,6 +14,7 @@ import { isDevEnv } from "@excalidraw/common";
 import type { Theme } from "@excalidraw/element/types";
 
 import { LanguageList } from "../app-language/LanguageList";
+import { AI_OPEN_SETTINGS_EVENT } from "../ai/workflowEvents";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 import { AISettings } from "./AISettings";
@@ -25,25 +27,24 @@ export const AppMainMenu: React.FC<{
   theme: Theme | "system";
   refresh: () => void;
 }> = React.memo((props) => {
+  const { t } = useI18n();
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
     "models" | "agents" | "templates"
   >("models");
 
   React.useEffect(() => {
-    const openAISettings = (event: Event) => {
-      const detail = (
-        event as CustomEvent<{ tab?: "models" | "agents" | "templates" }>
-      ).detail;
-
-      setInitialAISettingsTab(detail?.tab || "models");
+    const openAISettings = (
+      event: WindowEventMap[typeof AI_OPEN_SETTINGS_EVENT],
+    ) => {
+      setInitialAISettingsTab(event.detail?.tab || "models");
       setIsAISettingsOpen(true);
     };
 
-    window.addEventListener("excalidraw:open-ai-settings", openAISettings);
+    window.addEventListener(AI_OPEN_SETTINGS_EVENT, openAISettings);
 
     return () => {
-      window.removeEventListener("excalidraw:open-ai-settings", openAISettings);
+      window.removeEventListener(AI_OPEN_SETTINGS_EVENT, openAISettings);
     };
   }, []);
 
@@ -82,7 +83,9 @@ export const AppMainMenu: React.FC<{
           }?utm_source=signin&utm_medium=app&utm_content=hamburger`}
           className="highlighted"
         >
-          {isExcalidrawPlusSignedUser ? "Sign in" : "Sign up"}
+          {isExcalidrawPlusSignedUser
+            ? t("buttons.signIn")
+            : t("buttons.signUp")}
         </MainMenu.ItemLink>
         {isDevEnv() && (
           <MainMenu.Item

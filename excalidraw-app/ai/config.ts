@@ -104,6 +104,7 @@ export const DEFAULT_AI_IMAGE_CONFIG: AIImageProviderConfig = {
   defaultModel: "",
   models: [],
 };
+const AI_IMAGE_CONFIG_STORE_VERSION = 1;
 
 export type AIModelProviderPreset = Omit<
   AIImageModel,
@@ -413,6 +414,14 @@ export const normalizeAIImageConfig = (
   };
 };
 
+const migrateAIImageConfigStore = (value: unknown) => {
+  if (value && typeof value === "object" && "version" in value) {
+    return normalizeAIImageConfig(value as Partial<AIImageProviderConfig>);
+  }
+
+  return normalizeAIImageConfig(value as Partial<AIImageProviderConfig>);
+};
+
 export const loadAIImageConfig = (): AIImageProviderConfig => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE);
@@ -420,7 +429,7 @@ export const loadAIImageConfig = (): AIImageProviderConfig => {
       return DEFAULT_AI_IMAGE_CONFIG;
     }
 
-    return normalizeAIImageConfig(JSON.parse(raw));
+    return migrateAIImageConfigStore(JSON.parse(raw));
   } catch (error: any) {
     console.error(error);
     return DEFAULT_AI_IMAGE_CONFIG;
@@ -432,7 +441,10 @@ export const saveAIImageConfig = (config: AIImageProviderConfig) => {
 
   localStorage.setItem(
     STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE,
-    JSON.stringify(normalizedConfig),
+    JSON.stringify({
+      version: AI_IMAGE_CONFIG_STORE_VERSION,
+      ...normalizedConfig,
+    }),
   );
 
   if (typeof window !== "undefined") {

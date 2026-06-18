@@ -21,6 +21,7 @@ import { ShareableLinkDialog } from "@excalidraw/excalidraw/components/Shareable
 import Trans from "@excalidraw/excalidraw/components/Trans";
 import {
   APP_NAME,
+  DEFAULT_SIDEBAR,
   EVENT,
   VERSION_TIMEOUT,
   debounce,
@@ -33,7 +34,7 @@ import {
   isDevEnv,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -42,9 +43,7 @@ import {
   XBrandIcon,
   DiscordIcon,
   ExcalLogo,
-  usersIcon,
   exportToPlus,
-  share,
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { isElementLink } from "@excalidraw/element";
@@ -107,6 +106,26 @@ import {
   exportToExcalidrawPlus,
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
+import {
+  AI_AGENT_CONFIG_UPDATED_EVENT,
+  loadAIAgentConfig,
+} from "./ai/agentConfig";
+import {
+  AI_GENERATION_LOGS_UPDATED_EVENT,
+  loadAIGenerationLogs,
+} from "./ai/generationLog";
+import {
+  AI_PROMPT_TEMPLATES_UPDATED_EVENT,
+  getAllPromptTemplates,
+} from "./ai/promptTemplates";
+import {
+  createAIGenerationLogCommands,
+  createAIPromptTemplateCommands,
+  createAISkillCommands,
+  createAISettingsCommands,
+  createCoreAIWorkflowCommands,
+  createOfficeWorkflowCommands,
+} from "./ai/workflowCommands";
 
 import {
   exportToBackend,
@@ -153,7 +172,18 @@ import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanne
 import { AppSidebar } from "./components/AppSidebar";
 
 import type { CollabAPI } from "./collab/Collab";
-import type { AIMaskReadyPayload } from "./ai/types";
+import type {
+  AIGenerationLogEntry,
+  AIMaskReadyPayload,
+  AISkill,
+  PromptTemplate,
+} from "./ai/types";
+import type {
+  AIReferenceAddRequest,
+  AssistantSkillRequest,
+  GenerationLogReuseRequest,
+  PromptTemplateRequest,
+} from "./components/AppSidebar";
 
 polyfill();
 
@@ -380,13 +410,22 @@ const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [aiPromptTemplates, setAIPromptTemplates] = useState<PromptTemplate[]>(
+    getAllPromptTemplates,
+  );
+  const [aiGenerationLogs, setAIGenerationLogs] =
+    useState<AIGenerationLogEntry[]>(loadAIGenerationLogs);
+  const [aiSkills, setAISkills] = useState<AISkill[]>(
+    () => loadAIAgentConfig().skills,
+  );
   const maskEditingControllerRef = useRef<AIMaskEditingControllerHandle>(null);
   const workbenchMaskReadyHandlerRef = useRef<
     ((payload: AIMaskReadyPayload) => void) | null
   >(null);
-  const pendingWorkbenchMaskPayloadRef = useRef<AIMaskReadyPayload | null>(
-    null,
-  );
+  const pendingWorkbenchMaskPayloadRef = useRef<{
+    payload: AIMaskReadyPayload;
+    createdAt: number;
+  } | null>(null);
   const isCollabDisabled = isRunningInIframe();
 
   const { editorTheme, appTheme, setAppTheme } = useHandleAppTheme();
@@ -414,6 +453,44 @@ const ExcalidrawWrapper = () => {
     setTimeout(() => {
       trackEvent("load", "version", getVersion());
     }, VERSION_TIMEOUT);
+  }, []);
+
+  useEffect(() => {
+    const reloadAICommandSources = () => {
+      setAIPromptTemplates(getAllPromptTemplates());
+      setAIGenerationLogs(loadAIGenerationLogs());
+      setAISkills(loadAIAgentConfig().skills);
+    };
+
+    window.addEventListener(
+      AI_PROMPT_TEMPLATES_UPDATED_EVENT,
+      reloadAICommandSources,
+    );
+    window.addEventListener(
+      AI_GENERATION_LOGS_UPDATED_EVENT,
+      reloadAICommandSources,
+    );
+    window.addEventListener(
+      AI_AGENT_CONFIG_UPDATED_EVENT,
+      reloadAICommandSources,
+    );
+    window.addEventListener("storage", reloadAICommandSources);
+
+    return () => {
+      window.removeEventListener(
+        AI_PROMPT_TEMPLATES_UPDATED_EVENT,
+        reloadAICommandSources,
+      );
+      window.removeEventListener(
+        AI_GENERATION_LOGS_UPDATED_EVENT,
+        reloadAICommandSources,
+      );
+      window.removeEventListener(
+        AI_AGENT_CONFIG_UPDATED_EVENT,
+        reloadAICommandSources,
+      );
+      window.removeEventListener("storage", reloadAICommandSources);
+    };
   }, []);
 
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
@@ -807,6 +884,85 @@ const ExcalidrawWrapper = () => {
     () => setShareDialogState({ isOpen: true, type: "collaborationOnly" }),
     [setShareDialogState],
   );
+  const onShareDialogOpen = useCallback(
+    () => setShareDialogState({ isOpen: true, type: "share" }),
+    [setShareDialogState],
+  );
+  const nextAIWorkflowRequestIdRef = useRef(0);
+  const [aiReferenceAddRequest, setAIReferenceAddRequest] =
+    useState<AIReferenceAddRequest | null>(null);
+  const [assistantSkillRequest, setAssistantSkillRequest] =
+    useState<AssistantSkillRequest | null>(null);
+  const [promptTemplateRequest, setPromptTemplateRequest] =
+    useState<PromptTemplateRequest | null>(null);
+  const [generationLogReuseRequest, setGenerationLogReuseRequest] =
+    useState<GenerationLogReuseRequest | null>(null);
+  const createAIWorkflowRequestId = useCallback(() => {
+    nextAIWorkflowRequestIdRef.current += 1;
+    return nextAIWorkflowRequestIdRef.current;
+  }, []);
+  const openAIWorkflowTab = useCallback(
+    (tab: "ai-image" | "ai-assistant" | "ai-generation-logs") => {
+      excalidrawAPI?.toggleSidebar({
+        name: DEFAULT_SIDEBAR.name,
+        tab,
+        force: true,
+      });
+    },
+    [excalidrawAPI],
+  );
+  const requestAIReferenceAdd = useCallback(() => {
+    openAIWorkflowTab("ai-image");
+    setAIReferenceAddRequest({
+      id: createAIWorkflowRequestId(),
+    });
+  }, [createAIWorkflowRequestId, openAIWorkflowTab]);
+  const requestPromptTemplateApply = useCallback(
+    (template: PromptTemplate) => {
+      openAIWorkflowTab("ai-image");
+      setPromptTemplateRequest({
+        id: createAIWorkflowRequestId(),
+        template,
+      });
+    },
+    [createAIWorkflowRequestId, openAIWorkflowTab],
+  );
+  const requestAssistantSkillApply = useCallback(
+    (skill: AISkill) => {
+      openAIWorkflowTab("ai-assistant");
+      setAssistantSkillRequest({
+        id: createAIWorkflowRequestId(),
+        skill,
+      });
+    },
+    [createAIWorkflowRequestId, openAIWorkflowTab],
+  );
+  const requestGenerationLogReuse = useCallback(
+    (log: AIGenerationLogEntry) => {
+      openAIWorkflowTab("ai-image");
+      setGenerationLogReuseRequest({
+        id: createAIWorkflowRequestId(),
+        log,
+      });
+    },
+    [createAIWorkflowRequestId, openAIWorkflowTab],
+  );
+  useEffect(() => {
+    const previousHandlers = window.EXCALIDRAW_APP_AI_HANDLERS;
+
+    window.EXCALIDRAW_APP_AI_HANDLERS = {
+      ...previousHandlers,
+      addSelectionAsReference: requestAIReferenceAdd,
+    };
+
+    return () => {
+      if (previousHandlers) {
+        window.EXCALIDRAW_APP_AI_HANDLERS = previousHandlers;
+      } else {
+        window.EXCALIDRAW_APP_AI_HANDLERS = undefined;
+      }
+    };
+  }, [requestAIReferenceAdd]);
 
   const requestEnterMaskEditing = useCallback(
     (imageId: string, maskElements?: readonly ExcalidrawFreeDrawElement[]) => {
@@ -817,17 +973,30 @@ const ExcalidrawWrapper = () => {
     },
     [],
   );
+  const canDeliverWorkbenchMaskPayload = useCallback(
+    (payload: AIMaskReadyPayload) => {
+      return !!excalidrawAPI?.getAppState().selectedElementIds[payload.imageId];
+    },
+    [excalidrawAPI],
+  );
 
   const registerWorkbenchMaskReadyHandler = useCallback(
     (handler: ((payload: AIMaskReadyPayload) => void) | null) => {
       workbenchMaskReadyHandlerRef.current = handler;
 
       if (handler && pendingWorkbenchMaskPayloadRef.current) {
-        handler(pendingWorkbenchMaskPayloadRef.current);
+        const pendingPayload = pendingWorkbenchMaskPayloadRef.current;
         pendingWorkbenchMaskPayloadRef.current = null;
+
+        if (
+          Date.now() - pendingPayload.createdAt <= 30_000 &&
+          canDeliverWorkbenchMaskPayload(pendingPayload.payload)
+        ) {
+          handler(pendingPayload.payload);
+        }
       }
     },
-    [],
+    [canDeliverWorkbenchMaskPayload],
   );
 
   const handleMaskReady = useCallback((payload: AIMaskReadyPayload) => {
@@ -836,7 +1005,10 @@ const ExcalidrawWrapper = () => {
       return;
     }
 
-    pendingWorkbenchMaskPayloadRef.current = payload;
+    pendingWorkbenchMaskPayloadRef.current = {
+      payload,
+      createdAt: Date.now(),
+    };
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -888,6 +1060,58 @@ const ExcalidrawWrapper = () => {
   //   return new Promise((r) => setTimeout(r, 2500));
   //   // console.log("onExport");
   // };
+
+  const aiPromptTemplateCommands = useMemo(
+    () =>
+      createAIPromptTemplateCommands({
+        excalidrawAPI,
+        templates: aiPromptTemplates,
+        onApplyPromptTemplate: requestPromptTemplateApply,
+      }),
+    [aiPromptTemplates, excalidrawAPI, requestPromptTemplateApply],
+  );
+
+  const aiGenerationLogCommands = useMemo(
+    () =>
+      createAIGenerationLogCommands({
+        excalidrawAPI,
+        logs: aiGenerationLogs,
+        onReuseGenerationLog: requestGenerationLogReuse,
+      }),
+    [aiGenerationLogs, excalidrawAPI, requestGenerationLogReuse],
+  );
+
+  const aiSkillCommands = useMemo(
+    () =>
+      createAISkillCommands({
+        excalidrawAPI,
+        skills: aiSkills,
+        onApplySkill: requestAssistantSkillApply,
+      }),
+    [aiSkills, excalidrawAPI, requestAssistantSkillApply],
+  );
+
+  const aiSettingsCommands = useMemo(() => createAISettingsCommands(), []);
+
+  const coreAIWorkflowCommands = useMemo(
+    () =>
+      createCoreAIWorkflowCommands({
+        excalidrawAPI,
+        onAddSelectionAsReference: requestAIReferenceAdd,
+      }),
+    [excalidrawAPI, requestAIReferenceAdd],
+  );
+
+  const officeWorkflowCommands = useMemo(
+    () =>
+      createOfficeWorkflowCommands({
+        excalidrawAPI,
+        onOpenCollaboration: onCollabDialogOpen,
+        onOpenShare: onShareDialogOpen,
+        isCollaborationEnabled: () => !isCollabDisabled,
+      }),
+    [excalidrawAPI, isCollabDisabled, onCollabDialogOpen, onShareDialogOpen],
+  );
 
   // browsers generally prevent infinite self-embedding, there are
   // cases where it still happens, and while we disallow self-embedding
@@ -1105,6 +1329,11 @@ const ExcalidrawWrapper = () => {
 
         <AppSidebar
           excalidrawAPI={excalidrawAPI}
+          referenceAddRequest={aiReferenceAddRequest}
+          assistantSkillRequest={assistantSkillRequest}
+          promptTemplateRequest={promptTemplateRequest}
+          generationLogReuseRequest={generationLogReuseRequest}
+          onAddSelectionAsReference={requestAIReferenceAdd}
           onEnterMaskEditing={requestEnterMaskEditing}
           onMaskReady={registerWorkbenchMaskReadyHandler}
         />
@@ -1117,25 +1346,12 @@ const ExcalidrawWrapper = () => {
 
         <CommandPalette
           customCommandPaletteItems={[
-            {
-              label: t("labels.liveCollaboration"),
-              category: DEFAULT_CATEGORIES.app,
-              keywords: [
-                "team",
-                "multiplayer",
-                "share",
-                "public",
-                "session",
-                "invite",
-              ],
-              icon: usersIcon,
-              perform: () => {
-                setShareDialogState({
-                  isOpen: true,
-                  type: "collaborationOnly",
-                });
-              },
-            },
+            ...coreAIWorkflowCommands,
+            ...aiPromptTemplateCommands,
+            ...aiSkillCommands,
+            ...aiGenerationLogCommands,
+            ...aiSettingsCommands,
+            ...officeWorkflowCommands,
             {
               label: t("roomDialog.button_stopSession"),
               category: DEFAULT_CATEGORIES.app,
@@ -1156,26 +1372,6 @@ const ExcalidrawWrapper = () => {
                     setShareDialogState({ isOpen: false });
                   }
                 }
-              },
-            },
-            {
-              label: t("labels.share"),
-              category: DEFAULT_CATEGORIES.app,
-              predicate: true,
-              icon: share,
-              keywords: [
-                "link",
-                "shareable",
-                "readonly",
-                "export",
-                "publish",
-                "snapshot",
-                "url",
-                "collaborate",
-                "invite",
-              ],
-              perform: async () => {
-                setShareDialogState({ isOpen: true, type: "share" });
               },
             },
             {

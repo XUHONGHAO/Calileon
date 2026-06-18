@@ -421,7 +421,6 @@ const getModelProviderGroupKey = (model: AIImageModel) => {
   return JSON.stringify({
     siteName: model.siteName,
     baseURL: model.baseURL,
-    apiKey: model.apiKey,
     mediaType: model.mediaType,
     nativeModel: model.nativeModel,
     capabilities: model.capabilities,
@@ -666,8 +665,6 @@ export const AISettings = ({
         },
       };
     });
-    setStatusMessage("");
-    setErrorMessage("");
   }, []);
 
   const applyProviderPreset = useCallback((preset: AIModelProviderPreset) => {
@@ -895,8 +892,6 @@ export const AISettings = ({
         },
       };
     });
-    setStatusMessage("");
-    setErrorMessage("");
   }, []);
 
   const applyAgentProviderPreset = useCallback((provider: AIAgentProvider) => {
@@ -1482,7 +1477,14 @@ export const AISettings = ({
       <div className="AISettings__models">
         {visibleModelGroups.length === 0 && (
           <div className="AISettings__emptyState">
-            No {activeMediaType} models.
+            <span>No {activeMediaType} models.</span>
+            <button
+              type="button"
+              className="AISettings__textButton"
+              onClick={openCreateModel}
+            >
+              Add {activeMediaType} model
+            </button>
           </div>
         )}
 
@@ -1999,7 +2001,7 @@ export const AISettings = ({
                   }
                 />
                 <span className="AISettings__fieldHint">
-                  Stored locally in this browser.
+                  Stored as plaintext in this browser's localStorage.
                 </span>
               </label>
 
@@ -2292,7 +2294,7 @@ export const AISettings = ({
               </label>
 
               <label className="AISettings__field">
-                <span>Triggers (optional)</span>
+                <span>Command palette triggers (optional)</span>
                 <input
                   value={draft.triggers}
                   placeholder="optimize prompt, image prompt"
@@ -2301,7 +2303,7 @@ export const AISettings = ({
                   }
                 />
                 <span className="AISettings__fieldHint">
-                  Separate multiple triggers with commas.
+                  Separate multiple command palette aliases with commas.
                 </span>
               </label>
             </div>
@@ -2413,7 +2415,18 @@ export const AISettings = ({
         <span className="AISettings__summaryBadge">{templates.length}</span>
       </div>
       {templates.length === 0 && (
-        <div className="AISettings__emptyState">No templates yet.</div>
+        <div className="AISettings__emptyState">
+          <span>No templates yet.</span>
+          {title === "Custom Templates" && (
+            <button
+              type="button"
+              className="AISettings__textButton"
+              onClick={openCreateTemplate}
+            >
+              Add custom template
+            </button>
+          )}
+        </div>
       )}
       <div className="AISettings__templateList">
         {templates.map((template) => (
@@ -2686,6 +2699,9 @@ export const AISettings = ({
                     updateDraft({ apiKey: event.target.value })
                   }
                 />
+                <span className="AISettings__fieldHint">
+                  Stored as plaintext in this browser's localStorage.
+                </span>
               </label>
             </div>
           </div>
@@ -2837,61 +2853,67 @@ export const AISettings = ({
                 )}
               </label>
 
-              <div className="AISettings__endpointMatrix">
-                <div className="AISettings__endpointHeader" aria-hidden="true">
-                  <span>Mode</span>
-                  <span>Path</span>
-                  <span>Format</span>
+              <details className="AISettings__advanced">
+                <summary>Advanced endpoints</summary>
+                <div className="AISettings__endpointMatrix">
+                  <div
+                    className="AISettings__endpointHeader"
+                    aria-hidden="true"
+                  >
+                    <span>Mode</span>
+                    <span>Path</span>
+                    <span>Format</span>
+                  </div>
+
+                  {ENDPOINT_FORM_FIELDS.map((endpointField) => {
+                    const endpoint = draft.endpoints[endpointField.key];
+
+                    return (
+                      <div
+                        className="AISettings__endpointRow"
+                        key={endpointField.key}
+                      >
+                        <span className="AISettings__endpointLabel">
+                          {endpointField.label}
+                        </span>
+                        <label className="AISettings__field">
+                          <span className="AISettings__visuallyHidden">
+                            {endpointField.label} path
+                          </span>
+                          <input
+                            value={endpoint.path}
+                            placeholder={endpointField.placeholder}
+                            onChange={(event) =>
+                              updateEndpoint(endpointField.key, {
+                                path: event.target.value,
+                              })
+                            }
+                          />
+                        </label>
+
+                        <label className="AISettings__field">
+                          <span className="AISettings__visuallyHidden">
+                            {endpointField.label} format
+                          </span>
+                          <select
+                            value={endpoint.format}
+                            onChange={(event) =>
+                              updateEndpoint(endpointField.key, {
+                                format: event.target
+                                  .value as AIImageEndpointConfig["format"],
+                              })
+                            }
+                          >
+                            <option value="json">JSON</option>
+                            <option value="form">FormData</option>
+                            <option value="gemini">Gemini JSON</option>
+                          </select>
+                        </label>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {ENDPOINT_FORM_FIELDS.map((endpointField) => {
-                  const endpoint = draft.endpoints[endpointField.key];
-
-                  return (
-                    <div
-                      className="AISettings__endpointRow"
-                      key={endpointField.key}
-                    >
-                      <span className="AISettings__endpointLabel">
-                        {endpointField.label}
-                      </span>
-                      <label className="AISettings__field">
-                        <span className="AISettings__visuallyHidden">
-                          {endpointField.label} path
-                        </span>
-                        <input
-                          value={endpoint.path}
-                          placeholder={endpointField.placeholder}
-                          onChange={(event) =>
-                            updateEndpoint(endpointField.key, {
-                              path: event.target.value,
-                            })
-                          }
-                        />
-                      </label>
-
-                      <label className="AISettings__field">
-                        <span className="AISettings__visuallyHidden">
-                          {endpointField.label} format
-                        </span>
-                        <select
-                          value={endpoint.format}
-                          onChange={(event) =>
-                            updateEndpoint(endpointField.key, {
-                              format: event.target
-                                .value as AIImageEndpointConfig["format"],
-                            })
-                          }
-                        >
-                          <option value="json">JSON</option>
-                          <option value="form">FormData</option>
-                          <option value="gemini">Gemini JSON</option>
-                        </select>
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
+              </details>
 
               <details className="AISettings__advanced">
                 <summary>

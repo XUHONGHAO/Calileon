@@ -15,7 +15,7 @@ export const LibraryMenuControlButtons = ({
   libraryReturnUrl: ExcalidrawProps["libraryReturnUrl"];
   theme: UIAppState["theme"];
   id: string;
-  style: React.CSSProperties;
+  style?: React.CSSProperties;
   children?: React.ReactNode;
   className?: string;
 }) => {

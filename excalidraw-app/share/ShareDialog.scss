@@ -8,6 +8,8 @@
 
     @include isMobile {
       height: calc(100vh - 5rem);
+      min-height: 0;
+      overflow-y: auto;
     }
 
     &__separator {
@@ -68,6 +70,10 @@
 
       transform-origin: var(--radix-popover-content-transform-origin);
       animation: ShareDialog__popover__scaleIn 150ms ease-out;
+
+      @media (prefers-reduced-motion: reduce) {
+        animation: none;
+      }
     }
 
     &__picker {
@@ -110,6 +116,10 @@
           display: block;
           font-weight: 700;
         }
+
+        &__intro {
+          margin-bottom: 1em;
+        }
       }
 
       &__button {
@@ -138,6 +148,14 @@
         flex-direction: row;
         align-items: flex-end;
         gap: 0.75rem;
+
+        @include isMobile {
+          flex-wrap: wrap;
+
+          .ExcTextField {
+            flex: 1 1 100%;
+          }
+        }
       }
 
       &__qrcode {

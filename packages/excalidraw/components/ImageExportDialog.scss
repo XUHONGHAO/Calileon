@@ -11,6 +11,8 @@
     display: flex;
     flex-direction: row;
     justify-content: space-between;
+    align-items: stretch;
+    gap: 1.5rem;
 
     user-select: none;
 
@@ -39,6 +41,8 @@
     @include isMobile {
       flex-direction: column;
       height: calc(100vh - 5rem);
+      min-height: 0;
+      overflow-y: auto;
     }
 
     &__preview {
@@ -47,16 +51,15 @@
       flex-direction: column;
       align-items: center;
       height: 360px;
-      width: 55%;
-
-      margin-right: 1.5rem;
+      flex: 1 1 55%;
+      min-width: 0;
 
       @include isMobile {
         max-width: unset;
-        margin-right: unset;
 
         width: 100%;
-        height: unset;
+        height: auto;
+        min-height: 16rem;
         flex-grow: 1;
       }
 
@@ -64,6 +67,10 @@
         & > input {
           margin-top: 1rem;
         }
+      }
+
+      &__filename-input {
+        width: min(30ch, 100%);
       }
 
       &__canvas {
@@ -79,7 +86,7 @@
           left center;
 
         border: 1px solid var(--ImageExportModal-preview-border);
-        border-radius: 12px;
+        border-radius: var(--border-radius-lg);
 
         overflow: hidden;
         padding: 1rem;
@@ -96,7 +103,7 @@
         }
 
         @include isMobile {
-          margin-top: 24px;
+          margin-top: 1rem;
           max-width: unset;
         }
       }
@@ -106,13 +113,17 @@
       display: flex;
       flex-direction: column;
       flex-wrap: wrap;
-      gap: 18px;
+      gap: 1rem;
+      flex: 0 0 16rem;
+      min-width: 16rem;
 
       @include isMobile {
         margin-left: unset;
         margin-top: 1rem;
         flex-direction: row;
-        gap: 6px 34px;
+        gap: 0.75rem 2rem;
+        flex: 0 0 auto;
+        min-width: 0;
 
         align-content: flex-start;
       }
@@ -159,15 +170,24 @@
         flex-wrap: wrap;
         display: flex;
         flex-direction: row;
-        gap: 11px;
+        gap: 0.75rem;
 
         align-items: flex-end;
         align-content: flex-end;
+        justify-content: flex-end;
+
+        &__button {
+          min-width: 6.5rem;
+        }
 
         @include isMobile {
-          padding-top: 32px;
+          padding-top: 1.5rem;
           flex-basis: 100%;
           justify-content: center;
+
+          &__button {
+            flex: 1 1 100%;
+          }
         }
       }
     }

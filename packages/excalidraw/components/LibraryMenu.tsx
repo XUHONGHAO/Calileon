@@ -161,7 +161,6 @@ const LibraryMenuContent = memo(
         {showBtn && (
           <LibraryMenuControlButtons
             className="library-menu-control-buttons--at-bottom"
-            style={{ padding: "16px 12px 0 12px" }}
             id={id}
             libraryReturnUrl={libraryReturnUrl}
             theme={theme}

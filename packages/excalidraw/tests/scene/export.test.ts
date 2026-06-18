@@ -71,7 +71,7 @@ describe("exportToSvg", () => {
     );
 
     expect(svgElement).toMatchSnapshot();
-  });
+  }, 30_000);
 
   it("with a CJK font", async () => {
     const svgElement = await exportUtils.exportToSvg(

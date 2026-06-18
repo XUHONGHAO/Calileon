@@ -28,7 +28,6 @@ import {
   resolveAIImageSize,
 } from "../ai/imageDimensions";
 import {
-  dataURLToFile,
   fileToDataURL,
   insertGeneratedImageIntoCanvas,
 } from "../ai/imageCanvas";
@@ -53,6 +52,32 @@ import {
   AI_PROMPT_TEMPLATES_UPDATED_EVENT,
   getPromptTemplatesForMode,
 } from "../ai/promptTemplates";
+import { createAIReferenceId } from "../ai/referenceIds";
+import { createAIOpenSettingsEvent } from "../ai/workflowEvents";
+
+import {
+  createGeneratedAssetReferenceSource,
+  getGeneratedAssetActionLabels,
+  getGeneratedAssetModeLabel,
+  isLocalImageDataURL,
+} from "./AIImageWorkbenchAssets";
+import {
+  appendSelectedImageSources,
+  clearReferenceWeight,
+  loadPersistedReferenceState,
+  markMissingReferenceElements,
+  persistReferenceState,
+  reindexReferenceImages,
+  validatePromptReferences,
+} from "./AIImageWorkbenchReferences";
+import {
+  createAIImageWorkbenchStatus,
+  getAIImageWorkbenchConfigurationNotice,
+} from "./AIImageWorkbenchStatus";
+import {
+  createCopyPromptActionState,
+  createSendPromptToAssistantActionState,
+} from "./AIImageWorkbenchDraft";
 
 import "./AIImageWorkbench.scss";
 
@@ -63,6 +88,7 @@ import type {
 import type {
   AIImageGenerationMetadata,
   AIImageGenerationMode,
+  AIImageGenerationOutput,
   AIImageGenerationParams,
   AIImageEditableMask,
   AIImageProviderConfig,
@@ -72,6 +98,8 @@ import type {
   AIReferenceExportOptions,
   PromptTemplate,
 } from "../ai/types";
+import type { AIImageWorkbenchRunStatus } from "./AIImageWorkbenchStatus";
+import type { GeneratedAsset } from "./AIImageWorkbenchAssets";
 
 const DEFAULT_PARAMS: AIImageGenerationParams = {
   size: "1024x1024",
@@ -104,9 +132,6 @@ const MEDIA_TYPE_OPTIONS: Array<{ value: AIModelMediaType; label: string }> = [
 ];
 
 const MAX_IMAGE_COUNT = 10;
-const AI_REFERENCE_ADD_SELECTION_EVENT =
-  "excalidraw:add-selection-to-ai-reference";
-const AI_OPEN_SETTINGS_EVENT = "excalidraw:open-ai-settings";
 
 type AIWorkbenchGenerationDraftState = {
   selectedModelId: string;
@@ -140,6 +165,8 @@ type AIImageWorkbenchProps = {
   onMaskReady?: (
     handler: ((payload: AIMaskReadyPayload) => void) | null,
   ) => void;
+  onSendPromptToAssistant?: (prompt: string) => void;
+  referenceAddRequest?: { id: number } | null;
 };
 
 const loadInitialWorkbenchState = () => {
@@ -214,6 +241,8 @@ export const AIImageWorkbench = ({
   onDraftStateChange,
   onEnterMaskEditing,
   onMaskReady,
+  onSendPromptToAssistant,
+  referenceAddRequest,
 }: AIImageWorkbenchProps) => {
   const [initialState] = useState(() => ({
     config: loadAIImageConfig(),
@@ -341,6 +370,39 @@ export const AIImageWorkbench = ({
     },
     [setActiveDraftState],
   );
+  const patchMaskDataURLForImage = useCallback(
+    (
+      imageId: string,
+      updatedAt: number,
+      dataURL: AIImageEditableMask["dataURL"],
+    ) => {
+      setActiveDraftState((current) => {
+        const currentMask = current.imageModes.inpaint.masksByImageId[imageId];
+
+        if (!currentMask || currentMask.updatedAt !== updatedAt) {
+          return current;
+        }
+
+        return {
+          ...current,
+          imageModes: {
+            ...current.imageModes,
+            inpaint: {
+              ...current.imageModes.inpaint,
+              masksByImageId: {
+                ...current.imageModes.inpaint.masksByImageId,
+                [imageId]: {
+                  ...currentMask,
+                  dataURL,
+                },
+              },
+            },
+          },
+        };
+      });
+    },
+    [setActiveDraftState],
+  );
   const clearMaskForImage = useCallback(
     (imageId: string) => {
       setActiveDraftState((current) => {
@@ -348,6 +410,49 @@ export const AIImageWorkbench = ({
           ...current.imageModes.inpaint.masksByImageId,
         };
         delete nextMasksByImageId[imageId];
+
+        return {
+          ...current,
+          imageModes: {
+            ...current.imageModes,
+            inpaint: {
+              ...current.imageModes.inpaint,
+              masksByImageId: nextMasksByImageId,
+            },
+          },
+        };
+      });
+    },
+    [setActiveDraftState],
+  );
+  const pruneMasksForElements = useCallback(
+    (elements: readonly { id: string; isDeleted?: boolean }[]) => {
+      setActiveDraftState((current) => {
+        const masksByImageId = current.imageModes.inpaint.masksByImageId;
+        const maskImageIds = Object.keys(masksByImageId);
+
+        if (!maskImageIds.length) {
+          return current;
+        }
+
+        const availableElementIds = new Set(
+          elements
+            .filter((element) => !element.isDeleted)
+            .map((element) => element.id),
+        );
+        const nextMasksByImageId = { ...masksByImageId };
+        let didPrune = false;
+
+        for (const imageId of maskImageIds) {
+          if (!availableElementIds.has(imageId)) {
+            delete nextMasksByImageId[imageId];
+            didPrune = true;
+          }
+        }
+
+        if (!didPrune) {
+          return current;
+        }
 
         return {
           ...current,
@@ -399,12 +504,52 @@ export const AIImageWorkbench = ({
   const [batchWeightDraft, setBatchWeightDraft] = useState(0.6);
   const [selectedAIMetadata, setSelectedAIMetadata] =
     useState<AIImageGenerationMetadata | null>(null);
+  const [generatedAssets, setGeneratedAssets] = useState<GeneratedAsset[]>([]);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [runStatus, setRunStatus] = useState<AIImageWorkbenchRunStatus>("idle");
   const abortControllerRef = useRef<AbortController | null>(null);
+  const activeRunIdRef = useRef(0);
+  const generationTimeoutRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
+  const draftSignatureRef = useRef<string | null>(null);
+  const lastReferenceAddRequestIdRef = useRef<number | null>(null);
   const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
   const didRestoreReferenceImagesRef = useRef(false);
+  const skipNextReferencePersistenceRef = useRef(false);
+  const isReferenceLockedRef = useRef(isReferenceLocked);
+  const selectionSignatureRef = useRef<string | null>(null);
+  const persistReferenceTimeoutRef = useRef<number | null>(null);
+  const generationStateRef = useRef({
+    config,
+    currentSelectedImageSources,
+    inpaintDraft,
+    mediaType,
+    mode,
+    negativePrompt,
+    params,
+    prompt,
+    selectedModelId,
+    selectedSources,
+  });
+
+  generationStateRef.current = {
+    config,
+    currentSelectedImageSources,
+    inpaintDraft,
+    mediaType,
+    mode,
+    negativePrompt,
+    params,
+    prompt,
+    selectedModelId,
+    selectedSources,
+  };
+
+  useEffect(() => {
+    isReferenceLockedRef.current = isReferenceLocked;
+  }, [isReferenceLocked]);
 
   const handleCanvasMaskReady = useCallback(
     (payload: AIMaskReadyPayload) => {
@@ -417,10 +562,11 @@ export const AIImageWorkbench = ({
       setMaskForImage(payload.imageId, maskRecord);
       fileToDataURL(payload.maskFile)
         .then((dataURL) => {
-          setMaskForImage(payload.imageId, {
-            ...maskRecord,
+          patchMaskDataURLForImage(
+            payload.imageId,
+            maskRecord.updatedAt,
             dataURL,
-          });
+          );
         })
         .catch((error) => {
           console.error("Could not create mask thumbnail", error);
@@ -428,7 +574,7 @@ export const AIImageWorkbench = ({
       setStatusMessage("");
       setErrorMessage("");
     },
-    [setMaskForImage],
+    [patchMaskDataURLForImage, setMaskForImage],
   );
 
   const modelsForMediaType = useMemo(
@@ -454,6 +600,77 @@ export const AIImageWorkbench = ({
       ),
     [params.aspectRatio, selectedNativeModel],
   );
+
+  const activeDraftSignature = useMemo(
+    () =>
+      JSON.stringify({
+        mediaType,
+        mode,
+        selectedModelId,
+        prompt,
+        negativePrompt,
+        params,
+        selectedSources: selectedSources.map((source) => ({
+          id: source.createdAt,
+          elementId: source.elementId,
+          weight: source.weight,
+          missingElement: source.missingElement,
+        })),
+        currentSelectedImageSources: currentSelectedImageSources.map(
+          (source) => source.elementId,
+        ),
+      }),
+    [
+      currentSelectedImageSources,
+      mediaType,
+      mode,
+      negativePrompt,
+      params,
+      prompt,
+      selectedModelId,
+      selectedSources,
+    ],
+  );
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      activeRunIdRef.current += 1;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+
+      if (generationTimeoutRef.current !== null) {
+        window.clearTimeout(generationTimeoutRef.current);
+        generationTimeoutRef.current = null;
+      }
+
+      if (persistReferenceTimeoutRef.current !== null) {
+        window.clearTimeout(persistReferenceTimeoutRef.current);
+        persistReferenceTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (draftSignatureRef.current === null) {
+      draftSignatureRef.current = activeDraftSignature;
+      return;
+    }
+
+    if (draftSignatureRef.current === activeDraftSignature) {
+      return;
+    }
+
+    draftSignatureRef.current = activeDraftSignature;
+
+    if (!abortControllerRef.current) {
+      setRunStatus("idle");
+      setStatusMessage("");
+      setErrorMessage("");
+    }
+  }, [activeDraftSignature]);
 
   useEffect(() => {
     const reloadConfig = () => {
@@ -494,33 +711,65 @@ export const AIImageWorkbench = ({
     setSelectedModelId,
   ]);
 
-  const getSelectedImageSources = useCallback(() => {
-    if (!excalidrawAPI) {
-      return [];
+  useEffect(() => {
+    if (
+      mediaType !== "image" ||
+      config.models.some(
+        (model) =>
+          model.mediaType === "image" && supportsAIImageMode(model, mode),
+      )
+    ) {
+      return;
     }
 
-    const appState = excalidrawAPI.getAppState();
-    const elements = excalidrawAPI.getSceneElements();
-    const files = excalidrawAPI.getFiles();
-    const selectedElements = getSelectedElements(elements, appState);
-    const selectedImages = selectedElements.filter(isInitializedImageElement);
+    const nextMode = MODE_OPTIONS.find((option) =>
+      config.models.some(
+        (model) =>
+          model.mediaType === "image" &&
+          supportsAIImageMode(model, option.value),
+      ),
+    );
 
-    return selectedImages
-      .map((element, index): AIImageSourceEnhanced | null => {
-        const fileData = files[element.fileId];
+    if (nextMode && nextMode.value !== mode) {
+      setMode(nextMode.value);
+    }
+  }, [config.models, mediaType, mode, setMode]);
 
-        if (!fileData) {
-          return null;
-        }
+  const getSelectedImageSources = useCallback(
+    (
+      selectedImages?: readonly InitializedExcalidrawImageElement[],
+      filesOverride?: ReturnType<ExcalidrawImperativeAPI["getFiles"]>,
+    ) => {
+      if (!excalidrawAPI) {
+        return [];
+      }
 
-        return createImportedReferenceSource({
-          element,
-          fileData,
-          index: index + 1,
-        });
-      })
-      .filter((source): source is AIImageSourceEnhanced => !!source);
-  }, [excalidrawAPI]);
+      const images =
+        selectedImages ||
+        getSelectedElements(
+          excalidrawAPI.getSceneElements(),
+          excalidrawAPI.getAppState(),
+        ).filter(isInitializedImageElement);
+      const files = filesOverride || excalidrawAPI.getFiles();
+
+      return images
+        .map((element, index): AIImageSourceEnhanced | null => {
+          const fileData = files[element.fileId];
+
+          if (!fileData) {
+            return null;
+          }
+
+          return createImportedReferenceSource({
+            element,
+            fileData,
+            index: index + 1,
+          });
+        })
+        .filter((source): source is AIImageSourceEnhanced => !!source);
+    },
+    [excalidrawAPI],
+  );
 
   const syncReferenceImagesFromSelection = useCallback(() => {
     const selectedImageSources = getSelectedImageSources();
@@ -537,15 +786,35 @@ export const AIImageWorkbench = ({
 
     const syncSelection = () => {
       const appState = excalidrawAPI.getAppState();
+      const selectedElementIds = Object.keys(
+        appState.selectedElementIds,
+      ).sort();
+      const selectionSignature = selectedElementIds.join("|");
+
+      if (
+        Object.keys(generationStateRef.current.inpaintDraft.masksByImageId)
+          .length
+      ) {
+        pruneMasksForElements(excalidrawAPI.getSceneElements());
+      }
+
+      if (selectionSignatureRef.current === selectionSignature) {
+        return;
+      }
+
+      selectionSignatureRef.current = selectionSignature;
       const elements = excalidrawAPI.getSceneElements();
       const selectedElements = getSelectedElements(elements, appState);
       const selectedImages = selectedElements.filter(isInitializedImageElement);
-      const selectedImageSources = getSelectedImageSources();
+      const selectedImageSources = getSelectedImageSources(
+        selectedImages,
+        excalidrawAPI.getFiles(),
+      );
 
       setSelectedElementCount(selectedElements.length);
       setCurrentSelectedImageSources(selectedImageSources);
 
-      if (!isReferenceLocked) {
+      if (!isReferenceLockedRef.current) {
         setSelectedSources((current) =>
           appendSelectedImageSources(
             markMissingReferenceElements(current, elements),
@@ -568,7 +837,7 @@ export const AIImageWorkbench = ({
     syncSelection();
 
     return excalidrawAPI.onChange(syncSelection);
-  }, [excalidrawAPI, getSelectedImageSources, isReferenceLocked]);
+  }, [excalidrawAPI, getSelectedImageSources, pruneMasksForElements]);
 
   useEffect(() => {
     if (!onMaskReady) {
@@ -622,8 +891,7 @@ export const AIImageWorkbench = ({
     mediaType !== "image" ||
     !selectedModel ||
     supportsAIImageMode(selectedModel, mode);
-  const requiresReference = mode !== "text-to-image";
-  const requiresMask = mode === "inpaint";
+  const hasSelectedModelEndpoint = !!(selectedModel?.baseURL || config.baseURL);
   const selectedMaskImageId =
     currentSelectedImageSources.length === 1
       ? currentSelectedImageSources[0].elementId
@@ -631,26 +899,45 @@ export const AIImageWorkbench = ({
   const currentMask = selectedMaskImageId
     ? inpaintDraft.masksByImageId[selectedMaskImageId] || null
     : null;
+  const availableSelectedSources = useMemo(
+    () => selectedSources.filter((source) => !source.missingElement),
+    [selectedSources],
+  );
+  const editMaskLabel = currentMask
+    ? "Re-edit mask on canvas"
+    : "Edit mask on canvas";
+  const isInpaintMode = mode === "inpaint";
   const maskEditableSource =
-    requiresMask &&
+    isInpaintMode &&
     currentSelectedImageSources.length === 1 &&
     currentSelectedImageSources[0]?.fileId
       ? currentSelectedImageSources[0]
       : null;
-  const activeReferenceCount = requiresMask
-    ? currentSelectedImageSources.length
-    : selectedSources.length;
-  const canGenerate =
-    mediaType === "image" &&
-    !!excalidrawAPI &&
-    !!selectedModel?.baseURL &&
-    !!selectedModelId &&
-    !!prompt.trim() &&
-    modelSupportsMode &&
-    (!requiresReference || activeReferenceCount > 0) &&
-    (!requiresMask ||
-      (currentSelectedImageSources.length === 1 && !!currentMask)) &&
-    !isGenerating;
+  const { canGenerate, requiresMask, requiresReference, statusStripItems } =
+    createAIImageWorkbenchStatus({
+      mediaType,
+      mode,
+      selectedModelLabel: selectedModel
+        ? selectedModel.siteName || selectedModel.model
+        : null,
+      hasSelectedModelBaseURL: hasSelectedModelEndpoint,
+      selectedModelId,
+      prompt,
+      modelSupportsMode,
+      referenceCount: availableSelectedSources.length,
+      selectedImageCount: currentSelectedImageSources.length,
+      hasCurrentMask: !!currentMask,
+      hasExcalidrawAPI: !!excalidrawAPI,
+      isGenerating,
+      runStatus,
+    });
+  const configurationNotice = getAIImageWorkbenchConfigurationNotice({
+    mediaType,
+    hasModelsForMediaType: modelsForMediaType.length > 0,
+    selectedModelId,
+    hasSelectedModelBaseURL: hasSelectedModelEndpoint,
+    modelSupportsMode,
+  });
 
   const updateParams = useCallback(
     (patch: Partial<AIImageGenerationParams>) => {
@@ -911,6 +1198,7 @@ export const AIImageWorkbench = ({
     didRestoreReferenceImagesRef.current = true;
     const savedState = loadPersistedReferenceState(
       getReferencePersistenceKey(excalidrawAPI),
+      excalidrawAPI.getFiles(),
     );
 
     if (!savedState?.locked || !savedState.images.length) {
@@ -918,6 +1206,7 @@ export const AIImageWorkbench = ({
     }
 
     setIsReferenceLocked(true);
+    skipNextReferencePersistenceRef.current = true;
     setSelectedSources(reindexReferenceImages(savedState.images));
   }, [excalidrawAPI]);
 
@@ -928,34 +1217,53 @@ export const AIImageWorkbench = ({
 
     const key = getReferencePersistenceKey(excalidrawAPI);
 
+    if (skipNextReferencePersistenceRef.current) {
+      skipNextReferencePersistenceRef.current = false;
+      return;
+    }
+
+    if (persistReferenceTimeoutRef.current !== null) {
+      window.clearTimeout(persistReferenceTimeoutRef.current);
+      persistReferenceTimeoutRef.current = null;
+    }
+
     if (!isReferenceLocked) {
       localStorage.removeItem(key);
       return;
     }
 
-    persistReferenceState(key, {
-      locked: isReferenceLocked,
-      images: selectedSources,
-    });
+    persistReferenceTimeoutRef.current = window.setTimeout(() => {
+      persistReferenceTimeoutRef.current = null;
+      persistReferenceState(key, {
+        locked: isReferenceLocked,
+        images: selectedSources,
+      });
+    }, 250);
   }, [excalidrawAPI, isReferenceLocked, selectedSources]);
 
   useEffect(() => {
-    window.addEventListener(
-      AI_REFERENCE_ADD_SELECTION_EVENT,
-      addSelectionAsReference,
-    );
+    if (
+      !referenceAddRequest ||
+      referenceAddRequest.id === lastReferenceAddRequestIdRef.current
+    ) {
+      return;
+    }
 
-    return () => {
-      window.removeEventListener(
-        AI_REFERENCE_ADD_SELECTION_EVENT,
-        addSelectionAsReference,
-      );
-    };
-  }, [addSelectionAsReference]);
+    lastReferenceAddRequestIdRef.current = referenceAddRequest.id;
+    addSelectionAsReference();
+  }, [addSelectionAsReference, referenceAddRequest]);
 
   const promptReferenceWarnings = useMemo(
-    () => validatePromptReferences(prompt, selectedSources.length),
-    [prompt, selectedSources.length],
+    () => validatePromptReferences(prompt, availableSelectedSources.length),
+    [availableSelectedSources.length, prompt],
+  );
+  const copyPromptActionState = useMemo(
+    () => createCopyPromptActionState(prompt),
+    [prompt],
+  );
+  const sendPromptToAssistantActionState = useMemo(
+    () => createSendPromptToAssistantActionState(prompt),
+    [prompt],
   );
 
   const generate = useCallback(
@@ -966,10 +1274,26 @@ export const AIImageWorkbench = ({
       negativePrompt?: string;
       params?: AIImageGenerationParams;
     }) => {
+      if (abortControllerRef.current) {
+        return;
+      }
+
       if (!excalidrawAPI) {
         return;
       }
 
+      const {
+        config,
+        currentSelectedImageSources,
+        inpaintDraft,
+        mediaType,
+        mode,
+        negativePrompt,
+        params,
+        prompt,
+        selectedModelId,
+        selectedSources,
+      } = generationStateRef.current;
       const activeMode = overrides?.mode ?? mode;
       const activeModel = overrides?.model ?? selectedModelId;
       const activeModelCard =
@@ -984,7 +1308,7 @@ export const AIImageWorkbench = ({
           ? []
           : activeMode === "inpaint"
           ? currentSelectedImageSources
-          : selectedSources;
+          : selectedSources.filter((source) => !source.missingElement);
       const activeSourceImagesMetadata = activeSources.map((source) => ({
         index: source.index,
         elementId: source.elementId,
@@ -1014,17 +1338,24 @@ export const AIImageWorkbench = ({
       if (mediaType !== "image") {
         setErrorMessage("Only image generation is wired in this phase.");
         setStatusMessage("");
+        setRunStatus("failed");
         return;
       }
 
       if (!activePrompt.trim()) {
         setErrorMessage("Prompt is required.");
+        setRunStatus("failed");
         return;
       }
 
       if (activeMode === "image-to-image" && activeSources.length === 0) {
-        setErrorMessage("Add at least one reference image.");
+        setErrorMessage(
+          selectedSources.length
+            ? "Remove missing references or add an available reference image."
+            : "Add at least one reference image.",
+        );
         setStatusMessage("");
+        setRunStatus("failed");
         return;
       }
 
@@ -1037,17 +1368,21 @@ export const AIImageWorkbench = ({
         if (activeSources.length !== 1) {
           setErrorMessage("Select exactly one image before generating.");
           setStatusMessage("");
+          setRunStatus("failed");
           return;
         }
 
         if (!activeMaskRecord) {
           setErrorMessage("Draw a mask before generating.");
           setStatusMessage("");
+          setRunStatus("failed");
           return;
         }
       }
 
       const abortController = new AbortController();
+      const runId = activeRunIdRef.current + 1;
+      activeRunIdRef.current = runId;
       const timeoutSeconds =
         activeModelCard?.requestTimeoutSeconds ||
         DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS;
@@ -1056,9 +1391,15 @@ export const AIImageWorkbench = ({
         didTimeout = true;
         abortController.abort();
       }, timeoutSeconds * 1000);
+      const isActiveRun = () =>
+        mountedRef.current &&
+        activeRunIdRef.current === runId &&
+        abortControllerRef.current === abortController;
 
       abortControllerRef.current = abortController;
+      generationTimeoutRef.current = timeoutId;
       setIsGenerating(true);
+      setRunStatus("generating");
       setStatusMessage("Generating image...");
       setErrorMessage("");
 
@@ -1072,6 +1413,10 @@ export const AIImageWorkbench = ({
                   (await fileToDataURL(activeMaskRecord.file)),
               }
             : null;
+
+        if (!isActiveRun()) {
+          return;
+        }
 
         const outputs = await generateImagesWithOpenAIAdapter({
           config: activeModelCard
@@ -1097,7 +1442,25 @@ export const AIImageWorkbench = ({
           signal: abortController.signal,
         });
 
+        if (!isActiveRun()) {
+          return;
+        }
+
+        if (!isValidGenerationOutputs(outputs)) {
+          throw new AIImageGenerationError(
+            "Generation failed: provider returned malformed image data.",
+            "invalid-response",
+            { outputs },
+          );
+        }
+
+        const nextGeneratedAssets: GeneratedAsset[] = [];
+
         for (const [index, output] of outputs.entries()) {
+          if (!isActiveRun()) {
+            return;
+          }
+
           const metadata = createAIImageGenerationMetadata({
             mode: activeMode,
             model: activeModelName,
@@ -1120,15 +1483,44 @@ export const AIImageWorkbench = ({
             index,
           });
 
-          await insertGeneratedImageIntoCanvas({
+          if (!isActiveRun()) {
+            return;
+          }
+
+          const insertedElement = await insertGeneratedImageIntoCanvas({
             excalidrawAPI,
             output,
             metadata,
             index,
           });
+
+          if (!isActiveRun()) {
+            return;
+          }
+
+          nextGeneratedAssets.push({
+            id: createGeneratedAssetId(index),
+            output,
+            metadata,
+            insertedElementId: insertedElement.id,
+            insertedFileId: insertedElement.fileId,
+            width: insertedElement.width,
+            height: insertedElement.height,
+            createdAt: metadata.createdAt,
+            index,
+            modelLabel: activeModelCard?.label || activeModelName,
+            siteName: activeSiteName,
+          });
+        }
+
+        if (!isActiveRun()) {
+          return;
         }
 
         const insertedCount = outputs.length;
+        setGeneratedAssets((current) =>
+          [...nextGeneratedAssets, ...current].slice(0, 12),
+        );
         appendGenerationLogEntry(
           createAIGenerationLogEntry({
             submittedAt,
@@ -1157,10 +1549,15 @@ export const AIImageWorkbench = ({
             ? "Generated image inserted."
             : `${insertedCount} generated images inserted.`,
         );
+        setRunStatus("inserted");
         excalidrawAPI.setToast({
           message: "Generated image inserted.",
         });
       } catch (error: any) {
+        if (!isActiveRun()) {
+          return;
+        }
+
         console.error("AI image generation failed", error);
 
         if (error?.name === "AbortError") {
@@ -1189,6 +1586,7 @@ export const AIImageWorkbench = ({
               `Generation timed out after ${timeoutSeconds} seconds.`,
             );
             setStatusMessage("");
+            setRunStatus("failed");
           } else {
             appendGenerationLogEntry(
               createAIGenerationLogEntry({
@@ -1211,6 +1609,7 @@ export const AIImageWorkbench = ({
               }),
             );
             setStatusMessage("Generation canceled.");
+            setRunStatus("canceled");
           }
           return;
         }
@@ -1241,30 +1640,56 @@ export const AIImageWorkbench = ({
         );
         setErrorMessage(errorMessage);
         setStatusMessage("");
+        setRunStatus("failed");
       } finally {
         window.clearTimeout(timeoutId);
-        setIsGenerating(false);
-        abortControllerRef.current = null;
+        if (generationTimeoutRef.current === timeoutId) {
+          generationTimeoutRef.current = null;
+        }
+
+        if (isActiveRun()) {
+          setIsGenerating(false);
+          abortControllerRef.current = null;
+        }
       }
     },
-    [
-      config,
-      currentSelectedImageSources,
-      excalidrawAPI,
-      inpaintDraft.masksByImageId,
-      mediaType,
-      mode,
-      negativePrompt,
-      params,
-      prompt,
-      selectedModelId,
-      selectedSources,
-    ],
+    [excalidrawAPI],
   );
 
   const cancelGeneration = useCallback(() => {
     abortControllerRef.current?.abort();
   }, []);
+
+  const loadMetadataIntoWorkbench = useCallback(
+    (metadata: AIImageGenerationMetadata, message: string) => {
+      const selectedMode = metadata.mode;
+      const selectedModelId =
+        config.models.find((model) => model.model === metadata.model)?.id ||
+        metadata.model;
+
+      setActiveDraftState((current) => ({
+        ...current,
+        mediaType: "image",
+        mode: selectedMode,
+        imageModes: {
+          ...current.imageModes,
+          [selectedMode]: {
+            ...current.imageModes[selectedMode],
+            selectedModelId,
+            prompt: metadata.prompt,
+            negativePrompt: metadata.negativePrompt || "",
+            params: {
+              ...current.imageModes[selectedMode].params,
+              ...metadata.params,
+            },
+          },
+        },
+      }));
+      setStatusMessage(message);
+      setErrorMessage("");
+    },
+    [config.models, setActiveDraftState],
+  );
 
   const copySelectedPrompt = useCallback(async () => {
     if (!selectedAIMetadata) {
@@ -1275,33 +1700,36 @@ export const AIImageWorkbench = ({
     excalidrawAPI?.setToast({ message: "Prompt copied." });
   }, [excalidrawAPI, selectedAIMetadata]);
 
+  const copyCurrentPrompt = useCallback(async () => {
+    if (!copyPromptActionState.canCopy) {
+      return;
+    }
+
+    await copyTextToSystemClipboard(copyPromptActionState.prompt);
+    excalidrawAPI?.setToast({ message: "Prompt copied." });
+    setStatusMessage("Prompt copied.");
+    setErrorMessage("");
+  }, [copyPromptActionState, excalidrawAPI]);
+  const sendCurrentPromptToAssistant = useCallback(() => {
+    if (!onSendPromptToAssistant || !sendPromptToAssistantActionState.canSend) {
+      return;
+    }
+
+    onSendPromptToAssistant(sendPromptToAssistantActionState.prompt);
+    setStatusMessage("Prompt sent to AI Assistant.");
+    setErrorMessage("");
+  }, [onSendPromptToAssistant, sendPromptToAssistantActionState]);
+
   const loadSelectedMetadata = useCallback(() => {
     if (!selectedAIMetadata) {
       return;
     }
 
-    const selectedMode = selectedAIMetadata.mode;
-    const selectedModelId =
-      config.models.find((model) => model.model === selectedAIMetadata.model)
-        ?.id || selectedAIMetadata.model;
-
-    setActiveDraftState((current) => ({
-      ...current,
-      mediaType: "image",
-      mode: selectedMode,
-      imageModes: {
-        ...current.imageModes,
-        [selectedMode]: {
-          ...current.imageModes[selectedMode],
-          selectedModelId,
-          prompt: selectedAIMetadata.prompt,
-          negativePrompt: selectedAIMetadata.negativePrompt || "",
-          params: { ...DEFAULT_PARAMS, ...selectedAIMetadata.params },
-        },
-      },
-    }));
-    setStatusMessage("Selected image parameters loaded.");
-  }, [config.models, selectedAIMetadata, setActiveDraftState]);
+    loadMetadataIntoWorkbench(
+      selectedAIMetadata,
+      "Selected image parameters loaded.",
+    );
+  }, [loadMetadataIntoWorkbench, selectedAIMetadata]);
 
   const regenerateSelectedImage = useCallback(() => {
     if (!selectedAIMetadata) {
@@ -1313,9 +1741,87 @@ export const AIImageWorkbench = ({
       model: selectedAIMetadata.model,
       prompt: selectedAIMetadata.prompt,
       negativePrompt: selectedAIMetadata.negativePrompt || "",
-      params: { ...DEFAULT_PARAMS, ...selectedAIMetadata.params },
+      params: {
+        ...generationStateRef.current.params,
+        ...selectedAIMetadata.params,
+      },
     });
   }, [generate, selectedAIMetadata]);
+
+  const copyGeneratedAssetPrompt = useCallback(
+    async (asset: GeneratedAsset) => {
+      await copyTextToSystemClipboard(asset.metadata.prompt);
+      excalidrawAPI?.setToast({ message: "Prompt copied." });
+    },
+    [excalidrawAPI],
+  );
+
+  const loadGeneratedAssetMetadata = useCallback(
+    (asset: GeneratedAsset) => {
+      loadMetadataIntoWorkbench(
+        asset.metadata,
+        "Generated asset parameters loaded.",
+      );
+    },
+    [loadMetadataIntoWorkbench],
+  );
+
+  const insertGeneratedAssetCopy = useCallback(
+    async (asset: GeneratedAsset) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+
+      try {
+        await insertGeneratedImageIntoCanvas({
+          excalidrawAPI,
+          output: asset.output,
+          metadata: {
+            ...asset.metadata,
+            createdAt: new Date().toISOString(),
+          },
+          index: asset.index,
+        });
+        setStatusMessage("Generated asset copy inserted.");
+        setErrorMessage("");
+        setRunStatus("inserted");
+      } catch (error: any) {
+        console.error("Could not insert generated asset", error);
+        setErrorMessage(error?.message || "Could not insert generated asset.");
+        setStatusMessage("");
+        setRunStatus("failed");
+      }
+    },
+    [excalidrawAPI],
+  );
+
+  const addGeneratedAssetAsReference = useCallback((asset: GeneratedAsset) => {
+    const createdAt = createAIReferenceId();
+    const sourceBase = createGeneratedAssetReferenceSource(asset, createdAt);
+
+    if (!sourceBase) {
+      setErrorMessage("This generated result is a remote image URL.");
+      setStatusMessage("");
+      return;
+    }
+
+    setIsReferenceLocked(true);
+    setSelectedSources((current) =>
+      reindexReferenceImages([
+        ...current,
+        {
+          ...sourceBase,
+          index: current.length + 1,
+        },
+      ]),
+    );
+    setStatusMessage("Generated asset added to references.");
+    setErrorMessage("");
+  }, []);
+
+  const clearGeneratedAssets = useCallback(() => {
+    setGeneratedAssets([]);
+  }, []);
 
   const insertPromptText = useCallback(
     (text: string, replaceRange?: { start: number; end: number }) => {
@@ -1472,13 +1978,48 @@ export const AIImageWorkbench = ({
   );
 
   const openTemplateSettings = useCallback(() => {
-    window.dispatchEvent(
-      new CustomEvent(AI_OPEN_SETTINGS_EVENT, {
-        detail: { tab: "templates" },
-      }),
-    );
+    window.dispatchEvent(createAIOpenSettingsEvent({ tab: "templates" }));
     setIsTemplateMenuOpen(false);
   }, []);
+
+  const openModelSettings = useCallback(() => {
+    window.dispatchEvent(createAIOpenSettingsEvent({ tab: "models" }));
+  }, []);
+
+  const renderCopyPromptButton = () => (
+    <button
+      type="button"
+      className="AIImageWorkbench__textButton"
+      disabled={!copyPromptActionState.canCopy}
+      onClick={copyCurrentPrompt}
+    >
+      Copy prompt
+    </button>
+  );
+
+  const renderSendPromptToAssistantButton = () => (
+    <button
+      type="button"
+      className="AIImageWorkbench__textButton"
+      disabled={
+        !onSendPromptToAssistant || !sendPromptToAssistantActionState.canSend
+      }
+      onClick={sendCurrentPromptToAssistant}
+    >
+      Send to assistant
+    </button>
+  );
+
+  const renderConfigurationNotice = () => {
+    if (!configurationNotice) {
+      return null;
+    }
+
+    return renderNotice(configurationNotice.message, {
+      label: configurationNotice.actionLabel,
+      onClick: openModelSettings,
+    });
+  };
 
   const renderPromptEditor = () => (
     <div className="AIImageWorkbench__promptBlock">
@@ -1511,13 +2052,17 @@ export const AIImageWorkbench = ({
         >
           Templates
         </button>
-        <button
-          type="button"
-          className="AIImageWorkbench__textButton"
-          onClick={openTemplateSettings}
-        >
-          Manage
-        </button>
+        <div className="AIImageWorkbench__promptActions">
+          {renderSendPromptToAssistantButton()}
+          {renderCopyPromptButton()}
+          <button
+            type="button"
+            className="AIImageWorkbench__textButton"
+            onClick={openTemplateSettings}
+          >
+            Manage
+          </button>
+        </div>
       </div>
 
       {isTemplateMenuOpen && (
@@ -1593,7 +2138,7 @@ export const AIImageWorkbench = ({
     </div>
   );
 
-  const renderReferenceImagesPanel = () => {
+  const renderReferenceImagesPanel = useCallback(() => {
     const weightEditorSource =
       weightEditorId == null
         ? null
@@ -1617,17 +2162,21 @@ export const AIImageWorkbench = ({
             )}
             <button
               type="button"
+              aria-label="Add current selection to references"
+              title="Add current selection to references"
               disabled={!selectedElementCount}
               onClick={addSelectionAsReference}
             >
-              Add
+              Add selection
             </button>
             <button
               type="button"
+              aria-label="Clear references"
+              title="Clear references"
               disabled={!selectedSources.length}
               onClick={clearReferenceImages}
             >
-              Clear
+              Clear refs
             </button>
             {selectedSources.length >= 3 && (
               <button
@@ -1670,7 +2219,8 @@ export const AIImageWorkbench = ({
                 .join(" ")}
               onClick={() => highlightReferenceSource(source)}
               onKeyDown={(event) => {
-                if (event.key === "Enter") {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
                   highlightReferenceSource(source);
                 }
               }}
@@ -1922,13 +2472,178 @@ export const AIImageWorkbench = ({
         </details>
       </div>
     );
-  };
+  }, [
+    addSelectionAsReference,
+    applyBatchWeight,
+    applyWeightEditor,
+    batchMode,
+    batchWeightDraft,
+    clearReferenceImages,
+    deleteSelectedBatchReferences,
+    draggedReferenceId,
+    highlightReferenceSource,
+    isReferenceLocked,
+    moveReferenceImage,
+    openWeightEditor,
+    params.referenceStrength,
+    referenceExportOptions.background,
+    referenceExportOptions.maxSize,
+    referenceExportOptions.padding,
+    removeReferenceImage,
+    resetAllReferenceWeights,
+    resetReferenceWeight,
+    selectedBatchIds,
+    selectedElementCount,
+    selectedSources,
+    selectAllBatchReferences,
+    syncReferenceImagesFromSelection,
+    toggleBatchSelection,
+    toggleReferenceLock,
+    weightDraft,
+    weightEditorId,
+  ]);
 
-  const renderModelSelect = () => (
+  const renderGeneratedAssetsPanel = useCallback(() => {
+    if (!generatedAssets.length) {
+      return null;
+    }
+
+    return (
+      <div className="AIImageWorkbench__section">
+        <div className="AIImageWorkbench__sectionHeader">
+          <h3>Generated assets</h3>
+          <button
+            type="button"
+            className="AIImageWorkbench__textButton"
+            aria-label="Clear generated assets"
+            title="Clear generated assets"
+            onClick={clearGeneratedAssets}
+          >
+            Clear
+          </button>
+        </div>
+
+        <div className="AIImageWorkbench__assetGrid">
+          {generatedAssets.map((asset) => {
+            const canUseAsReference = isLocalImageDataURL(asset.output.dataURL);
+            const actionLabels = getGeneratedAssetActionLabels(asset);
+
+            return (
+              <article className="AIImageWorkbench__assetCard" key={asset.id}>
+                <div className="AIImageWorkbench__assetPreview">
+                  <img
+                    src={asset.output.dataURL}
+                    alt={`Generated asset #${asset.index + 1}`}
+                  />
+                  <span className="AIImageWorkbench__assetBadge">
+                    #{asset.index + 1}
+                  </span>
+                </div>
+
+                <div className="AIImageWorkbench__assetMeta">
+                  <strong title={asset.metadata.mode}>
+                    {getGeneratedAssetModeLabel(asset.metadata.mode)}
+                  </strong>
+                  <span title={asset.modelLabel}>{asset.siteName}</span>
+                  <span>{formatGeneratedAssetTime(asset.createdAt)}</span>
+                </div>
+
+                {asset.output.revisedPrompt && (
+                  <div
+                    className="AIImageWorkbench__assetRevision"
+                    title={asset.output.revisedPrompt}
+                  >
+                    Revised: {asset.output.revisedPrompt}
+                  </div>
+                )}
+
+                <div className="AIImageWorkbench__assetActions">
+                  <button
+                    type="button"
+                    aria-label={actionLabels.insert}
+                    title={actionLabels.insert}
+                    onClick={() => insertGeneratedAssetCopy(asset)}
+                  >
+                    Insert
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={actionLabels.useAsReference}
+                    disabled={!canUseAsReference}
+                    title={
+                      canUseAsReference
+                        ? actionLabels.useAsReference
+                        : "Remote URL cannot be used as a reference"
+                    }
+                    onClick={() => addGeneratedAssetAsReference(asset)}
+                  >
+                    Use ref
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={actionLabels.reuseSettings}
+                    title={actionLabels.reuseSettings}
+                    onClick={() => loadGeneratedAssetMetadata(asset)}
+                  >
+                    Reuse settings
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={actionLabels.copyPrompt}
+                    title={actionLabels.copyPrompt}
+                    onClick={() => copyGeneratedAssetPrompt(asset)}
+                  >
+                    Copy prompt
+                  </button>
+                </div>
+
+                <details className="AIImageWorkbench__assetDetails">
+                  <summary>Details</summary>
+                  <dl>
+                    <div>
+                      <dt>Model</dt>
+                      <dd>{asset.metadata.model}</dd>
+                    </div>
+                    <div>
+                      <dt>Size</dt>
+                      <dd>{asset.metadata.params.size}</dd>
+                    </div>
+                    <div>
+                      <dt>Prompt</dt>
+                      <dd>{asset.metadata.prompt}</dd>
+                    </div>
+                  </dl>
+                </details>
+              </article>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }, [
+    addGeneratedAssetAsReference,
+    clearGeneratedAssets,
+    copyGeneratedAssetPrompt,
+    generatedAssets,
+    insertGeneratedAssetCopy,
+    loadGeneratedAssetMetadata,
+  ]);
+
+  const referenceImagesPanel = useMemo(
+    () => renderReferenceImagesPanel(),
+    [renderReferenceImagesPanel],
+  );
+  const generatedAssetsPanel = useMemo(
+    () => renderGeneratedAssetsPanel(),
+    [renderGeneratedAssetsPanel],
+  );
+
+  const renderModelSelect = (disabled = false) => (
     <label className="AIImageWorkbench__field">
       <span>Model ID</span>
       <select
         value={selectedModelId}
+        disabled={disabled}
         onChange={(event) => setSelectedModelId(event.target.value)}
       >
         <option value="">
@@ -2087,7 +2802,7 @@ export const AIImageWorkbench = ({
         </label>
       </div>
 
-      {requiresReference && renderReferenceImagesPanel()}
+      {requiresReference && referenceImagesPanel}
 
       {requiresReference &&
         selectedSources.length === 0 &&
@@ -2118,6 +2833,8 @@ export const AIImageWorkbench = ({
             <button
               type="button"
               className="AIImageWorkbench__secondaryButton"
+              aria-label={editMaskLabel}
+              title={editMaskLabel}
               onClick={() => {
                 onEnterMaskEditing(
                   maskEditableSource.elementId,
@@ -2125,7 +2842,7 @@ export const AIImageWorkbench = ({
                 );
               }}
             >
-              Edit mask on canvas
+              {editMaskLabel}
             </button>
           )}
         </div>
@@ -2153,11 +2870,7 @@ export const AIImageWorkbench = ({
         </label>
       )}
 
-      {!modelsForMediaType.length &&
-        renderNotice("Add an image model in Preferences.")}
-
-      {!modelSupportsMode &&
-        renderNotice("Selected model does not support this mode.")}
+      {renderConfigurationNotice()}
 
       <Button
         className="AIImageWorkbench__primaryButton"
@@ -2176,22 +2889,25 @@ export const AIImageWorkbench = ({
         <textarea
           value={prompt}
           rows={4}
+          disabled
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="Describe the video"
+          placeholder="Video preview only"
         />
       </label>
 
+      <div className="AIImageWorkbench__promptActions AIImageWorkbench__promptActions--end">
+        {renderSendPromptToAssistantButton()}
+        {renderCopyPromptButton()}
+      </div>
+
       <div className="AIImageWorkbench__grid">
-        {renderModelSelect()}
+        {renderModelSelect(true)}
 
         <label className="AIImageWorkbench__field">
           <span>Aspect ratio</span>
           <select
             value={params.aspectRatio || "16:9"}
-            disabled={
-              !!selectedModel &&
-              !supportsAIImageMode(selectedModel, "aspect-ratio")
-            }
+            disabled
             onChange={(event) =>
               updateParams({ aspectRatio: event.target.value })
             }
@@ -2209,9 +2925,7 @@ export const AIImageWorkbench = ({
             min={1}
             max={30}
             type="number"
-            disabled={
-              !!selectedModel && !supportsAIImageMode(selectedModel, "duration")
-            }
+            disabled
             value={params.duration ?? 5}
             onChange={(event) =>
               updateParams({
@@ -2229,10 +2943,7 @@ export const AIImageWorkbench = ({
                 ? params.resolution
                 : "1080p"
             }
-            disabled={
-              !!selectedModel &&
-              !supportsAIImageMode(selectedModel, "resolution")
-            }
+            disabled
             onChange={(event) =>
               updateParams({ resolution: event.target.value })
             }
@@ -2249,6 +2960,7 @@ export const AIImageWorkbench = ({
             min={12}
             max={60}
             type="number"
+            disabled
             value={params.fps ?? 24}
             onChange={(event) =>
               updateParams({
@@ -2259,16 +2971,15 @@ export const AIImageWorkbench = ({
         </label>
       </div>
 
-      {!modelsForMediaType.length &&
-        renderNotice("Add a video model in Preferences.")}
-      {renderNotice("Video generation is not wired in this phase.")}
+      {renderConfigurationNotice()}
+      {renderNotice("Video controls are preview-only in this phase.")}
 
       <Button
         className="AIImageWorkbench__primaryButton"
         disabled
         onSelect={() => null}
       >
-        Generate video
+        Video preview only
       </Button>
     </>
   );
@@ -2280,13 +2991,19 @@ export const AIImageWorkbench = ({
         <textarea
           value={prompt}
           rows={4}
+          disabled
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="Describe the audio"
+          placeholder="Audio preview only"
         />
       </label>
 
+      <div className="AIImageWorkbench__promptActions AIImageWorkbench__promptActions--end">
+        {renderSendPromptToAssistantButton()}
+        {renderCopyPromptButton()}
+      </div>
+
       <div className="AIImageWorkbench__grid">
-        {renderModelSelect()}
+        {renderModelSelect(true)}
 
         <label className="AIImageWorkbench__field">
           <span>Duration</span>
@@ -2294,9 +3011,7 @@ export const AIImageWorkbench = ({
             min={1}
             max={300}
             type="number"
-            disabled={
-              !!selectedModel && !supportsAIImageMode(selectedModel, "duration")
-            }
+            disabled
             value={params.duration ?? 30}
             onChange={(event) =>
               updateParams({
@@ -2310,10 +3025,7 @@ export const AIImageWorkbench = ({
           <span>Format</span>
           <select
             value={params.audioFormat || "mp3"}
-            disabled={
-              !!selectedModel &&
-              !supportsAIImageMode(selectedModel, "audio-format")
-            }
+            disabled
             onChange={(event) =>
               updateParams({ audioFormat: event.target.value })
             }
@@ -2328,25 +3040,22 @@ export const AIImageWorkbench = ({
           <span>Voice</span>
           <input
             type="text"
-            disabled={
-              !!selectedModel && !supportsAIImageMode(selectedModel, "voice")
-            }
+            disabled
             value={params.voice || ""}
             onChange={(event) => updateParams({ voice: event.target.value })}
           />
         </label>
       </div>
 
-      {!modelsForMediaType.length &&
-        renderNotice("Add an audio model in Preferences.")}
-      {renderNotice("Audio generation is not wired in this phase.")}
+      {renderConfigurationNotice()}
+      {renderNotice("Audio controls are preview-only in this phase.")}
 
       <Button
         className="AIImageWorkbench__primaryButton"
         disabled
         onSelect={() => null}
       >
-        Generate audio
+        Audio preview only
       </Button>
     </>
   );
@@ -2355,7 +3064,7 @@ export const AIImageWorkbench = ({
     <div className="AIImageWorkbench">
       <div className="AIImageWorkbench__section">
         <div className="AIImageWorkbench__sectionHeader">
-          <h3>AI generation</h3>
+          <h3>Create</h3>
           {isGenerating && (
             <button
               className="AIImageWorkbench__textButton"
@@ -2365,6 +3074,17 @@ export const AIImageWorkbench = ({
               Cancel
             </button>
           )}
+        </div>
+        <div className="AIImageWorkbench__statusStrip" aria-live="polite">
+          {statusStripItems.map((item) => (
+            <span
+              key={item.label}
+              className={`AIImageWorkbench__statusPill is-${item.tone}`}
+              title={`${item.label}: ${item.value}`}
+            >
+              <strong>{item.label}</strong> {item.value}
+            </span>
+          ))}
         </div>
 
         <div className="AIImageWorkbench__segmentedControl">
@@ -2388,6 +3108,8 @@ export const AIImageWorkbench = ({
         {mediaType === "video" && renderVideoParameters()}
         {mediaType === "audio" && renderAudioParameters()}
       </div>
+
+      {generatedAssetsPanel}
 
       {selectedAIMetadata && (
         <div className="AIImageWorkbench__section">
@@ -2507,8 +3229,20 @@ const clampNumber = (value: number, min: number, max: number) => {
   return Math.min(max, Math.max(min, value));
 };
 
-const renderNotice = (message: string) => {
-  return <div className="AIImageWorkbench__notice">{message}</div>;
+const renderNotice = (
+  message: string,
+  action?: { label: string; onClick: () => void },
+) => {
+  return (
+    <div className="AIImageWorkbench__notice">
+      <span>{message}</span>
+      {action && (
+        <button type="button" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
+    </div>
+  );
 };
 
 const SOURCE_TYPE_LABELS: Record<AIImageSourceEnhanced["sourceType"], string> =
@@ -2518,121 +3252,23 @@ const SOURCE_TYPE_LABELS: Record<AIImageSourceEnhanced["sourceType"], string> =
     mixed: "Mixed",
   };
 
-const reindexReferenceImages = (
-  sources: readonly AIImageSourceEnhanced[],
-): AIImageSourceEnhanced[] => {
-  return sources.map((source, index) => ({
-    ...source,
-    index: index + 1,
-  }));
+const createGeneratedAssetId = (index: number) => {
+  return `generated-asset-${Date.now()}-${index}-${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 };
 
-const appendSelectedImageSources = (
-  currentSources: readonly AIImageSourceEnhanced[],
-  selectedImageSources: readonly AIImageSourceEnhanced[],
-) => {
-  if (!selectedImageSources.length) {
-    return reindexReferenceImages(currentSources);
+const formatGeneratedAssetTime = (createdAt: string) => {
+  const date = new Date(createdAt);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Now";
   }
 
-  const nextSources = [...currentSources];
-
-  for (const selectedSource of selectedImageSources) {
-    const existingIndex = nextSources.findIndex((source) =>
-      referenceSourceContainsElement(source, selectedSource.elementId),
-    );
-
-    if (existingIndex < 0) {
-      nextSources.push(selectedSource);
-      continue;
-    }
-
-    const existingSource = nextSources[existingIndex];
-
-    nextSources[existingIndex] =
-      existingSource.sourceType === "imported"
-        ? {
-            ...existingSource,
-            dataURL: selectedSource.dataURL,
-            file: selectedSource.file,
-            fileId: selectedSource.fileId,
-            width: selectedSource.width,
-            height: selectedSource.height,
-            missingElement: false,
-          }
-        : {
-            ...existingSource,
-            missingElement: false,
-          };
-  }
-
-  return reindexReferenceImages(nextSources);
-};
-
-const referenceSourceContainsElement = (
-  source: AIImageSourceEnhanced,
-  elementId: string,
-) => {
-  return (
-    source.elementId === elementId || source.elementIds?.includes(elementId)
-  );
-};
-
-const clearReferenceWeight = (
-  source: AIImageSourceEnhanced,
-): AIImageSourceEnhanced => {
-  const nextSource = { ...source };
-
-  delete nextSource.weight;
-
-  return nextSource;
-};
-
-const markMissingReferenceElements = (
-  sources: readonly AIImageSourceEnhanced[],
-  elements: readonly { id: string; isDeleted?: boolean }[],
-) => {
-  const existingElementIds = new Set(
-    elements
-      .filter((element) => !element.isDeleted)
-      .map((element) => element.id),
-  );
-
-  return sources.map((source) => {
-    const sourceElementIds = source.elementIds?.length
-      ? source.elementIds
-      : [source.elementId];
-
-    return {
-      ...source,
-      missingElement: !sourceElementIds.some((elementId) =>
-        existingElementIds.has(elementId),
-      ),
-    };
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
   });
-};
-
-const validatePromptReferences = (prompt: string, imageCount: number) => {
-  const warnings = new Set<string>();
-  const matches = prompt.matchAll(/#(\d+)|图\s*(\d+)|image\s+(\d+)/gi);
-
-  for (const match of matches) {
-    const value = match[1] || match[2] || match[3];
-    const referenceIndex = Number(value);
-
-    if (
-      Number.isFinite(referenceIndex) &&
-      (referenceIndex < 1 || referenceIndex > imageCount)
-    ) {
-      warnings.add(
-        `Warning: #${referenceIndex} not found (${imageCount} reference${
-          imageCount === 1 ? "" : "s"
-        }).`,
-      );
-    }
-  }
-
-  return Array.from(warnings);
 };
 
 const groupPromptTemplates = (templates: readonly PromptTemplate[]) => {
@@ -2680,130 +3316,6 @@ const getReferencePersistenceKey = (excalidrawAPI: ExcalidrawImperativeAPI) => {
   )}`;
 };
 
-const persistReferenceState = (
-  key: string,
-  state: { locked: boolean; images: readonly AIImageSourceEnhanced[] },
-) => {
-  try {
-    localStorage.setItem(
-      key,
-      JSON.stringify({
-        version: 1,
-        locked: state.locked,
-        images: state.images.map((source) => ({
-          index: source.index,
-          elementId: source.elementId,
-          elementIds: source.elementIds,
-          sourceType: source.sourceType,
-          weight: source.weight,
-          locked: source.locked,
-          createdAt: source.createdAt,
-          dataURL: source.dataURL,
-          width: source.width,
-          height: source.height,
-          fileName: source.file.name,
-          mimeType: source.file.type,
-        })),
-      }),
-    );
-  } catch (error) {
-    console.error("Could not persist AI reference images", error);
-  }
-};
-
-const loadPersistedReferenceState = (
-  key: string,
-): { locked: boolean; images: AIImageSourceEnhanced[] } | null => {
-  try {
-    const rawValue = localStorage.getItem(key);
-
-    if (!rawValue) {
-      return null;
-    }
-
-    const parsed = JSON.parse(rawValue);
-    const images = Array.isArray(parsed?.images)
-      ? parsed.images
-          .map((value: unknown, index: number) =>
-            normalizePersistedReferenceImage(value, index),
-          )
-          .filter(
-            (
-              source: AIImageSourceEnhanced | null,
-            ): source is AIImageSourceEnhanced => !!source,
-          )
-      : [];
-
-    return {
-      locked: parsed?.locked === true,
-      images,
-    };
-  } catch (error) {
-    console.error("Could not restore AI reference images", error);
-    return null;
-  }
-};
-
-const normalizePersistedReferenceImage = (
-  value: unknown,
-  fallbackIndex: number,
-): AIImageSourceEnhanced | null => {
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const candidate = value as Record<string, unknown>;
-  const dataURL = readString(candidate.dataURL);
-  const elementId = readString(candidate.elementId);
-  const sourceType = readString(candidate.sourceType);
-
-  if (!dataURL || !elementId || !isReferenceSourceType(sourceType)) {
-    return null;
-  }
-
-  const mimeType = readString(candidate.mimeType) || "image/png";
-  const fileName =
-    readString(candidate.fileName) || `reference-${Date.now()}.png`;
-  const createdAt =
-    typeof candidate.createdAt === "number"
-      ? candidate.createdAt
-      : Date.now() + fallbackIndex;
-  const elementIds = Array.isArray(candidate.elementIds)
-    ? candidate.elementIds.filter(
-        (elementId): elementId is string => typeof elementId === "string",
-      )
-    : [elementId];
-
-  return {
-    index:
-      typeof candidate.index === "number" ? candidate.index : fallbackIndex + 1,
-    elementId,
-    elementIds,
-    sourceType,
-    weight: typeof candidate.weight === "number" ? candidate.weight : undefined,
-    locked: candidate.locked === true,
-    createdAt,
-    dataURL: dataURL as AIImageSourceEnhanced["dataURL"],
-    width: typeof candidate.width === "number" ? candidate.width : undefined,
-    height: typeof candidate.height === "number" ? candidate.height : undefined,
-    file: dataURLToFile(
-      dataURL as AIImageSourceEnhanced["dataURL"],
-      fileName,
-      mimeType,
-    ),
-  };
-};
-
-const readString = (value: unknown) => {
-  return typeof value === "string" ? value : "";
-};
-
-const isReferenceSourceType = (
-  value: string,
-): value is AIImageSourceEnhanced["sourceType"] => {
-  return value === "imported" || value === "canvas" || value === "mixed";
-};
-
 const appendGenerationLogEntry = (
   entry: Parameters<typeof appendAIGenerationLog>[0],
 ) => {
@@ -2812,6 +3324,22 @@ const appendGenerationLogEntry = (
   } catch (error: any) {
     console.error("Could not save AI generation log", error);
   }
+};
+
+const isValidGenerationOutputs = (
+  outputs: unknown,
+): outputs is AIImageGenerationOutput[] => {
+  return (
+    Array.isArray(outputs) &&
+    outputs.length > 0 &&
+    outputs.every(
+      (output) =>
+        !!output &&
+        typeof output === "object" &&
+        typeof (output as AIImageGenerationOutput).dataURL === "string" &&
+        !!(output as AIImageGenerationOutput).dataURL,
+    )
+  );
 };
 
 const getUnknownErrorMessage = (error: any) => {

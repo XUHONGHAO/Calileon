@@ -3,9 +3,6 @@ import { CaptureUpdateAction, getSelectedElements } from "@excalidraw/element";
 
 import { register } from "./register";
 
-const AI_REFERENCE_ADD_SELECTION_EVENT =
-  "excalidraw:add-selection-to-ai-reference";
-
 export const actionAddSelectionToAIReference = register({
   name: "addSelectionToAIReference",
   label: "labels.addSelectionToAIReference",
@@ -27,7 +24,7 @@ export const actionAddSelectionToAIReference = register({
     );
   },
   perform: () => {
-    window.dispatchEvent(new Event(AI_REFERENCE_ADD_SELECTION_EVENT));
+    window.EXCALIDRAW_APP_AI_HANDLERS?.addSelectionAsReference?.();
 
     return {
       captureUpdate: CaptureUpdateAction.NEVER,

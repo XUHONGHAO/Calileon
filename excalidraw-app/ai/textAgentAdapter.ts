@@ -87,6 +87,10 @@ const getAuthorizationHeaderValue = (apiKey: string) => {
     : `Bearer ${trimmedApiKey}`;
 };
 
+const getRawAPIKeyHeaderValue = (apiKey: string) => {
+  return apiKey.trim().replace(/^(Bearer|Basic)\s+/i, "");
+};
+
 const readString = (value: unknown) => {
   return typeof value === "string" ? value : "";
 };
@@ -134,8 +138,8 @@ async function* parseSSEStream(
       for (const line of lines) {
         const trimmedLine = line.trim();
 
-        if (trimmedLine.startsWith("data: ")) {
-          yield trimmedLine.slice(6);
+        if (trimmedLine.startsWith("data:")) {
+          yield trimmedLine.slice(5).trimStart();
         }
       }
     }
@@ -181,7 +185,7 @@ const streamResponse = async (
 
   if (!generatedResponse) {
     throw new RequestError({
-      message: "Generation failed: AI agent returned an empty response.",
+      message: "AI agent stream completed without text.",
       status: response.status,
     });
   }
@@ -241,7 +245,7 @@ const submitAnthropicTextAgent = async (
       Accept: "text/event-stream",
       "anthropic-version": "2023-06-01",
       "Content-Type": "application/json",
-      "x-api-key": agent.apiKey.trim(),
+      "x-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
     },
     body: JSON.stringify({
       model: agent.model,
@@ -280,7 +284,7 @@ const submitGeminiTextAgent = async (
     headers: {
       Accept: "text/event-stream",
       "Content-Type": "application/json",
-      "x-goog-api-key": agent.apiKey.trim(),
+      "x-goog-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
     },
     body: JSON.stringify({
       systemInstruction: {

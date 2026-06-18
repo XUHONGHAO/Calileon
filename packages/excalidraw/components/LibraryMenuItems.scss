@@ -57,6 +57,10 @@
 
     position: relative;
 
+    &--empty {
+      border-bottom: 0;
+    }
+
     & > div {
       padding-left: 0.75rem;
       padding-right: 0.75rem;
@@ -77,6 +81,15 @@
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
+
+      &--with-published {
+        flex: 1;
+      }
+
+      &--empty {
+        flex: 0 1 auto;
+        margin: auto;
+      }
     }
 
     &__header {
@@ -95,11 +108,16 @@
         margin-top: 2rem;
       }
 
+      &--published {
+        margin-top: 0.75rem;
+      }
+
       &__hint {
         margin-left: auto;
         font-size: 10px;
         color: var(--color-border-outline);
         font-weight: 400;
+        cursor: pointer;
 
         kbd {
           font-family: monospace;
@@ -107,7 +125,20 @@
           border-radius: 4px;
           padding: 1px 3px;
         }
+
+        &:focus-visible {
+          outline: var(--ui-focus-outline);
+          outline-offset: var(--ui-focus-outline-offset);
+          border-radius: var(--border-radius-md);
+        }
       }
+    }
+
+    &__loading {
+      position: absolute;
+      top: var(--container-padding-y);
+      right: var(--container-padding-x);
+      transform: translateY(50%);
     }
 
     &__grid {
@@ -150,5 +181,15 @@
     // no layout shift (this is hardcoded and works only with ENG locale)
     min-height: 3.75rem;
     width: 100%;
+  }
+
+  .library-menu-items__clear-search {
+    width: auto;
+    margin-top: 1rem;
+  }
+
+  .library-menu-control-buttons--empty {
+    width: 100%;
+    padding: 16px 0;
   }
 }
