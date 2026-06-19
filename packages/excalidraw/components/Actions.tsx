@@ -1308,6 +1308,11 @@ export const UndoRedoActions = ({
     <div className="redo-button-container">
       <Tooltip label={t("buttons.redo")}> {renderAction("redo")}</Tooltip>
     </div>
+    <div className="focus-content-button-container">
+      <Tooltip label={t("buttons.focusContent")}>
+        {renderAction("focusContent")}
+      </Tooltip>
+    </div>
   </div>
 );
 

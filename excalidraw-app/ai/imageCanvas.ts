@@ -9,6 +9,7 @@ import {
 } from "@excalidraw/element";
 
 import type {
+  AppState,
   BinaryFileData,
   DataURL,
   ExcalidrawImperativeAPI,
@@ -32,16 +33,24 @@ type InsertGeneratedImageOptions = {
   output: AIImageGenerationOutput;
   metadata: AIImageGenerationMetadata;
   index: number;
+  placement?: GeneratedImagePlacement;
 };
 
 const MAX_INSERTED_IMAGE_SIZE = 640;
 const SELECTION_INSERT_GAP = 48;
+const REFERENCE_INSERT_GAP = 16;
+
+export type GeneratedImagePlacement = {
+  kind: "reference";
+  elementIds: readonly string[];
+};
 
 export const insertGeneratedImageIntoCanvas = async ({
   excalidrawAPI,
   output,
   metadata,
   index,
+  placement,
 }: InsertGeneratedImageOptions) => {
   const fileId = isRemoteImageOutput(output)
     ? createRemoteImageFileId(index)
@@ -62,7 +71,9 @@ export const insertGeneratedImageIntoCanvas = async ({
   const position = getGeneratedImagePosition(
     fittedDimensions,
     selectedElements,
+    elements,
     appState,
+    placement,
   );
 
   const binaryFileData: BinaryFileData = {
@@ -174,13 +185,29 @@ const fitImageDimensions = ({
   };
 };
 
-const getGeneratedImagePosition = (
+export const getGeneratedImagePosition = (
   dimensions: { width: number; height: number },
   selectedElements: readonly ExcalidrawElement[],
-  appState: ExcalidrawImperativeAPI["getAppState"] extends () => infer State
-    ? State
-    : never,
+  sceneElements: readonly ExcalidrawElement[],
+  appState: AppState,
+  placement?: GeneratedImagePlacement,
 ) => {
+  if (placement?.kind === "reference" && placement.elementIds.length) {
+    const referenceElementIds = new Set(placement.elementIds);
+    const referenceElements = sceneElements.filter((element) =>
+      referenceElementIds.has(element.id),
+    );
+
+    if (referenceElements.length) {
+      const [, minY, maxX] = getCommonBounds(referenceElements);
+
+      return {
+        x: maxX + REFERENCE_INSERT_GAP,
+        y: minY,
+      };
+    }
+  }
+
   if (selectedElements.length) {
     const [, minY, maxX, maxY] = getCommonBounds(selectedElements);
 

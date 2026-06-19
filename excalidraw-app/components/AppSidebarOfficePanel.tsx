@@ -2,7 +2,7 @@ import { THEME } from "@excalidraw/excalidraw";
 import { share } from "@excalidraw/excalidraw/components/icons";
 import { LinkButton } from "@excalidraw/excalidraw/components/LinkButton";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
+import { t } from "@excalidraw/excalidraw/i18n";
 
 type AppSidebarOfficePanelProps = {
   kind: "comments" | "presentation";
@@ -19,7 +19,6 @@ export const AppSidebarOfficePanel = ({
   onOpenShare,
   plusBaseURL = import.meta.env.VITE_APP_PLUS_LP,
 }: AppSidebarOfficePanelProps) => {
-  const { t } = useI18n();
   const { theme } = useUIAppState();
   const isComments = kind === "comments";
   const title = isComments

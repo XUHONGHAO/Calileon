@@ -290,6 +290,60 @@ describe("AIImageWorkbench", () => {
     expect(createImportedReferenceSource).toHaveBeenCalledTimes(1);
   });
 
+  it("anchors reference-mode generated images to the first reference image", async () => {
+    vi.mocked(generateImagesWithOpenAIAdapter).mockResolvedValue([
+      generatedOutput,
+    ]);
+
+    render(
+      <AIImageWorkbench
+        excalidrawAPI={createExcalidrawAPI({
+          selectedElementIds: { "image-1": true },
+          elements: [
+            {
+              id: "image-1",
+              type: "image",
+              fileId: "file-1",
+              x: 120,
+              y: 80,
+              width: 100,
+              height: 80,
+              isDeleted: false,
+            },
+          ],
+          files: {
+            "file-1": {
+              dataURL: generatedOutput.dataURL,
+              mimeType: "image/png",
+            },
+          },
+        })}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(createImportedReferenceSource).toHaveBeenCalledTimes(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "Use the selected reference" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Generate image" }));
+
+    await waitFor(() => {
+      expect(insertGeneratedImageIntoCanvas).toHaveBeenCalledTimes(1);
+    });
+    expect(insertGeneratedImageIntoCanvas).toHaveBeenCalledWith(
+      expect.objectContaining({
+        placement: {
+          kind: "reference",
+          elementIds: ["image-1"],
+        },
+      }),
+    );
+  });
+
   it("debounces persisted reference state and omits data URLs", async () => {
     vi.useFakeTimers();
 

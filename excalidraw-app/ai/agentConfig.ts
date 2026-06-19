@@ -136,10 +136,7 @@ const normalizeCustomAgent = (
   };
 };
 
-const normalizeSkill = (
-  value: unknown,
-  customAgents: readonly CustomAIAgent[],
-): AISkill | null => {
+const normalizeSkill = (value: unknown): AISkill | null => {
   if (!value || typeof value !== "object") {
     return null;
   }
@@ -147,13 +144,8 @@ const normalizeSkill = (
   const skill = value as Partial<AISkill>;
   const id = typeof skill.id === "string" ? skill.id.trim() : "";
   const name = typeof skill.name === "string" ? skill.name.trim() : "";
-  const agentId = typeof skill.agentId === "string" ? skill.agentId.trim() : "";
 
-  if (!id || !name || !agentId) {
-    return null;
-  }
-
-  if (!customAgents.some((agent) => agent.id === agentId)) {
+  if (!id || !name) {
     return null;
   }
 
@@ -177,7 +169,6 @@ const normalizeSkill = (
     description:
       typeof skill.description === "string" ? skill.description.trim() : "",
     triggers: triggers.length ? triggers : undefined,
-    agentId,
     initialPrompt,
   };
 };
@@ -235,7 +226,7 @@ export const normalizeAIAgentConfig = (
     : [];
   const skills = Array.isArray(config?.skills)
     ? config.skills
-        .map((skill) => normalizeSkill(skill, customAgents))
+        .map((skill) => normalizeSkill(skill))
         .filter((skill): skill is AISkill => !!skill)
     : [];
 
@@ -261,7 +252,7 @@ export const normalizeAIAgentConfig = (
       customAgents,
       config?.defaultCustomAgentId,
     ),
-    useTextAgentForVision: !!config?.useTextAgentForVision,
+    useTextAgentForVision: false,
   };
 };
 
@@ -321,10 +312,6 @@ export const getDefaultTextAgent = (config: AIAgentConfig): AIAgent | null => {
 export const getDefaultVisionAgent = (
   config: AIAgentConfig,
 ): AIAgent | null => {
-  if (config.useTextAgentForVision) {
-    return getDefaultTextAgent(config);
-  }
-
   return (
     config.visionAgents.find(
       (agent) => agent.id === config.defaultVisionAgentId,
@@ -446,7 +433,6 @@ export const deleteCustomAgent = (
   return normalizeAIAgentConfig({
     ...config,
     customAgents: config.customAgents.filter((item) => item.id !== agent.id),
-    skills: config.skills.filter((skill) => skill.agentId !== agent.id),
   });
 };
 
@@ -503,21 +489,6 @@ export const getCustomAgentLLM = (
   return (
     config.llmAgents.find((agent) => agent.id === customAgent.baseLLMAgentId) ||
     null
-  );
-};
-
-export const getSkillAgent = (
-  config: AIAgentConfig,
-  skillId: string,
-): CustomAIAgent | null => {
-  const skill = config.skills.find((item) => item.id === skillId);
-
-  if (!skill) {
-    return null;
-  }
-
-  return (
-    config.customAgents.find((agent) => agent.id === skill.agentId) || null
   );
 };
 

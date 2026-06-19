@@ -2,9 +2,11 @@ import { DEFAULT_SIDEBAR } from "@excalidraw/common";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 import {
+  copyIcon,
   messageCircleIcon,
   PlusIcon,
 } from "@excalidraw/excalidraw/components/icons";
+import { t } from "@excalidraw/excalidraw/i18n";
 import { convertToExcalidrawElements } from "@excalidraw/element";
 import {
   memo,
@@ -21,7 +23,7 @@ import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import {
   AI_AGENT_CONFIG_UPDATED_EVENT,
-  getDefaultCustomAgent,
+  getDefaultLLMAgent,
   loadAIAgentConfig,
   renderSkillInitialPrompt,
 } from "../../ai/agentConfig";
@@ -33,8 +35,7 @@ import {
   updateConversationTitle,
 } from "../../ai/chatHistory";
 import { hasMermaidCodeBlock } from "../../ai/codeBlockDetector";
-import { sendMessageToCustomAgent } from "../../ai/customAgentAdapter";
-import { createAIOpenSettingsEvent } from "../../ai/workflowEvents";
+import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
 
 import "./CustomAgentChat.scss";
 
@@ -43,7 +44,6 @@ import type {
   AISkill,
   ChatConversation,
   ChatMessage,
-  ChatMode,
   CustomAgentChatHistory,
 } from "../../ai/types";
 
@@ -60,13 +60,6 @@ type CustomAgentChatProps = {
   onSendPromptToWorkbench?: (prompt: string) => void;
 };
 
-const CHAT_MODE_OPTIONS: Array<{ value: ChatMode; label: string }> = [
-  { value: "agent", label: "Agent mode" },
-  { value: "image", label: "Image mode" },
-  { value: "video", label: "Video mode" },
-  { value: "audio", label: "Audio mode" },
-];
-
 const messagePlusIcon = (
   <>
     {messageCircleIcon}
@@ -76,10 +69,10 @@ const messagePlusIcon = (
   </>
 );
 
-const chevronDownIcon = (
+const chevronUpIcon = (
   <svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24">
     <path
-      d="M6 9l6 6l6 -6"
+      d="M6 15l6 -6l6 6"
       fill="none"
       stroke="currentColor"
       strokeLinecap="round"
@@ -152,8 +145,8 @@ export const CustomAgentChat = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [isSkillsPanelOpen, setIsSkillsPanelOpen] = useState(false);
-  const [isModeMenuOpen, setIsModeMenuOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historySearch, setHistorySearch] = useState("");
   const deferredHistorySearch = useDeferredValue(historySearch);
@@ -173,6 +166,7 @@ export const CustomAgentChat = ({
   const lastIncomingPromptIdRef = useRef<number | null>(null);
   const lastIncomingSkillIdRef = useRef<number | null>(null);
   const didAutoCreateConversationRef = useRef(false);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const activeConversation = useMemo(
     () =>
@@ -184,11 +178,11 @@ export const CustomAgentChat = ({
   const activeAgent = useMemo(
     () =>
       activeConversation
-        ? agentConfig.customAgents.find(
+        ? agentConfig.llmAgents.find(
             (agent) => agent.id === activeConversation.agentId,
           ) || null
         : null,
-    [activeConversation, agentConfig.customAgents],
+    [activeConversation, agentConfig.llmAgents],
   );
   const pendingSkill = useMemo(
     () =>
@@ -199,17 +193,35 @@ export const CustomAgentChat = ({
         : null,
     [activeConversation?.pendingSkillId, agentConfig.skills],
   );
+  const messagesScrollKey = useMemo(() => {
+    const lastMessage = activeConversation?.messages.at(-1);
+
+    return [
+      activeConversation?.id || "",
+      activeConversation?.messages.length || 0,
+      lastMessage?.id || "",
+      lastMessage?.content.length || 0,
+    ].join(":");
+  }, [activeConversation]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView?.({ block: "end" });
+  }, [messagesScrollKey]);
+
   const conversationSearchIndex = useMemo(() => {
     return new Map(
       history.conversations.map((conversation) => {
-        const agentLabel = getAgentLabel(agentConfig, conversation.agentId);
+        const agentLabel = getAgentLabel(agentConfig, conversation.agentId, t);
         const messageText = conversation.messages
           .map((message) => message.content)
           .join(" ");
 
         return [
           conversation.id,
-          `${conversation.title} ${agentLabel} ${messageText}`.toLowerCase(),
+          `${getConversationTitle(
+            conversation,
+            t,
+          )} ${agentLabel} ${messageText}`.toLowerCase(),
         ];
       }),
     );
@@ -287,11 +299,11 @@ export const CustomAgentChat = ({
 
   const createNewConversation = useCallback(
     (agentId?: string, pendingSkillId?: string) => {
-      const defaultAgent = getDefaultCustomAgent(agentConfig);
+      const defaultAgent = getDefaultLLMAgent(agentConfig);
       const nextAgentId = agentId || defaultAgent?.id || "";
 
       if (!nextAgentId) {
-        setErrorMessage("Create a Custom Agent before starting a chat.");
+        setErrorMessage(t("ai.assistant.messages.needGeneralAgent"));
         setStatusMessage("");
         return null;
       }
@@ -307,8 +319,10 @@ export const CustomAgentChat = ({
 
       persistHistory(nextHistory);
       setInputValue("");
+      setIsAgentMenuOpen(false);
+      setIsSkillsPanelOpen(false);
       setIsHistoryOpen(false);
-      setStatusMessage("New chat created.");
+      setStatusMessage(t("ai.assistant.messages.newChatCreated"));
       setErrorMessage("");
       return conversation;
     },
@@ -408,7 +422,7 @@ export const CustomAgentChat = ({
   useEffect(() => {
     if (
       activeConversation ||
-      !agentConfig.customAgents.length ||
+      !agentConfig.llmAgents.length ||
       didAutoCreateConversationRef.current
     ) {
       return;
@@ -416,11 +430,7 @@ export const CustomAgentChat = ({
 
     didAutoCreateConversationRef.current = true;
     createNewConversation();
-  }, [
-    activeConversation,
-    agentConfig.customAgents.length,
-    createNewConversation,
-  ]);
+  }, [activeConversation, agentConfig.llmAgents.length, createNewConversation]);
 
   useEffect(() => {
     if (
@@ -436,7 +446,7 @@ export const CustomAgentChat = ({
         ? `${current.trimEnd()}\n\n${incomingPrompt.prompt}`
         : incomingPrompt.prompt,
     );
-    setStatusMessage("Prompt loaded from AI Workbench.");
+    setStatusMessage(t("ai.assistant.messages.promptLoaded"));
     setErrorMessage("");
   }, [incomingPrompt]);
 
@@ -448,6 +458,8 @@ export const CustomAgentChat = ({
         activeConversationId: conversationId,
       });
       setInputValue("");
+      setIsAgentMenuOpen(false);
+      setIsSkillsPanelOpen(false);
       setIsHistoryOpen(false);
       setStatusMessage("");
       setErrorMessage("");
@@ -480,8 +492,27 @@ export const CustomAgentChat = ({
     [abortActiveGeneration, history, persistHistory],
   );
 
+  const deleteMessage = useCallback(
+    (messageId: string) => {
+      const activeRequest = activeRequestRef.current;
+
+      if (activeRequest?.assistantMessageId === messageId) {
+        abortActiveGeneration();
+      }
+
+      updateActiveConversation((conversation) => ({
+        ...conversation,
+        messages: conversation.messages.filter(
+          (message) => message.id !== messageId,
+        ),
+        updatedAt: Date.now(),
+      }));
+    },
+    [abortActiveGeneration, updateActiveConversation],
+  );
+
   const clearAllConversations = useCallback(() => {
-    if (!window.confirm("Clear all AI Assistant conversations?")) {
+    if (!window.confirm(t("ai.assistant.messages.clearAllConfirm"))) {
       return;
     }
 
@@ -491,8 +522,10 @@ export const CustomAgentChat = ({
       activeConversationId: null,
     });
     setInputValue("");
-    setStatusMessage("All chats cleared.");
+    setStatusMessage(t("ai.assistant.messages.allChatsCleared"));
     setErrorMessage("");
+    setIsAgentMenuOpen(false);
+    setIsSkillsPanelOpen(false);
     setIsHistoryOpen(false);
   }, [abortActiveGeneration, persistHistory]);
 
@@ -502,10 +535,10 @@ export const CustomAgentChat = ({
       updateActiveConversation((conversation) => ({
         ...conversation,
         agentId,
-        pendingSkillId: undefined,
         updatedAt: Date.now(),
       }));
-      setStatusMessage("Agent switched.");
+      setIsAgentMenuOpen(false);
+      setStatusMessage(t("ai.assistant.messages.agentSwitched"));
       setErrorMessage("");
     },
     [abortActiveGeneration, updateActiveConversation],
@@ -518,22 +551,24 @@ export const CustomAgentChat = ({
       if (activeConversation) {
         updateActiveConversation((conversation) => ({
           ...conversation,
-          agentId: skill.agentId,
           pendingSkillId: skill.initialPrompt ? skill.id : undefined,
           updatedAt: Date.now(),
         }));
       } else {
         createNewConversation(
-          skill.agentId,
+          undefined,
           skill.initialPrompt ? skill.id : undefined,
         );
       }
 
       setIsSkillsPanelOpen(false);
+      setIsAgentMenuOpen(false);
       setStatusMessage(
         skill.initialPrompt
-          ? `${skill.name} selected. Type your input to start.`
-          : `${skill.name} selected.`,
+          ? t("ai.assistant.messages.skillSelectedWithInput", {
+              name: skill.name,
+            })
+          : t("ai.assistant.messages.skillSelected", { name: skill.name }),
       );
       setErrorMessage("");
     },
@@ -573,10 +608,9 @@ export const CustomAgentChat = ({
           (skill) => skill.id === conversation.pendingSkillId,
         )
       : null;
-    const contentForAgent =
-      pending?.initialPrompt && pending.agentId === agentId
-        ? renderSkillInitialPrompt(pending, content)
-        : content;
+    const contentForAgent = pending?.initialPrompt
+      ? renderSkillInitialPrompt(pending, content)
+      : content;
     const userMessage = createChatMessage("user", content, agentId);
     const assistantMessage = createChatMessage("assistant", "", agentId);
     const now = Date.now();
@@ -622,7 +656,7 @@ export const CustomAgentChat = ({
         content: contentForAgent,
       },
     ];
-    const result = await sendMessageToCustomAgent({
+    const result = await sendMessageToGeneralAgent({
       agentId,
       messages: messagesForAgent,
       signal: abortController.signal,
@@ -669,7 +703,7 @@ export const CustomAgentChat = ({
           ),
           updatedAt: Date.now(),
         }));
-        setStatusMessage("Response canceled.");
+        setStatusMessage(t("ai.assistant.messages.responseCanceled"));
         setErrorMessage("");
         return;
       }
@@ -681,7 +715,9 @@ export const CustomAgentChat = ({
         ),
         updatedAt: Date.now(),
       }));
-      setErrorMessage(result.error.message || "AI Assistant request failed.");
+      setErrorMessage(
+        result.error.message || t("ai.assistant.messages.requestFailed"),
+      );
       return;
     }
 
@@ -722,35 +758,9 @@ export const CustomAgentChat = ({
     abortActiveGeneration();
   }, [abortActiveGeneration]);
 
-  const showComingSoon = useCallback(
-    (mode: ChatMode) => {
-      if (mode === "agent") {
-        updateActiveConversation((conversation) => ({
-          ...conversation,
-          mode: "agent",
-          updatedAt: Date.now(),
-        }));
-        setIsModeMenuOpen(false);
-        return;
-      }
-
-      setStatusMessage("This mode is coming soon.");
-      setIsModeMenuOpen(false);
-    },
-    [updateActiveConversation],
-  );
-
-  const openAISettings = useCallback(() => {
-    excalidrawAPI?.toggleSidebar({
-      name: null,
-      force: false,
-    });
-    window.dispatchEvent(createAIOpenSettingsEvent({ tab: "agents" }));
-  }, [excalidrawAPI]);
-
-  const copyCode = useCallback(async (code: string) => {
-    await copyTextToSystemClipboard(code);
-    setStatusMessage("Copied.");
+  const copyChatText = useCallback(async (text: string) => {
+    await copyTextToSystemClipboard(text);
+    setStatusMessage(t("ai.common.copied"));
     setErrorMessage("");
   }, []);
 
@@ -762,7 +772,7 @@ export const CustomAgentChat = ({
         tab: "ai-image",
         force: true,
       });
-      setStatusMessage("Sent to AI Workbench.");
+      setStatusMessage(t("ai.assistant.messages.sentToWorkbench"));
       setErrorMessage("");
     },
     [excalidrawAPI, onSendPromptToWorkbench],
@@ -786,7 +796,7 @@ export const CustomAgentChat = ({
         );
 
         if (!mermaidElements.length) {
-          throw new Error("No Excalidraw elements were generated.");
+          throw new Error(t("ai.assistant.messages.noExcalidrawElements"));
         }
 
         const fileValues = Object.values(files);
@@ -811,12 +821,13 @@ export const CustomAgentChat = ({
           fitToContent: true,
         });
         excalidrawAPI.setToast({
-          message: "Inserted Mermaid diagram.",
+          message: t("ai.assistant.messages.insertedMermaid"),
           duration: 3000,
         });
       } catch (error: any) {
         excalidrawAPI.setToast({
-          message: error?.message || "Could not insert Mermaid diagram.",
+          message:
+            error?.message || t("ai.assistant.messages.insertMermaidFailed"),
           duration: 4000,
         });
       }
@@ -833,121 +844,9 @@ export const CustomAgentChat = ({
 
   return (
     <div className="CustomAgentChat">
-      <header className="CustomAgentChat__header">
-        <div>
-          <strong>AI Assistant</strong>
-          <span>Custom Agents and Skills</span>
-        </div>
-        <div className="CustomAgentChat__headerActions">
-          <button
-            type="button"
-            title="New chat"
-            aria-label="New chat"
-            className="CustomAgentChat__iconButton CustomAgentChat__newChatButton"
-            onClick={() => createNewConversation()}
-          >
-            <span className="CustomAgentChat__chatPlusIcon" aria-hidden="true">
-              {messagePlusIcon}
-            </span>
-          </button>
-          <button
-            type="button"
-            title="Recent chats"
-            aria-label="Recent chats"
-            className="CustomAgentChat__iconButton"
-            aria-expanded={isHistoryOpen}
-            onClick={() => setIsHistoryOpen((open) => !open)}
-          >
-            {chevronDownIcon}
-          </button>
-          <button
-            type="button"
-            title="Clear chats"
-            aria-label="Clear chats"
-            className="CustomAgentChat__iconButton"
-            onClick={clearAllConversations}
-          >
-            {trashIcon}
-          </button>
-        </div>
-      </header>
-
-      {isHistoryOpen && (
-        <section
-          className="CustomAgentChat__historyPopover"
-          aria-label="Recent chats"
-        >
-          <div className="CustomAgentChat__historyHeader">
-            <strong>Recent Chats</strong>
-            <span>{history.conversations.length}</span>
-          </div>
-          <input
-            className="CustomAgentChat__historySearch"
-            type="search"
-            value={historySearch}
-            placeholder="Search history"
-            onChange={(event) => setHistorySearch(event.target.value)}
-          />
-          <div className="CustomAgentChat__historyList">
-            {filteredConversations.length === 0 && (
-              <div className="CustomAgentChat__empty">
-                {history.conversations.length === 0
-                  ? "No chats yet."
-                  : "No chats found."}
-              </div>
-            )}
-            {filteredConversations.map((conversation) => (
-              <div
-                key={conversation.id}
-                className={
-                  conversation.id === activeConversation?.id
-                    ? "CustomAgentChat__conversation is-selected"
-                    : "CustomAgentChat__conversation"
-                }
-              >
-                <button
-                  type="button"
-                  className="CustomAgentChat__conversationSelect"
-                  aria-current={
-                    conversation.id === activeConversation?.id
-                      ? "true"
-                      : undefined
-                  }
-                  onClick={() => switchConversation(conversation.id)}
-                >
-                  <strong>{conversation.title}</strong>
-                  <small>
-                    with {getAgentLabel(agentConfig, conversation.agentId)}
-                  </small>
-                  <small>
-                    {conversation.messages.length} messages -{" "}
-                    {formatRelativeTime(conversation.updatedAt)}
-                  </small>
-                </button>
-                <button
-                  type="button"
-                  className="CustomAgentChat__conversationDelete"
-                  title="Delete chat"
-                  aria-label={`Delete chat ${conversation.title}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    deleteConversation(conversation.id);
-                  }}
-                >
-                  x
-                </button>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {!agentConfig.customAgents.length && (
+      {!agentConfig.llmAgents.length && (
         <div className="CustomAgentChat__notice">
-          Create an LLM Agent and Custom Agent in AI Settings before chatting.
-          <button type="button" onClick={openAISettings}>
-            Open AI Settings
-          </button>
+          {t("ai.assistant.noticeNoAgents")}
         </div>
       )}
 
@@ -955,141 +854,244 @@ export const CustomAgentChat = ({
         <div className="CustomAgentChat__messages">
           {!activeConversation?.messages.length && (
             <div className="CustomAgentChat__empty">
-              Start a new conversation with {activeAgent?.name || "an agent"}.
+              {t("ai.assistant.startConversation", {
+                agent: activeAgent?.name || t("ai.assistant.fallbackAgent"),
+              })}
             </div>
           )}
           {activeConversation?.messages.map((message) => (
             <ChatMessageView
               key={message.id}
               message={message}
-              onCopyCode={copyCode}
+              onCopyCode={copyChatText}
+              onCopyMessage={copyChatText}
+              onDeleteMessage={deleteMessage}
               onSendPromptToWorkbench={sendPromptToWorkbench}
               onInsertMermaid={insertMermaid}
               onInsertTextToCanvas={insertAssistantText}
               canInsertToCanvas={!!excalidrawAPI}
             />
           ))}
+          <div ref={messagesEndRef} aria-hidden="true" />
         </div>
 
-        <label className="CustomAgentChat__input">
-          <textarea
-            aria-label="Message"
-            value={inputValue}
-            rows={4}
-            disabled={isGenerating || !agentConfig.customAgents.length}
-            placeholder={
-              pendingSkill?.initialPrompt
-                ? "Type the input for this Skill..."
-                : "Describe what you need..."
-            }
-            onChange={(event) => setInputValue(event.target.value)}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+        <div className="CustomAgentChat__composer">
+          <div className="CustomAgentChat__composerToolbar">
+            {isAgentMenuOpen && (
+              <div
+                className="CustomAgentChat__popover CustomAgentChat__popover--agent"
+                aria-label={t("ai.assistant.agent")}
+              >
+                <strong>{t("ai.assistant.agent")}</strong>
+                {agentConfig.llmAgents.map((agent) => (
+                  <button
+                    key={agent.id}
+                    type="button"
+                    className={
+                      agent.id === activeConversation?.agentId
+                        ? "is-selected"
+                        : undefined
+                    }
+                    onClick={() => switchAgent(agent.id)}
+                  >
+                    {agent.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {isHistoryOpen && (
+              <section
+                className="CustomAgentChat__historyPopover"
+                aria-label={t("ai.assistant.recentChats")}
+              >
+                <input
+                  className="CustomAgentChat__historySearch"
+                  type="search"
+                  value={historySearch}
+                  placeholder={t("ai.assistant.searchHistory")}
+                  onChange={(event) => setHistorySearch(event.target.value)}
+                />
+                <div className="CustomAgentChat__historyList">
+                  {filteredConversations.length === 0 && (
+                    <div className="CustomAgentChat__empty">
+                      {history.conversations.length === 0
+                        ? t("ai.assistant.noChatsYet")
+                        : t("ai.assistant.noChatsFound")}
+                    </div>
+                  )}
+                  {filteredConversations.map((conversation) => (
+                    <div
+                      key={conversation.id}
+                      className={
+                        conversation.id === activeConversation?.id
+                          ? "CustomAgentChat__conversation is-selected"
+                          : "CustomAgentChat__conversation"
+                      }
+                    >
+                      <button
+                        type="button"
+                        className="CustomAgentChat__conversationSelect"
+                        aria-current={
+                          conversation.id === activeConversation?.id
+                            ? "true"
+                            : undefined
+                        }
+                        onClick={() => switchConversation(conversation.id)}
+                      >
+                        <strong>{getConversationTitle(conversation, t)}</strong>
+                        <small>
+                          {formatRelativeTime(conversation.updatedAt, t)}
+                        </small>
+                      </button>
+                      <button
+                        type="button"
+                        className="CustomAgentChat__conversationDelete"
+                        title={t("ai.assistant.deleteChat")}
+                        aria-label={t("ai.assistant.deleteChatNamed", {
+                          title: getConversationTitle(conversation, t),
+                        })}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteConversation(conversation.id);
+                        }}
+                      >
+                        x
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            <div className="CustomAgentChat__composerControls">
+              <button
+                type="button"
+                className="CustomAgentChat__toolbarButton CustomAgentChat__agentButton"
+                disabled={!activeConversation || !agentConfig.llmAgents.length}
+                aria-expanded={isAgentMenuOpen}
+                aria-label={t("ai.assistant.agent")}
+                onClick={() => {
+                  setIsAgentMenuOpen((open) => !open);
+                  setIsSkillsPanelOpen(false);
+                  setIsHistoryOpen(false);
+                }}
+              >
+                <span>{t("ai.assistant.agent")}</span>
+                <strong>
+                  {activeAgent?.name || t("ai.assistant.missingAgent")}
+                </strong>
+                {chevronUpIcon}
+              </button>
+              <button
+                type="button"
+                className="CustomAgentChat__toolbarButton"
+                onClick={() => {
+                  setIsSkillsPanelOpen((open) => !open);
+                  setIsAgentMenuOpen(false);
+                  setIsHistoryOpen(false);
+                }}
+              >
+                {t("ai.assistant.skills")}
+              </button>
+              {pendingSkill && (
+                <span className="CustomAgentChat__pendingSkill">
+                  {pendingSkill.icon} {pendingSkill.name}
+                </span>
+              )}
+            </div>
+
+            <div className="CustomAgentChat__composerActions">
+              <button
+                type="button"
+                title={t("ai.assistant.newChat")}
+                aria-label={t("ai.assistant.newChat")}
+                className="CustomAgentChat__iconButton CustomAgentChat__newChatButton"
+                onClick={() => createNewConversation()}
+              >
+                <span
+                  className="CustomAgentChat__chatPlusIcon"
+                  aria-hidden="true"
+                >
+                  {messagePlusIcon}
+                </span>
+              </button>
+              <button
+                type="button"
+                title={t("ai.assistant.recentChats")}
+                aria-label={t("ai.assistant.recentChats")}
+                className="CustomAgentChat__iconButton"
+                aria-expanded={isHistoryOpen}
+                onClick={() => {
+                  setIsHistoryOpen((open) => !open);
+                  setIsAgentMenuOpen(false);
+                  setIsSkillsPanelOpen(false);
+                }}
+              >
+                {chevronUpIcon}
+              </button>
+              <button
+                type="button"
+                title={t("ai.assistant.clearChats")}
+                aria-label={t("ai.assistant.clearChats")}
+                className="CustomAgentChat__iconButton"
+                onClick={clearAllConversations}
+              >
+                {trashIcon}
+              </button>
+              {isGenerating && (
+                <button type="button" onClick={cancelGeneration}>
+                  {t("ai.common.cancel")}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <label className="CustomAgentChat__input">
+            <textarea
+              aria-label={t("ai.assistant.message")}
+              value={inputValue}
+              rows={4}
+              disabled={isGenerating || !agentConfig.llmAgents.length}
+              placeholder={
+                pendingSkill?.initialPrompt
+                  ? t("ai.assistant.skillInputPlaceholder")
+                  : t("ai.assistant.inputPlaceholder")
+              }
+              onChange={(event) => setInputValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (
+                  event.key !== "Enter" ||
+                  event.nativeEvent.isComposing ||
+                  event.shiftKey
+                ) {
+                  return;
+                }
+
                 event.preventDefault();
                 sendMessage();
-              }
-            }}
-          />
-        </label>
-
-        <div className="CustomAgentChat__footer">
-          <label className="CustomAgentChat__agentSelect">
-            <span>Agent</span>
-            <select
-              value={activeConversation?.agentId || ""}
-              disabled={!activeConversation || !agentConfig.customAgents.length}
-              onChange={(event) => switchAgent(event.target.value)}
-            >
-              {agentConfig.customAgents.map((agent) => (
-                <option key={agent.id} value={agent.id}>
-                  {agent.icon} {agent.name}
-                </option>
-              ))}
-            </select>
+              }}
+            />
           </label>
-          <div className="CustomAgentChat__footerActions">
-            <button
-              type="button"
-              onClick={() => setIsSkillsPanelOpen((open) => !open)}
-            >
-              Skills
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsModeMenuOpen((open) => !open)}
-            >
-              {activeConversation?.mode === "agent"
-                ? "Agent"
-                : activeConversation?.mode || "Agent"}{" "}
-              v
-            </button>
-            <button type="button" onClick={openAISettings}>
-              Settings
-            </button>
-            {pendingSkill && (
-              <span className="CustomAgentChat__pendingSkill">
-                {pendingSkill.icon} {pendingSkill.name}
-              </span>
-            )}
-            <button
-              type="button"
-              className="CustomAgentChat__sendButton"
-              disabled={!inputValue.trim() || isGenerating}
-              onClick={sendMessage}
-            >
-              {isGenerating ? "Sending..." : "Send"}
-            </button>
-            {isGenerating && (
-              <button type="button" onClick={cancelGeneration}>
-                Cancel
-              </button>
-            )}
-          </div>
+
+          {isSkillsPanelOpen && (
+            <div className="CustomAgentChat__popover">
+              <strong>{t("ai.assistant.skills")}</strong>
+              {agentConfig.skills.length === 0 && (
+                <span>{t("ai.assistant.noSkills")}</span>
+              )}
+              {agentConfig.skills.map((skill) => (
+                <button
+                  key={skill.id}
+                  type="button"
+                  onClick={() => selectSkill(skill)}
+                >
+                  {skill.icon} {skill.name}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-
-        {isSkillsPanelOpen && (
-          <div className="CustomAgentChat__popover">
-            <strong>Skills</strong>
-            {agentConfig.skills.length === 0 && (
-              <span>No Skills configured.</span>
-            )}
-            {agentConfig.skills.map((skill) => (
-              <button
-                key={skill.id}
-                type="button"
-                onClick={() => selectSkill(skill)}
-              >
-                {skill.icon} {skill.name}
-              </button>
-            ))}
-            <button type="button" onClick={openAISettings}>
-              Manage Skills
-            </button>
-          </div>
-        )}
-
-        {isModeMenuOpen && (
-          <div className="CustomAgentChat__popover CustomAgentChat__popover--mode">
-            <strong>Mode</strong>
-            {CHAT_MODE_OPTIONS.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                disabled={option.value !== "agent"}
-                title={
-                  option.value === "agent"
-                    ? option.label
-                    : `${option.label} mode is preview-only.`
-                }
-                onClick={() => showComingSoon(option.value)}
-              >
-                {activeConversation?.mode === option.value ? "* " : ""}
-                {option.label}
-                {option.value !== "agent" ? " (preview)" : ""}
-              </button>
-            ))}
-          </div>
-        )}
       </section>
 
       {(statusMessage || errorMessage) && (
@@ -1111,6 +1113,8 @@ export const CustomAgentChat = ({
 type ChatMessageViewProps = {
   message: ChatMessage;
   onCopyCode: (code: string) => void;
+  onCopyMessage: (content: string) => void;
+  onDeleteMessage: (messageId: string) => void;
   onSendPromptToWorkbench: (prompt: string) => void;
   onInsertMermaid: (definition: string) => void;
   onInsertTextToCanvas: (text: string) => void;
@@ -1121,6 +1125,8 @@ export const ChatMessageView = memo(
   ({
     message,
     onCopyCode,
+    onCopyMessage,
+    onDeleteMessage,
     onSendPromptToWorkbench,
     onInsertMermaid,
     onInsertTextToCanvas,
@@ -1136,85 +1142,136 @@ export const ChatMessageView = memo(
     );
 
     return (
-      <article
+      <div
         className={
           message.role === "user"
-            ? "CustomAgentChat__chatMessage is-user"
-            : "CustomAgentChat__chatMessage"
+            ? "CustomAgentChat__chatMessageGroup is-user"
+            : "CustomAgentChat__chatMessageGroup"
         }
       >
-        <div className="CustomAgentChat__messageMeta">
-          <strong>{message.role === "user" ? "You" : "Assistant"}</strong>
-          <span>{formatTime(message.timestamp)}</span>
-        </div>
-        <div className="CustomAgentChat__messageContent">
-          {message.content || "Thinking..."}
-        </div>
-        {message.codeBlocks?.map((block, index) => (
-          <div
-            className="CustomAgentChat__codeBlock"
-            key={`${block.code}-${index}`}
-          >
-            <pre>{block.code}</pre>
-            <div>
-              <button type="button" onClick={() => onCopyCode(block.code)}>
-                Copy Code
-              </button>
-            </div>
+        <article
+          className={
+            message.role === "user"
+              ? "CustomAgentChat__chatMessage is-user"
+              : "CustomAgentChat__chatMessage"
+          }
+        >
+          <div className="CustomAgentChat__messageMeta">
+            <strong>
+              {message.role === "user"
+                ? t("ai.assistant.you")
+                : t("ai.assistant.assistant")}
+            </strong>
+            <span>{formatTime(message.timestamp)}</span>
           </div>
-        ))}
-        {message.detectedPrompt && (
-          <button
-            className="CustomAgentChat__inlineAction"
-            type="button"
-            onClick={() =>
-              onSendPromptToWorkbench(message.detectedPrompt!.text)
-            }
-          >
-            Send to Workbench
-          </button>
+          <div className="CustomAgentChat__messageContent">
+            {message.content || t("ai.assistant.thinking")}
+          </div>
+          {message.codeBlocks?.map((block, index) => (
+            <div
+              className="CustomAgentChat__codeBlock"
+              key={`${block.code}-${index}`}
+            >
+              <pre>{block.code}</pre>
+              <div>
+                <button type="button" onClick={() => onCopyCode(block.code)}>
+                  {t("ai.assistant.copyCode")}
+                </button>
+              </div>
+            </div>
+          ))}
+          {message.detectedPrompt && (
+            <button
+              className="CustomAgentChat__inlineAction"
+              type="button"
+              onClick={() =>
+                onSendPromptToWorkbench(message.detectedPrompt!.text)
+              }
+            >
+              {t("ai.assistant.sendToWorkbench")}
+            </button>
+          )}
+          {canvasText && (
+            <button
+              className="CustomAgentChat__inlineAction"
+              type="button"
+              disabled={!canInsertToCanvas}
+              title={
+                canInsertToCanvas
+                  ? t("ai.assistant.insertAssistantTextTitle")
+                  : t("ai.assistant.canvasUnavailable")
+              }
+              onClick={() => onInsertTextToCanvas(canvasText)}
+            >
+              {t("ai.assistant.insertTextToCanvas")}
+            </button>
+          )}
+          {mermaidDefinition && (
+            <button
+              className="CustomAgentChat__inlineAction"
+              type="button"
+              disabled={!canInsertToCanvas}
+              title={
+                canInsertToCanvas
+                  ? t("ai.assistant.insertMermaidTitle")
+                  : t("ai.assistant.canvasUnavailable")
+              }
+              onClick={() => onInsertMermaid(mermaidDefinition)}
+            >
+              {t("ai.assistant.insertMermaidToCanvas")}
+            </button>
+          )}
+        </article>
+        {message.content && (
+          <div className="CustomAgentChat__messageActions">
+            <button
+              type="button"
+              className="CustomAgentChat__messageActionButton"
+              title={t("ai.assistant.deleteMessage")}
+              aria-label={t("ai.assistant.deleteMessage")}
+              onClick={() => onDeleteMessage(message.id)}
+            >
+              {trashIcon}
+            </button>
+            <button
+              type="button"
+              className="CustomAgentChat__messageActionButton CustomAgentChat__messageCopyButton"
+              title={t("ai.assistant.copyMessage")}
+              aria-label={t("ai.assistant.copyMessage")}
+              onClick={() => onCopyMessage(message.content)}
+            >
+              {copyIcon}
+            </button>
+          </div>
         )}
-        {canvasText && (
-          <button
-            className="CustomAgentChat__inlineAction"
-            type="button"
-            disabled={!canInsertToCanvas}
-            title={
-              canInsertToCanvas
-                ? "Insert assistant text to canvas"
-                : "Canvas is not available"
-            }
-            onClick={() => onInsertTextToCanvas(canvasText)}
-          >
-            Insert text to Canvas
-          </button>
-        )}
-        {mermaidDefinition && (
-          <button
-            className="CustomAgentChat__inlineAction"
-            type="button"
-            disabled={!canInsertToCanvas}
-            title={
-              canInsertToCanvas
-                ? "Insert Mermaid diagram to canvas"
-                : "Canvas is not available"
-            }
-            onClick={() => onInsertMermaid(mermaidDefinition)}
-          >
-            Insert Mermaid to Canvas
-          </button>
-        )}
-      </article>
+      </div>
     );
   },
 );
 
 ChatMessageView.displayName = "ChatMessageView";
 
-const getAgentLabel = (config: AIAgentConfig, agentId: string) => {
-  const agent = config.customAgents.find((item) => item.id === agentId);
+type AssistantT = typeof t;
 
-  return agent ? `${agent.name} ${agent.icon}` : "Missing agent";
+const getAgentLabel = (
+  config: AIAgentConfig,
+  agentId: string,
+  t: AssistantT,
+) => {
+  const agent = config.llmAgents.find((item) => item.id === agentId);
+
+  return agent ? agent.name : t("ai.assistant.missingAgent");
+};
+
+const getConversationTitle = (
+  conversation: ChatConversation,
+  t: AssistantT,
+) => {
+  if (!conversation.messages.length && conversation.title === "New chat") {
+    return t("ai.assistant.newChat");
+  }
+
+  return conversation.title;
 };
 
 const formatTime = (timestamp: number) => {
@@ -1228,19 +1285,23 @@ const formatTime = (timestamp: number) => {
   });
 };
 
-const formatRelativeTime = (timestamp: number) => {
+const formatRelativeTime = (timestamp: number, t: AssistantT) => {
   const diff = Date.now() - timestamp;
 
   if (diff < 60 * 1000) {
-    return "just now";
+    return t("ai.assistant.justNow");
   }
 
   if (diff < 60 * 60 * 1000) {
-    return `${Math.floor(diff / (60 * 1000))} min ago`;
+    return t("ai.assistant.minutesAgo", {
+      count: Math.floor(diff / (60 * 1000)),
+    });
   }
 
   if (diff < 24 * 60 * 60 * 1000) {
-    return `${Math.floor(diff / (60 * 60 * 1000))} hours ago`;
+    return t("ai.assistant.hoursAgo", {
+      count: Math.floor(diff / (60 * 60 * 1000)),
+    });
   }
 
   return new Date(timestamp).toLocaleDateString();
@@ -1345,7 +1406,7 @@ export const insertAssistantTextToCanvas = (
     fitToContent: true,
   });
   excalidrawAPI.setToast({
-    message: "Inserted assistant text.",
+    message: t("ai.assistant.messages.insertedAssistantText"),
     duration: 3000,
   });
 

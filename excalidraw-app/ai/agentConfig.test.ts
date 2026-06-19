@@ -12,7 +12,6 @@ import {
   getDefaultLLMAgent,
   getDefaultTextAgent,
   getDefaultVisionAgent,
-  getSkillAgent,
   loadAIAgentConfig,
   renderSkillInitialPrompt,
   saveAIAgentConfig,
@@ -47,7 +46,7 @@ const visionAgent: AIAgent = {
 
 const llmAgent: AIAgent = {
   id: "llm-1",
-  name: "Test LLM Agent",
+  name: "Test General Agent",
   type: "llm",
   provider: "openai",
   baseURL: "https://api.openai.com/v1",
@@ -70,7 +69,6 @@ const skill: AISkill = {
   icon: "AI",
   description: "Optimizes image prompts",
   triggers: ["optimize prompt", "image prompt"],
-  agentId: customAgent.id,
   initialPrompt: "Improve this prompt: {user_input}",
 };
 
@@ -133,13 +131,13 @@ describe("AI Agent Configuration", () => {
     expect(getDefaultCustomAgent(createConfig())).toEqual(customAgent);
   });
 
-  it("uses text agent for vision when enabled", () => {
+  it("ignores the legacy text-agent-for-vision flag", () => {
     expect(
       getDefaultVisionAgent({
         ...createConfig(),
         useTextAgentForVision: true,
       }),
-    ).toEqual(textAgent);
+    ).toEqual(visionAgent);
   });
 
   it("upserts, defaults, and deletes agents", () => {
@@ -166,11 +164,6 @@ describe("AI Agent Configuration", () => {
     expect(getCustomAgentLLM(createConfig(), "missing")).toBeNull();
   });
 
-  it("gets the custom agent for a skill", () => {
-    expect(getSkillAgent(createConfig(), skill.id)).toEqual(customAgent);
-    expect(getSkillAgent(createConfig(), "missing")).toBeNull();
-  });
-
   it("upserts, defaults, and deletes custom agents", () => {
     const secondCustomAgent: CustomAIAgent = {
       ...customAgent,
@@ -191,7 +184,7 @@ describe("AI Agent Configuration", () => {
 
     const withoutCustomAgent = deleteCustomAgent(withDefault, customAgent);
     expect(withoutCustomAgent.defaultCustomAgentId).toBe(secondCustomAgent.id);
-    expect(withoutCustomAgent.skills).toEqual([]);
+    expect(withoutCustomAgent.skills).toEqual([skill]);
   });
 
   it("upserts and deletes skills", () => {

@@ -1,8 +1,8 @@
 .zoom-actions,
 .undo-redo-buttons {
-  background-color: var(--island-bg-color);
-  border-radius: var(--border-radius-lg);
-  box-shadow: 0 0 0 1px var(--color-surface-lowest);
+  display: flex;
+  align-items: center;
+  gap: 0;
 }
 
 .zoom-button,
@@ -88,6 +88,18 @@
     .ToolIcon__icon {
       border-top-left-radius: 0 !important;
       border-bottom-left-radius: 0 !important;
+    }
+  }
+
+  .focus-content-button-container button {
+    margin-left: 0.5rem;
+    border-top-right-radius: var(--border-radius-lg) !important;
+    border-bottom-right-radius: var(--border-radius-lg) !important;
+    border-top-left-radius: var(--border-radius-lg) !important;
+    border-bottom-left-radius: var(--border-radius-lg) !important;
+
+    .ToolIcon__icon {
+      border-radius: var(--border-radius-lg) !important;
     }
   }
 }

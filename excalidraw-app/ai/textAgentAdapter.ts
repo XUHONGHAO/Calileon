@@ -1,4 +1,5 @@
 import { RequestError } from "@excalidraw/excalidraw/errors";
+import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
   DEFAULT_TEXT_AGENT_SYSTEM_PROMPT,
@@ -320,8 +321,7 @@ export const submitTextAgent = async (
   if (!agent) {
     return {
       error: new RequestError({
-        message:
-          "No Text Agent configured. Open AI Settings and add a Text Agent.",
+        message: t("ai.assistant.messages.textAgentNotConfigured"),
         status: 400,
       }),
     };
@@ -330,7 +330,10 @@ export const submitTextAgent = async (
   if (!agent.baseURL.trim() || !agent.model.trim()) {
     return {
       error: new RequestError({
-        message: "Text Agent requires both Base URL and Model.",
+        message:
+          agent.type === "llm"
+            ? t("ai.assistant.messages.generalAgentIncomplete")
+            : t("ai.assistant.messages.textAgentIncomplete"),
         status: 400,
       }),
     };
@@ -363,7 +366,9 @@ export const submitTextAgent = async (
         error instanceof RequestError
           ? error
           : new RequestError({
-              message: error?.message || "AI agent request failed.",
+              message:
+                error?.message ||
+                t("ai.assistant.messages.aiAgentRequestFailed"),
               status: 500,
             }),
     };

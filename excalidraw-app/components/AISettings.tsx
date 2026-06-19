@@ -1,20 +1,16 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Button } from "@excalidraw/excalidraw/components/Button";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
+import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
   createAIAgentId,
-  createCustomAgentId,
   createSkillId,
   deleteAIAgent,
-  deleteCustomAgent,
   deleteSkill,
   loadAIAgentConfig,
   saveAIAgentConfig,
   setDefaultAIAgent,
-  setDefaultCustomAgent,
   upsertAIAgent,
-  upsertCustomAgent,
   upsertSkill,
 } from "../ai/agentConfig";
 import {
@@ -65,7 +61,6 @@ import type {
   AIAgentProvider,
   AIAgentType,
   AISkill,
-  CustomAIAgent,
 } from "../ai/types";
 import type {
   AIImageEndpointConfig,
@@ -83,50 +78,64 @@ import type {
 } from "../ai/types";
 import type { EndpointPresetId } from "../ai/endpointPresets";
 
-const MEDIA_TYPE_LABELS: Record<AIModelMediaType, string> = {
-  image: "Image",
-  video: "Video",
-  audio: "Audio",
-};
-
 const ENDPOINT_FORM_FIELDS: Array<{
   key: keyof AIImageEndpoints;
-  label: string;
+  labelKey: Parameters<typeof t>[0];
   placeholder: string;
 }> = [
   {
     key: "textToImage",
-    label: "Text-to-image",
+    labelKey: "ai.settings.endpointFields.textToImage",
     placeholder: "/images/generations",
   },
   {
     key: "imageToImage",
-    label: "Image-to-image",
+    labelKey: "ai.settings.endpointFields.imageToImage",
     placeholder: "/images/edits",
   },
   {
     key: "inpaint",
-    label: "Inpaint",
+    labelKey: "ai.settings.endpointFields.inpaint",
     placeholder: "/images/edits",
   },
 ];
 
 const FIELD_MAPPING_FORM_FIELDS: Array<{
   key: keyof AIImageFieldMapping;
-  label: string;
+  labelKey: Parameters<typeof t>[0];
   placeholder: string;
 }> = [
-  { key: "prompt", label: "Prompt field", placeholder: "prompt" },
+  {
+    key: "prompt",
+    labelKey: "ai.settings.fieldMapping.prompt",
+    placeholder: "prompt",
+  },
   {
     key: "negativePrompt",
-    label: "Negative prompt field",
+    labelKey: "ai.settings.fieldMapping.negativePrompt",
     placeholder: "negative_prompt",
   },
-  { key: "model", label: "Model field", placeholder: "model" },
-  { key: "image", label: "Image field", placeholder: "image" },
-  { key: "mask", label: "Mask field", placeholder: "mask" },
-  { key: "size", label: "Size field", placeholder: "size" },
-  { key: "n", label: "Count field", placeholder: "n" },
+  {
+    key: "model",
+    labelKey: "ai.settings.fieldMapping.model",
+    placeholder: "model",
+  },
+  {
+    key: "image",
+    labelKey: "ai.settings.fieldMapping.image",
+    placeholder: "image",
+  },
+  {
+    key: "mask",
+    labelKey: "ai.settings.fieldMapping.mask",
+    placeholder: "mask",
+  },
+  {
+    key: "size",
+    labelKey: "ai.settings.fieldMapping.size",
+    placeholder: "size",
+  },
+  { key: "n", labelKey: "ai.settings.fieldMapping.n", placeholder: "n" },
 ];
 
 type EditorState =
@@ -147,17 +156,12 @@ type AIModelGroup = {
 };
 
 type AISettingsTab = "models" | "agents" | "templates";
-type AgentSettingsSubTab = "base" | "custom" | "skills";
+type AgentSettingsSubTab = "base" | "skills";
 
 type AgentEditorState =
   | { mode: "list" }
   | { mode: "create"; draft: AIAgent }
   | { mode: "edit"; draft: AIAgent };
-
-type CustomAgentEditorState =
-  | { mode: "list" }
-  | { mode: "create"; draft: CustomAIAgent }
-  | { mode: "edit"; draft: CustomAIAgent };
 
 type SkillDraft = Omit<AISkill, "triggers"> & {
   triggers: string;
@@ -183,30 +187,30 @@ type PromptTemplateDraft = {
 
 const TEMPLATE_MODE_OPTIONS: Array<{
   value: AIImageGenerationMode;
-  label: string;
+  labelKey: Parameters<typeof t>[0];
 }> = [
-  { value: "text-to-image", label: "Text-to-image" },
-  { value: "image-to-image", label: "Image-to-image" },
-  { value: "inpaint", label: "Inpaint" },
+  { value: "text-to-image", labelKey: "ai.settings.options.textToImage" },
+  { value: "image-to-image", labelKey: "ai.settings.options.imageToImage" },
+  { value: "inpaint", labelKey: "ai.settings.options.inpaint" },
 ];
 
 const TEMPLATE_CATEGORY_OPTIONS: Array<{
   value: PromptTemplateCategory;
-  label: string;
+  labelKey: Parameters<typeof t>[0];
 }> = [
-  { value: "composition", label: "Composition" },
-  { value: "style", label: "Style" },
-  { value: "editing", label: "Editing" },
-  { value: "custom", label: "Custom" },
+  { value: "composition", labelKey: "ai.settings.options.composition" },
+  { value: "style", labelKey: "ai.settings.options.style" },
+  { value: "editing", labelKey: "ai.settings.options.editing" },
+  { value: "custom", labelKey: "ai.settings.options.custom" },
 ];
 
 const TEMPLATE_LANGUAGE_OPTIONS: Array<{
   value: PromptTemplateLanguage;
-  label: string;
+  labelKey: Parameters<typeof t>[0];
 }> = [
-  { value: "en", label: "English" },
-  { value: "zh", label: "中文" },
-  { value: "multi", label: "Multilingual" },
+  { value: "en", labelKey: "ai.common.english" },
+  { value: "zh", labelKey: "ai.common.chinese" },
+  { value: "multi", labelKey: "ai.common.multilingual" },
 ];
 
 const AGENT_PROVIDER_OPTIONS: Array<{
@@ -219,30 +223,6 @@ const AGENT_PROVIDER_OPTIONS: Array<{
   { value: "deepseek", label: "DeepSeek" },
   { value: "openai-compatible", label: "OpenAI-Compatible" },
 ];
-
-const AGENT_TYPE_LABELS: Record<AIAgentType, string> = {
-  text: "Text",
-  vision: "Vision",
-  llm: "LLM",
-};
-
-const AGENT_RECOMMENDATIONS: Record<AIAgentType, string[]> = {
-  text: [
-    "GPT-4o-mini for cost-effective Mermaid generation.",
-    "Claude 3.5 Sonnet for strong code-oriented diagrams.",
-    "Gemini 1.5 Flash for fast text generation.",
-  ],
-  vision: [
-    "GPT-4o for strong wireframe understanding.",
-    "Claude 3.5 Sonnet for vision plus code generation.",
-    "Gemini 1.5 Pro for multimodal prompts.",
-  ],
-  llm: [
-    "GPT-4o-mini for general assistant tasks.",
-    "Claude 3.5 Sonnet for deeper writing and reasoning.",
-    "OpenAI-Compatible for proxy APIs and custom model names.",
-  ],
-};
 
 const ICON_OPTIONS = ["AI", "🎨", "💡", "🎬", "🌈", "🧠", "✍️", "⚙️"];
 
@@ -291,33 +271,12 @@ const normalizeAgentDraftForSave = (draft: AIAgent): AIAgent => ({
   systemPrompt: draft.systemPrompt?.trim() || undefined,
 });
 
-const createCustomAgentDraft = (config: AIAgentConfig): CustomAIAgent => ({
-  id: createCustomAgentId(),
-  name: "",
-  description: "",
-  icon: "AI",
-  baseLLMAgentId: config.defaultLLMAgentId || config.llmAgents[0]?.id || "",
-  systemPrompt: "",
-});
-
-const normalizeCustomAgentDraftForSave = (
-  draft: CustomAIAgent,
-): CustomAIAgent => ({
-  ...draft,
-  name: draft.name.trim(),
-  description: draft.description.trim(),
-  icon: draft.icon.trim() || "AI",
-  baseLLMAgentId: draft.baseLLMAgentId.trim(),
-  systemPrompt: draft.systemPrompt.trim(),
-});
-
-const createSkillDraft = (config: AIAgentConfig): SkillDraft => ({
+const createSkillDraft = (): SkillDraft => ({
   id: createSkillId(),
   name: "",
   icon: "AI",
   description: "",
   triggers: "",
-  agentId: config.defaultCustomAgentId || config.customAgents[0]?.id || "",
   initialPrompt: "",
 });
 
@@ -339,7 +298,6 @@ const normalizeSkillDraftForSave = (draft: SkillDraft): AISkill => {
     icon: draft.icon.trim() || "AI",
     description: draft.description.trim(),
     triggers: triggers.length ? triggers : undefined,
-    agentId: draft.agentId.trim(),
     initialPrompt: draft.initialPrompt?.trim() || undefined,
   };
 };
@@ -524,7 +482,6 @@ export const AISettings = ({
 }: {
   initialTab?: AISettingsTab;
 }) => {
-  const { t } = useI18n();
   const [config, setConfig] =
     useState<AIImageProviderConfig>(loadAIImageConfig);
   const [agentConfig, setAgentConfig] =
@@ -543,10 +500,6 @@ export const AISettings = ({
   const [agentEditorState, setAgentEditorState] = useState<AgentEditorState>({
     mode: "list",
   });
-  const [customAgentEditorState, setCustomAgentEditorState] =
-    useState<CustomAgentEditorState>({
-      mode: "list",
-    });
   const [skillEditorState, setSkillEditorState] = useState<SkillEditorState>({
     mode: "list",
   });
@@ -555,7 +508,6 @@ export const AISettings = ({
   );
   const [setAsDefault, setSetAsDefault] = useState(false);
   const [setAgentAsDefault, setSetAgentAsDefault] = useState(false);
-  const [setCustomAgentAsDefault, setSetCustomAgentAsDefault] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const templateImportInputRef = useRef<HTMLInputElement | null>(null);
@@ -585,7 +537,7 @@ export const AISettings = ({
         return null;
       }
     },
-    [t],
+    [],
   );
 
   const persistAgentConfig = useCallback(
@@ -604,7 +556,7 @@ export const AISettings = ({
         return null;
       }
     },
-    [t],
+    [],
   );
 
   const openCreateModel = useCallback(() => {
@@ -689,7 +641,7 @@ export const AISettings = ({
       t("ai.settings.messages.defaultsApplied", { name: preset.name }),
     );
     setErrorMessage("");
-  }, [t]);
+  }, []);
 
   const toggleCapability = useCallback(
     (
@@ -733,7 +685,7 @@ export const AISettings = ({
         setEditorState({ mode: "list" });
       }
     },
-    [activeMediaType, config, persistConfig, t],
+    [activeMediaType, config, persistConfig],
   );
 
   const makeDefaultModelGroup = useCallback(
@@ -754,7 +706,7 @@ export const AISettings = ({
         }),
       );
     },
-    [config, persistConfig, t],
+    [config, persistConfig],
   );
 
   const submitDraft = useCallback(() => {
@@ -835,7 +787,7 @@ export const AISettings = ({
       setActiveMediaType(draft.mediaType);
       setEditorState({ mode: "list" });
     }
-  }, [config, editorState, persistConfig, setAsDefault, t]);
+  }, [config, editorState, persistConfig, setAsDefault]);
 
   const openCreateAgent = useCallback(
     (type: AIAgentType, provider: AIAgentProvider = "openai-compatible") => {
@@ -929,7 +881,7 @@ export const AISettings = ({
       }),
     );
     setErrorMessage("");
-  }, [t]);
+  }, []);
 
   const submitAgentDraft = useCallback(() => {
     if (agentEditorState.mode === "list") {
@@ -970,7 +922,7 @@ export const AISettings = ({
     if (savedConfig) {
       setAgentEditorState({ mode: "list" });
     }
-  }, [agentConfig, agentEditorState, persistAgentConfig, setAgentAsDefault, t]);
+  }, [agentConfig, agentEditorState, persistAgentConfig, setAgentAsDefault]);
 
   const removeAgent = useCallback(
     (agent: AIAgent) => {
@@ -997,7 +949,7 @@ export const AISettings = ({
         setAgentEditorState({ mode: "list" });
       }
     },
-    [agentConfig, persistAgentConfig, t],
+    [agentConfig, persistAgentConfig],
   );
 
   const makeDefaultAgent = useCallback(
@@ -1010,210 +962,18 @@ export const AISettings = ({
         }),
       );
     },
-    [agentConfig, persistAgentConfig, t],
-  );
-
-  const updateUseTextAgentForVision = useCallback(
-    (useTextAgentForVision: boolean) => {
-      persistAgentConfig(
-        {
-          ...agentConfig,
-          useTextAgentForVision,
-        },
-        useTextAgentForVision
-          ? t("ai.settings.messages.visionUsesTextAgent")
-          : t("ai.settings.messages.visionUsesVisionAgents"),
-      );
-    },
-    [agentConfig, persistAgentConfig, t],
-  );
-
-  const openCreateCustomAgent = useCallback(() => {
-    if (!agentConfig.llmAgents.length) {
-      setErrorMessage(t("ai.settings.messages.needLLMAgent"));
-      setStatusMessage("");
-      setActiveAgentSubTab("base");
-      return;
-    }
-
-    setActiveAgentSubTab("custom");
-    setCustomAgentEditorState({
-      mode: "create",
-      draft: createCustomAgentDraft(agentConfig),
-    });
-    setSetCustomAgentAsDefault(!agentConfig.defaultCustomAgentId);
-    setStatusMessage("");
-    setErrorMessage("");
-  }, [agentConfig, t]);
-
-  const openEditCustomAgent = useCallback(
-    (agent: CustomAIAgent) => {
-      setActiveAgentSubTab("custom");
-      setCustomAgentEditorState({
-        mode: "edit",
-        draft: agent,
-      });
-      setSetCustomAgentAsDefault(agent.id === agentConfig.defaultCustomAgentId);
-      setStatusMessage("");
-      setErrorMessage("");
-    },
-    [agentConfig.defaultCustomAgentId],
-  );
-
-  const closeCustomAgentEditor = useCallback(() => {
-    setCustomAgentEditorState({ mode: "list" });
-    setErrorMessage("");
-  }, []);
-
-  const updateCustomAgentDraft = useCallback(
-    (patch: Partial<CustomAIAgent>) => {
-      setCustomAgentEditorState((current) => {
-        if (current.mode === "list") {
-          return current;
-        }
-
-        return {
-          ...current,
-          draft: {
-            ...current.draft,
-            ...patch,
-          },
-        };
-      });
-      setStatusMessage("");
-      setErrorMessage("");
-    },
-    [],
-  );
-
-  const submitCustomAgentDraft = useCallback(() => {
-    if (customAgentEditorState.mode === "list") {
-      return;
-    }
-
-    const draft = normalizeCustomAgentDraftForSave(
-      customAgentEditorState.draft,
-    );
-
-    if (!draft.name) {
-      setErrorMessage(t("ai.settings.messages.customAgentNameRequired"));
-      setStatusMessage("");
-      return;
-    }
-
-    if (
-      agentConfig.customAgents.some(
-        (agent) =>
-          agent.id !== draft.id &&
-          agent.name.toLowerCase() === draft.name.toLowerCase(),
-      )
-    ) {
-      setErrorMessage(t("ai.settings.messages.customAgentNameUnique"));
-      setStatusMessage("");
-      return;
-    }
-
-    if (!draft.description) {
-      setErrorMessage(
-        t("ai.settings.messages.customAgentDescriptionRequired"),
-      );
-      setStatusMessage("");
-      return;
-    }
-
-    if (
-      !draft.baseLLMAgentId ||
-      !agentConfig.llmAgents.some((agent) => agent.id === draft.baseLLMAgentId)
-    ) {
-      setErrorMessage(t("ai.settings.messages.selectLLMAgent"));
-      setStatusMessage("");
-      return;
-    }
-
-    if (!draft.systemPrompt) {
-      setErrorMessage(t("ai.settings.messages.systemPromptRequired"));
-      setStatusMessage("");
-      return;
-    }
-
-    const savedConfig = persistAgentConfig(
-      upsertCustomAgent(agentConfig, draft, setCustomAgentAsDefault),
-      customAgentEditorState.mode === "edit"
-        ? t("ai.settings.messages.customAgentSaved")
-        : t("ai.settings.messages.customAgentCreated"),
-    );
-
-    if (savedConfig) {
-      setCustomAgentEditorState({ mode: "list" });
-    }
-  }, [
-    agentConfig,
-    customAgentEditorState,
-    persistAgentConfig,
-    setCustomAgentAsDefault,
-    t,
-  ]);
-
-  const removeCustomAgent = useCallback(
-    (agent: CustomAIAgent) => {
-      const linkedSkillCount = agentConfig.skills.filter(
-        (skill) => skill.agentId === agent.id,
-      ).length;
-      const suffix = linkedSkillCount
-        ? t("ai.settings.messages.linkedSkillsDeletedSuffix", {
-            count: linkedSkillCount,
-          })
-        : "";
-
-      if (
-        !window.confirm(
-          t("ai.settings.messages.deleteCustomAgentConfirm", {
-            name: agent.name,
-            suffix,
-          }),
-        )
-      ) {
-        return;
-      }
-
-      const savedConfig = persistAgentConfig(
-        deleteCustomAgent(agentConfig, agent),
-        t("ai.settings.messages.customAgentDeleted"),
-      );
-
-      if (savedConfig) {
-        setCustomAgentEditorState({ mode: "list" });
-      }
-    },
-    [agentConfig, persistAgentConfig, t],
-  );
-
-  const makeDefaultCustomAgent = useCallback(
-    (agent: CustomAIAgent) => {
-      persistAgentConfig(
-        setDefaultCustomAgent(agentConfig, agent),
-        t("ai.settings.messages.customAgentDefault", { name: agent.name }),
-      );
-    },
-    [agentConfig, persistAgentConfig, t],
+    [agentConfig, persistAgentConfig],
   );
 
   const openCreateSkill = useCallback(() => {
-    if (!agentConfig.customAgents.length) {
-      setErrorMessage(t("ai.settings.messages.needCustomAgent"));
-      setStatusMessage("");
-      setActiveAgentSubTab("custom");
-      return;
-    }
-
     setActiveAgentSubTab("skills");
     setSkillEditorState({
       mode: "create",
-      draft: createSkillDraft(agentConfig),
+      draft: createSkillDraft(),
     });
     setStatusMessage("");
     setErrorMessage("");
-  }, [agentConfig, t]);
+  }, []);
 
   const openEditSkill = useCallback((skill: AISkill) => {
     setActiveAgentSubTab("skills");
@@ -1279,15 +1039,6 @@ export const AISettings = ({
       return;
     }
 
-    if (
-      !draft.agentId ||
-      !agentConfig.customAgents.some((agent) => agent.id === draft.agentId)
-    ) {
-      setErrorMessage(t("ai.settings.messages.selectCustomAgent"));
-      setStatusMessage("");
-      return;
-    }
-
     const savedConfig = persistAgentConfig(
       upsertSkill(agentConfig, draft),
       skillEditorState.mode === "edit"
@@ -1298,7 +1049,7 @@ export const AISettings = ({
     if (savedConfig) {
       setSkillEditorState({ mode: "list" });
     }
-  }, [agentConfig, persistAgentConfig, skillEditorState, t]);
+  }, [agentConfig, persistAgentConfig, skillEditorState]);
 
   const removeSkill = useCallback(
     (skill: AISkill) => {
@@ -1319,7 +1070,7 @@ export const AISettings = ({
         setSkillEditorState({ mode: "list" });
       }
     },
-    [agentConfig, persistAgentConfig, t],
+    [agentConfig, persistAgentConfig],
   );
 
   const openCreateTemplate = useCallback(() => {
@@ -1437,7 +1188,7 @@ export const AISettings = ({
         : t("ai.settings.messages.templateCreated"),
     );
     setErrorMessage("");
-  }, [templateEditorState, t]);
+  }, [templateEditorState]);
 
   const removeTemplate = useCallback((template: PromptTemplate) => {
     if (
@@ -1455,7 +1206,7 @@ export const AISettings = ({
     setCustomTemplates(loadCustomPromptTemplates());
     setStatusMessage(t("ai.settings.messages.templateDeleted"));
     setErrorMessage("");
-  }, [t]);
+  }, []);
 
   const exportTemplates = useCallback(() => {
     const blob = new Blob([serializePromptTemplates(customTemplates)], {
@@ -1498,7 +1249,7 @@ export const AISettings = ({
       );
       setStatusMessage("");
     }
-  }, [t]);
+  }, []);
 
   const renderList = () => (
     <>
@@ -1539,7 +1290,7 @@ export const AISettings = ({
           <div className="AISettings__emptyState">
             <span>
               {t("ai.settings.modelList.empty", {
-                mediaType: getMediaTypeLabel(activeMediaType, t),
+                mediaType: getMediaTypeInlineLabel(activeMediaType, t),
               })}
             </span>
             <button
@@ -1548,7 +1299,7 @@ export const AISettings = ({
               onClick={openCreateModel}
             >
               {t("ai.settings.modelList.addMediaModel", {
-                mediaType: getMediaTypeLabel(activeMediaType, t),
+                mediaType: getMediaTypeInlineLabel(activeMediaType, t),
               })}
             </button>
           </div>
@@ -1626,7 +1377,6 @@ export const AISettings = ({
     >
       {[
         { id: "base", label: t("ai.settings.agents.base") },
-        { id: "custom", label: t("ai.settings.agents.custom") },
         { id: "skills", label: t("ai.settings.agents.skills") },
       ].map((tab) => (
         <button
@@ -1654,154 +1404,46 @@ export const AISettings = ({
   const renderBaseAgentsList = () => (
     <>
       <div className="AISettings__toolbar">
-        <span>Base Agent Configuration</span>
+        <span>{t("ai.settings.agents.baseConfiguration")}</span>
         <span className="AISettings__toolbarActions">
           <button type="button" onClick={() => openCreateAgent("text")}>
-            Add Text Agent
+            {t("ai.settings.agents.addTextAgent")}
           </button>
           <button type="button" onClick={() => openCreateAgent("vision")}>
-            Add Vision Agent
+            {t("ai.settings.agents.addVisionAgent")}
           </button>
           <button type="button" onClick={() => openCreateAgent("llm")}>
-            Add LLM Agent
+            {t("ai.settings.agents.addLLMAgent")}
           </button>
         </span>
       </div>
 
       <div className="AISettings__agentIntro">
-        Configure base agents for text-to-diagram, diagram-to-code, and Custom
-        Agent model access. Create multiple agents and switch defaults per task.
+        {t("ai.settings.agents.baseDescription")}
       </div>
 
       <div className="AISettings__agentSections">
         {renderAgentSection(
-          "Text Agents",
-          "for Text-to-Diagram",
+          t("ai.settings.agents.textAgents"),
+          t("ai.settings.agents.textAgentsSubtitle"),
           agentConfig.textAgents,
           agentConfig.defaultTextAgentId,
           "text",
         )}
         {renderAgentSection(
-          "Vision Agents",
-          "for Diagram-to-Code",
+          t("ai.settings.agents.visionAgents"),
+          t("ai.settings.agents.visionAgentsSubtitle"),
           agentConfig.visionAgents,
           agentConfig.defaultVisionAgentId,
           "vision",
         )}
         {renderAgentSection(
-          "LLM Agents",
-          "for Custom Agents",
+          t("ai.settings.agents.llmAgents"),
+          t("ai.settings.agents.llmAgentsSubtitle"),
           agentConfig.llmAgents,
           agentConfig.defaultLLMAgentId,
           "llm",
         )}
-
-        <label className="AISettings__agentToggle">
-          <input
-            type="checkbox"
-            checked={agentConfig.useTextAgentForVision}
-            onChange={(event) =>
-              updateUseTextAgentForVision(event.target.checked)
-            }
-          />
-          <span>
-            Use default Text Agent for vision tasks
-            <small>
-              When enabled, Diagram-to-Code uses the default Text Agent instead
-              of Vision Agents.
-            </small>
-          </span>
-        </label>
-      </div>
-    </>
-  );
-
-  const renderCustomAgentsList = () => (
-    <>
-      <div className="AISettings__toolbar">
-        <span>Custom Agents</span>
-        <span className="AISettings__toolbarActions">
-          <button
-            type="button"
-            disabled={!agentConfig.llmAgents.length}
-            onClick={openCreateCustomAgent}
-          >
-            Add Custom Agent
-          </button>
-        </span>
-      </div>
-
-      <div className="AISettings__agentIntro">
-        Define reusable assistant roles with their own System Prompt. Each
-        Custom Agent uses one LLM Agent as its base model.
-      </div>
-
-      {!agentConfig.llmAgents.length && (
-        <div className="AISettings__emptyState">
-          Add an LLM Agent before creating Custom Agents.
-        </div>
-      )}
-
-      <div className="AISettings__agentSections AISettings__agentSections--single">
-        <div className="AISettings__agentSection">
-          {agentConfig.customAgents.length === 0 && (
-            <div className="AISettings__emptyState">
-              No Custom Agents yet. Add one to create reusable assistant roles.
-            </div>
-          )}
-
-          <div className="AISettings__agentList">
-            {agentConfig.customAgents.map((agent) => {
-              const llmAgent = agentConfig.llmAgents.find(
-                (item) => item.id === agent.baseLLMAgentId,
-              );
-              const isDefault = agent.id === agentConfig.defaultCustomAgentId;
-
-              return (
-                <div className="AISettings__agentCard" key={agent.id}>
-                  <div className="AISettings__agentCardHeader">
-                    <strong>
-                      <span className="AISettings__iconBadge">
-                        {agent.icon}
-                      </span>
-                      {agent.name}
-                    </strong>
-                    <span className="AISettings__templateMeta">
-                      {isDefault && <span>Default</span>}
-                    </span>
-                  </div>
-                  <p className="AISettings__agentDescription">
-                    {agent.description}
-                  </p>
-                  <div className="AISettings__agentMeta">
-                    <span>Model: {llmAgent?.name || "Missing LLM Agent"}</span>
-                  </div>
-                  <div className="AISettings__agentActions">
-                    <button
-                      type="button"
-                      onClick={() => openEditCustomAgent(agent)}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeCustomAgent(agent)}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      type="button"
-                      disabled={isDefault}
-                      onClick={() => makeDefaultCustomAgent(agent)}
-                    >
-                      Set as Default
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </>
   );
@@ -1809,43 +1451,30 @@ export const AISettings = ({
   const renderSkillsList = () => (
     <>
       <div className="AISettings__toolbar">
-        <span>Skills</span>
+        <span>{t("ai.settings.agents.skillsTitle")}</span>
         <span className="AISettings__toolbarActions">
-          <button
-            type="button"
-            disabled={!agentConfig.customAgents.length}
-            onClick={openCreateSkill}
-          >
-            Add Skill
+          <button type="button" onClick={openCreateSkill}>
+            {t("ai.settings.agents.addSkill")}
           </button>
         </span>
       </div>
 
       <div className="AISettings__agentIntro">
-        Create quick-start scenarios that select a Custom Agent and optionally
-        provide an initial prompt template with {"{user_input}"}.
+        {t("ai.settings.agents.skillsDescription", {
+          placeholder: "{user_input}",
+        })}
       </div>
-
-      {!agentConfig.customAgents.length && (
-        <div className="AISettings__emptyState">
-          Add a Custom Agent before creating Skills.
-        </div>
-      )}
 
       <div className="AISettings__agentSections AISettings__agentSections--single">
         <div className="AISettings__agentSection">
           {agentConfig.skills.length === 0 && (
             <div className="AISettings__emptyState">
-              No Skills yet. Add one to create a reusable start template.
+              {t("ai.settings.agents.emptySkills")}
             </div>
           )}
 
           <div className="AISettings__agentList">
             {agentConfig.skills.map((skill) => {
-              const customAgent = agentConfig.customAgents.find(
-                (agent) => agent.id === skill.agentId,
-              );
-
               return (
                 <div className="AISettings__agentCard" key={skill.id}>
                   <div className="AISettings__agentCardHeader">
@@ -1861,18 +1490,17 @@ export const AISettings = ({
                   </p>
                   <div className="AISettings__agentMeta">
                     <span>
-                      Agent: {customAgent?.name || "Missing Custom Agent"}
-                    </span>
-                    <span>
-                      Trigger: {skill.triggers?.join(", ") || "Not configured"}
+                      {t("ai.settings.agents.triggerPrefix")}{" "}
+                      {skill.triggers?.join(", ") ||
+                        t("ai.settings.agents.notConfigured")}
                     </span>
                   </div>
                   <div className="AISettings__agentActions">
                     <button type="button" onClick={() => openEditSkill(skill)}>
-                      Edit
+                      {t("ai.common.edit")}
                     </button>
                     <button type="button" onClick={() => removeSkill(skill)}>
-                      Delete
+                      {t("ai.common.delete")}
                     </button>
                   </div>
                 </div>
@@ -1888,7 +1516,6 @@ export const AISettings = ({
     <>
       {renderAgentSubTabs()}
       {activeAgentSubTab === "base" && renderBaseAgentsList()}
-      {activeAgentSubTab === "custom" && renderCustomAgentsList()}
       {activeAgentSubTab === "skills" && renderSkillsList()}
     </>
   );
@@ -1906,20 +1533,18 @@ export const AISettings = ({
           {title} <span>{subtitle}</span>
         </h4>
         <button type="button" onClick={() => openCreateAgent(type)}>
-          Add {AGENT_TYPE_LABELS[type]} Agent
+          {t("ai.settings.agentEditor.heading", {
+            mode: `${t("ai.common.add")} ${getAgentTypeLabel(type, t)}`,
+          })}
         </button>
       </div>
 
       {agents.length === 0 && (
         <div className="AISettings__emptyState">
-          No {AGENT_TYPE_LABELS[type].toLowerCase()} agents yet. Add one to
-          enable{" "}
-          {type === "text"
-            ? "Text-to-Diagram"
-            : type === "vision"
-            ? "Diagram-to-Code"
-            : "Custom Agents"}
-          .
+          {t("ai.settings.agents.emptyBaseAgent", {
+            type: getAgentTypeLabel(type, t).toLowerCase(),
+            target: getAgentTargetLabel(type, t),
+          })}
         </div>
       )}
 
@@ -1937,26 +1562,30 @@ export const AISettings = ({
                 <strong>{agent.name}</strong>
                 <span className="AISettings__templateMeta">
                   <span>{providerLabel}</span>
-                  {isDefault && <span>Default</span>}
+                  {isDefault && <span>{t("ai.common.default")}</span>}
                 </span>
               </div>
               <div className="AISettings__agentMeta">
-                <span>Model: {agent.model}</span>
-                <span>Base URL: {agent.baseURL}</span>
+                <span>
+                  {t("ai.settings.agents.modelPrefix")} {agent.model}
+                </span>
+                <span>
+                  {t("ai.settings.modelList.baseURLPrefix")} {agent.baseURL}
+                </span>
               </div>
               <div className="AISettings__agentActions">
                 <button type="button" onClick={() => openEditAgent(agent)}>
-                  Edit
+                  {t("ai.common.edit")}
                 </button>
                 <button type="button" onClick={() => removeAgent(agent)}>
-                  Delete
+                  {t("ai.common.delete")}
                 </button>
                 <button
                   type="button"
                   disabled={isDefault}
                   onClick={() => makeDefaultAgent(agent)}
                 >
-                  Set as Default
+                  {t("ai.settings.modelList.setAsDefault")}
                 </button>
               </div>
             </div>
@@ -1982,17 +1611,22 @@ export const AISettings = ({
             type="button"
             onClick={closeAgentEditor}
           >
-            Back
+            {t("ai.common.back")}
           </button>
           <h3>
-            {agentEditorState.mode === "edit" ? "Edit" : "Add"}{" "}
-            {AGENT_TYPE_LABELS[draft.type]} Agent
+            {t("ai.settings.agentEditor.heading", {
+              mode: `${
+                agentEditorState.mode === "edit"
+                  ? t("ai.common.edit")
+                  : t("ai.common.add")
+              } ${getAgentTypeLabel(draft.type, t)}`,
+            })}
           </h3>
         </div>
 
         <div className="AISettings__providerPresets">
           <span className="AISettings__providerPresetsLabel">
-            Default configs
+            {t("ai.settings.agentEditor.defaultConfigs")}
           </span>
           <div className="AISettings__providerPresetList AISettings__providerPresetList--agents">
             {AI_AGENT_PROVIDER_PRESETS.map((preset) => (
@@ -2005,10 +1639,13 @@ export const AISettings = ({
                 <strong>{preset.name}</strong>
                 <span>
                   {draft.type === "text"
-                    ? preset.recommendedTextModel || "Custom model"
+                    ? preset.recommendedTextModel ||
+                      t("ai.settings.agentEditor.customModel")
                     : draft.type === "vision"
-                    ? preset.recommendedVisionModel || "Custom model"
-                    : preset.recommendedTextModel || "Custom model"}
+                    ? preset.recommendedVisionModel ||
+                      t("ai.settings.agentEditor.customModel")
+                    : preset.recommendedTextModel ||
+                      t("ai.settings.agentEditor.customModel")}
                 </span>
               </button>
             ))}
@@ -2019,21 +1656,23 @@ export const AISettings = ({
           <div className="AISettings__formSection AISettings__formSection--wide">
             <div className="AISettings__modelGrid">
               <label className="AISettings__field">
-                <span>Agent Name</span>
+                <span>{t("ai.settings.agentEditor.agentName")}</span>
                 <input
                   value={draft.name}
-                  placeholder="My GPT-4o-mini"
+                  placeholder={t(
+                    "ai.settings.agentEditor.agentNamePlaceholder",
+                  )}
                   onChange={(event) =>
                     updateAgentDraft({ name: event.target.value })
                   }
                 />
                 <span className="AISettings__fieldHint">
-                  Displayed in the agent list.
+                  {t("ai.settings.agentEditor.agentNameHint")}
                 </span>
               </label>
 
               <label className="AISettings__field">
-                <span>Provider</span>
+                <span>{t("ai.settings.agentEditor.provider")}</span>
                 <select
                   value={draft.provider}
                   onChange={(event) =>
@@ -2056,7 +1695,7 @@ export const AISettings = ({
               </label>
 
               <label className="AISettings__field">
-                <span>Base URL</span>
+                <span>{t("ai.settings.agentEditor.baseURL")}</span>
                 <input
                   value={draft.baseURL}
                   placeholder="https://api.example.com/v1"
@@ -2067,7 +1706,7 @@ export const AISettings = ({
               </label>
 
               <label className="AISettings__field">
-                <span>API Key</span>
+                <span>{t("ai.settings.agentEditor.apiKey")}</span>
                 <input
                   value={draft.apiKey}
                   type="password"
@@ -2077,12 +1716,12 @@ export const AISettings = ({
                   }
                 />
                 <span className="AISettings__fieldHint">
-                  Stored as plaintext in this browser's localStorage.
+                  {t("ai.settings.agentEditor.plainTextStorage")}
                 </span>
               </label>
 
               <label className="AISettings__field">
-                <span>Model</span>
+                <span>{t("ai.settings.agentEditor.model")}</span>
                 <input
                   value={draft.model}
                   placeholder={
@@ -2102,12 +1741,16 @@ export const AISettings = ({
                     setSetAgentAsDefault(event.target.checked)
                   }
                 />
-                <span>Default {AGENT_TYPE_LABELS[draft.type]} Agent</span>
+                <span>
+                  {t("ai.settings.agentEditor.defaultAgent", {
+                    type: getAgentTypeLabel(draft.type, t),
+                  })}
+                </span>
               </label>
             </div>
 
             <label className="AISettings__field">
-              <span>System Prompt (optional)</span>
+              <span>{t("ai.settings.agentEditor.systemPromptOptional")}</span>
               <textarea
                 value={draft.systemPrompt || ""}
                 rows={4}
@@ -2119,20 +1762,17 @@ export const AISettings = ({
                 }
               />
               <span className="AISettings__fieldHint">
-                Leave empty to use the provider default prompt.
+                {t("ai.settings.agentEditor.systemPromptHint")}
               </span>
             </label>
 
             <div className="AISettings__agentRecommendations">
               <strong>
-                Recommended for{" "}
-                {draft.type === "text"
-                  ? "TTD"
-                  : draft.type === "vision"
-                  ? "D2C"
-                  : "Custom Agents"}
+                {t("ai.settings.agentEditor.recommendedFor", {
+                  type: getAgentTargetShortLabel(draft.type, t),
+                })}
               </strong>
-              {AGENT_RECOMMENDATIONS[draft.type].map((item) => (
+              {getAgentRecommendations(draft.type, t).map((item) => (
                 <span key={item}>{item}</span>
               ))}
             </div>
@@ -2146,7 +1786,7 @@ export const AISettings = ({
               type="button"
               onClick={() => removeAgent(agentEditorState.draft)}
             >
-              Remove
+              {t("ai.common.remove")}
             </button>
           )}
 
@@ -2154,7 +1794,9 @@ export const AISettings = ({
             className="AISettings__saveButton"
             onSelect={submitAgentDraft}
           >
-            {agentEditorState.mode === "edit" ? "Save agent" : "Create agent"}
+            {agentEditorState.mode === "edit"
+              ? t("ai.settings.agentEditor.saveAgent")
+              : t("ai.settings.agentEditor.createAgent")}
           </Button>
         </div>
       </>
@@ -2166,7 +1808,7 @@ export const AISettings = ({
     onChange: (value: string) => void,
   ) => (
     <label className="AISettings__field">
-      <span>Icon</span>
+      <span>{t("ai.settings.common.icon")}</span>
       <select value={value} onChange={(event) => onChange(event.target.value)}>
         {ICON_OPTIONS.map((icon) => (
           <option key={icon} value={icon}>
@@ -2176,132 +1818,6 @@ export const AISettings = ({
       </select>
     </label>
   );
-
-  const renderCustomAgentEditor = () => {
-    if (customAgentEditorState.mode === "list") {
-      return null;
-    }
-
-    const { draft } = customAgentEditorState;
-
-    return (
-      <>
-        <div className="AISettings__editorHeader">
-          <button
-            className="AISettings__textButton"
-            type="button"
-            onClick={closeCustomAgentEditor}
-          >
-            Back
-          </button>
-          <h3>
-            {customAgentEditorState.mode === "edit" ? "Edit" : "Create"} Custom
-            Agent
-          </h3>
-        </div>
-
-        <div className="AISettings__editorBody AISettings__editorBody--single">
-          <div className="AISettings__formSection AISettings__formSection--wide">
-            <div className="AISettings__modelGrid">
-              <label className="AISettings__field">
-                <span>Name</span>
-                <input
-                  value={draft.name}
-                  placeholder="Prompt optimization expert"
-                  onChange={(event) =>
-                    updateCustomAgentDraft({ name: event.target.value })
-                  }
-                />
-              </label>
-
-              {renderIconSelect(draft.icon, (icon) =>
-                updateCustomAgentDraft({ icon }),
-              )}
-
-              <label className="AISettings__field">
-                <span>Description</span>
-                <input
-                  value={draft.description}
-                  placeholder="Helps optimize image generation prompts"
-                  onChange={(event) =>
-                    updateCustomAgentDraft({
-                      description: event.target.value,
-                    })
-                  }
-                />
-              </label>
-
-              <label className="AISettings__field">
-                <span>Model</span>
-                <select
-                  value={draft.baseLLMAgentId}
-                  onChange={(event) =>
-                    updateCustomAgentDraft({
-                      baseLLMAgentId: event.target.value,
-                    })
-                  }
-                >
-                  <option value="">Select an LLM Agent</option>
-                  {agentConfig.llmAgents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
-                <span className="AISettings__fieldHint">
-                  Custom Agents use LLM Agents as their base model.
-                </span>
-              </label>
-
-              <label className="AISettings__defaultField">
-                <input
-                  type="checkbox"
-                  checked={setCustomAgentAsDefault}
-                  onChange={(event) =>
-                    setSetCustomAgentAsDefault(event.target.checked)
-                  }
-                />
-                <span>Default Custom Agent</span>
-              </label>
-            </div>
-
-            <label className="AISettings__field">
-              <span>System Prompt</span>
-              <textarea
-                value={draft.systemPrompt}
-                rows={8}
-                placeholder="You are an expert prompt engineer. Help users improve prompts with concrete, useful suggestions."
-                onChange={(event) =>
-                  updateCustomAgentDraft({ systemPrompt: event.target.value })
-                }
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="AISettings__editorActions">
-          {customAgentEditorState.mode === "edit" && (
-            <button
-              className="AISettings__dangerButton"
-              type="button"
-              onClick={() => removeCustomAgent(customAgentEditorState.draft)}
-            >
-              Remove
-            </button>
-          )}
-
-          <Button
-            className="AISettings__saveButton"
-            onSelect={submitCustomAgentDraft}
-          >
-            {customAgentEditorState.mode === "edit"
-              ? "Save agent"
-              : "Create agent"}
-          </Button>
-        </div>
-      </>
-    );
-  };
 
   const renderSkillEditor = () => {
     if (skillEditorState.mode === "list") {
@@ -2318,19 +1834,28 @@ export const AISettings = ({
             type="button"
             onClick={closeSkillEditor}
           >
-            Back
+            {t("ai.common.back")}
           </button>
-          <h3>{skillEditorState.mode === "edit" ? "Edit" : "Create"} Skill</h3>
+          <h3>
+            {t("ai.settings.skillEditor.heading", {
+              mode:
+                skillEditorState.mode === "edit"
+                  ? t("ai.common.edit")
+                  : t("ai.common.create"),
+            })}
+          </h3>
         </div>
 
         <div className="AISettings__editorBody AISettings__editorBody--single">
           <div className="AISettings__formSection AISettings__formSection--wide">
             <div className="AISettings__modelGrid">
               <label className="AISettings__field">
-                <span>Skill Name</span>
+                <span>{t("ai.settings.skillEditor.skillName")}</span>
                 <input
                   value={draft.name}
-                  placeholder="Image prompt optimization"
+                  placeholder={t(
+                    "ai.settings.skillEditor.skillNamePlaceholder",
+                  )}
                   onChange={(event) =>
                     updateSkillDraft({ name: event.target.value })
                   }
@@ -2342,10 +1867,12 @@ export const AISettings = ({
               )}
 
               <label className="AISettings__field">
-                <span>Description</span>
+                <span>{t("ai.settings.skillEditor.description")}</span>
                 <input
                   value={draft.description}
-                  placeholder="Quickly improve image generation prompts"
+                  placeholder={t(
+                    "ai.settings.skillEditor.descriptionPlaceholder",
+                  )}
                   onChange={(event) =>
                     updateSkillDraft({ description: event.target.value })
                   }
@@ -2353,50 +1880,36 @@ export const AISettings = ({
               </label>
 
               <label className="AISettings__field">
-                <span>Custom Agent</span>
-                <select
-                  value={draft.agentId}
-                  onChange={(event) =>
-                    updateSkillDraft({ agentId: event.target.value })
-                  }
-                >
-                  <option value="">Select a Custom Agent</option>
-                  {agentConfig.customAgents.map((agent) => (
-                    <option key={agent.id} value={agent.id}>
-                      {agent.icon} {agent.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="AISettings__field">
-                <span>Command palette triggers (optional)</span>
+                <span>{t("ai.settings.skillEditor.triggers")}</span>
                 <input
                   value={draft.triggers}
-                  placeholder="optimize prompt, image prompt"
+                  placeholder={t("ai.settings.skillEditor.triggersPlaceholder")}
                   onChange={(event) =>
                     updateSkillDraft({ triggers: event.target.value })
                   }
                 />
                 <span className="AISettings__fieldHint">
-                  Separate multiple command palette aliases with commas.
+                  {t("ai.settings.skillEditor.triggersHint")}
                 </span>
               </label>
             </div>
 
             <label className="AISettings__field">
-              <span>Initial Prompt (optional)</span>
+              <span>{t("ai.settings.skillEditor.initialPrompt")}</span>
               <textarea
                 value={draft.initialPrompt || ""}
                 rows={7}
-                placeholder="I need to optimize this image prompt: {user_input}"
+                placeholder={t(
+                  "ai.settings.skillEditor.initialPromptPlaceholder",
+                )}
                 onChange={(event) =>
                   updateSkillDraft({ initialPrompt: event.target.value })
                 }
               />
               <span className="AISettings__fieldHint">
-                Leave empty to only switch agents. {"{user_input}"} is replaced
-                with the user's input.
+                {t("ai.settings.skillEditor.initialPromptHint", {
+                  placeholder: "{user_input}",
+                })}
               </span>
             </label>
           </div>
@@ -2411,7 +1924,7 @@ export const AISettings = ({
                 removeSkill(normalizeSkillDraftForSave(skillEditorState.draft))
               }
             >
-              Remove
+              {t("ai.common.remove")}
             </button>
           )}
 
@@ -2419,7 +1932,9 @@ export const AISettings = ({
             className="AISettings__saveButton"
             onSelect={submitSkillDraft}
           >
-            {skillEditorState.mode === "edit" ? "Save skill" : "Create skill"}
+            {skillEditorState.mode === "edit"
+              ? t("ai.settings.skillEditor.saveSkill")
+              : t("ai.settings.skillEditor.createSkill")}
           </Button>
         </div>
       </>
@@ -2437,23 +1952,23 @@ export const AISettings = ({
     return (
       <>
         <div className="AISettings__toolbar">
-          <span>Prompt Templates</span>
+          <span>{t("ai.settings.templates.title")}</span>
           <span className="AISettings__toolbarActions">
             <button
               type="button"
               onClick={() => templateImportInputRef.current?.click()}
             >
-              Import
+              {t("ai.settings.templates.import")}
             </button>
             <button
               type="button"
               disabled={!customTemplates.length}
               onClick={exportTemplates}
             >
-              Export
+              {t("ai.settings.templates.export")}
             </button>
             <button type="button" onClick={openCreateTemplate}>
-              Add template
+              {t("ai.settings.templates.addTemplate")}
             </button>
           </span>
         </div>
@@ -2474,8 +1989,16 @@ export const AISettings = ({
         />
 
         <div className="AISettings__templateSections">
-          {renderTemplateSection("Built-in Templates", builtInTemplates)}
-          {renderTemplateSection("Custom Templates", savedCustomTemplates)}
+          {renderTemplateSection(
+            t("ai.settings.templates.builtIn"),
+            builtInTemplates,
+            false,
+          )}
+          {renderTemplateSection(
+            t("ai.settings.templates.custom"),
+            savedCustomTemplates,
+            true,
+          )}
         </div>
       </>
     );
@@ -2484,6 +2007,7 @@ export const AISettings = ({
   const renderTemplateSection = (
     title: string,
     templates: PromptTemplate[],
+    isCustomSection: boolean,
   ) => (
     <div className="AISettings__templateSection">
       <div className="AISettings__sectionHeader">
@@ -2492,14 +2016,14 @@ export const AISettings = ({
       </div>
       {templates.length === 0 && (
         <div className="AISettings__emptyState">
-          <span>No templates yet.</span>
-          {title === "Custom Templates" && (
+          <span>{t("ai.settings.templates.empty")}</span>
+          {isCustomSection && (
             <button
               type="button"
               className="AISettings__textButton"
               onClick={openCreateTemplate}
             >
-              Add custom template
+              {t("ai.settings.templates.addCustomTemplate")}
             </button>
           )}
         </div>
@@ -2515,21 +2039,25 @@ export const AISettings = ({
                     type="button"
                     onClick={() => openEditTemplate(template)}
                   >
-                    Edit
+                    {t("ai.common.edit")}
                   </button>
                   <button
                     type="button"
                     onClick={() => removeTemplate(template)}
                   >
-                    Delete
+                    {t("ai.common.delete")}
                   </button>
                 </span>
               )}
             </div>
             <div className="AISettings__templateMeta">
-              <span>{formatTemplateModes(template.modes)}</span>
-              <span>{template.category || "custom"}</span>
-              <span>{template.language || "multi"}</span>
+              <span>{formatTemplateModes(template.modes, t)}</span>
+              <span>
+                {getPromptTemplateCategoryLabel(template.category, t)}
+              </span>
+              <span>
+                {getPromptTemplateLanguageLabel(template.language, t)}
+              </span>
             </div>
             <p>{template.template}</p>
           </div>
@@ -2553,19 +2081,19 @@ export const AISettings = ({
             type="button"
             onClick={closeTemplateEditor}
           >
-            Back
+            {t("ai.common.back")}
           </button>
           <h3>
             {templateEditorState.mode === "edit"
-              ? "Edit template"
-              : "New template"}
+              ? t("ai.settings.templates.editTemplate")
+              : t("ai.settings.templates.newTemplate")}
           </h3>
         </div>
 
         <div className="AISettings__editorBody AISettings__editorBody--single">
           <div className="AISettings__formSection AISettings__formSection--wide">
             <label className="AISettings__field">
-              <span>Label</span>
+              <span>{t("ai.settings.templates.label")}</span>
               <input
                 value={draft.label}
                 onChange={(event) =>
@@ -2575,7 +2103,7 @@ export const AISettings = ({
             </label>
 
             <label className="AISettings__field">
-              <span>Template Content</span>
+              <span>{t("ai.settings.templates.content")}</span>
               <textarea
                 value={draft.template}
                 rows={5}
@@ -2593,14 +2121,14 @@ export const AISettings = ({
                     checked={draft.modes.includes(option.value)}
                     onChange={() => toggleTemplateMode(option.value)}
                   />
-                  <span>{option.label}</span>
+                  <span>{t(option.labelKey)}</span>
                 </label>
               ))}
             </div>
 
             <div className="AISettings__modelGrid">
               <label className="AISettings__field">
-                <span>Category</span>
+                <span>{t("ai.settings.templates.category")}</span>
                 <select
                   value={draft.category}
                   onChange={(event) =>
@@ -2611,14 +2139,14 @@ export const AISettings = ({
                 >
                   {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </select>
               </label>
 
               <label className="AISettings__field">
-                <span>Language</span>
+                <span>{t("ai.settings.templates.language")}</span>
                 <select
                   value={draft.language}
                   onChange={(event) =>
@@ -2629,7 +2157,7 @@ export const AISettings = ({
                 >
                   {TEMPLATE_LANGUAGE_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -2637,7 +2165,7 @@ export const AISettings = ({
             </div>
 
             <div className="AISettings__fieldHint">
-              Supported placeholders: #1, #2, #N and [text].
+              {t("ai.settings.templates.placeholderHint")}
             </div>
           </div>
         </div>
@@ -2648,8 +2176,8 @@ export const AISettings = ({
             onSelect={submitTemplateDraft}
           >
             {templateEditorState.mode === "edit"
-              ? "Save template"
-              : "Create template"}
+              ? t("ai.settings.templates.saveTemplate")
+              : t("ai.settings.templates.createTemplate")}
           </Button>
         </div>
       </>
@@ -2713,14 +2241,18 @@ export const AISettings = ({
             type="button"
             onClick={closeEditor}
           >
-            Back
+            {t("ai.common.back")}
           </button>
-          <h3>{editorState.mode === "edit" ? "Edit model" : "New model"}</h3>
+          <h3>
+            {editorState.mode === "edit"
+              ? t("ai.settings.modelEditor.editModel")
+              : t("ai.settings.modelEditor.newModel")}
+          </h3>
         </div>
 
         <div className="AISettings__providerPresets">
           <span className="AISettings__providerPresetsLabel">
-            Quick presets
+            {t("ai.settings.modelEditor.quickPresets")}
           </span>
           <div className="AISettings__providerPresetList">
             {DEFAULT_AI_MODEL_PROVIDER_PRESETS.map((preset) => (
@@ -2740,12 +2272,12 @@ export const AISettings = ({
         <div className="AISettings__editorBody">
           <div className="AISettings__formSection">
             <div className="AISettings__sectionHeader">
-              <h4>Connection</h4>
+              <h4>{t("ai.settings.modelEditor.connection")}</h4>
             </div>
 
             <div className="AISettings__connectionGrid">
               <label className="AISettings__field">
-                <span>Site name</span>
+                <span>{t("ai.settings.modelEditor.siteName")}</span>
                 <input
                   value={draft.siteName}
                   onChange={(event) =>
@@ -2755,7 +2287,7 @@ export const AISettings = ({
               </label>
 
               <label className="AISettings__field">
-                <span>Base URL</span>
+                <span>{t("ai.settings.modelEditor.baseURL")}</span>
                 <input
                   value={draft.baseURL}
                   onChange={(event) =>
@@ -2766,7 +2298,7 @@ export const AISettings = ({
               </label>
 
               <label className="AISettings__field">
-                <span>API Key</span>
+                <span>{t("ai.settings.modelEditor.apiKey")}</span>
                 <input
                   value={draft.apiKey}
                   type="password"
@@ -2776,7 +2308,7 @@ export const AISettings = ({
                   }
                 />
                 <span className="AISettings__fieldHint">
-                  Stored as plaintext in this browser's localStorage.
+                  {t("ai.settings.modelEditor.plainTextStorage")}
                 </span>
               </label>
             </div>
@@ -2784,20 +2316,20 @@ export const AISettings = ({
 
           <div className="AISettings__formSection">
             <div className="AISettings__sectionHeader">
-              <h4>Model</h4>
+              <h4>{t("ai.settings.modelEditor.model")}</h4>
               <label className="AISettings__defaultField">
                 <input
                   type="checkbox"
                   checked={setAsDefault}
                   onChange={(event) => setSetAsDefault(event.target.checked)}
                 />
-                <span>Default model</span>
+                <span>{t("ai.settings.modelEditor.defaultModel")}</span>
               </label>
             </div>
 
             <div className="AISettings__modelGrid">
               <label className="AISettings__field AISettings__modelIdsField">
-                <span>Model IDs</span>
+                <span>{t("ai.settings.modelEditor.modelIds")}</span>
                 <textarea
                   value={draft.model}
                   rows={4}
@@ -2806,13 +2338,13 @@ export const AISettings = ({
                   }
                 />
                 <span className="AISettings__fieldHint">
-                  One model per line, or separated by commas/semicolons.
+                  {t("ai.settings.modelEditor.modelIdsHint")}
                 </span>
               </label>
 
               {draft.mediaType === "image" && (
                 <label className="AISettings__field AISettings__modelRightField1">
-                  <span>Native model</span>
+                  <span>{t("ai.settings.modelEditor.nativeModel")}</span>
                   <select
                     value={draft.nativeModel || DEFAULT_AI_IMAGE_NATIVE_MODEL}
                     onChange={(event) =>
@@ -2837,7 +2369,7 @@ export const AISettings = ({
                     : "AISettings__field AISettings__modelRightField1"
                 }
               >
-                <span>Type</span>
+                <span>{t("ai.settings.modelEditor.type")}</span>
                 <select
                   value={draft.mediaType}
                   onChange={(event) =>
@@ -2848,7 +2380,7 @@ export const AISettings = ({
                 >
                   {AI_MODEL_MEDIA_TYPES.map((mediaType) => (
                     <option key={mediaType} value={mediaType}>
-                      {MEDIA_TYPE_LABELS[mediaType]}
+                      {getMediaTypeLabel(mediaType, t)}
                     </option>
                   ))}
                 </select>
@@ -2861,7 +2393,7 @@ export const AISettings = ({
                     : "AISettings__field AISettings__modelRightField2"
                 }
               >
-                <span>Timeout (seconds)</span>
+                <span>{t("ai.settings.modelEditor.timeoutSeconds")}</span>
                 <input
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -2893,11 +2425,11 @@ export const AISettings = ({
           {draft.mediaType === "image" && (
             <div className="AISettings__formSection AISettings__formSection--wide">
               <div className="AISettings__sectionHeader">
-                <h4>API configuration</h4>
+                <h4>{t("ai.settings.modelEditor.apiConfiguration")}</h4>
               </div>
 
               <label className="AISettings__field AISettings__presetField">
-                <span>Endpoint preset</span>
+                <span>{t("ai.settings.modelEditor.endpointPreset")}</span>
                 <select
                   value={draft.endpointPresetId}
                   onChange={(event) => {
@@ -2930,19 +2462,22 @@ export const AISettings = ({
               </label>
 
               <details className="AISettings__advanced">
-                <summary>Advanced endpoints</summary>
+                <summary>
+                  {t("ai.settings.modelEditor.advancedEndpoints")}
+                </summary>
                 <div className="AISettings__endpointMatrix">
                   <div
                     className="AISettings__endpointHeader"
                     aria-hidden="true"
                   >
-                    <span>Mode</span>
-                    <span>Path</span>
-                    <span>Format</span>
+                    <span>{t("ai.common.mode")}</span>
+                    <span>{t("ai.settings.modelEditor.path")}</span>
+                    <span>{t("ai.settings.modelEditor.format")}</span>
                   </div>
 
                   {ENDPOINT_FORM_FIELDS.map((endpointField) => {
                     const endpoint = draft.endpoints[endpointField.key];
+                    const endpointLabel = t(endpointField.labelKey);
 
                     return (
                       <div
@@ -2950,11 +2485,13 @@ export const AISettings = ({
                         key={endpointField.key}
                       >
                         <span className="AISettings__endpointLabel">
-                          {endpointField.label}
+                          {endpointLabel}
                         </span>
                         <label className="AISettings__field">
                           <span className="AISettings__visuallyHidden">
-                            {endpointField.label} path
+                            {t("ai.settings.modelEditor.endpointPathLabel", {
+                              label: endpointLabel,
+                            })}
                           </span>
                           <input
                             value={endpoint.path}
@@ -2969,7 +2506,9 @@ export const AISettings = ({
 
                         <label className="AISettings__field">
                           <span className="AISettings__visuallyHidden">
-                            {endpointField.label} format
+                            {t("ai.settings.modelEditor.endpointFormatLabel", {
+                              label: endpointLabel,
+                            })}
                           </span>
                           <select
                             value={endpoint.format}
@@ -2993,7 +2532,9 @@ export const AISettings = ({
 
               <details className="AISettings__advanced">
                 <summary>
-                  <span>Advanced field mapping</span>
+                  <span>
+                    {t("ai.settings.modelEditor.advancedFieldMapping")}
+                  </span>
                   {fieldMappingCount > 0 && (
                     <span className="AISettings__summaryBadge">
                       {fieldMappingCount}
@@ -3003,7 +2544,7 @@ export const AISettings = ({
                 <div className="AISettings__fieldMappingGrid">
                   {FIELD_MAPPING_FORM_FIELDS.map((field) => (
                     <label className="AISettings__field" key={field.key}>
-                      <span>{field.label}</span>
+                      <span>{t(field.labelKey)}</span>
                       <input
                         value={draft.fieldMapping?.[field.key] || ""}
                         placeholder={field.placeholder}
@@ -3020,12 +2561,12 @@ export const AISettings = ({
 
           <div className="AISettings__formSection AISettings__formSection--wide">
             <div className="AISettings__sectionHeader">
-              <h4>Capabilities</h4>
+              <h4>{t("ai.settings.modelEditor.capabilities")}</h4>
             </div>
 
             <details className="AISettings__advanced AISettings__capabilitiesDetails">
               <summary>
-                <span>Enabled capabilities</span>
+                <span>{t("ai.settings.modelEditor.enabledCapabilities")}</span>
                 <span className="AISettings__summaryBadge">
                   {capabilityCount}
                 </span>
@@ -3058,12 +2599,14 @@ export const AISettings = ({
               type="button"
               onClick={() => removeModelGroup(editorState.indexes)}
             >
-              Remove
+              {t("ai.common.remove")}
             </button>
           )}
 
           <Button className="AISettings__saveButton" onSelect={submitDraft}>
-            {editorState.mode === "edit" ? "Save model" : "Create model"}
+            {editorState.mode === "edit"
+              ? t("ai.settings.modelEditor.saveModel")
+              : t("ai.settings.modelEditor.createModel")}
           </Button>
         </div>
       </>
@@ -3073,10 +2616,6 @@ export const AISettings = ({
   const renderAgentSettings = () => {
     if (agentEditorState.mode !== "list") {
       return renderAgentEditor();
-    }
-
-    if (customAgentEditorState.mode !== "list") {
-      return renderCustomAgentEditor();
     }
 
     if (skillEditorState.mode !== "list") {
@@ -3091,7 +2630,7 @@ export const AISettings = ({
       <div
         className="AISettings__tabs AISettings__tabs--top"
         role="tablist"
-        aria-label="AI settings"
+        aria-label={t("ai.common.settings")}
       >
         <button
           type="button"
@@ -3104,7 +2643,7 @@ export const AISettings = ({
           }
           onClick={() => setActiveSettingsTab("models")}
         >
-          Models
+          {t("ai.settings.tabs.models")}
         </button>
         <button
           type="button"
@@ -3117,7 +2656,7 @@ export const AISettings = ({
           }
           onClick={() => setActiveSettingsTab("agents")}
         >
-          AI Agent
+          {t("ai.settings.tabs.agents")}
         </button>
         <button
           type="button"
@@ -3130,7 +2669,7 @@ export const AISettings = ({
           }
           onClick={() => setActiveSettingsTab("templates")}
         >
-          Prompt Templates
+          {t("ai.settings.tabs.templates")}
         </button>
       </div>
 
@@ -3157,14 +2696,120 @@ export const AISettings = ({
   );
 };
 
-const formatTemplateModes = (modes: readonly AIImageGenerationMode[]) => {
-  const labels: Record<AIImageGenerationMode, string> = {
-    "text-to-image": "Text",
-    "image-to-image": "Reference",
-    inpaint: "Inpaint",
-  };
+type AISettingsT = typeof t;
 
-  return modes.map((mode) => labels[mode]).join(", ");
+const getMediaTypeLabel = (mediaType: AIModelMediaType, t: AISettingsT) => {
+  if (mediaType === "video") {
+    return t("ai.common.video");
+  }
+
+  if (mediaType === "audio") {
+    return t("ai.common.audio");
+  }
+
+  return t("ai.common.image");
+};
+
+const getMediaTypeInlineLabel = (
+  mediaType: AIModelMediaType,
+  t: AISettingsT,
+) => {
+  const label = getMediaTypeLabel(mediaType, t);
+
+  return /^[A-Z][A-Za-z]+$/.test(label) ? label.toLowerCase() : label;
+};
+
+const getAgentTypeLabel = (type: AIAgentType, t: AISettingsT) => {
+  if (type === "vision") {
+    return t("ai.settings.agentTypes.vision");
+  }
+
+  if (type === "llm") {
+    return t("ai.settings.agentTypes.llm");
+  }
+
+  return t("ai.settings.agentTypes.text");
+};
+
+const getAgentTargetLabel = (type: AIAgentType, t: AISettingsT) => {
+  if (type === "vision") {
+    return t("ai.settings.agentTargets.vision");
+  }
+
+  if (type === "llm") {
+    return t("ai.settings.agentTargets.llm");
+  }
+
+  return t("ai.settings.agentTargets.text");
+};
+
+const getAgentTargetShortLabel = (type: AIAgentType, t: AISettingsT) => {
+  if (type === "vision") {
+    return t("ai.settings.agentTargetsShort.vision");
+  }
+
+  if (type === "llm") {
+    return t("ai.settings.agentTargetsShort.llm");
+  }
+
+  return t("ai.settings.agentTargetsShort.text");
+};
+
+const getAgentRecommendations = (type: AIAgentType, t: AISettingsT) => {
+  if (type === "vision") {
+    return [
+      t("ai.settings.agentRecommendations.vision.openai"),
+      t("ai.settings.agentRecommendations.vision.claude"),
+      t("ai.settings.agentRecommendations.vision.gemini"),
+    ];
+  }
+
+  if (type === "llm") {
+    return [
+      t("ai.settings.agentRecommendations.llm.openai"),
+      t("ai.settings.agentRecommendations.llm.claude"),
+      t("ai.settings.agentRecommendations.llm.compatible"),
+    ];
+  }
+
+  return [
+    t("ai.settings.agentRecommendations.text.openai"),
+    t("ai.settings.agentRecommendations.text.claude"),
+    t("ai.settings.agentRecommendations.text.gemini"),
+  ];
+};
+
+const formatTemplateModes = (
+  modes: readonly AIImageGenerationMode[],
+  t: AISettingsT,
+) => {
+  const labels = new Map(
+    TEMPLATE_MODE_OPTIONS.map((option) => [option.value, t(option.labelKey)]),
+  );
+
+  return modes.map((mode) => labels.get(mode) || mode).join(", ");
+};
+
+const getPromptTemplateCategoryLabel = (
+  category: PromptTemplateCategory | undefined,
+  t: AISettingsT,
+) => {
+  const option =
+    TEMPLATE_CATEGORY_OPTIONS.find((item) => item.value === category) ||
+    TEMPLATE_CATEGORY_OPTIONS.find((item) => item.value === "custom");
+
+  return option ? t(option.labelKey) : t("ai.common.custom");
+};
+
+const getPromptTemplateLanguageLabel = (
+  language: PromptTemplateLanguage | undefined,
+  t: AISettingsT,
+) => {
+  const option =
+    TEMPLATE_LANGUAGE_OPTIONS.find((item) => item.value === language) ||
+    TEMPLATE_LANGUAGE_OPTIONS.find((item) => item.value === "multi");
+
+  return option ? t(option.labelKey) : t("ai.common.multilingual");
 };
 
 const formatModelGroupNames = (models: readonly AIImageModel[]) => {

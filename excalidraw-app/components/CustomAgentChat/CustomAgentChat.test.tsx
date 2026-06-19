@@ -8,7 +8,7 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import { STORAGE_KEYS } from "../../app_constants";
 import { saveAIAgentConfig } from "../../ai/agentConfig";
 import { loadChatHistory } from "../../ai/chatHistory";
-import { sendMessageToCustomAgent } from "../../ai/customAgentAdapter";
+import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
 
 import {
   ChatMessageView,
@@ -20,7 +20,7 @@ import {
 import type { ChatMessage } from "../../ai/types";
 
 vi.mock("../../ai/customAgentAdapter", () => ({
-  sendMessageToCustomAgent: vi.fn(),
+  sendMessageToGeneralAgent: vi.fn(),
 }));
 
 const createAssistantMessage = (
@@ -47,6 +47,8 @@ describe("ChatMessageView", () => {
           },
         })}
         onCopyCode={vi.fn()}
+        onCopyMessage={vi.fn()}
+        onDeleteMessage={vi.fn()}
         onInsertMermaid={vi.fn()}
         onInsertTextToCanvas={vi.fn()}
         onSendPromptToWorkbench={onSendPromptToWorkbench}
@@ -77,6 +79,8 @@ describe("ChatMessageView", () => {
           ],
         })}
         onCopyCode={vi.fn()}
+        onCopyMessage={vi.fn()}
+        onDeleteMessage={vi.fn()}
         onInsertMermaid={onInsertMermaid}
         onInsertTextToCanvas={vi.fn()}
         onSendPromptToWorkbench={vi.fn()}
@@ -105,6 +109,8 @@ describe("ChatMessageView", () => {
           ],
         })}
         onCopyCode={onCopyCode}
+        onCopyMessage={vi.fn()}
+        onDeleteMessage={vi.fn()}
         onInsertMermaid={vi.fn()}
         onInsertTextToCanvas={vi.fn()}
         onSendPromptToWorkbench={vi.fn()}
@@ -117,6 +123,55 @@ describe("ChatMessageView", () => {
     expect(onCopyCode).toHaveBeenCalledWith("copyable prompt fragment");
   });
 
+  it("copies full chat message content", () => {
+    const onCopyMessage = vi.fn();
+
+    render(
+      <ChatMessageView
+        message={createAssistantMessage({
+          content: "Copy this full assistant response.",
+        })}
+        onCopyCode={vi.fn()}
+        onCopyMessage={onCopyMessage}
+        onDeleteMessage={vi.fn()}
+        onInsertMermaid={vi.fn()}
+        onInsertTextToCanvas={vi.fn()}
+        onSendPromptToWorkbench={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy message" }));
+
+    expect(onCopyMessage).toHaveBeenCalledTimes(1);
+    expect(onCopyMessage).toHaveBeenCalledWith(
+      "Copy this full assistant response.",
+    );
+  });
+
+  it("deletes a single chat message", () => {
+    const onDeleteMessage = vi.fn();
+
+    render(
+      <ChatMessageView
+        message={createAssistantMessage({
+          id: "message-to-delete",
+          content: "Remove this from context.",
+        })}
+        onCopyCode={vi.fn()}
+        onCopyMessage={vi.fn()}
+        onDeleteMessage={onDeleteMessage}
+        onInsertMermaid={vi.fn()}
+        onInsertTextToCanvas={vi.fn()}
+        onSendPromptToWorkbench={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete message" }));
+
+    expect(onDeleteMessage).toHaveBeenCalledTimes(1);
+    expect(onDeleteMessage).toHaveBeenCalledWith("message-to-delete");
+  });
+
   it("exposes assistant text output as a canvas insertion action", () => {
     const onInsertTextToCanvas = vi.fn();
 
@@ -126,6 +181,8 @@ describe("ChatMessageView", () => {
           content: "Turn these notes into a board-ready action list.",
         })}
         onCopyCode={vi.fn()}
+        onCopyMessage={vi.fn()}
+        onDeleteMessage={vi.fn()}
         onInsertMermaid={vi.fn()}
         onInsertTextToCanvas={onInsertTextToCanvas}
         onSendPromptToWorkbench={vi.fn()}
@@ -206,14 +263,14 @@ describe("ChatMessageView", () => {
 describe("CustomAgentChat", () => {
   beforeEach(() => {
     localStorage.clear();
-    vi.mocked(sendMessageToCustomAgent).mockReset();
+    vi.mocked(sendMessageToGeneralAgent).mockReset();
     saveAIAgentConfig({
       textAgents: [],
       visionAgents: [],
       llmAgents: [
         {
           id: "llm-agent",
-          name: "LLM Agent",
+          name: "General Agent",
           type: "llm",
           provider: "openai",
           baseURL: "",
@@ -221,21 +278,12 @@ describe("CustomAgentChat", () => {
           model: "gpt-4o-mini",
         },
       ],
-      customAgents: [
-        {
-          id: "custom-agent",
-          name: "Prompt Coach",
-          description: "",
-          icon: "AI",
-          baseLLMAgentId: "llm-agent",
-          systemPrompt: "Help refine creative prompts.",
-        },
-      ],
+      customAgents: [],
       skills: [],
       defaultTextAgentId: null,
       defaultVisionAgentId: null,
       defaultLLMAgentId: "llm-agent",
-      defaultCustomAgentId: "custom-agent",
+      defaultCustomAgentId: null,
       useTextAgentForVision: false,
     });
   });
@@ -263,6 +311,10 @@ describe("CustomAgentChat", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "Prompt loaded from AI Workbench.",
     );
+    expect(screen.getByLabelText("Message")).toHaveAttribute(
+      "placeholder",
+      "Describe what you need... (Shift+Enter for new line)",
+    );
   });
 
   it("loads assistant skills selected from workflow commands", async () => {
@@ -272,7 +324,6 @@ describe("CustomAgentChat", () => {
       icon: "AI",
       description: "Storyboard planning",
       triggers: ["storyboard"],
-      agentId: "custom-agent",
       initialPrompt: "Turn {user_input} into a storyboard.",
     };
     const secondSkill = {
@@ -287,7 +338,7 @@ describe("CustomAgentChat", () => {
       llmAgents: [
         {
           id: "llm-agent",
-          name: "LLM Agent",
+          name: "General Agent",
           type: "llm",
           provider: "openai",
           baseURL: "",
@@ -295,21 +346,12 @@ describe("CustomAgentChat", () => {
           model: "gpt-4o-mini",
         },
       ],
-      customAgents: [
-        {
-          id: "custom-agent",
-          name: "Prompt Coach",
-          description: "",
-          icon: "AI",
-          baseLLMAgentId: "llm-agent",
-          systemPrompt: "Help refine creative prompts.",
-        },
-      ],
+      customAgents: [],
       skills: [skill, secondSkill],
       defaultTextAgentId: null,
       defaultVisionAgentId: null,
       defaultLLMAgentId: "llm-agent",
-      defaultCustomAgentId: "custom-agent",
+      defaultCustomAgentId: null,
       useTextAgentForVision: false,
     });
 
@@ -332,6 +374,10 @@ describe("CustomAgentChat", () => {
       "placeholder",
       "Type the input for this Skill...",
     );
+    expect(loadChatHistory().conversations[0]).toMatchObject({
+      agentId: "llm-agent",
+      pendingSkillId: "skill-storyboard",
+    });
 
     rerender(
       <CustomAgentChat
@@ -348,10 +394,14 @@ describe("CustomAgentChat", () => {
         "Prompt Critic selected. Type your input to start.",
       );
     });
+    expect(loadChatHistory().conversations[0]).toMatchObject({
+      agentId: "llm-agent",
+      pendingSkillId: "skill-critic",
+    });
   });
 
   it("does not persist chat history for every streamed chunk", async () => {
-    vi.mocked(sendMessageToCustomAgent).mockImplementation(
+    vi.mocked(sendMessageToGeneralAgent).mockImplementation(
       async ({ onChunk }) => {
         onChunk?.("Hel");
         onChunk?.("lo");
@@ -374,7 +424,10 @@ describe("CustomAgentChat", () => {
     fireEvent.change(screen.getByLabelText("Message"), {
       target: { value: "Draft a concise prompt" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.keyDown(screen.getByLabelText("Message"), {
+      key: "Enter",
+      code: "Enter",
+    });
 
     await waitFor(() => {
       expect(screen.getByText("Hello")).toBeInTheDocument();
@@ -389,8 +442,112 @@ describe("CustomAgentChat", () => {
     );
   });
 
+  it("scrolls to the latest message after sending a chat message", async () => {
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    vi.mocked(sendMessageToGeneralAgent).mockResolvedValue({
+      content: "Auto scrolled response",
+      error: null,
+    });
+
+    try {
+      render(<CustomAgentChat excalidrawAPI={null} />);
+
+      await waitFor(() => {
+        expect(loadChatHistory().conversations).toHaveLength(1);
+      });
+
+      scrollIntoView.mockClear();
+      fireEvent.change(screen.getByLabelText("Message"), {
+        target: { value: "Keep latest visible" },
+      });
+      fireEvent.keyDown(screen.getByLabelText("Message"), {
+        key: "Enter",
+        code: "Enter",
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText("Auto scrolled response")).toBeInTheDocument();
+      });
+      expect(scrollIntoView).toHaveBeenCalledWith({ block: "end" });
+    } finally {
+      Object.defineProperty(Element.prototype, "scrollIntoView", {
+        configurable: true,
+        value: originalScrollIntoView,
+      });
+    }
+  });
+
+  it("deletes a chat message from the next agent context", async () => {
+    vi.mocked(sendMessageToGeneralAgent)
+      .mockResolvedValueOnce({
+        content: "Invalid context",
+        error: null,
+      })
+      .mockResolvedValueOnce({
+        content: "Next response",
+        error: null,
+      });
+
+    render(<CustomAgentChat excalidrawAPI={null} />);
+
+    await waitFor(() => {
+      expect(loadChatHistory().conversations).toHaveLength(1);
+    });
+
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "First question" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Message"), {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Invalid context")).toBeInTheDocument();
+    });
+
+    const deleteButtons = screen.getAllByRole("button", {
+      name: "Delete message",
+    });
+    fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Invalid context")).not.toBeInTheDocument();
+    });
+    expect(
+      loadChatHistory().conversations[0].messages.some(
+        (message) => message.content === "Invalid context",
+      ),
+    ).toBe(false);
+
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Second question" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Message"), {
+      key: "Enter",
+      code: "Enter",
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Next response")).toBeInTheDocument();
+    });
+
+    const secondRequestMessages = vi.mocked(sendMessageToGeneralAgent).mock
+      .calls[1][0].messages;
+    expect(
+      secondRequestMessages.some(
+        (message) => message.content === "Invalid context",
+      ),
+    ).toBe(false);
+  });
+
   it("keeps partial assistant output when generation is canceled", async () => {
-    vi.mocked(sendMessageToCustomAgent).mockImplementation(
+    vi.mocked(sendMessageToGeneralAgent).mockImplementation(
       ({ onChunk, signal }) => {
         onChunk?.("Partial answer");
 
@@ -412,7 +569,10 @@ describe("CustomAgentChat", () => {
     fireEvent.change(screen.getByLabelText("Message"), {
       target: { value: "Explain this board" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    fireEvent.keyDown(screen.getByLabelText("Message"), {
+      key: "Enter",
+      code: "Enter",
+    });
 
     await waitFor(() => {
       expect(
@@ -435,6 +595,26 @@ describe("CustomAgentChat", () => {
     );
   });
 
+  it("keeps Shift+Enter available for multiline input", async () => {
+    render(<CustomAgentChat excalidrawAPI={null} />);
+
+    await waitFor(() => {
+      expect(loadChatHistory().conversations).toHaveLength(1);
+    });
+
+    const textarea = screen.getByLabelText("Message");
+    fireEvent.change(textarea, {
+      target: { value: "First line\nSecond line" },
+    });
+    fireEvent.keyDown(textarea, {
+      key: "Enter",
+      code: "Enter",
+      shiftKey: true,
+    });
+
+    expect(sendMessageToGeneralAgent).not.toHaveBeenCalled();
+  });
+
   it("keeps the chat history empty after clearing all conversations", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
 
@@ -444,7 +624,7 @@ describe("CustomAgentChat", () => {
       expect(loadChatHistory().conversations).toHaveLength(1);
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Clear chats" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear history" }));
 
     await waitFor(() => {
       expect(loadChatHistory().conversations).toHaveLength(0);

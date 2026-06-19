@@ -111,7 +111,6 @@ export type AISkill = {
   icon: string;
   description: string;
   triggers?: string[];
-  agentId: string;
   initialPrompt?: string;
 };
 

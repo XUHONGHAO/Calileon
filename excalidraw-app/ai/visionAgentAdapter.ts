@@ -1,3 +1,5 @@
+import { t } from "@excalidraw/excalidraw/i18n";
+
 import {
   DEFAULT_VISION_AGENT_SYSTEM_PROMPT,
   getAIAgentProviderPreset,
@@ -144,13 +146,11 @@ const extractGeminiContent = (responseJSON: any) => {
 
 const assertConfiguredAgent = (agent: AIAgent | null): AIAgent => {
   if (!agent) {
-    throw new Error(
-      "No Vision Agent configured. Open AI Settings and add a Vision Agent.",
-    );
+    throw new Error(t("ai.assistant.messages.visionAgentNotConfigured"));
   }
 
   if (!agent.baseURL.trim() || !agent.model.trim()) {
-    throw new Error("Vision Agent requires both Base URL and Model.");
+    throw new Error(t("ai.assistant.messages.visionAgentIncomplete"));
   }
 
   return agent;
@@ -294,7 +294,7 @@ export const generateDiagramCodeWithVisionAgent = async (
       : await generateWithOpenAICompatibleVisionAgent(request);
 
   if (!html.trim()) {
-    throw new Error("Generation failed: AI agent returned an empty response.");
+    throw new Error(t("ai.assistant.messages.visionEmptyResponse"));
   }
 
   return {

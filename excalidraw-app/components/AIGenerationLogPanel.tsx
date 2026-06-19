@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
+import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
   AI_GENERATION_LOGS_UPDATED_EVENT,
@@ -25,10 +25,11 @@ type AIGenerationLogPanelProps = {
   onReuseLog?: (log: AIGenerationLogEntry) => void;
 };
 
+type I18nT = typeof t;
+
 export const AIGenerationLogPanel = ({
   onReuseLog,
 }: AIGenerationLogPanelProps) => {
-  const { t } = useI18n();
   const [logs, setLogs] =
     useState<AIGenerationLogEntry[]>(loadAIGenerationLogs);
   const [expandedLogId, setExpandedLogId] = useState("");
@@ -72,7 +73,6 @@ export const AIGenerationLogPanel = ({
   return (
     <div className="AIGenerationLogPanel">
       <div className="AIGenerationLogPanel__header">
-        <h3>{t("ai.generationLog.title")}</h3>
         <button type="button" onClick={clearLogs} disabled={!logs.length}>
           {t("ai.generationLog.clear")}
         </button>
@@ -167,10 +167,7 @@ const formatDate = (value: string) => {
   return Number.isNaN(date.getTime()) ? value : DATE_FORMAT.format(date);
 };
 
-const getStatusLabel = (
-  status: AIGenerationLogEntry["status"],
-  t: ReturnType<typeof useI18n>["t"],
-) => {
+const getStatusLabel = (status: AIGenerationLogEntry["status"], t: I18nT) => {
   if (status === "success") {
     return t("ai.generationLog.status.success");
   }

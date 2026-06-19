@@ -88,7 +88,7 @@ describe("AIGenerationLogPanel", () => {
     expect(onReuseLog).toHaveBeenCalledTimes(1);
     expect(onReuseLog).toHaveBeenCalledWith(log);
     expect(
-      screen.getByText("Generation settings sent to Create."),
+      screen.getByText("Generation settings sent to Generate."),
     ).toBeInTheDocument();
   });
 

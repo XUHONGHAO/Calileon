@@ -45,6 +45,13 @@ describe("AISettings", () => {
 
     expect(agentsTab).toHaveAttribute("aria-selected", "true");
     expect(screen.getByText("Base Agent Configuration")).toBeInTheDocument();
+    expect(screen.getByText("General Agents")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Custom Agents" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Use default Text Agent for vision tasks"),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(templatesTab);
 

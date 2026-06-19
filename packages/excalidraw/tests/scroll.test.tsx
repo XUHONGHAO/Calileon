@@ -5,8 +5,10 @@ import { KEYS } from "@excalidraw/common";
 import { Excalidraw } from "../index";
 
 import { API } from "./helpers/api";
-import { Keyboard } from "./helpers/ui";
+import { Keyboard, UI } from "./helpers/ui";
 import {
+  fireEvent,
+  GlobalTestState,
   mockBoundingClientRect,
   render,
   restoreOriginalGetBoundingClientRect,
@@ -111,5 +113,35 @@ describe("appState", () => {
     API.setAppState({ zoom: { value: zoom } });
     scrollTest();
     restoreOriginalGetBoundingClientRect();
+  });
+
+  it("zooms with mouse wheel in selection and hand tools", async () => {
+    await render(<Excalidraw handleKeyboardGlobally={true} />, {});
+
+    const initialZoom = h.state.zoom.value;
+
+    fireEvent.wheel(GlobalTestState.interactiveCanvas, {
+      deltaY: -100,
+      clientX: 100,
+      clientY: 100,
+    });
+    expect(h.state.zoom.value).toBeGreaterThan(initialZoom);
+
+    fireEvent.wheel(GlobalTestState.interactiveCanvas, {
+      deltaY: 100,
+      clientX: 100,
+      clientY: 100,
+    });
+    expect(h.state.zoom.value).toBeLessThan(initialZoom + 0.001);
+
+    UI.clickTool("hand");
+    const handToolZoom = h.state.zoom.value;
+
+    fireEvent.wheel(GlobalTestState.interactiveCanvas, {
+      deltaY: -100,
+      clientX: 100,
+      clientY: 100,
+    });
+    expect(h.state.zoom.value).toBeGreaterThan(handToolZoom);
   });
 });

@@ -1,4 +1,6 @@
-import { getCustomAgentLLM, loadAIAgentConfig } from "./agentConfig";
+import { t } from "@excalidraw/excalidraw/i18n";
+
+import { loadAIAgentConfig } from "./agentConfig";
 import { submitTextAgent } from "./textAgentAdapter";
 
 import type { ChatMessage } from "./types";
@@ -21,7 +23,7 @@ type SendMessageResult =
       error: Error;
     };
 
-export const sendMessageToCustomAgent = async ({
+export const sendMessageToGeneralAgent = async ({
   agentId,
   messages,
   onChunk,
@@ -29,29 +31,17 @@ export const sendMessageToCustomAgent = async ({
   signal,
 }: SendMessageOptions): Promise<SendMessageResult> => {
   const config = loadAIAgentConfig();
-  const customAgent = config.customAgents.find((agent) => agent.id === agentId);
+  const generalAgent = config.llmAgents.find((agent) => agent.id === agentId);
 
-  if (!customAgent) {
+  if (!generalAgent) {
     return {
       content: "",
-      error: new Error("Custom Agent not found."),
-    };
-  }
-
-  const llmAgent = getCustomAgentLLM(config, agentId);
-
-  if (!llmAgent) {
-    return {
-      content: "",
-      error: new Error("LLM Agent not configured for this Custom Agent."),
+      error: new Error(t("ai.assistant.messages.generalAgentNotFound")),
     };
   }
 
   const result = await submitTextAgent({
-    agent: {
-      ...llmAgent,
-      systemPrompt: customAgent.systemPrompt,
-    },
+    agent: generalAgent,
     messages: messages.map((message) => ({
       role: message.role,
       content: message.content,

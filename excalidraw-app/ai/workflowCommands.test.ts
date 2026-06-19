@@ -60,7 +60,6 @@ const createSkill = (overrides: Partial<AISkill> = {}): AISkill => ({
   icon: "AI",
   description: "Turn planning notes into visual storyboard prompts.",
   triggers: ["storyboard", "shot list"],
-  agentId: "custom-agent-1",
   initialPrompt: "Help turn {user_input} into a storyboard.",
   ...overrides,
 });
@@ -101,13 +100,13 @@ describe("AI workflow command factories", () => {
     const commands = createCoreAIWorkflowCommands(excalidrawAPI);
 
     commands
-      .find((command) => command.label === "AI: Create")
+      .find((command) => command.label === "AI: Generate")
       ?.perform({} as Parameters<typeof commands[number]["perform"]>[0]);
     commands
       .find((command) => command.label === "AI: Assistant")
       ?.perform({} as Parameters<typeof commands[number]["perform"]>[0]);
     commands
-      .find((command) => command.label === "AI: Generation history")
+      .find((command) => command.label === "AI: Generate Logs")
       ?.perform({} as Parameters<typeof commands[number]["perform"]>[0]);
 
     expect(excalidrawAPI.toggleSidebar).toHaveBeenNthCalledWith(1, {

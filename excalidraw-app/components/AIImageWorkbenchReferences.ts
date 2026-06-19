@@ -1,5 +1,6 @@
-import type { FileId } from "@excalidraw/element/types";
 import { t } from "@excalidraw/excalidraw/i18n";
+
+import type { FileId } from "@excalidraw/element/types";
 import type { BinaryFiles, DataURL } from "@excalidraw/excalidraw/types";
 
 import { dataURLToFile } from "../ai/imageCanvas";

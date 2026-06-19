@@ -465,6 +465,55 @@ export const actionZoomToFit = register({
     !event[KEYS.CTRL_OR_CMD],
 });
 
+const focusContentIcon = (
+  <svg aria-hidden="true" focusable="false" role="img" viewBox="0 0 24 24">
+    <path
+      d="M12 3v4M12 17v4M3 12h4M17 12h4"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeWidth="2"
+    />
+    <circle
+      cx="12"
+      cy="12"
+      fill="none"
+      r="5"
+      stroke="currentColor"
+      strokeWidth="2"
+    />
+    <circle cx="12" cy="12" fill="currentColor" r="1" />
+  </svg>
+);
+
+export const actionFocusContent = register({
+  name: "focusContent",
+  label: "buttons.focusContent",
+  viewMode: true,
+  trackEvent: { category: "canvas" },
+  perform: (elements, appState, _, app) =>
+    zoomToFit({
+      targetElements: elements,
+      appState: {
+        ...appState,
+        userToFollow: null,
+      },
+      fitToViewport: false,
+      canvasOffsets: app.getEditorUIOffsets(),
+    }),
+  PanelComponent: ({ updateData, data }) => (
+    <ToolButton
+      type="button"
+      icon={focusContentIcon}
+      aria-label={t("buttons.focusContent")}
+      onClick={updateData}
+      size={data?.size || "medium"}
+      data-testid="button-focus-content"
+      className="focus-content-button"
+    />
+  ),
+});
+
 export const actionToggleTheme = register<AppState["theme"]>({
   name: "toggleTheme",
   label: (_, appState) => {

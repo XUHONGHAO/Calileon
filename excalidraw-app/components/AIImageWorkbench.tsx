@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 import { Button } from "@excalidraw/excalidraw/components/Button";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
+import { t } from "@excalidraw/excalidraw/i18n";
 import {
   getSelectedElements,
   isInitializedImageElement,
@@ -100,6 +100,7 @@ import type {
   PromptTemplate,
   PromptTemplateCategory,
 } from "../ai/types";
+import type { GeneratedImagePlacement } from "../ai/imageCanvas";
 import type { AIImageWorkbenchRunStatus } from "./AIImageWorkbenchStatus";
 import type { GeneratedAsset } from "./AIImageWorkbenchAssets";
 
@@ -187,6 +188,8 @@ const loadInitialWorkbenchState = () => {
   };
 };
 
+type AIWorkbenchT = typeof t;
+
 const createDefaultParams = (): AIImageGenerationParams => ({
   ...DEFAULT_PARAMS,
 });
@@ -249,7 +252,6 @@ export const AIImageWorkbench = ({
   onSendPromptToAssistant,
   referenceAddRequest,
 }: AIImageWorkbenchProps) => {
-  const { t } = useI18n();
   const [initialState] = useState(() => ({
     config: loadAIImageConfig(),
   }));
@@ -991,10 +993,12 @@ export const AIImageWorkbench = ({
       });
     } catch (error: any) {
       console.error("Could not export reference selection", error);
-      setErrorMessage(error?.message || t("ai.workbench.exportSelectionFailed"));
+      setErrorMessage(
+        error?.message || t("ai.workbench.exportSelectionFailed"),
+      );
       setStatusMessage("");
     }
-  }, [excalidrawAPI, referenceExportOptions, selectedSources.length, t]);
+  }, [excalidrawAPI, referenceExportOptions, selectedSources.length]);
 
   const removeReferenceImage = useCallback((createdAt: number) => {
     setSelectedSources((current) =>
@@ -1020,7 +1024,7 @@ export const AIImageWorkbench = ({
     setSelectedSources([]);
     setSelectedBatchIds(new Set());
     setBatchMode(false);
-  }, [selectedSources.length, t]);
+  }, [selectedSources.length]);
 
   const toggleReferenceLock = useCallback(() => {
     setIsReferenceLocked((current) => {
@@ -1075,7 +1079,7 @@ export const AIImageWorkbench = ({
         // Older API builds may only support selection changes here.
       }
     },
-    [excalidrawAPI, t],
+    [excalidrawAPI],
   );
 
   const moveReferenceImage = useCallback((fromId: number, toId: number) => {
@@ -1318,6 +1322,10 @@ export const AIImageWorkbench = ({
           : activeMode === "inpaint"
           ? currentSelectedImageSources
           : selectedSources.filter((source) => !source.missingElement);
+      const generatedImagePlacement =
+        activeMode === "image-to-image"
+          ? getGeneratedImageReferencePlacement(activeSources)
+          : undefined;
       const activeSourceImagesMetadata = activeSources.map((source) => ({
         index: source.index,
         elementId: source.elementId,
@@ -1501,6 +1509,7 @@ export const AIImageWorkbench = ({
             output,
             metadata,
             index,
+            placement: generatedImagePlacement,
           });
 
           if (!isActiveRun()) {
@@ -1634,7 +1643,7 @@ export const AIImageWorkbench = ({
         const errorMessage =
           error instanceof AIImageGenerationError
             ? error.message
-            : getUnknownErrorMessage(error);
+            : getUnknownErrorMessage(error, t);
         appendGenerationLogEntry(
           createAIGenerationLogEntry({
             submittedAt,
@@ -1670,7 +1679,7 @@ export const AIImageWorkbench = ({
         }
       }
     },
-    [excalidrawAPI, t],
+    [excalidrawAPI],
   );
 
   const cancelGeneration = useCallback(() => {
@@ -1715,7 +1724,7 @@ export const AIImageWorkbench = ({
 
     await copyTextToSystemClipboard(selectedAIMetadata.prompt);
     excalidrawAPI?.setToast({ message: t("ai.common.promptCopied") });
-  }, [excalidrawAPI, selectedAIMetadata, t]);
+  }, [excalidrawAPI, selectedAIMetadata]);
 
   const copyCurrentPrompt = useCallback(async () => {
     if (!copyPromptActionState.canCopy) {
@@ -1726,7 +1735,7 @@ export const AIImageWorkbench = ({
     excalidrawAPI?.setToast({ message: t("ai.common.promptCopied") });
     setStatusMessage(t("ai.common.promptCopied"));
     setErrorMessage("");
-  }, [copyPromptActionState, excalidrawAPI, t]);
+  }, [copyPromptActionState, excalidrawAPI]);
   const sendCurrentPromptToAssistant = useCallback(() => {
     if (!onSendPromptToAssistant || !sendPromptToAssistantActionState.canSend) {
       return;
@@ -1735,7 +1744,7 @@ export const AIImageWorkbench = ({
     onSendPromptToAssistant(sendPromptToAssistantActionState.prompt);
     setStatusMessage(t("ai.workbench.promptSentToAssistant"));
     setErrorMessage("");
-  }, [onSendPromptToAssistant, sendPromptToAssistantActionState, t]);
+  }, [onSendPromptToAssistant, sendPromptToAssistantActionState]);
 
   const loadSelectedMetadata = useCallback(() => {
     if (!selectedAIMetadata) {
@@ -1746,7 +1755,7 @@ export const AIImageWorkbench = ({
       selectedAIMetadata,
       t("ai.workbench.selectedImageParamsLoaded"),
     );
-  }, [loadMetadataIntoWorkbench, selectedAIMetadata, t]);
+  }, [loadMetadataIntoWorkbench, selectedAIMetadata]);
 
   const regenerateSelectedImage = useCallback(() => {
     if (!selectedAIMetadata) {
@@ -1770,7 +1779,7 @@ export const AIImageWorkbench = ({
       await copyTextToSystemClipboard(asset.metadata.prompt);
       excalidrawAPI?.setToast({ message: t("ai.common.promptCopied") });
     },
-    [excalidrawAPI, t],
+    [excalidrawAPI],
   );
 
   const loadGeneratedAssetMetadata = useCallback(
@@ -1780,7 +1789,7 @@ export const AIImageWorkbench = ({
         t("ai.sidebar.generationSettingsLoaded"),
       );
     },
-    [loadMetadataIntoWorkbench, t],
+    [loadMetadataIntoWorkbench],
   );
 
   const insertGeneratedAssetCopy = useCallback(
@@ -2297,8 +2306,10 @@ export const AIImageWorkbench = ({
               <button
                 type="button"
                 className="AIImageWorkbench__referenceRemoveButton"
-                aria-label={t("ai.workbench.removeReference")}
-                title={t("ai.workbench.removeReference")}
+                aria-label={`${t("ai.workbench.removeReference")} #${
+                  source.index
+                }`}
+                title={`${t("ai.workbench.removeReference")} #${source.index}`}
                 onClick={(event) => {
                   event.stopPropagation();
                   removeReferenceImage(source.createdAt);
@@ -2536,7 +2547,6 @@ export const AIImageWorkbench = ({
     selectedSources,
     selectAllBatchReferences,
     syncReferenceImagesFromSelection,
-    t,
     toggleBatchSelection,
     toggleReferenceLock,
     weightDraft,
@@ -2669,7 +2679,6 @@ export const AIImageWorkbench = ({
     generatedAssets,
     insertGeneratedAssetCopy,
     loadGeneratedAssetMetadata,
-    t,
   ]);
 
   const referenceImagesPanel = useMemo(
@@ -3112,9 +3121,8 @@ export const AIImageWorkbench = ({
   return (
     <div className="AIImageWorkbench">
       <div className="AIImageWorkbench__section">
-        <div className="AIImageWorkbench__sectionHeader">
-          <h3>{t("ai.workbench.title")}</h3>
-          {isGenerating && (
+        {isGenerating && (
+          <div className="AIImageWorkbench__sectionHeader">
             <button
               className="AIImageWorkbench__textButton"
               type="button"
@@ -3122,8 +3130,8 @@ export const AIImageWorkbench = ({
             >
               {t("ai.common.cancel")}
             </button>
-          )}
-        </div>
+          </div>
+        )}
         <div className="AIImageWorkbench__statusStrip" aria-live="polite">
           {statusStripItems.map((item) => (
             <span
@@ -3296,7 +3304,7 @@ const renderNotice = (
 
 const getSourceTypeLabel = (
   sourceType: AIImageSourceEnhanced["sourceType"],
-  t: ReturnType<typeof useI18n>["t"],
+  t: AIWorkbenchT,
 ) => {
   if (sourceType === "canvas") {
     return t("ai.workbench.sourceType.canvas");
@@ -3307,9 +3315,28 @@ const getSourceTypeLabel = (
   return t("ai.workbench.sourceType.imported");
 };
 
+const getGeneratedImageReferencePlacement = (
+  sources: readonly AIImageSourceEnhanced[],
+): GeneratedImagePlacement | undefined => {
+  const referenceSource = sources[0];
+
+  if (!referenceSource) {
+    return undefined;
+  }
+
+  const elementIds = referenceSource.elementIds?.length
+    ? referenceSource.elementIds
+    : [referenceSource.elementId];
+
+  return {
+    kind: "reference",
+    elementIds,
+  };
+};
+
 const getPromptTemplateCategoryLabel = (
   category: PromptTemplateCategory,
-  t: ReturnType<typeof useI18n>["t"],
+  t: AIWorkbenchT,
 ) => {
   if (category === "composition") {
     return t("ai.settings.options.composition");
@@ -3323,10 +3350,7 @@ const getPromptTemplateCategoryLabel = (
   return t("ai.settings.options.custom");
 };
 
-const getMediaTypeLabel = (
-  mediaType: AIModelMediaType,
-  t: ReturnType<typeof useI18n>["t"],
-) => {
+const getMediaTypeLabel = (mediaType: AIModelMediaType, t: AIWorkbenchT) => {
   if (mediaType === "video") {
     return t("ai.common.video");
   }
@@ -3357,7 +3381,7 @@ const formatGeneratedAssetTime = (createdAt: string) => {
 
 const groupPromptTemplates = (
   templates: readonly PromptTemplate[],
-  t: ReturnType<typeof useI18n>["t"],
+  t: AIWorkbenchT,
 ) => {
   const groups: Array<{ label: string; templates: PromptTemplate[] }> = [];
   const labels: Record<NonNullable<PromptTemplate["language"]>, string> = {
@@ -3429,18 +3453,18 @@ const isValidGenerationOutputs = (
   );
 };
 
-const getUnknownErrorMessage = (error: any) => {
+const getUnknownErrorMessage = (error: any, t: AIWorkbenchT) => {
   if (error?.message) {
     return error.message;
   }
 
   if (error?.type) {
-    return `Image generation failed: ${error.type}.`;
+    return t("ai.workbench.unknownErrorWithType", { type: error.type });
   }
 
   const errorText = String(error);
 
   return errorText && errorText !== "[object Object]"
-    ? `Image generation failed: ${errorText}.`
-    : "Image generation failed with an unknown browser error.";
+    ? t("ai.workbench.unknownErrorWithText", { message: errorText })
+    : t("ai.workbench.unknownBrowserError");
 };

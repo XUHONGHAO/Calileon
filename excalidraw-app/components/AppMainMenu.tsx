@@ -5,7 +5,7 @@ import {
   MagicIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { useI18n } from "@excalidraw/excalidraw/i18n";
+import { t } from "@excalidraw/excalidraw/i18n";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
 
@@ -27,7 +27,6 @@ export const AppMainMenu: React.FC<{
   theme: Theme | "system";
   refresh: () => void;
 }> = React.memo((props) => {
-  const { t } = useI18n();
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
     "models" | "agents" | "templates"
@@ -113,9 +112,9 @@ export const AppMainMenu: React.FC<{
               onSelect={() => {
                 setInitialAISettingsTab("models");
                 setIsAISettingsOpen(true);
-            }}
-          >
-              {t("ai.common.settings")}
+              }}
+            >
+              {t("ai.common.globalSettings")}
             </MainMenu.Item>
           }
         />

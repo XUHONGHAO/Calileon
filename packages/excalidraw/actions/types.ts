@@ -91,6 +91,7 @@ export type ActionName =
   | "zoomIn"
   | "zoomOut"
   | "resetZoom"
+  | "focusContent"
   | "zoomToFit"
   | "zoomToFitSelection"
   | "zoomToFitSelectionInViewport"
