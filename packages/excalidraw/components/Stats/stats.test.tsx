@@ -63,6 +63,10 @@ const testInputProperty = (
   }
 };
 
+const formatTimestamp = (timestamp: number) => {
+  return new Date(timestamp).toLocaleString();
+};
+
 describe("step sized value", () => {
   it("should return edge values correctly", () => {
     const steps = [10, 15, 20, 25, 30];
@@ -206,6 +210,17 @@ describe("stats for a generic element", () => {
         stats!.querySelector?.(`.drag-input-container[data-testid="${label}"]`),
       ).toBeDefined();
     });
+  });
+
+  it("should display created and updated timestamps", () => {
+    const rectangle = h.elements[0];
+
+    expect(
+      elementStats?.querySelector('[data-testid="stats-created"]')?.textContent,
+    ).toBe(`${t("stats.created")}${formatTimestamp(rectangle.created)}`);
+    expect(
+      elementStats?.querySelector('[data-testid="stats-updated"]')?.textContent,
+    ).toBe(`${t("stats.updated")}${formatTimestamp(rectangle.updated)}`);
   });
 
   it("should be able to edit all properties for a general element", () => {
@@ -556,6 +571,40 @@ describe("stats for multiple elements", () => {
     h.elements.forEach((el) => {
       expect(el.height).toBe(450);
     });
+  });
+
+  it("should display created range and latest updated timestamp", () => {
+    const rect = API.createElement({
+      type: "rectangle",
+      created: 10,
+      updated: 20,
+    });
+    const ellipse = API.createElement({
+      type: "ellipse",
+      created: 30,
+      updated: 40,
+    });
+    API.setElements([rect, ellipse]);
+    API.setAppState({
+      selectedElementIds: {
+        [rect.id]: true,
+        [ellipse.id]: true,
+      },
+    });
+
+    elementStats = stats?.querySelector("#elementStats");
+
+    expect(
+      elementStats?.querySelector('[data-testid="stats-created-range"]')
+        ?.textContent,
+    ).toBe(
+      `${t("stats.createdRange")}${formatTimestamp(
+        rect.created,
+      )} - ${formatTimestamp(ellipse.created)}`,
+    );
+    expect(
+      elementStats?.querySelector('[data-testid="stats-updated"]')?.textContent,
+    ).toBe(`${t("stats.updated")}${formatTimestamp(ellipse.updated)}`);
   });
 
   it("should display a property when one of the elements is editable for that property", async () => {

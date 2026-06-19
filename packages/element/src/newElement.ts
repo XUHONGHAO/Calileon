@@ -51,7 +51,10 @@ import type {
 } from "./types";
 
 export type ElementConstructorOpts = MarkOptional<
-  Omit<ExcalidrawGenericElement, "id" | "type" | "isDeleted" | "updated">,
+  Omit<
+    ExcalidrawGenericElement,
+    "id" | "type" | "isDeleted" | "updated" | "created"
+  >,
   | "width"
   | "height"
   | "angle"
@@ -100,6 +103,8 @@ const _newElementBase = <T extends ExcalidrawElement>(
     ...rest
   }: ElementConstructorOpts & Omit<Partial<ExcalidrawGenericElement>, "type">,
 ) => {
+  const timestamp = getUpdatedTimestamp();
+
   // NOTE (mtolmacs): This is a temporary check to detect extremely large
   // element position or sizing
   if (
@@ -147,7 +152,8 @@ const _newElementBase = <T extends ExcalidrawElement>(
     versionNonce: rest.versionNonce ?? 0,
     isDeleted: false as false,
     boundElements,
-    updated: getUpdatedTimestamp(),
+    updated: timestamp,
+    created: timestamp,
     link,
     locked,
     customData: rest.customData,

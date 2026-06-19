@@ -4154,6 +4154,7 @@ class App extends React.Component<AppProps, AppState> {
         });
       }),
       randomizeSeed: !opts.retainSeed,
+      preserveCreated: true,
       preserveFrameChildrenOrder: opts.preserveFrameChildrenOrder,
     });
 
@@ -12342,6 +12343,7 @@ class App extends React.Component<AppProps, AppState> {
               type: "everything",
               elements: item.elements,
               randomizeSeed: true,
+              preserveCreated: true,
               preserveFrameChildrenOrder: true,
             }).duplicatedElements,
           }));

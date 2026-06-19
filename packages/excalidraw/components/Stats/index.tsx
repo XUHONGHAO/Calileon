@@ -48,6 +48,10 @@ interface StatsProps {
 
 const STATS_TIMEOUT = 50;
 
+const formatTimestamp = (timestamp: number) => {
+  return new Date(timestamp).toLocaleString();
+};
+
 export const Stats = (props: StatsProps) => {
   const appState = useExcalidrawAppState();
   const sceneNonce = props.app.scene.getSceneNonce() || 1;
@@ -140,6 +144,25 @@ export const StatsInner = memo(
 
     const cropMode =
       appState.croppingElementId && isImageElement(singleElement);
+
+    const multipleElementsTimestamps = useMemo(() => {
+      if (!multipleElements) {
+        return null;
+      }
+
+      return multipleElements.reduce(
+        (acc, element) => ({
+          minCreated: Math.min(acc.minCreated, element.created),
+          maxCreated: Math.max(acc.maxCreated, element.created),
+          maxUpdated: Math.max(acc.maxUpdated, element.updated),
+        }),
+        {
+          minCreated: Number.POSITIVE_INFINITY,
+          maxCreated: Number.NEGATIVE_INFINITY,
+          maxUpdated: Number.NEGATIVE_INFINITY,
+        },
+      );
+    }, [multipleElements]);
 
     const unCroppedDimension = cropMode
       ? getUncroppedWidthAndHeight(singleElement)
@@ -349,6 +372,14 @@ export const StatsInner = memo(
                           appState={appState}
                         />
                       </StatsRow>
+                      <StatsRow columns={2} data-testid="stats-created">
+                        <div>{t("stats.created")}</div>
+                        <div>{formatTimestamp(singleElement.created)}</div>
+                      </StatsRow>
+                      <StatsRow columns={2} data-testid="stats-updated">
+                        <div>{t("stats.updated")}</div>
+                        <div>{formatTimestamp(singleElement.updated)}</div>
+                      </StatsRow>
                     </>
                   )}
 
@@ -420,6 +451,33 @@ export const StatsInner = memo(
                           elementsMap={elementsMap}
                         />
                       </StatsRow>
+                      {multipleElementsTimestamps && (
+                        <>
+                          <StatsRow
+                            columns={2}
+                            data-testid="stats-created-range"
+                          >
+                            <div>{t("stats.createdRange")}</div>
+                            <div>
+                              {formatTimestamp(
+                                multipleElementsTimestamps.minCreated,
+                              )}{" "}
+                              -{" "}
+                              {formatTimestamp(
+                                multipleElementsTimestamps.maxCreated,
+                              )}
+                            </div>
+                          </StatsRow>
+                          <StatsRow columns={2} data-testid="stats-updated">
+                            <div>{t("stats.updated")}</div>
+                            <div>
+                              {formatTimestamp(
+                                multipleElementsTimestamps.maxUpdated,
+                              )}
+                            </div>
+                          </StatsRow>
+                        </>
+                      )}
                     </>
                   )}
                 </StatsRows>

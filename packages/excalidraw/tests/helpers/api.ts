@@ -219,6 +219,8 @@ export class API {
       : never;
     elbowed?: boolean;
     fixedSegments?: FixedSegment[] | null;
+    updated?: ExcalidrawGenericElement["updated"];
+    created?: ExcalidrawGenericElement["created"];
   }): T extends "arrow" | "line"
     ? ExcalidrawLinearElement
     : T extends "freedraw"
@@ -246,6 +248,7 @@ export class API {
       | "groupIds"
       | "link"
       | "updated"
+      | "created"
     > = {
       seed: 1,
       x,
@@ -384,6 +387,12 @@ export class API {
     }
     if (groupIds) {
       element.groupIds = groupIds;
+    }
+    if (rest.created !== undefined) {
+      element.created = rest.created;
+    }
+    if (rest.updated !== undefined) {
+      element.updated = rest.updated;
     }
     return element as any;
   };

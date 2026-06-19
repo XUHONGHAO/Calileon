@@ -25,6 +25,7 @@ import {
 import type { LocalPoint } from "@excalidraw/math";
 
 import { duplicateElement, duplicateElements } from "../src/duplicate";
+import { newElementWith } from "../src/mutateElement";
 
 import type { ExcalidrawLinearElement } from "../src/types";
 
@@ -80,13 +81,61 @@ describe("duplicating single elements", () => {
     expect(typeof copy.id).toBe("string");
     expect(copy.seed).not.toBe(element.seed);
     expect(typeof copy.seed).toBe("number");
+    expect(copy.created).toBe(copy.updated);
     expect(copy).toEqual({
       ...element,
       id: copy.id,
       seed: copy.seed,
+      created: copy.created,
+      updated: copy.updated,
       version: copy.version,
       versionNonce: copy.versionNonce,
     });
+  });
+
+  it("sets created and updated when creating a new element", () => {
+    const element = API.createElement({ type: "rectangle" });
+
+    expect(element.created).toBe(element.updated);
+  });
+
+  it("keeps created stable when mutating or deriving an element", () => {
+    const element = API.createElement({ type: "rectangle" });
+    const created = element.created;
+
+    mutateElement(element, new Map(), { x: element.x + 1 });
+    expect(element.created).toBe(created);
+
+    const derivedElement = newElementWith(element, { y: element.y + 1 });
+    expect(derivedElement.created).toBe(created);
+  });
+
+  it("refreshes created for duplicated scene elements", () => {
+    const element = {
+      ...API.createElement({ type: "rectangle" }),
+      created: 42,
+      updated: 42,
+    };
+
+    const copy = duplicateElement(null, new Map(), element);
+
+    expect(copy.created).toBe(copy.updated);
+    expect(copy.created).not.toBe(element.created);
+  });
+
+  it("can preserve created for cross-source duplicated elements", () => {
+    const element = {
+      ...API.createElement({ type: "rectangle" }),
+      created: 42,
+      updated: 42,
+    };
+
+    const copy = duplicateElement(null, new Map(), element, false, {
+      preserveCreated: true,
+    });
+
+    expect(copy.created).toBe(element.created);
+    expect(copy.updated).not.toBe(element.updated);
   });
 
   it("clones text element", () => {
