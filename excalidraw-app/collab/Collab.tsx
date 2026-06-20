@@ -122,6 +122,7 @@ export interface CollabAPI {
   setUsername: CollabInstance["setUsername"];
   getUsername: CollabInstance["getUsername"];
   getActiveRoomLink: CollabInstance["getActiveRoomLink"];
+  getInputTargetRoomLink: CollabInstance["getInputTargetRoomLink"];
   setCollabError: CollabInstance["setErrorDialog"];
 }
 
@@ -237,6 +238,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       setUsername: this.setUsername,
       getUsername: this.getUsername,
       getActiveRoomLink: this.getActiveRoomLink,
+      getInputTargetRoomLink: this.getInputTargetRoomLink,
       setCollabError: this.setErrorDialog,
     };
 
@@ -703,6 +705,18 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.setActiveRoomLink(window.location.href);
 
     return scenePromise;
+  };
+
+  getInputTargetRoomLink = (inputTargetId: string) => {
+    if (!this.portal.roomId || !this.portal.roomKey) {
+      return null;
+    }
+
+    return getCollaborationLink({
+      roomId: this.portal.roomId,
+      roomKey: this.portal.roomKey,
+      inputTargetId,
+    });
   };
 
   private initializeRoom = async ({

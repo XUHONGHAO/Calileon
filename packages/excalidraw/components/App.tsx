@@ -767,6 +767,7 @@ class App extends React.Component<AppProps, AppState> {
         clear: this.resetHistory,
       },
       scrollToContent: this.scrollToContent,
+      startTextEditingForElement: this.startTextEditingForElement,
       getSceneElements: this.getSceneElements,
       getAppState: () => this.state,
       getFiles: () => this.files,
@@ -6556,6 +6557,52 @@ class App extends React.Component<AppProps, AppState> {
         multiElement: null,
       });
     }
+  };
+
+  startTextEditingForElement = (elementId: ExcalidrawElement["id"]) => {
+    const element = this.scene.getNonDeletedElement(elementId);
+
+    if (
+      !element ||
+      (!isTextElement(element) && !isValidTextContainer(element))
+    ) {
+      return false;
+    }
+
+    this.scrollToContent(element, {
+      fitToContent: true,
+      animate: true,
+    });
+    this.setState({
+      selectedElementIds: makeNextSelectedElementIds(
+        { [element.id]: true },
+        this.state,
+      ),
+      selectedGroupIds: {},
+      selectedLinearElement: null,
+    });
+
+    if (isTextElement(element)) {
+      this.startTextEditing({
+        sceneX: element.x,
+        sceneY: element.y,
+        initialCaretSceneCoords: undefined,
+      });
+    } else {
+      const center = getContainerCenter(
+        element,
+        this.state,
+        this.scene.getNonDeletedElementsMap(),
+      );
+      this.startTextEditing({
+        sceneX: center.x,
+        sceneY: center.y,
+        container: element,
+        initialCaretSceneCoords: undefined,
+      });
+    }
+
+    return true;
   };
 
   private startImageCropping = (image: ExcalidrawImageElement) => {
@@ -12887,6 +12934,15 @@ class App extends React.Component<AppProps, AppState> {
     type: "canvas" | "element",
   ): ContextMenuItems => {
     const options: ContextMenuItems = [];
+    const customContextMenuItems =
+      this.props.renderCustomContextMenuItems?.(
+        this.scene.getSelectedElements(this.state),
+        this.state,
+      ) || [];
+    const customContextMenuSection: ContextMenuItems =
+      customContextMenuItems.length > 0
+        ? [...customContextMenuItems, CONTEXT_MENU_SEPARATOR]
+        : [];
 
     options.push(actionCopyAsPng, actionCopyAsSvg);
 
@@ -12950,6 +13006,7 @@ class App extends React.Component<AppProps, AppState> {
       actionCopy,
       actionPaste,
       CONTEXT_MENU_SEPARATOR,
+      ...customContextMenuSection,
       actionSelectAllElementsInFrame,
       actionRemoveAllElementsFromFrame,
       actionWrapSelectionInFrame,

@@ -612,6 +612,32 @@ const ExcalidrawWrapper = () => {
     [collabAPI, excalidrawAPI],
   );
 
+  const openCollaborationInputTarget = useCallback(
+    (retries = 20) => {
+      const inputTargetId = getCollaborationLinkData(
+        window.location.href,
+      )?.inputTargetId;
+
+      if (!inputTargetId || !excalidrawAPI) {
+        return;
+      }
+
+      const attemptOpenInputTarget = (remainingRetries: number) => {
+        const didOpen = excalidrawAPI.startTextEditingForElement(inputTargetId);
+
+        if (!didOpen && remainingRetries > 0) {
+          window.setTimeout(
+            () => attemptOpenInputTarget(remainingRetries - 1),
+            100,
+          );
+        }
+      };
+
+      window.setTimeout(() => attemptOpenInputTarget(retries), 100);
+    },
+    [excalidrawAPI],
+  );
+
   useEffect(() => {
     if (!excalidrawAPI || (!isCollabDisabled && !collabAPI)) {
       return;
@@ -620,6 +646,9 @@ const ExcalidrawWrapper = () => {
     initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
       loadImages(data, /* isInitialLoad */ true);
       initialStatePromiseRef.current.promise.resolve(data.scene);
+      if (data.isExternalScene && isCollaborationLink(window.location.href)) {
+        openCollaborationInputTarget();
+      }
     });
 
     const onHashChange = async (event: HashChangeEvent) => {
@@ -644,6 +673,12 @@ const ExcalidrawWrapper = () => {
               appState: restoreAppState(data.scene.appState, null),
               captureUpdate: CaptureUpdateAction.IMMEDIATELY,
             });
+            if (
+              data.isExternalScene &&
+              isCollaborationLink(window.location.href)
+            ) {
+              openCollaborationInputTarget();
+            }
           }
         });
       }
@@ -740,7 +775,14 @@ const ExcalidrawWrapper = () => {
         false,
       );
     };
-  }, [isCollabDisabled, collabAPI, excalidrawAPI, setLangCode, loadImages]);
+  }, [
+    isCollabDisabled,
+    collabAPI,
+    excalidrawAPI,
+    setLangCode,
+    loadImages,
+    openCollaborationInputTarget,
+  ]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
@@ -887,6 +929,42 @@ const ExcalidrawWrapper = () => {
   const onShareDialogOpen = useCallback(
     () => setShareDialogState({ isOpen: true, type: "share" }),
     [setShareDialogState],
+  );
+  const renderInputInviteContextMenuItems = useCallback<
+    NonNullable<ExcalidrawProps["renderCustomContextMenuItems"]>
+  >(
+    (selectedElements) => {
+      if (
+        !collabAPI ||
+        isCollabDisabled ||
+        selectedElements.length !== 1 ||
+        selectedElements[0].type !== "rectangle"
+      ) {
+        return [];
+      }
+
+      const rectangle = selectedElements[0];
+
+      return [
+        {
+          name: "inviteInput" as const,
+          label: "labels.inviteInput",
+          trackEvent: { category: "collab", action: "inviteInput" },
+          perform: () => {
+            setShareDialogState({
+              isOpen: true,
+              type: "inputInvite",
+              inputTargetId: rectangle.id,
+            });
+
+            return {
+              captureUpdate: CaptureUpdateAction.NEVER,
+            };
+          },
+        },
+      ];
+    },
+    [collabAPI, isCollabDisabled, setShareDialogState],
   );
   const nextAIWorkflowRequestIdRef = useRef(0);
   const [aiReferenceAddRequest, setAIReferenceAddRequest] =
@@ -1218,6 +1296,7 @@ const ExcalidrawWrapper = () => {
         }}
         langCode={langCode}
         renderCustomStats={renderCustomStats}
+        renderCustomContextMenuItems={renderInputInviteContextMenuItems}
         detectScroll={false}
         handleKeyboardGlobally={true}
         autoFocus={true}

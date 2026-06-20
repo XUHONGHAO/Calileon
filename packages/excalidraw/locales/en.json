@@ -12,6 +12,7 @@
     "moveCanvas": "Move canvas",
     "cut": "Cut",
     "copy": "Copy",
+    "inviteInput": "Invite input",
     "copyAsPng": "Copy to clipboard as PNG",
     "copyAsSvg": "Copy to clipboard as SVG",
     "copyText": "Copy to clipboard as text",
@@ -416,6 +417,9 @@
     "desc_inProgressIntro": "Live-collaboration session is now in progress.",
     "desc_shareLink": "Share this link with anyone you want to collaborate with:",
     "shareLinkLabel": "Collaboration link",
+    "inputTargetLinkLabel": "Invite input link",
+    "inputInviteDesc": "Invite someone to type into this rectangle.",
+    "inputInviteShareTitle": "Type into a rectangle on Excalidraw",
     "desc_exitSession": "Stopping the session will disconnect you from the room, but you'll be able to continue working with the scene, locally. Note that this won't affect other people, and they'll still be able to collaborate on their version.",
     "shareTitle": "Join a live collaboration session on Excalidraw"
   },

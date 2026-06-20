@@ -27,10 +27,12 @@ import { QRCode } from "./QRCode";
 import type { CollabAPI } from "../collab/Collab";
 
 type OnExportToBackend = () => void;
-type ShareDialogType = "share" | "collaborationOnly";
+type ShareDialogType = "share" | "collaborationOnly" | "inputInvite";
 
 export const shareDialogStateAtom = atom<
-  { isOpen: false } | { isOpen: true; type: ShareDialogType }
+  | { isOpen: false }
+  | { isOpen: true; type: Exclude<ShareDialogType, "inputInvite"> }
+  | { isOpen: true; type: "inputInvite"; inputTargetId: string }
 >({ isOpen: false });
 
 const getShareIcon = () => {
@@ -50,6 +52,7 @@ const getShareIcon = () => {
 export type ShareDialogProps = {
   collabAPI: CollabAPI | null;
   handleClose: () => void;
+  inputTargetId: string | null;
   onExportToBackend: OnExportToBackend;
   type: ShareDialogType;
 };
@@ -58,10 +61,12 @@ const ActiveRoomDialog = ({
   collabAPI,
   activeRoomLink,
   handleClose,
+  inputTargetId,
 }: {
   collabAPI: CollabAPI;
   activeRoomLink: string;
   handleClose: () => void;
+  inputTargetId: string | null;
 }) => {
   const { t } = useI18n();
   const [, setJustCopied] = useState(false);
@@ -69,10 +74,14 @@ const ActiveRoomDialog = ({
   const ref = useRef<HTMLInputElement>(null);
   const isShareSupported = "share" in navigator;
   const { onCopy, copyStatus } = useCopyStatus();
+  const inputTargetRoomLink = inputTargetId
+    ? collabAPI.getInputTargetRoomLink(inputTargetId)
+    : null;
+  const linkToShare = inputTargetRoomLink || activeRoomLink;
 
   const copyRoomLink = async () => {
     try {
-      await copyTextToSystemClipboard(activeRoomLink);
+      await copyTextToSystemClipboard(linkToShare);
     } catch (e) {
       collabAPI.setCollabError(t("errors.copyToSystemClipboardFailed"));
     }
@@ -93,9 +102,13 @@ const ActiveRoomDialog = ({
   const shareRoomLink = async () => {
     try {
       await navigator.share({
-        title: t("roomDialog.shareTitle"),
-        text: t("roomDialog.shareTitle"),
-        url: activeRoomLink,
+        title: inputTargetRoomLink
+          ? t("roomDialog.inputInviteShareTitle")
+          : t("roomDialog.shareTitle"),
+        text: inputTargetRoomLink
+          ? t("roomDialog.inputInviteShareTitle")
+          : t("roomDialog.shareTitle"),
+        url: linkToShare,
       });
     } catch (error: any) {
       // Just ignore.
@@ -105,7 +118,9 @@ const ActiveRoomDialog = ({
   return (
     <>
       <h3 className="ShareDialog__active__header">
-        {t("labels.liveCollaboration").replace(/\./g, "")}
+        {inputTargetRoomLink
+          ? t("labels.inviteInput")
+          : t("labels.liveCollaboration").replace(/\./g, "")}
       </h3>
       <TextField
         defaultValue={collabAPI.getUsername()}
@@ -117,10 +132,14 @@ const ActiveRoomDialog = ({
       <div className="ShareDialog__active__linkRow">
         <TextField
           ref={ref}
-          label={t("roomDialog.shareLinkLabel")}
+          label={
+            inputTargetRoomLink
+              ? t("roomDialog.inputTargetLinkLabel")
+              : t("roomDialog.shareLinkLabel")
+          }
           readonly
           fullWidth
-          value={activeRoomLink}
+          value={linkToShare}
         />
         {isShareSupported && (
           <FilledButton
@@ -143,7 +162,7 @@ const ActiveRoomDialog = ({
           }}
         />
       </div>
-      <QRCode value={activeRoomLink} />
+      <QRCode value={linkToShare} />
       <div className="ShareDialog__active__description">
         <p>
           <span
@@ -186,12 +205,16 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
   const startCollabJSX = collabAPI ? (
     <>
       <div className="ShareDialog__picker__header">
-        {t("labels.liveCollaboration").replace(/\./g, "")}
+        {props.type === "inputInvite"
+          ? t("labels.inviteInput")
+          : t("labels.liveCollaboration").replace(/\./g, "")}
       </div>
 
       <div className="ShareDialog__picker__description">
         <div className="ShareDialog__picker__description__intro">
-          {t("roomDialog.desc_intro")}
+          {props.type === "inputInvite"
+            ? t("roomDialog.inputInviteDesc")
+            : t("roomDialog.desc_intro")}
         </div>
         {t("roomDialog.desc_privacy")}
       </div>
@@ -257,6 +280,7 @@ const ShareDialogInner = (props: ShareDialogProps) => {
             collabAPI={props.collabAPI}
             activeRoomLink={activeRoomLink}
             handleClose={props.handleClose}
+            inputTargetId={props.inputTargetId}
           />
         ) : (
           <ShareDialogPicker {...props} />
@@ -288,6 +312,11 @@ export const ShareDialog = (props: {
     <ShareDialogInner
       handleClose={() => setShareDialogState({ isOpen: false })}
       collabAPI={props.collabAPI}
+      inputTargetId={
+        shareDialogState.type === "inputInvite"
+          ? shareDialogState.inputTargetId
+          : null
+      }
       onExportToBackend={props.onExportToBackend}
       type={shareDialogState.type}
     />

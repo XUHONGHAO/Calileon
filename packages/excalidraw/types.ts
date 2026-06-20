@@ -645,6 +645,10 @@ export interface ExcalidrawProps {
     elements: readonly NonDeletedExcalidrawElement[],
     appState: UIAppState,
   ) => JSX.Element;
+  renderCustomContextMenuItems?: (
+    selectedElements: readonly NonDeletedExcalidrawElement[],
+    appState: AppState,
+  ) => ContextMenuItems;
   UIOptions?: Partial<UIOptions>;
   /**
    * dimensions and size constraints for inserted images
@@ -968,6 +972,9 @@ export interface ExcalidrawImperativeAPI {
   getFiles: () => InstanceType<typeof App>["files"];
   getName: InstanceType<typeof App>["getName"];
   scrollToContent: InstanceType<typeof App>["scrollToContent"];
+  startTextEditingForElement: InstanceType<
+    typeof App
+  >["startTextEditingForElement"];
   registerAction: (action: Action) => void;
   refresh: InstanceType<typeof App>["refresh"];
   setToast: InstanceType<typeof App>["setToast"];

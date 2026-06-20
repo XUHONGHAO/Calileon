@@ -13,8 +13,46 @@ import { StoreIncrement } from "@excalidraw/element";
 import type { DurableIncrement, EphemeralIncrement } from "@excalidraw/element";
 
 import ExcalidrawApp from "../App";
+import {
+  getCollaborationLink,
+  getCollaborationLinkData,
+  isCollaborationLink,
+} from "../data";
 
 const { h } = window;
+
+describe("collaboration links", () => {
+  it("preserves an optional rectangle input target", () => {
+    const link = getCollaborationLink({
+      roomId: "room-id",
+      roomKey: "sTdLvMC_M3V8_vGa3UVRDg",
+      inputTargetId: "rectangle-id",
+    });
+
+    expect(link).toContain("#room=room-id,sTdLvMC_M3V8_vGa3UVRDg");
+    expect(link).toContain("&inputTarget=rectangle-id");
+    expect(isCollaborationLink(link)).toBe(true);
+    expect(getCollaborationLinkData(link)).toEqual({
+      roomId: "room-id",
+      roomKey: "sTdLvMC_M3V8_vGa3UVRDg",
+      inputTargetId: "rectangle-id",
+    });
+  });
+
+  it("keeps existing collaboration links valid without an input target", () => {
+    const link = getCollaborationLink({
+      roomId: "room-id",
+      roomKey: "sTdLvMC_M3V8_vGa3UVRDg",
+    });
+
+    expect(isCollaborationLink(link)).toBe(true);
+    expect(getCollaborationLinkData(link)).toEqual({
+      roomId: "room-id",
+      roomKey: "sTdLvMC_M3V8_vGa3UVRDg",
+      inputTargetId: null,
+    });
+  });
+});
 
 Object.defineProperty(window, "crypto", {
   value: {

@@ -142,6 +142,7 @@ export type ActionName =
   | "searchMenu"
   | "copyElementLink"
   | "linkToElement"
+  | "inviteInput"
   | "cropEditor"
   | "wrapSelectionInFrame"
   | "addSelectionToAIReference"
