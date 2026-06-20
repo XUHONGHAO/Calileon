@@ -12,14 +12,14 @@ import { useEffect, useState } from "react";
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 import type { UIAppState } from "@excalidraw/excalidraw/types";
 
-import {
-  getElementsStorageSize,
-  getTotalStorageSize,
-} from "./data/localStorage";
+import { localStore } from "./data/cloud";
 
 type StorageSizes = { scene: number; total: number };
 
 const STORAGE_SIZE_TIMEOUT = 500;
+
+// Phase 0: storage-size reads go through the data/cloud passthrough (DoD §2).
+const { getElementsStorageSize, getTotalStorageSize } = localStore;
 
 const getStorageSizes = debounce((cb: (sizes: StorageSizes) => void) => {
   cb({

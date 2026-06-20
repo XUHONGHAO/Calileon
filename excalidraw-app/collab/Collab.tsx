@@ -62,29 +62,13 @@ import {
   SYNC_FULL_SCENE_INTERVAL_MS,
   WS_EVENTS,
 } from "../app_constants";
-import {
-  generateCollaborationLinkData,
-  getCollaborationLink,
-  getSyncableElements,
-} from "../data";
+import { localStore, shareLink, firebaseStore } from "../data/cloud";
 import {
   encodeFilesForUpload,
   FileManager,
   updateStaleImageStatuses,
 } from "../data/FileManager";
 import { FileStatusStore } from "../data/fileStatusStore";
-import { LocalData } from "../data/LocalData";
-import {
-  isSavedToFirebase,
-  loadFilesFromFirebase,
-  loadFromFirebase,
-  saveFilesToFirebase,
-  saveToFirebase,
-} from "../data/firebase";
-import {
-  importUsernameFromLocalStorage,
-  saveUsernameToLocalStorage,
-} from "../data/localStorage";
 import { resetBrowserStateVersions } from "../data/tabSync";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
@@ -93,7 +77,26 @@ import Portal from "./Portal";
 import type {
   SocketUpdateDataSource,
   SyncableExcalidrawElement,
-} from "../data";
+} from "../data/cloud";
+
+// Phase 0: collaboration persistence/links go through the `data/cloud` adapter
+// layer. These bindings keep today's call sites unchanged while removing direct
+// imports of `data/{firebase,LocalData,localStorage,index}` from collab
+// (decision 0001 / DoD §2).
+const {
+  generateCollaborationLinkData,
+  getCollaborationLink,
+  getSyncableElements,
+} = shareLink;
+const { LocalData, importUsernameFromLocalStorage, saveUsernameToLocalStorage } =
+  localStore;
+const {
+  isSavedToFirebase,
+  loadFilesFromFirebase,
+  loadFromFirebase,
+  saveFilesToFirebase,
+  saveToFirebase,
+} = firebaseStore;
 
 export const collabAPIAtom = atom<CollabAPI | null>(null);
 export const isCollaboratingAtom = atom(false);

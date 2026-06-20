@@ -127,27 +127,10 @@ import {
   createOfficeWorkflowCommands,
 } from "./ai/workflowCommands";
 
-import {
-  exportToBackend,
-  getCollaborationLinkData,
-  importFromBackend,
-  isCollaborationLink,
-} from "./data";
+import { localStore, shareLink, firebaseStore } from "./data/cloud";
 
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
-import {
-  importFromLocalStorage,
-  importUsernameFromLocalStorage,
-} from "./data/localStorage";
-
-import { loadFilesFromFirebase } from "./data/firebase";
-import {
-  LibraryIndexedDBAdapter,
-  LibraryLocalStorageMigrationAdapter,
-  LocalData,
-  localStorageQuotaExceededAtom,
-} from "./data/LocalData";
 import { isBrowserStorageStateNewer } from "./data/tabSync";
 import { ShareDialog, shareDialogStateAtom } from "./share/ShareDialog";
 import CollabError, { collabErrorIndicatorAtom } from "./collab/CollabError";
@@ -186,6 +169,26 @@ import type {
 } from "./components/AppSidebar";
 
 polyfill();
+
+// Phase 0: all backend/persistence access goes through the `data/cloud`
+// adapter layer. These bindings keep today's call sites unchanged while
+// removing direct imports of `data/{localStorage,LocalData,firebase,index}`
+// from this component (decision 0001 / DoD §2).
+const {
+  importFromLocalStorage,
+  importUsernameFromLocalStorage,
+  LocalData,
+  LibraryIndexedDBAdapter,
+  LibraryLocalStorageMigrationAdapter,
+  localStorageQuotaExceededAtom,
+} = localStore;
+const {
+  exportToBackend,
+  importFromBackend,
+  getCollaborationLinkData,
+  isCollaborationLink,
+} = shareLink;
+const { loadFilesFromFirebase } = firebaseStore;
 
 window.EXCALIDRAW_THROTTLE_RENDER = true;
 

@@ -84,6 +84,21 @@ export const loadFirebaseStorage = async () => {
   return _getStorage();
 };
 
+/**
+ * Uploads a single blob to Firebase Storage at `path`. Encapsulates the raw
+ * `ref`/`uploadBytes` SDK calls so callers (e.g. the Excalidraw+ migration
+ * export) never import the firebase SDK directly (decision 0001 / DoD §2).
+ */
+export const saveSceneToFirebaseStorage = async (
+  path: string,
+  blob: Blob,
+  customMetadata: Record<string, string>,
+) => {
+  const storage = await loadFirebaseStorage();
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, blob, { customMetadata });
+};
+
 type FirebaseStoredScene = {
   sceneVersion: number;
   iv: Bytes;
