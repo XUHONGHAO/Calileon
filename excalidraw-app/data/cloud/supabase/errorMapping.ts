@@ -117,3 +117,59 @@ export const mapDataError = (error: unknown): BackendError => {
     nextAction,
   });
 };
+
+export const mapStorageError = (error: unknown): BackendError => {
+  if (looksLikeNetworkError(error)) {
+    return new BackendError(
+      "network",
+      t("cloud.errors.assetConnectionFailed"),
+      {
+        recoverable: true,
+        nextAction: t("cloud.errors.nextActionLocal"),
+      },
+    );
+  }
+
+  const storageError = error as {
+    statusCode?: string | number;
+    status?: string | number;
+  } | null;
+  const status = Number(storageError?.statusCode ?? storageError?.status);
+
+  if (status === 401) {
+    return new BackendError("unauthorized", t("cloud.errors.sessionExpired"), {
+      recoverable: true,
+      nextAction: t("cloud.errors.nextActionSignIn"),
+    });
+  }
+
+  if (status === 403) {
+    return new BackendError("forbidden", t("cloud.errors.forbiddenAsset"), {
+      recoverable: false,
+      nextAction: t("cloud.errors.nextActionSignIn"),
+    });
+  }
+
+  if (status === 413) {
+    return new BackendError(
+      "payload-too-large",
+      t("cloud.errors.assetTooLarge"),
+      {
+        recoverable: true,
+        nextAction: t("cloud.errors.nextActionLocal"),
+      },
+    );
+  }
+
+  if (status === 429) {
+    return new BackendError("quota-exceeded", t("cloud.errors.rateLimited"), {
+      recoverable: true,
+      nextAction: t("cloud.errors.nextActionRetry"),
+    });
+  }
+
+  return new BackendError("network", t("cloud.errors.assetOperationFailed"), {
+    recoverable: true,
+    nextAction: t("cloud.errors.nextActionLocal"),
+  });
+};

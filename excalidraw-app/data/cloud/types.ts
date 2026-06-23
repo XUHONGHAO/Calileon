@@ -71,10 +71,13 @@ export interface AssetRef {
   id: string;
   ownerId: string;
   sceneId: string | null;
+  fileId?: string;
   type: AssetType;
   url: string; // signed URL for private assets
+  mimeType?: string;
   bytes: number;
   createdAt: number;
+  updatedAt?: number;
 }
 
 export type ShareMode = "read" | "write";
@@ -87,6 +90,12 @@ export interface ShareLink {
   revoked: boolean;
   expiresAt: number | null; // reserved; first version may leave unset
   createdAt: number;
+}
+
+export interface SharedSceneLoadResult {
+  scene: SceneRecord;
+  mode: ShareMode;
+  assets: AssetRef[];
 }
 
 // —— Auth (BR-AUTH, Phase 1) ——
@@ -119,6 +128,8 @@ export interface AssetStorage {
     blob: Blob;
     type: AssetType;
     sceneId?: string;
+    fileId?: string;
+    mimeType?: string;
   }): Promise<AssetRef>;
   getUrl(id: string): Promise<string>;
   remove(id: string): Promise<void>;
@@ -131,6 +142,19 @@ export interface ShareService {
   resolve(token: string): Promise<{ sceneId: string; mode: ShareMode }>;
   revoke(id: string): Promise<void>;
   listByScene(sceneId: string): Promise<ShareLink[]>;
+  loadScene(token: string): Promise<SharedSceneLoadResult>;
+  saveScene(
+    token: string,
+    scene: SceneRecord,
+  ): Promise<{ id: string; version: number }>;
+  uploadAsset(input: {
+    token: string;
+    blob: Blob;
+    type: AssetType;
+    sceneId: string;
+    fileId?: string;
+    mimeType?: string;
+  }): Promise<AssetRef>;
 }
 
 // —— Realtime (BR-RT, Phase 3/4; Phase 0 only declares existence) ——

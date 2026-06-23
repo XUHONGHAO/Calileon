@@ -50,6 +50,21 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.scenes.unavailable": "Cloud whiteboards are not configured.",
       "cloud.scenes.unknownUpdatedAt": "unknown time",
       "cloud.scenes.updatedAt": `Updated ${replacement?.date}`,
+      "cloud.share.action": "Share",
+      "cloud.share.active": "Active",
+      "cloud.share.copy": "Copy",
+      "cloud.share.copyFailed": "Could not copy.",
+      "cloud.share.createRead": "Create read link",
+      "cloud.share.createWrite": "Create write link",
+      "cloud.share.description": `Manage share links for ${replacement?.title}.`,
+      "cloud.share.empty": "No share links yet.",
+      "cloud.share.loading": "Loading share links...",
+      "cloud.share.modeRead": "Read-only link",
+      "cloud.share.modeWrite": "Writable link",
+      "cloud.share.revoke": "Revoke",
+      "cloud.share.revoked": "Revoked",
+      "cloud.share.revokeConfirm": "Revoke this share link?",
+      "cloud.share.unavailable": "Cloud sharing is not configured.",
     };
     return values[key] ?? key;
   },
@@ -77,12 +92,35 @@ const record: SceneRecord = {
 };
 
 const makeBackend = () => ({
-  capabilities: { sceneStorage: true },
+  capabilities: { sceneStorage: true, share: true },
   scenes: {
     list: vi.fn(async () => summaries),
     load: vi.fn(async () => record),
     rename: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
+  },
+  shares: {
+    create: vi.fn(async () => ({
+      id: "share-new",
+      sceneId: "scene-1",
+      mode: "read",
+      token: "token-new",
+      revoked: false,
+      expiresAt: null,
+      createdAt: 0,
+    })),
+    listByScene: vi.fn(async () => [
+      {
+        id: "share-1",
+        sceneId: "scene-1",
+        mode: "read",
+        token: "token-1",
+        revoked: false,
+        expiresAt: null,
+        createdAt: 0,
+      },
+    ]),
+    revoke: vi.fn(async () => {}),
   },
 });
 
@@ -103,6 +141,11 @@ describe("SceneListDialog", () => {
   beforeEach(() => {
     backendMock.backend = makeBackend();
     vi.spyOn(window, "confirm").mockReturnValue(true);
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async () => {}),
+      },
+    });
   });
 
   afterEach(() => {
@@ -171,5 +214,57 @@ describe("SceneListDialog", () => {
       "Delete this cloud whiteboard?",
     );
     expect(backendMock.backend.scenes.list).toHaveBeenCalledTimes(2);
+  });
+
+  it("opens share management from a cloud scene", async () => {
+    renderDialog();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+
+    expect(await screen.findByText("Read-only link")).toBeInTheDocument();
+    expect(backendMock.backend.shares.listByScene).toHaveBeenCalledWith(
+      "scene-1",
+    );
+  });
+
+  it("creates read and write share links", async () => {
+    renderDialog();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Create read link" }),
+    );
+    await waitFor(() => {
+      expect(backendMock.backend.shares.create).toHaveBeenCalledWith({
+        sceneId: "scene-1",
+        mode: "read",
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Create write link" }));
+    await waitFor(() => {
+      expect(backendMock.backend.shares.create).toHaveBeenCalledWith({
+        sceneId: "scene-1",
+        mode: "write",
+      });
+    });
+  });
+
+  it("copies and revokes share links", async () => {
+    renderDialog();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy" }));
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        "http://localhost:3000/#cloud=token-1",
+      );
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() => {
+      expect(backendMock.backend.shares.revoke).toHaveBeenCalledWith("share-1");
+    });
+    expect(window.confirm).toHaveBeenCalledWith("Revoke this share link?");
   });
 });

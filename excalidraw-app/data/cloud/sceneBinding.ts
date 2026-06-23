@@ -8,6 +8,7 @@ export interface CloudSceneBinding {
   createdAt: number;
   updatedAt: number;
   localPayloadHash: string;
+  localFingerprint?: string;
   savedPayloadHash: string | null;
 }
 
@@ -27,6 +28,8 @@ const isValidStoredBinding = (
   typeof value.createdAt === "number" &&
   typeof value.updatedAt === "number" &&
   typeof value.localPayloadHash === "string" &&
+  (typeof value.localFingerprint === "string" ||
+    value.localFingerprint === undefined) &&
   (typeof value.savedPayloadHash === "string" ||
     value.savedPayloadHash === null);
 
@@ -38,6 +41,24 @@ export const getCloudPayloadHash = (payload: string) => {
   }
   return `${payload.length}:${(hash >>> 0).toString(36)}`;
 };
+
+export const getCloudSceneFingerprint = (
+  elements: readonly {
+    id: string;
+    type: string;
+    isDeleted?: boolean;
+    fileId?: string | null;
+  }[],
+) =>
+  elements
+    .filter((element) => !element.isDeleted)
+    .map((element) =>
+      element.fileId
+        ? `${element.id}:${element.type}:${element.fileId}`
+        : `${element.id}:${element.type}`,
+    )
+    .sort()
+    .join("|");
 
 export const saveCloudSceneBinding = (binding: CloudSceneBinding) => {
   try {
@@ -56,7 +77,12 @@ export const saveCloudSceneBinding = (binding: CloudSceneBinding) => {
 
 export const loadCloudSceneBinding = (
   ownerId: string,
-  expectedLocalPayloadHash?: string,
+  expected?:
+    | string
+    | {
+        localPayloadHash?: string;
+        localFingerprint?: string;
+      },
 ): CloudSceneBinding | null => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_CLOUD_SCENE);
@@ -69,11 +95,21 @@ export const loadCloudSceneBinding = (
       return null;
     }
 
-    if (
-      expectedLocalPayloadHash &&
-      stored.localPayloadHash !== expectedLocalPayloadHash
-    ) {
-      return null;
+    if (expected) {
+      const expectedLocalPayloadHash =
+        typeof expected === "string" ? expected : expected.localPayloadHash;
+      const expectedLocalFingerprint =
+        typeof expected === "string" ? undefined : expected.localFingerprint;
+      const matchesPayloadHash =
+        !!expectedLocalPayloadHash &&
+        stored.localPayloadHash === expectedLocalPayloadHash;
+      const matchesFingerprint =
+        !!expectedLocalFingerprint &&
+        stored.localFingerprint === expectedLocalFingerprint;
+
+      if (!matchesPayloadHash && !matchesFingerprint) {
+        return null;
+      }
     }
 
     const { schemaVersion, ...binding } = stored;

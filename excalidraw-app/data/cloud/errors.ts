@@ -12,6 +12,7 @@ export type BackendErrorCode =
   | "not-configured"
   | "unauthorized"
   | "forbidden"
+  | "conflict"
   | "network"
   | "cors-or-proxy"
   | "quota-exceeded"

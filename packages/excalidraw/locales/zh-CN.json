@@ -1359,6 +1359,12 @@
       "cloudConnectionFailed": "云端连接失败，本地数据已保留。",
       "forbiddenScene": "无权访问该白板。",
       "cloudOperationFailed": "云端操作失败，本地数据已保留。",
+      "assetConnectionFailed": "云端图片连接失败，本地数据已保留。",
+      "assetOperationFailed": "云端图片操作失败，本地数据已保留。",
+      "assetTooLarge": "这张图片超过了云端存储大小限制。",
+      "forbiddenAsset": "无权访问这个云端图片。",
+      "forbiddenShare": "这个云端分享链接不可用。",
+      "shareVersionConflict": "云端已有较新版本，请重新打开分享链接后再保存。",
       "sessionExpired": "登录已过期，请重新登录。"
     },
     "scenes": {
@@ -1382,12 +1388,35 @@
       "unavailable": "云端白板未配置。",
       "opened": "已打开云端白板。",
       "saved": "已保存到云端。",
+      "savedAssetsFailed": "白板已保存，但部分图片未同步。请稍后再保存一次。",
       "saveFailed": "云端保存失败，本地数据已保留。",
       "saveSkippedCollab": "实时协作中已暂停云端保存。",
       "remoteNewer": "云端存在较新版本，请先检查后再保存。",
       "remoteNewerConfirm": "云端已有这个白板的较新版本。是否用当前本地版本覆盖？",
       "invalidPayload": "无法打开这个云端白板。",
+      "assetLoadFailed": "部分云端图片加载失败。",
+      "openedAssetsFailed": "已打开云端白板，但部分图片加载失败。",
       "genericError": "云端白板暂不可用，请重试。"
+    },
+    "share": {
+      "action": "分享",
+      "active": "有效",
+      "copy": "复制",
+      "copyFailed": "无法复制分享链接。",
+      "createRead": "创建只读链接",
+      "createWrite": "创建可写链接",
+      "description": "管理「{{title}}」的分享链接。",
+      "empty": "暂无分享链接。",
+      "loading": "正在加载分享链接...",
+      "modeRead": "只读链接",
+      "modeWrite": "可写链接",
+      "openFailed": "无法打开这个云端分享链接。",
+      "revoke": "撤销",
+      "revoked": "已撤销",
+      "revokeConfirm": "撤销这个分享链接？",
+      "saveFailed": "云端分享保存失败，本地数据已保留。",
+      "saved": "已保存到共享云端白板。",
+      "unavailable": "云端分享未配置。"
     }
   }
 }

@@ -38,13 +38,17 @@ export const readCapabilities = (): BackendCapabilities => {
   const hasSupabase = hasSupabaseConfig();
   const tier: DeploymentTier = hasSupabase ? "self-hosted" : "local";
 
-  // Legacy share link backend (json.excalidraw.com style).
-  const share = hasEnv(import.meta.env.VITE_APP_BACKEND_V2_POST_URL);
+  // Supabase cloud shares (Phase 2B) or legacy share link backend
+  // (json.excalidraw.com style).
+  const share =
+    hasSupabase || hasEnv(import.meta.env.VITE_APP_BACKEND_V2_POST_URL);
   // Existing collaboration: realtime socket server + firebase persistence.
+  const hasFirebase = hasFirebaseConfig();
   const realtime =
-    hasEnv(import.meta.env.VITE_APP_WS_SERVER_URL) && hasFirebaseConfig();
-  // Collaboration also stores files/scenes in firebase storage/firestore.
-  const assetStorage = hasFirebaseConfig();
+    hasEnv(import.meta.env.VITE_APP_WS_SERVER_URL) && hasFirebase;
+  // Phase 2A: Supabase stores cloud whiteboard assets. Firebase file storage
+  // remains a legacy collaboration/share-link capability.
+  const assetStorage = hasSupabase || hasFirebase;
 
   return {
     tier,

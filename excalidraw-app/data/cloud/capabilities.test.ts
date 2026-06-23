@@ -39,6 +39,8 @@ describe("readCapabilities", () => {
     expect(caps.tier).toBe("self-hosted");
     expect(caps.auth).toBe(true);
     expect(caps.sceneStorage).toBe(true);
+    expect(caps.assetStorage).toBe(true);
+    expect(caps.share).toBe(true);
   });
 
   it("stays local when only one Supabase var is set (incomplete config)", () => {

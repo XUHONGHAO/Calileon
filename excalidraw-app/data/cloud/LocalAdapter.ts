@@ -57,6 +57,9 @@ export const createLocalShareService = (): ShareService => ({
   resolve: async () => notConfigured(),
   revoke: async () => notConfigured(),
   listByScene: async () => notConfigured(),
+  loadScene: async () => notConfigured(),
+  saveScene: async () => notConfigured(),
+  uploadAsset: async () => notConfigured(),
 });
 
 export const createLocalRealtimeService = (): RealtimeService => ({

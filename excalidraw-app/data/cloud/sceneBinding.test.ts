@@ -5,6 +5,7 @@ import { STORAGE_KEYS } from "../../app_constants";
 import {
   clearCloudSceneBinding,
   getCloudPayloadHash,
+  getCloudSceneFingerprint,
   loadCloudSceneBinding,
   saveCloudSceneBinding,
 } from "./sceneBinding";
@@ -17,6 +18,7 @@ const binding = {
   createdAt: 1,
   updatedAt: 2,
   localPayloadHash: getCloudPayloadHash('{"elements":[]}'),
+  localFingerprint: "element-1:image:file-1",
   savedPayloadHash: getCloudPayloadHash('{"elements":[]}'),
 };
 
@@ -50,6 +52,28 @@ describe("cloud scene binding", () => {
     ).toBeNull();
   });
 
+  it("restores a binding when the payload hash drifts but the local fingerprint matches", () => {
+    saveCloudSceneBinding(binding);
+
+    expect(
+      loadCloudSceneBinding("user-1", {
+        localPayloadHash: getCloudPayloadHash('{"elements":[1]}'),
+        localFingerprint: binding.localFingerprint,
+      }),
+    ).toEqual(binding);
+  });
+
+  it("does not restore a binding when both payload hash and fingerprint differ", () => {
+    saveCloudSceneBinding(binding);
+
+    expect(
+      loadCloudSceneBinding("user-1", {
+        localPayloadHash: getCloudPayloadHash('{"elements":[1]}'),
+        localFingerprint: "other-element:image:file-1",
+      }),
+    ).toBeNull();
+  });
+
   it("restores a binding after local edits update the local payload hash", () => {
     const editedBinding = {
       ...binding,
@@ -78,5 +102,15 @@ describe("cloud scene binding", () => {
 
     expect(loadCloudSceneBinding("user-1")).toBeNull();
     expect(warn).toHaveBeenCalled();
+  });
+
+  it("creates a stable fingerprint from visible element ids and file ids", () => {
+    expect(
+      getCloudSceneFingerprint([
+        { id: "b", type: "image", fileId: "file-b" },
+        { id: "deleted", type: "rectangle", isDeleted: true },
+        { id: "a", type: "rectangle" },
+      ]),
+    ).toBe("a:rectangle|b:image:file-b");
   });
 });

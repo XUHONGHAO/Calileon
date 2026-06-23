@@ -106,6 +106,27 @@
     list-style: none;
   }
 
+  .SceneListDialog__shareView {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .SceneListDialog__shareActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+
+    .excalidraw-button {
+      flex: 0 0 auto;
+      width: auto;
+      min-width: 0;
+      white-space: nowrap;
+      writing-mode: horizontal-tb;
+    }
+  }
+
   .SceneListDialog__item {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

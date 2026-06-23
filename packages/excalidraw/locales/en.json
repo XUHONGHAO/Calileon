@@ -1391,6 +1391,12 @@
       "cloudConnectionFailed": "Cloud connection failed. Local data is preserved.",
       "forbiddenScene": "You do not have access to this whiteboard.",
       "cloudOperationFailed": "Cloud operation failed. Local data is preserved.",
+      "assetConnectionFailed": "Cloud asset connection failed. Local data is preserved.",
+      "assetOperationFailed": "Cloud asset operation failed. Local data is preserved.",
+      "assetTooLarge": "This image is too large for cloud storage.",
+      "forbiddenAsset": "You do not have access to this cloud asset.",
+      "forbiddenShare": "This cloud share link is not available.",
+      "shareVersionConflict": "Cloud has a newer version. Reload the share link before saving.",
       "sessionExpired": "Session expired. Please sign in again."
     },
     "scenes": {
@@ -1414,12 +1420,35 @@
       "unavailable": "Cloud whiteboards are not configured.",
       "opened": "Cloud whiteboard opened.",
       "saved": "Saved to cloud.",
+      "savedAssetsFailed": "Whiteboard saved, but some images did not sync. Try saving again.",
       "saveFailed": "Cloud save failed. Local data is preserved.",
       "saveSkippedCollab": "Cloud save is paused during live collaboration.",
       "remoteNewer": "Cloud has a newer version. Review it before saving.",
       "remoteNewerConfirm": "Cloud has a newer version of this whiteboard. Overwrite it with your local version?",
       "invalidPayload": "This cloud whiteboard cannot be opened.",
+      "assetLoadFailed": "Some cloud images could not be loaded.",
+      "openedAssetsFailed": "Cloud whiteboard opened, but some images could not be loaded.",
       "genericError": "Cloud whiteboards are unavailable. Please try again."
+    },
+    "share": {
+      "action": "Share",
+      "active": "Active",
+      "copy": "Copy",
+      "copyFailed": "Could not copy the share link.",
+      "createRead": "Create read link",
+      "createWrite": "Create write link",
+      "description": "Manage share links for {{title}}.",
+      "empty": "No share links yet.",
+      "loading": "Loading share links...",
+      "modeRead": "Read-only link",
+      "modeWrite": "Writable link",
+      "openFailed": "This cloud share link cannot be opened.",
+      "revoke": "Revoke",
+      "revoked": "Revoked",
+      "revokeConfirm": "Revoke this share link?",
+      "saveFailed": "Cloud share save failed. Local data is preserved.",
+      "saved": "Saved to shared cloud whiteboard.",
+      "unavailable": "Cloud sharing is not configured."
     }
   }
 }
