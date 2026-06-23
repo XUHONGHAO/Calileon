@@ -17,6 +17,7 @@ import { notConfigured } from "./errors";
 
 import type {
   AiGateway,
+  AITaskService,
   AssetStorage,
   AuthProvider,
   CastService,
@@ -60,6 +61,12 @@ export const createLocalShareService = (): ShareService => ({
   loadScene: async () => notConfigured(),
   saveScene: async () => notConfigured(),
   uploadAsset: async () => notConfigured(),
+});
+
+export const createLocalAITaskService = (): AITaskService => ({
+  create: async () => notConfigured(),
+  list: async () => notConfigured(),
+  remove: async () => notConfigured(),
 });
 
 export const createLocalRealtimeService = (): RealtimeService => ({

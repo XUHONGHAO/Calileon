@@ -19,9 +19,25 @@ import { t } from "@excalidraw/excalidraw/i18n";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { useCloudAuth } from "../auth/useCloudAuth";
-import { getCloudBackend } from "../data/cloud";
+import { getCloudBackend, type AITaskStatus } from "../data/cloud";
 
 import "./AuthDialog.scss";
+
+const getAITaskStatusLabel = (status: AITaskStatus) => {
+  if (status === "succeeded") {
+    return t("cloud.aiTasks.statusSucceeded");
+  }
+  if (status === "failed") {
+    return t("cloud.aiTasks.statusFailed");
+  }
+  if (status === "cancelled") {
+    return t("cloud.aiTasks.statusCancelled");
+  }
+  if (status === "running") {
+    return t("cloud.aiTasks.statusRunning");
+  }
+  return t("cloud.aiTasks.statusQueued");
+};
 
 export interface AuthDialogProps {
   open: boolean;
@@ -30,6 +46,8 @@ export interface AuthDialogProps {
   onSignedIn?: () => void;
   /** Opens the user's cloud whiteboard list from the account panel. */
   onOpenCloudScenes?: () => void;
+  /** Opens the user's cloud AI task list from the account panel. */
+  onOpenAITasks?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
 }
@@ -39,6 +57,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   onClose,
   onSignedIn,
   onOpenCloudScenes,
+  onOpenAITasks,
   onSaveCloudScene,
 }) => {
   const { isSignedIn, user, signIn, signOut } = useCloudAuth();
@@ -54,6 +73,15 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
         status: "ready";
         count: number;
         latestTitle: string | null;
+      }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+  const [taskStats, setTaskStats] = useState<
+    | { status: "idle" | "loading" | "unavailable" }
+    | {
+        status: "ready";
+        count: number;
+        latestStatus: AITaskStatus | null;
       }
     | { status: "error"; message: string }
   >({ status: "idle" });
@@ -98,19 +126,63 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     [isSignedIn],
   );
 
+  const loadTaskStats = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      if (!isSignedIn) {
+        setTaskStats({ status: "idle" });
+        return;
+      }
+
+      const backend = getCloudBackend();
+      if (!backend.capabilities.aiTasks) {
+        setTaskStats({ status: "unavailable" });
+        return;
+      }
+
+      setTaskStats({ status: "loading" });
+      try {
+        const tasks = await backend.aiTasks.list({ limit: 20 });
+        if (isCancelled()) {
+          return;
+        }
+
+        setTaskStats({
+          status: "ready",
+          count: tasks.length,
+          latestStatus: tasks[0]?.status ?? null,
+        });
+      } catch (err) {
+        if (isCancelled()) {
+          return;
+        }
+
+        setTaskStats({
+          status: "error",
+          message:
+            err instanceof Error
+              ? err.message
+              : t("cloud.aiTasks.genericError"),
+        });
+      }
+    },
+    [isSignedIn],
+  );
+
   useEffect(() => {
     if (!open || !isSignedIn) {
       setSceneStats({ status: "idle" });
+      setTaskStats({ status: "idle" });
       return;
     }
 
     let cancelled = false;
     void loadSceneStats(() => cancelled);
+    void loadTaskStats(() => cancelled);
 
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, loadSceneStats, open]);
+  }, [isSignedIn, loadSceneStats, loadTaskStats, open]);
 
   if (!open) {
     return null;
@@ -186,6 +258,15 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     onOpenCloudScenes();
   };
 
+  const handleOpenAITasks = () => {
+    if (submitting || signingOut || !onOpenAITasks) {
+      return;
+    }
+    reset();
+    onClose();
+    onOpenAITasks();
+  };
+
   const handleSaveCloudScene = async () => {
     if (submitting || signingOut || savingCloudScene || !onSaveCloudScene) {
       return;
@@ -215,6 +296,19 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
           count: sceneStats.count,
         })
       : t("cloud.auth.cloudWhiteboardsLoading");
+
+  const cloudTaskCountLabel =
+    taskStats.status === "loading"
+      ? t("cloud.auth.cloudAITasksLoading")
+      : taskStats.status === "unavailable"
+      ? t("cloud.auth.cloudAITasksUnavailable")
+      : taskStats.status === "error"
+      ? t("cloud.auth.cloudAITasksUnavailable")
+      : taskStats.status === "ready"
+      ? t("cloud.auth.cloudAITasksCount", {
+          count: taskStats.count,
+        })
+      : t("cloud.auth.cloudAITasksLoading");
 
   const closeButton = (
     <button
@@ -277,6 +371,26 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
               )}
               {sceneStats.status === "error" && (
                 <small>{sceneStats.message}</small>
+              )}
+            </button>
+
+            <button
+              className="AuthDialog__accountCard AuthDialog__accountCard--button"
+              type="button"
+              onClick={handleOpenAITasks}
+              disabled={!onOpenAITasks || signingOut || savingCloudScene}
+            >
+              <span>{t("cloud.auth.cloudAITasks")}</span>
+              <strong>{cloudTaskCountLabel}</strong>
+              {taskStats.status === "ready" && taskStats.latestStatus && (
+                <small>
+                  {t("cloud.auth.latestCloudAITask", {
+                    status: getAITaskStatusLabel(taskStats.latestStatus),
+                  })}
+                </small>
+              )}
+              {taskStats.status === "error" && (
+                <small>{taskStats.message}</small>
               )}
             </button>
           </div>

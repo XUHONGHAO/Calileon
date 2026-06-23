@@ -35,6 +35,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
     const values: Record<string, string> = {
       "cloud.scenes.back": "Back",
       "cloud.scenes.cancelRename": "Cancel",
+      "cloud.scenes.current": "Current whiteboard",
       "cloud.scenes.delete": "Delete",
       "cloud.scenes.deleteConfirm": "Delete this cloud whiteboard?",
       "cloud.scenes.description": "Manage cloud whiteboards.",
@@ -156,9 +157,17 @@ describe("SceneListDialog", () => {
     renderDialog();
 
     expect(await screen.findByText("Roadmap")).toBeInTheDocument();
+    expect(screen.queryByText("Current whiteboard")).not.toBeInTheDocument();
     expect(backendMock.backend.scenes.list).toHaveBeenCalledWith({
       sort: "updatedAt",
     });
+  });
+
+  it("marks the active cloud scene", async () => {
+    renderDialog({ activeSceneId: "scene-1" });
+
+    expect(await screen.findByText("Roadmap")).toBeInTheDocument();
+    expect(screen.getByText("Current whiteboard")).toBeInTheDocument();
   });
 
   it("loads a selected cloud scene before opening it", async () => {

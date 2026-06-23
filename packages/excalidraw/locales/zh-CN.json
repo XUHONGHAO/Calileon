@@ -1332,6 +1332,11 @@
       "cloudWhiteboardsUnavailable": "暂不可用",
       "cloudWhiteboardsCount": "已保存 {{count}} 个",
       "latestCloudWhiteboard": "最近：{{title}}",
+      "cloudAITasks": "AI 任务",
+      "cloudAITasksLoading": "加载中……",
+      "cloudAITasksUnavailable": "暂不可用",
+      "cloudAITasksCount": "最近 {{count}} 条",
+      "latestCloudAITask": "最近：{{status}}",
       "signIn": "云端登录",
       "signInTitle": "登录云端",
       "signInIntro": "登录后可在多设备间同步你的白板。",
@@ -1383,6 +1388,7 @@
       "renameTitle": "白板标题",
       "saveRename": "保存",
       "cancelRename": "取消",
+      "current": "当前白板",
       "updatedAt": "更新于 {{date}}",
       "unknownUpdatedAt": "未知时间",
       "unavailable": "云端白板未配置。",
@@ -1417,6 +1423,24 @@
       "saveFailed": "云端分享保存失败，本地数据已保留。",
       "saved": "已保存到共享云端白板。",
       "unavailable": "云端分享未配置。"
+    },
+    "aiTasks": {
+      "delete": "删除",
+      "deleteConfirm": "删除这条 AI 任务记录？",
+      "description": "查看随云端白板保存的近期 AI 生成任务。",
+      "empty": "暂无云端 AI 任务。",
+      "genericError": "云端 AI 任务暂不可用，请重试。",
+      "loading": "正在加载云端 AI 任务...",
+      "openScene": "打开白板",
+      "statusCancelled": "已取消",
+      "statusFailed": "失败",
+      "statusQueued": "排队中",
+      "statusRunning": "运行中",
+      "statusSucceeded": "已完成",
+      "title": "云端 AI 任务",
+      "unavailable": "云端 AI 任务未配置。",
+      "untitled": "未命名 AI 任务",
+      "updatedAt": "更新于 {{date}}"
     }
   }
 }

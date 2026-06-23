@@ -12,6 +12,7 @@
 
 import { readCapabilities } from "./capabilities";
 import {
+  createLocalAITaskService,
   createLocalAiGateway,
   createLocalAssetStorage,
   createLocalAuthProvider,
@@ -23,6 +24,7 @@ import {
 } from "./LocalAdapter";
 import { createSupabaseAssetStorage } from "./supabase/SupabaseAssetStorage";
 import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
+import { createSupabaseAITaskService } from "./supabase/SupabaseAITaskService";
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
 import { createSupabaseShareService } from "./supabase/SupabaseShareService";
 
@@ -36,6 +38,7 @@ const assembleLocalBackend = (): CloudBackend => ({
   scenes: createLocalSceneStorage(),
   assets: createLocalAssetStorage(),
   shares: createLocalShareService(),
+  aiTasks: createLocalAITaskService(),
   realtime: createLocalRealtimeService(),
   cast: createLocalCastService(),
   embed: createLocalEmbedService(),
@@ -57,6 +60,7 @@ const assembleSupabaseBackend = (
   scenes: createSupabaseSceneStorage(),
   assets: createSupabaseAssetStorage(),
   shares: createSupabaseShareService(),
+  aiTasks: createSupabaseAITaskService(),
   realtime: createLocalRealtimeService(),
   cast: createLocalCastService(),
   embed: createLocalEmbedService(),

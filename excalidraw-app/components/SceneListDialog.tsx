@@ -18,6 +18,7 @@ import type {
 
 export interface SceneListDialogProps {
   open: boolean;
+  activeSceneId?: string | null;
   onClose: () => void;
   onBack?: () => void;
   onOpenScene: (scene: SceneRecord) => void | Promise<void>;
@@ -38,6 +39,7 @@ const formatUpdatedAt = (updatedAt: number) => {
 
 export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   open,
+  activeSceneId,
   onClose,
   onBack,
   onOpenScene,
@@ -360,29 +362,39 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
             {scenes.map((scene) => {
               const isBusy = busySceneId === scene.id;
               const isRenaming = renamingSceneId === scene.id;
+              const isCurrentScene = activeSceneId === scene.id;
 
               return (
                 <li className="SceneListDialog__item" key={scene.id}>
                   <div className="SceneListDialog__details">
-                    {isRenaming ? (
-                      <input
-                        aria-label={t("cloud.scenes.renameTitle")}
-                        autoFocus
-                        disabled={isBusy}
-                        value={renameTitle}
-                        onChange={(event) =>
-                          setRenameTitle(event.currentTarget.value)
-                        }
-                        onKeyDown={stopShortcutPropagation}
-                      />
-                    ) : (
-                      <strong title={scene.title}>{scene.title}</strong>
-                    )}
-                    <span>
-                      {t("cloud.scenes.updatedAt", {
-                        date: formatUpdatedAt(scene.updatedAt),
-                      })}
-                    </span>
+                    <div className="SceneListDialog__titleRow">
+                      {isRenaming ? (
+                        <input
+                          aria-label={t("cloud.scenes.renameTitle")}
+                          autoFocus
+                          disabled={isBusy}
+                          value={renameTitle}
+                          onChange={(event) =>
+                            setRenameTitle(event.currentTarget.value)
+                          }
+                          onKeyDown={stopShortcutPropagation}
+                        />
+                      ) : (
+                        <strong title={scene.title}>{scene.title}</strong>
+                      )}
+                    </div>
+                    <div className="SceneListDialog__metaRow">
+                      <span className="SceneListDialog__updatedAt">
+                        {t("cloud.scenes.updatedAt", {
+                          date: formatUpdatedAt(scene.updatedAt),
+                        })}
+                      </span>
+                      {isCurrentScene && (
+                        <span className="SceneListDialog__currentBadge">
+                          {t("cloud.scenes.current")}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="SceneListDialog__actions">

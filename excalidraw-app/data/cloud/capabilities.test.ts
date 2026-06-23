@@ -28,6 +28,8 @@ describe("readCapabilities", () => {
     expect(caps.sceneStorage).toBe(false);
     expect(caps.assetStorage).toBe(false);
     expect(caps.share).toBe(false);
+    expect(caps.aiTasks).toBe(false);
+    expect(caps.aiGateway).toBe(false);
     expect(caps.realtime).toBe(false);
   });
 
@@ -41,6 +43,8 @@ describe("readCapabilities", () => {
     expect(caps.sceneStorage).toBe(true);
     expect(caps.assetStorage).toBe(true);
     expect(caps.share).toBe(true);
+    expect(caps.aiTasks).toBe(true);
+    expect(caps.aiGateway).toBe(false);
   });
 
   it("stays local when only one Supabase var is set (incomplete config)", () => {

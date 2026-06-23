@@ -12,7 +12,7 @@ import type {
   DataURL,
 } from "@excalidraw/excalidraw/types";
 
-import type { AssetRef, CloudBackend, ShareService } from "./types";
+import type { AssetRef, AssetType, CloudBackend, ShareService } from "./types";
 
 export const getReferencedImageFileIds = (
   elements: readonly OrderedExcalidrawElement[],
@@ -24,6 +24,22 @@ export const getReferencedImageFileIds = (
     }
   }
   return [...seen];
+};
+
+const getAssetTypeForElement = (
+  elements: readonly OrderedExcalidrawElement[],
+  fileId: FileId,
+): AssetType => {
+  const element = elements.find(
+    (candidate) =>
+      !candidate.isDeleted &&
+      isInitializedImageElement(candidate) &&
+      candidate.fileId === fileId,
+  );
+
+  return element?.customData?.aiGeneration?.kind === "image"
+    ? "ai-output"
+    : "image";
 };
 
 export const uploadSceneAssets = async (input: {
@@ -46,7 +62,7 @@ export const uploadSceneAssets = async (input: {
 
       await input.backend.assets.upload({
         blob: dataURLToFile(fileData.dataURL, fileId),
-        type: "image",
+        type: getAssetTypeForElement(input.elements, fileId),
         sceneId: input.sceneId,
         fileId,
         mimeType: fileData.mimeType,
@@ -73,7 +89,7 @@ export const uploadSharedSceneAssets = async (input: {
       await input.shares.uploadAsset({
         token: input.token,
         blob: dataURLToFile(fileData.dataURL, fileId),
-        type: "image",
+        type: getAssetTypeForElement(input.elements, fileId),
         sceneId: input.sceneId,
         fileId,
         mimeType: fileData.mimeType,

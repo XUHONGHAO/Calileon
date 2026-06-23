@@ -1364,6 +1364,11 @@
       "cloudWhiteboardsUnavailable": "Unavailable",
       "cloudWhiteboardsCount": "{{count}} saved",
       "latestCloudWhiteboard": "Latest: {{title}}",
+      "cloudAITasks": "AI tasks",
+      "cloudAITasksLoading": "Loading...",
+      "cloudAITasksUnavailable": "Unavailable",
+      "cloudAITasksCount": "{{count}} recent",
+      "latestCloudAITask": "Latest: {{status}}",
       "signIn": "Cloud sign in",
       "signInTitle": "Sign in to the cloud",
       "signInIntro": "Sign in to sync your whiteboards across devices.",
@@ -1415,6 +1420,7 @@
       "renameTitle": "Whiteboard title",
       "saveRename": "Save",
       "cancelRename": "Cancel",
+      "current": "Current whiteboard",
       "updatedAt": "Updated {{date}}",
       "unknownUpdatedAt": "unknown time",
       "unavailable": "Cloud whiteboards are not configured.",
@@ -1449,6 +1455,24 @@
       "saveFailed": "Cloud share save failed. Local data is preserved.",
       "saved": "Saved to shared cloud whiteboard.",
       "unavailable": "Cloud sharing is not configured."
+    },
+    "aiTasks": {
+      "delete": "Delete",
+      "deleteConfirm": "Delete this AI task record?",
+      "description": "Review recent AI generation tasks saved with cloud whiteboards.",
+      "empty": "No cloud AI tasks yet.",
+      "genericError": "Cloud AI tasks are unavailable. Please try again.",
+      "loading": "Loading cloud AI tasks...",
+      "openScene": "Open whiteboard",
+      "statusCancelled": "Canceled",
+      "statusFailed": "Failed",
+      "statusQueued": "Queued",
+      "statusRunning": "Running",
+      "statusSucceeded": "Succeeded",
+      "title": "Cloud AI tasks",
+      "unavailable": "Cloud AI tasks are not configured.",
+      "untitled": "Untitled AI task",
+      "updatedAt": "Updated {{date}}"
     }
   }
 }

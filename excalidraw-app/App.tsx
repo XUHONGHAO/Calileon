@@ -102,6 +102,7 @@ import Collab, {
 import { AppFooter } from "./components/AppFooter";
 import { AppMainMenu } from "./components/AppMainMenu";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
+import { AITaskListDialog } from "./components/AITaskListDialog";
 import { AuthDialog } from "./components/AuthDialog";
 import { SceneListDialog } from "./components/SceneListDialog";
 import {
@@ -138,6 +139,7 @@ import {
   uploadSceneAssets,
   uploadSharedSceneAssets,
 } from "./data/cloud/cloudAssets";
+import { recordCloudAITask } from "./data/cloud/cloudAITasks";
 import { getCloudShareTokenFromUrl } from "./data/cloud/cloudShareLinks";
 import {
   getCloudSceneFingerprint,
@@ -186,6 +188,7 @@ import type {
   PromptTemplateRequest,
 } from "./components/AppSidebar";
 import type { SceneRecord } from "./data/cloud";
+import type { CloudAITaskRun } from "./data/cloud/cloudAITasks";
 
 polyfill();
 
@@ -528,6 +531,7 @@ const ExcalidrawWrapper = () => {
   const [errorMessage, setErrorMessage] = useState("");
   const [isCloudAccountOpen, setIsCloudAccountOpen] = useState(false);
   const [isCloudSceneListOpen, setIsCloudSceneListOpen] = useState(false);
+  const [isCloudAITaskListOpen, setIsCloudAITaskListOpen] = useState(false);
   const cloudAuth = useCloudAuth();
   const [activeCloudScene, setActiveCloudScene] =
     useState<ActiveCloudScene | null>(null);
@@ -1287,6 +1291,29 @@ const ExcalidrawWrapper = () => {
       }
     },
     [collabAPI, excalidrawAPI],
+  );
+
+  const recordActiveCloudAITask = useCallback(
+    async (run: CloudAITaskRun) => {
+      const activeScene = activeCloudSceneRef.current;
+      const backend = getCloudBackend();
+
+      if (
+        !cloudAuth.user ||
+        !activeScene?.id ||
+        activeScene.ownerId !== cloudAuth.user.id ||
+        !backend.capabilities.aiTasks
+      ) {
+        return;
+      }
+
+      await recordCloudAITask({
+        backend,
+        sceneId: activeScene.id,
+        run,
+      });
+    },
+    [cloudAuth.user],
   );
 
   const syncActiveCloudSceneLocalBinding = useCallback(
@@ -2078,15 +2105,29 @@ const ExcalidrawWrapper = () => {
             setIsCloudAccountOpen(false);
             setIsCloudSceneListOpen(true);
           }}
+          onOpenAITasks={() => {
+            setIsCloudAccountOpen(false);
+            setIsCloudAITaskListOpen(true);
+          }}
           onSaveCloudScene={async () => {
             await saveCurrentSceneToCloud();
           }}
         />
         <SceneListDialog
           open={isCloudSceneListOpen}
+          activeSceneId={activeCloudScene?.id ?? null}
           onClose={() => setIsCloudSceneListOpen(false)}
           onBack={() => {
             setIsCloudSceneListOpen(false);
+            setIsCloudAccountOpen(true);
+          }}
+          onOpenScene={onOpenCloudScene}
+        />
+        <AITaskListDialog
+          open={isCloudAITaskListOpen}
+          onClose={() => setIsCloudAITaskListOpen(false)}
+          onBack={() => {
+            setIsCloudAITaskListOpen(false);
             setIsCloudAccountOpen(true);
           }}
           onOpenScene={onOpenCloudScene}
@@ -2166,6 +2207,7 @@ const ExcalidrawWrapper = () => {
           onAddSelectionAsReference={requestAIReferenceAdd}
           onEnterMaskEditing={requestEnterMaskEditing}
           onMaskReady={registerWorkbenchMaskReadyHandler}
+          onCloudAITaskRun={recordActiveCloudAITask}
         />
 
         {errorMessage && (

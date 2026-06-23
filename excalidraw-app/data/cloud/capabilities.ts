@@ -56,6 +56,7 @@ export const readCapabilities = (): BackendCapabilities => {
     sceneStorage: hasSupabase, // Phase 1: Supabase cloud scene CRUD
     assetStorage,
     share,
+    aiTasks: hasSupabase, // Phase 2C: Supabase AI task metadata/index
     realtime,
     cast: false, // Phase 3
     embed: false, // Phase 3

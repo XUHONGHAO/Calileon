@@ -16,12 +16,13 @@ const makeBackend = (): CloudBackend =>
     },
   } as unknown as CloudBackend);
 
-const imageElement = (fileId: string, isDeleted = false) =>
+const imageElement = (fileId: string, isDeleted = false, customData?: any) =>
   ({
     id: `element-${fileId}`,
     type: "image",
     fileId,
     isDeleted,
+    customData,
   } as any);
 
 describe("cloudAssets", () => {
@@ -71,6 +72,37 @@ describe("cloudAssets", () => {
         sceneId: "scene-1",
         fileId: "file-1",
         mimeType: "image/png",
+      }),
+    );
+  });
+
+  it("uploads AI generated image elements as ai-output assets", async () => {
+    const backend = makeBackend();
+    const files: BinaryFiles = {
+      "file-1": {
+        id: "file-1" as FileId,
+        mimeType: "image/png",
+        dataURL: "data:image/png;base64,aW1hZ2U=" as DataURL,
+        created: 1,
+      },
+    };
+
+    await uploadSceneAssets({
+      backend,
+      sceneId: "scene-1",
+      elements: [
+        imageElement("file-1", false, {
+          aiGeneration: { kind: "image" },
+        }),
+      ],
+      files,
+    });
+
+    expect(backend.assets.upload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "ai-output",
+        sceneId: "scene-1",
+        fileId: "file-1",
       }),
     );
   });

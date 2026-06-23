@@ -46,6 +46,7 @@ import type {
   AISkill,
   PromptTemplate,
 } from "../ai/types";
+import type { CloudAITaskRun } from "../data/cloud/cloudAITasks";
 
 export type AIReferenceAddRequest = {
   id: number;
@@ -80,6 +81,7 @@ type AppSidebarProps = {
   onMaskReady?: (
     handler: ((payload: AIMaskReadyPayload) => void) | null,
   ) => void;
+  onCloudAITaskRun?: (run: CloudAITaskRun) => void | Promise<void>;
 };
 
 type AssistantIncomingPrompt = {
@@ -96,6 +98,7 @@ export const AppSidebar = memo(
     generationLogReuseRequest,
     onEnterMaskEditing,
     onMaskReady,
+    onCloudAITaskRun,
   }: AppSidebarProps) => {
     const [workbenchDraftState, setWorkbenchDraftState] =
       useState<AIImageWorkbenchDraftState>(
@@ -229,6 +232,7 @@ export const AppSidebar = memo(
               onMaskReady={onMaskReady}
               onSendPromptToAssistant={sendPromptToAssistant}
               referenceAddRequest={referenceAddRequest}
+              onCloudAITaskRun={onCloudAITaskRun}
             />
           </Sidebar.Tab>
           <Sidebar.Tab

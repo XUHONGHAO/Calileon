@@ -103,6 +103,7 @@ import type {
 import type { GeneratedImagePlacement } from "../ai/imageCanvas";
 import type { AIImageWorkbenchRunStatus } from "./AIImageWorkbenchStatus";
 import type { GeneratedAsset } from "./AIImageWorkbenchAssets";
+import type { CloudAITaskRun } from "../data/cloud/cloudAITasks";
 
 const DEFAULT_PARAMS: AIImageGenerationParams = {
   size: "1024x1024",
@@ -173,6 +174,7 @@ type AIImageWorkbenchProps = {
   ) => void;
   onSendPromptToAssistant?: (prompt: string) => void;
   referenceAddRequest?: { id: number } | null;
+  onCloudAITaskRun?: (run: CloudAITaskRun) => void | Promise<void>;
 };
 
 const loadInitialWorkbenchState = () => {
@@ -251,6 +253,7 @@ export const AIImageWorkbench = ({
   onMaskReady,
   onSendPromptToAssistant,
   referenceAddRequest,
+  onCloudAITaskRun,
 }: AIImageWorkbenchProps) => {
   const [initialState] = useState(() => ({
     config: loadAIImageConfig(),
@@ -269,6 +272,19 @@ export const AIImageWorkbench = ({
     mediaType === "image"
       ? activeDraftState.imageModes[mode]
       : activeDraftState[mediaType];
+
+  const notifyCloudAITaskRun = useCallback(
+    (run: CloudAITaskRun) => {
+      if (!onCloudAITaskRun) {
+        return;
+      }
+
+      void Promise.resolve(onCloudAITaskRun(run)).catch((error) => {
+        console.error("Cloud AI task recording failed", error);
+      });
+    },
+    [onCloudAITaskRun],
+  );
   const { selectedModelId, prompt, negativePrompt, params } =
     activeGenerationDraft;
   const inpaintDraft = activeDraftState.imageModes.inpaint;
@@ -1539,6 +1555,27 @@ export const AIImageWorkbench = ({
         setGeneratedAssets((current) =>
           [...nextGeneratedAssets, ...current].slice(0, 12),
         );
+        notifyCloudAITaskRun({
+          submittedAt,
+          completedAt: new Date().toISOString(),
+          mediaType,
+          mode: activeMode,
+          status: "success",
+          model: {
+            id: activeModelCard?.id || activeModel,
+            name: activeModelName,
+            siteName: activeSiteName,
+          },
+          prompt: activePrompt.trim(),
+          negativePrompt: activeNegativePrompt.trim() || undefined,
+          params: effectiveParams,
+          sources: activeSources,
+          outputs: nextGeneratedAssets.map((asset) => ({
+            output: asset.output,
+            insertedElementId: asset.insertedElementId,
+            insertedFileId: asset.insertedFileId,
+          })),
+        });
         appendGenerationLogEntry(
           createAIGenerationLogEntry({
             submittedAt,
@@ -1584,6 +1621,26 @@ export const AIImageWorkbench = ({
 
         if (error?.name === "AbortError") {
           if (didTimeout) {
+            notifyCloudAITaskRun({
+              submittedAt,
+              completedAt: new Date().toISOString(),
+              mediaType,
+              mode: activeMode,
+              status: "failed",
+              model: {
+                id: activeModelCard?.id || activeModel,
+                name: activeModelName,
+                siteName: activeSiteName,
+              },
+              prompt: activePrompt.trim(),
+              negativePrompt: activeNegativePrompt.trim() || undefined,
+              params: effectiveParams,
+              sources: activeSources,
+              errorCode: "timeout",
+              errorMessage: t("ai.workbench.generationTimedOut", {
+                seconds: timeoutSeconds,
+              }),
+            });
             appendGenerationLogEntry(
               createAIGenerationLogEntry({
                 submittedAt,
@@ -1614,6 +1671,24 @@ export const AIImageWorkbench = ({
             setStatusMessage("");
             setRunStatus("failed");
           } else {
+            notifyCloudAITaskRun({
+              submittedAt,
+              completedAt: new Date().toISOString(),
+              mediaType,
+              mode: activeMode,
+              status: "canceled",
+              model: {
+                id: activeModelCard?.id || activeModel,
+                name: activeModelName,
+                siteName: activeSiteName,
+              },
+              prompt: activePrompt.trim(),
+              negativePrompt: activeNegativePrompt.trim() || undefined,
+              params: effectiveParams,
+              sources: activeSources,
+              errorCode: "canceled",
+              errorMessage: t("ai.workbench.generationCanceled"),
+            });
             appendGenerationLogEntry(
               createAIGenerationLogEntry({
                 submittedAt,
@@ -1644,6 +1719,25 @@ export const AIImageWorkbench = ({
           error instanceof AIImageGenerationError
             ? error.message
             : getUnknownErrorMessage(error, t);
+        notifyCloudAITaskRun({
+          submittedAt,
+          completedAt: new Date().toISOString(),
+          mediaType,
+          mode: activeMode,
+          status: "failed",
+          model: {
+            id: activeModelCard?.id || activeModel,
+            name: activeModelName,
+            siteName: activeSiteName,
+          },
+          prompt: activePrompt.trim(),
+          negativePrompt: activeNegativePrompt.trim() || undefined,
+          params: effectiveParams,
+          sources: activeSources,
+          errorCode:
+            error instanceof AIImageGenerationError ? error.code : "unknown",
+          errorMessage,
+        });
         appendGenerationLogEntry(
           createAIGenerationLogEntry({
             submittedAt,
@@ -1679,7 +1773,7 @@ export const AIImageWorkbench = ({
         }
       }
     },
-    [excalidrawAPI],
+    [excalidrawAPI, notifyCloudAITaskRun],
   );
 
   const cancelGeneration = useCallback(() => {

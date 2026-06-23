@@ -62,6 +62,7 @@ const makeBackend = (
     signIn?: (m: any) => Promise<any>;
     signOut?: () => Promise<void>;
     sceneSummaries?: any[];
+    aiTasks?: any[];
   } = {},
 ) => {
   const listeners: Array<(u: any) => void> = [];
@@ -69,6 +70,7 @@ const makeBackend = (
     capabilities: {
       auth: overrides.auth ?? true,
       sceneStorage: true,
+      aiTasks: true,
     },
     auth: {
       getCurrentUser: vi.fn(async () => overrides.currentUser ?? null),
@@ -100,6 +102,9 @@ const makeBackend = (
             },
           ],
       ),
+    },
+    aiTasks: {
+      list: vi.fn(async () => overrides.aiTasks ?? []),
     },
     __emit: (u: any) => listeners.forEach((l) => l(u)),
   };
@@ -138,10 +143,12 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     setBackend(makeBackend({ auth: true, currentUser: null, signIn }));
     const onSignedIn = vi.fn();
     const onOpenCloudScenes = vi.fn();
+    const onOpenAITasks = vi.fn();
     render(
       <CloudAuthButton
         onSignedIn={onSignedIn}
         onOpenCloudScenes={onOpenCloudScenes}
+        onOpenAITasks={onOpenAITasks}
       />,
     );
 
@@ -211,6 +218,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
   it("shows account details in the dialog when already signed in, and signs out", async () => {
     const signOut = vi.fn(async () => {});
     const onSaveCloudScene = vi.fn(async () => {});
+    const onOpenAITasks = vi.fn();
     const sceneSummaries = [
       {
         id: "scene-1",
@@ -232,9 +240,20 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
         },
         signOut,
         sceneSummaries,
+        aiTasks: [
+          {
+            id: "task-1",
+            status: "succeeded",
+          },
+        ],
       }),
     );
-    render(<CloudAuthButton onSaveCloudScene={onSaveCloudScene} />);
+    render(
+      <CloudAuthButton
+        onSaveCloudScene={onSaveCloudScene}
+        onOpenAITasks={onOpenAITasks}
+      />,
+    );
 
     const accountButton = await screen.findByRole("button", {
       name: "Cloud account",
@@ -258,9 +277,42 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     await waitFor(() => expect(onSaveCloudScene).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("2 saved")).toBeInTheDocument();
     expect(screen.getByText("Latest: Updated plan")).toBeInTheDocument();
+    expect(await screen.findByText("1 recent")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Cloud sign in")).toBeInTheDocument();
+  });
+
+  it("opens cloud AI tasks from the account dialog", async () => {
+    const onOpenAITasks = vi.fn();
+    setBackend(
+      makeBackend({
+        auth: true,
+        currentUser: {
+          id: "u1",
+          email: "me@example.com",
+          displayName: null,
+          avatarUrl: null,
+          createdAt: 0,
+          lastSignInAt: null,
+        },
+        aiTasks: [
+          {
+            id: "task-1",
+            status: "failed",
+          },
+        ],
+      }),
+    );
+    render(<CloudAuthButton onOpenAITasks={onOpenAITasks} />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cloud account" }),
+    );
+    expect(await screen.findByText("1 recent")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /AI tasks/ }));
+    expect(onOpenAITasks).toHaveBeenCalledTimes(1);
   });
 });

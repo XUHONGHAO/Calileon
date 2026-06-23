@@ -20,6 +20,7 @@ export interface BackendCapabilities {
   sceneStorage: boolean;
   assetStorage: boolean;
   share: boolean;
+  aiTasks: boolean;
   realtime: boolean;
   cast: boolean;
   embed: boolean;
@@ -98,6 +99,45 @@ export interface SharedSceneLoadResult {
   assets: AssetRef[];
 }
 
+export type AITaskStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+
+export interface AITaskRecord {
+  id: string;
+  ownerId: string;
+  sceneId: string;
+  featureSource: string;
+  mediaType: "image" | "video" | "audio";
+  mode: string;
+  status: AITaskStatus;
+  modelId: string;
+  modelLabel: string | null;
+  providerLabel: string | null;
+  promptSummary: string;
+  negativePromptSummary: string | null;
+  params: unknown;
+  inputAssetIds: string[];
+  outputAssetIds: string[];
+  sourceElementIds: string[];
+  insertedElementIds: string[];
+  errorCode: string | null;
+  errorMessage: string | null;
+  submittedAt: number;
+  completedAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+}
+
+export type AITaskCreateInput = Omit<
+  AITaskRecord,
+  "id" | "ownerId" | "createdAt" | "updatedAt" | "deletedAt"
+>;
+
 // —— Auth (BR-AUTH, Phase 1) ——
 // First version implements password sign-in only; oauth / magic-link
 // signatures are reserved and not implemented in Phase 1.
@@ -157,6 +197,13 @@ export interface ShareService {
   }): Promise<AssetRef>;
 }
 
+// —— AI task metadata (BR-AI, Phase 2C) ——
+export interface AITaskService {
+  create(input: AITaskCreateInput): Promise<AITaskRecord>;
+  list(opts?: { sceneId?: string; limit?: number }): Promise<AITaskRecord[]>;
+  remove(id: string): Promise<void>;
+}
+
 // —— Realtime (BR-RT, Phase 3/4; Phase 0 only declares existence) ——
 export interface RealtimeService {
   isAvailable(): boolean;
@@ -181,6 +228,7 @@ export interface CloudBackend {
   scenes: SceneStorage;
   assets: AssetStorage;
   shares: ShareService;
+  aiTasks: AITaskService;
   realtime: RealtimeService;
   cast: CastService;
   embed: EmbedService;

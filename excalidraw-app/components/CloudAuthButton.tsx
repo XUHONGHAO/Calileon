@@ -22,6 +22,8 @@ export interface CloudAuthButtonProps {
   onSignedIn?: () => void;
   /** Opens the user's cloud whiteboard list from the account panel. */
   onOpenCloudScenes?: () => void;
+  /** Opens the user's cloud AI task list from the account panel. */
+  onOpenAITasks?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
   className?: string;
@@ -30,6 +32,7 @@ export interface CloudAuthButtonProps {
 export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
   onSignedIn,
   onOpenCloudScenes,
+  onOpenAITasks,
   onSaveCloudScene,
   className,
 }) => {
@@ -58,6 +61,7 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
           onClose={() => setDialogOpen(false)}
           onSignedIn={onSignedIn}
           onOpenCloudScenes={onOpenCloudScenes}
+          onOpenAITasks={onOpenAITasks}
           onSaveCloudScene={onSaveCloudScene}
         />
       </div>
@@ -75,6 +79,7 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
         onClose={() => setDialogOpen(false)}
         onSignedIn={onSignedIn}
         onOpenCloudScenes={onOpenCloudScenes}
+        onOpenAITasks={onOpenAITasks}
         onSaveCloudScene={onSaveCloudScene}
       />
     </div>
