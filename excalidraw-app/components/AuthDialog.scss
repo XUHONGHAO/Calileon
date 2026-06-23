@@ -1,0 +1,213 @@
+.AuthDialogModal {
+  .Island {
+    position: relative;
+  }
+
+  .Dialog__title {
+    padding-right: 2rem;
+  }
+
+  &.Dialog--fullscreen {
+    .AuthDialog__close {
+      display: none;
+    }
+  }
+}
+
+.AuthDialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+
+  .AuthDialog__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: transparent;
+    color: var(--text-primary-color);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--button-hover-bg);
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+  }
+
+  .AuthDialog__intro {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-gray-60);
+  }
+
+  .AuthDialog__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+
+    label {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    input {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      border: 1px solid var(--default-border-color, var(--color-gray-30));
+      border-radius: var(--border-radius-md, 0.5rem);
+      background: var(--input-bg-color, var(--island-bg-color));
+      color: var(--text-primary-color);
+
+      &:focus {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 1px var(--color-primary);
+      }
+
+      &:disabled {
+        opacity: 0.6;
+      }
+    }
+  }
+
+  .AuthDialog__accountGrid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AuthDialog__accountCard {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+    padding: 0.625rem 0.75rem;
+    border: 1px solid var(--default-border-color, var(--color-gray-30));
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: var(--island-bg-color);
+
+    span {
+      font-size: 0.75rem;
+      color: var(--color-gray-60);
+    }
+
+    strong {
+      overflow: hidden;
+      font-size: 0.875rem;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      overflow: hidden;
+      font-size: 0.75rem;
+      color: var(--color-gray-60);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .AuthDialog__accountCard--button {
+    width: 100%;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--button-hover-bg);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.65;
+    }
+  }
+
+  .AuthDialog__cardAction {
+    align-self: flex-start;
+    margin-top: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border: 1px solid var(--default-border-color, var(--color-gray-30));
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: transparent;
+    color: var(--text-primary-color);
+    font: inherit;
+    font-size: 0.75rem;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--button-hover-bg);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.65;
+    }
+  }
+
+  .AuthDialog__error {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-danger);
+    background: var(--color-danger-background);
+    border-radius: var(--border-radius-md, 0.5rem);
+  }
+
+  .AuthDialog__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+
+    .excalidraw-button {
+      flex: 0 0 auto;
+      min-width: 5rem;
+      white-space: nowrap;
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .AuthDialog {
+    .AuthDialog__accountGrid {
+      grid-template-columns: 1fr;
+    }
+
+    .AuthDialog__actions {
+      justify-content: stretch;
+
+      .excalidraw-button {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+    }
+  }
+}

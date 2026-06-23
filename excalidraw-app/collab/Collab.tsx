@@ -88,8 +88,11 @@ const {
   getCollaborationLink,
   getSyncableElements,
 } = shareLink;
-const { LocalData, importUsernameFromLocalStorage, saveUsernameToLocalStorage } =
-  localStore;
+const {
+  LocalData,
+  importUsernameFromLocalStorage,
+  saveUsernameToLocalStorage,
+} = localStore;
 const {
   isSavedToFirebase,
   loadFilesFromFirebase,

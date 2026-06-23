@@ -8,6 +8,8 @@
  * can report what the current deployment can do.
  */
 
+import { hasSupabaseConfig } from "./supabase/client";
+
 import type { BackendCapabilities, DeploymentTier } from "./types";
 
 const hasEnv = (value: string | undefined): boolean =>
@@ -29,9 +31,12 @@ const hasFirebaseConfig = (): boolean => {
 };
 
 export const readCapabilities = (): BackendCapabilities => {
-  // Phase 0: no Supabase yet, so we are always "local" tier. Phase 1 flips
-  // this to "self-hosted" / "cloud" once a Supabase URL is configured.
-  const tier: DeploymentTier = "local";
+  // Supabase configured → account + cloud scenes become available and the
+  // deployment is at least "self-hosted" tier (decision 0008 §1.3). Without it
+  // we stay "local" tier with auth/sceneStorage off — pure-local, zero behavior
+  // change.
+  const hasSupabase = hasSupabaseConfig();
+  const tier: DeploymentTier = hasSupabase ? "self-hosted" : "local";
 
   // Legacy share link backend (json.excalidraw.com style).
   const share = hasEnv(import.meta.env.VITE_APP_BACKEND_V2_POST_URL);
@@ -43,8 +48,8 @@ export const readCapabilities = (): BackendCapabilities => {
 
   return {
     tier,
-    auth: false, // Phase 1
-    sceneStorage: false, // Phase 1 (cloud scene CRUD)
+    auth: hasSupabase, // Phase 1: Supabase email/password
+    sceneStorage: hasSupabase, // Phase 1: Supabase cloud scene CRUD
     assetStorage,
     share,
     realtime,

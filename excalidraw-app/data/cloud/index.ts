@@ -21,8 +21,10 @@ import {
   createLocalSceneStorage,
   createLocalShareService,
 } from "./LocalAdapter";
+import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
+import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
 
-import type { CloudBackend } from "./types";
+import type { BackendCapabilities, CloudBackend } from "./types";
 
 let _backend: CloudBackend | null = null;
 
@@ -39,13 +41,45 @@ const assembleLocalBackend = (): CloudBackend => ({
 });
 
 /**
- * Returns the active cloud backend singleton. Phase 0: always LocalAdapter.
+ * Phase 1 Supabase assembly: only the `auth` and `scenes` slots are backed by
+ * Supabase (decision 0008 §4.3). Assets/shares/realtime/cast/embed/ai keep the
+ * Phase 0 Local implementations (they report `not-configured` / `false` until
+ * their own phases). The frozen contract shape is identical — only the two
+ * slots differ.
+ */
+const assembleSupabaseBackend = (
+  capabilities: BackendCapabilities,
+): CloudBackend => ({
+  capabilities,
+  auth: createSupabaseAuthProvider(),
+  scenes: createSupabaseSceneStorage(),
+  assets: createLocalAssetStorage(),
+  shares: createLocalShareService(),
+  realtime: createLocalRealtimeService(),
+  cast: createLocalCastService(),
+  embed: createLocalEmbedService(),
+  ai: createLocalAiGateway(),
+});
+
+/**
+ * Returns the active cloud backend singleton. Selects the Supabase assembly
+ * when the deployment has cloud scenes configured (decision 0008 §1.3:
+ * `hasSupabase` → Supabase adapter; otherwise stay pure-local, never fall back
+ * mid-flight). Local-first: no Supabase config means zero behavior change.
  */
 export const getCloudBackend = (): CloudBackend => {
   if (!_backend) {
-    _backend = assembleLocalBackend();
+    const capabilities = readCapabilities();
+    _backend = capabilities.sceneStorage
+      ? assembleSupabaseBackend(capabilities)
+      : assembleLocalBackend();
   }
   return _backend;
+};
+
+/** Test-only: reset the assembled singleton between tests. */
+export const __resetCloudBackendForTests = (): void => {
+  _backend = null;
 };
 
 // —— Frozen contract re-exports ——

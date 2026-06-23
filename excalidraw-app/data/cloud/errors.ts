@@ -6,6 +6,8 @@
  * directly to the user.
  */
 
+import { t } from "@excalidraw/excalidraw/i18n";
+
 export type BackendErrorCode =
   | "not-configured"
   | "unauthorized"
@@ -38,10 +40,9 @@ export class BackendError extends Error {
 }
 
 /** Helper for Phase 0 cloud-only methods that have no local implementation. */
-export const notConfigured = (capability: string): never => {
-  throw new BackendError(
-    "not-configured",
-    `${capability} 未配置后端（当前为本地模式）`,
-    { recoverable: true, nextAction: "切换本地保存" },
-  );
+export const notConfigured = (): never => {
+  throw new BackendError("not-configured", t("cloud.errors.notConfigured"), {
+    recoverable: true,
+    nextAction: t("cloud.errors.nextActionLocal"),
+  });
 };

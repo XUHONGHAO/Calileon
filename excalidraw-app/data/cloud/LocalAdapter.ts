@@ -28,7 +28,7 @@ import type {
 
 export const createLocalAuthProvider = (): AuthProvider => ({
   getCurrentUser: async () => null,
-  signIn: async () => notConfigured("账号登录"),
+  signIn: async () => notConfigured(),
   signOut: async () => {},
   onAuthStateChange: (cb) => {
     // No backend auth in local mode: report signed-out once, no-op unsubscribe.
@@ -38,25 +38,25 @@ export const createLocalAuthProvider = (): AuthProvider => ({
 });
 
 export const createLocalSceneStorage = (): SceneStorage => ({
-  save: async () => notConfigured("云端白板保存"),
-  load: async () => notConfigured("云端白板加载"),
-  list: async () => notConfigured("云端白板列表"),
-  rename: async () => notConfigured("云端白板重命名"),
-  remove: async () => notConfigured("云端白板删除"),
+  save: async () => notConfigured(),
+  load: async () => notConfigured(),
+  list: async () => notConfigured(),
+  rename: async () => notConfigured(),
+  remove: async () => notConfigured(),
 });
 
 export const createLocalAssetStorage = (): AssetStorage => ({
-  upload: async () => notConfigured("云端资产上传"),
-  getUrl: async () => notConfigured("云端资产地址"),
-  remove: async () => notConfigured("云端资产删除"),
-  listByScene: async () => notConfigured("云端资产列表"),
+  upload: async () => notConfigured(),
+  getUrl: async () => notConfigured(),
+  remove: async () => notConfigured(),
+  listByScene: async () => notConfigured(),
 });
 
 export const createLocalShareService = (): ShareService => ({
-  create: async () => notConfigured("分享链接创建"),
-  resolve: async () => notConfigured("分享链接解析"),
-  revoke: async () => notConfigured("分享链接撤销"),
-  listByScene: async () => notConfigured("分享链接列表"),
+  create: async () => notConfigured(),
+  resolve: async () => notConfigured(),
+  revoke: async () => notConfigured(),
+  listByScene: async () => notConfigured(),
 });
 
 export const createLocalRealtimeService = (): RealtimeService => ({

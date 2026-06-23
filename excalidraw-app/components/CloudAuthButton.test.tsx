@@ -1,0 +1,266 @@
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import React from "react";
+import { vi } from "vitest";
+
+import { Provider, appJotaiStore } from "../app-jotai";
+import { BackendError } from "../data/cloud";
+
+import { __resetCloudAuthForTests } from "../auth/useCloudAuth";
+
+import { CloudAuthButton } from "./CloudAuthButton";
+
+// The app wires jotai to `appJotaiStore`; the hook writes there too. Mirror
+// that in tests so `useAtom` reads the same store the hook updates.
+const render = (ui: React.ReactElement) =>
+  rtlRender(<Provider store={appJotaiStore}>{ui}</Provider>);
+
+// —— Mock the frozen CloudBackend contract (never Supabase directly) ——
+// Each test rebuilds the backend shape via `setBackend`.
+let mockBackend: any;
+const setBackend = (backend: any) => {
+  mockBackend = backend;
+};
+
+vi.mock("../data/cloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../data/cloud")>();
+  return {
+    ...actual,
+    getCloudBackend: () => mockBackend,
+  };
+});
+
+// The editor `Dialog` is tightly coupled to the Excalidraw editor context
+// (isolated jotai scope + appState). For a focused auth-flow test we stub it
+// with a minimal passthrough; the dialog's own plumbing is covered upstream.
+vi.mock("@excalidraw/excalidraw/components/Dialog", () => ({
+  Dialog: ({
+    children,
+    title,
+  }: {
+    children: React.ReactNode;
+    title: React.ReactNode;
+  }) => (
+    <div
+      role="dialog"
+      aria-label={typeof title === "string" ? title : undefined}
+    >
+      {children}
+    </div>
+  ),
+}));
+
+const makeBackend = (
+  overrides: {
+    auth?: boolean;
+    currentUser?: any;
+    signIn?: (m: any) => Promise<any>;
+    signOut?: () => Promise<void>;
+    sceneSummaries?: any[];
+  } = {},
+) => {
+  const listeners: Array<(u: any) => void> = [];
+  return {
+    capabilities: {
+      auth: overrides.auth ?? true,
+      sceneStorage: true,
+    },
+    auth: {
+      getCurrentUser: vi.fn(async () => overrides.currentUser ?? null),
+      signIn:
+        overrides.signIn ??
+        vi.fn(async () => ({
+          id: "u1",
+          email: "user@example.com",
+          displayName: null,
+          avatarUrl: null,
+          createdAt: 0,
+          lastSignInAt: null,
+        })),
+      signOut: overrides.signOut ?? vi.fn(async () => {}),
+      onAuthStateChange: vi.fn((cb: (u: any) => void) => {
+        listeners.push(cb);
+        return () => {};
+      }),
+    },
+    scenes: {
+      list: vi.fn(
+        async () =>
+          overrides.sceneSummaries ?? [
+            {
+              id: "scene-1",
+              title: "Roadmap",
+              version: 2,
+              updatedAt: 2,
+            },
+          ],
+      ),
+    },
+    __emit: (u: any) => listeners.forEach((l) => l(u)),
+  };
+};
+
+describe("CloudAuthButton (standalone cloud auth entry)", () => {
+  beforeEach(() => {
+    __resetCloudAuthForTests();
+  });
+
+  it("renders nothing in pure-local mode (auth capability false)", async () => {
+    setBackend(makeBackend({ auth: false }));
+    const { container } = render(<CloudAuthButton />);
+    // Local mode settles synchronously to signed-out, but the entry is hidden.
+    await waitFor(() => {
+      expect(container.querySelector(".CloudAuthButton")).toBeNull();
+    });
+    expect(screen.queryByText("Cloud sign in")).not.toBeInTheDocument();
+  });
+
+  it("shows a sign-in trigger when signed out", async () => {
+    setBackend(makeBackend({ auth: true, currentUser: null }));
+    render(<CloudAuthButton />);
+    expect(await screen.findByText("Cloud sign in")).toBeInTheDocument();
+  });
+
+  it("opens the dialog and signs in via email + password", async () => {
+    const signIn = vi.fn(async () => ({
+      id: "u1",
+      email: "user@example.com",
+      displayName: null,
+      avatarUrl: null,
+      createdAt: 0,
+      lastSignInAt: null,
+    }));
+    setBackend(makeBackend({ auth: true, currentUser: null, signIn }));
+    const onSignedIn = vi.fn();
+    const onOpenCloudScenes = vi.fn();
+    render(
+      <CloudAuthButton
+        onSignedIn={onSignedIn}
+        onOpenCloudScenes={onOpenCloudScenes}
+      />,
+    );
+
+    fireEvent.click(await screen.findByText("Cloud sign in"));
+
+    const email = await screen.findByLabelText("Email");
+    const password = screen.getByLabelText("Password");
+    fireEvent.change(email, { target: { value: "user@example.com" } });
+    fireEvent.change(password, { target: { value: "secret123" } });
+
+    const form = email.closest("form")!;
+    fireEvent.click(within(form).getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => {
+      expect(signIn).toHaveBeenCalledWith({
+        kind: "password",
+        email: "user@example.com",
+        password: "secret123",
+      });
+    });
+    await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
+    // After sign-in the entry flips to the account trigger. Identity and
+    // sign-out are shown only inside the account dialog.
+    const accountButton = await screen.findByRole("button", {
+      name: "Cloud account",
+    });
+    expect(screen.queryByText("user@example.com")).not.toBeInTheDocument();
+
+    fireEvent.click(accountButton);
+
+    expect(await screen.findByText("user@example.com")).toBeInTheDocument();
+    expect(await screen.findByText("1 saved")).toBeInTheDocument();
+    expect(screen.getByText("Latest: Roadmap")).toBeInTheDocument();
+    expect(screen.queryByText("Close")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Sign out" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Cloud whiteboards/ }));
+    expect(onOpenCloudScenes).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces the sanitized BackendError message on failure", async () => {
+    const signIn = vi.fn(async () => {
+      throw new BackendError("unauthorized", "邮箱或密码错误", {
+        nextAction: "重新登录",
+      });
+    });
+    setBackend(makeBackend({ auth: true, currentUser: null, signIn }));
+    render(<CloudAuthButton />);
+
+    fireEvent.click(await screen.findByText("Cloud sign in"));
+    fireEvent.change(await screen.findByLabelText("Email"), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "wrong" },
+    });
+    const form = screen.getByLabelText("Password").closest("form")!;
+    fireEvent.click(within(form).getByRole("button", { name: "Sign in" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "邮箱或密码错误",
+    );
+  });
+
+  it("shows account details in the dialog when already signed in, and signs out", async () => {
+    const signOut = vi.fn(async () => {});
+    const onSaveCloudScene = vi.fn(async () => {});
+    const sceneSummaries = [
+      {
+        id: "scene-1",
+        title: "Roadmap",
+        version: 2,
+        updatedAt: 2,
+      },
+    ];
+    setBackend(
+      makeBackend({
+        auth: true,
+        currentUser: {
+          id: "u1",
+          email: "me@example.com",
+          displayName: null,
+          avatarUrl: null,
+          createdAt: 0,
+          lastSignInAt: null,
+        },
+        signOut,
+        sceneSummaries,
+      }),
+    );
+    render(<CloudAuthButton onSaveCloudScene={onSaveCloudScene} />);
+
+    const accountButton = await screen.findByRole("button", {
+      name: "Cloud account",
+    });
+    expect(screen.queryByText("me@example.com")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Cloud sign out" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(accountButton);
+
+    expect(await screen.findByText("me@example.com")).toBeInTheDocument();
+    expect(await screen.findByText("1 saved")).toBeInTheDocument();
+    sceneSummaries.unshift({
+      id: "scene-2",
+      title: "Updated plan",
+      version: 1,
+      updatedAt: 3,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save to cloud" }));
+    await waitFor(() => expect(onSaveCloudScene).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("2 saved")).toBeInTheDocument();
+    expect(screen.getByText("Latest: Updated plan")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Cloud sign in")).toBeInTheDocument();
+  });
+});
