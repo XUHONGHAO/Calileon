@@ -315,4 +315,66 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     fireEvent.click(screen.getByRole("button", { name: /AI tasks/ }));
     expect(onOpenAITasks).toHaveBeenCalledTimes(1);
   });
+
+  it("shows current cloud scene refresh controls when a remote update exists", async () => {
+    const onCheckCurrentCloudScene = vi.fn(async () => {});
+    const onRefreshCurrentCloudScene = vi.fn(async () => {});
+    setBackend(
+      makeBackend({
+        auth: true,
+        currentUser: {
+          id: "u1",
+          email: "me@example.com",
+          displayName: null,
+          avatarUrl: null,
+          createdAt: 0,
+          lastSignInAt: null,
+        },
+      }),
+    );
+    render(
+      <CloudAuthButton
+        activeCloudScene={{
+          id: "scene-1",
+          title: "Roadmap",
+          version: 2,
+          updatedAt: 2,
+        }}
+        cloudSceneRemoteUpdate={{
+          status: "remote-newer",
+          metadata: {
+            id: "scene-1",
+            title: "Roadmap",
+            version: 3,
+            updatedAt: 3,
+          },
+          checkedAt: 3,
+        }}
+        onCheckCurrentCloudScene={onCheckCurrentCloudScene}
+        onRefreshCurrentCloudScene={onRefreshCurrentCloudScene}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cloud account" }),
+    );
+
+    expect(await screen.findByText("Current whiteboard")).toBeInTheDocument();
+    expect(screen.getByText("Version 2")).toBeInTheDocument();
+    expect(
+      screen.getByText("Newer cloud version available."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Check updates" }));
+    await waitFor(() =>
+      expect(onCheckCurrentCloudScene).toHaveBeenCalledTimes(1),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Refresh current whiteboard" }),
+    );
+    await waitFor(() =>
+      expect(onRefreshCurrentCloudScene).toHaveBeenCalledTimes(1),
+    );
+  });
 });

@@ -13,7 +13,11 @@ import React, { useState } from "react";
 
 import { useCloudAuth } from "../auth/useCloudAuth";
 
-import { AuthDialog } from "./AuthDialog";
+import {
+  AuthDialog,
+  type ActiveCloudSceneInfo,
+  type CloudSceneRemoteUpdateState,
+} from "./AuthDialog";
 
 import "./CloudAuthButton.scss";
 
@@ -26,6 +30,10 @@ export interface CloudAuthButtonProps {
   onOpenAITasks?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
+  activeCloudScene?: ActiveCloudSceneInfo | null;
+  cloudSceneRemoteUpdate?: CloudSceneRemoteUpdateState;
+  onCheckCurrentCloudScene?: () => void | Promise<void>;
+  onRefreshCurrentCloudScene?: () => void | Promise<void>;
   className?: string;
 }
 
@@ -34,6 +42,10 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
   onOpenCloudScenes,
   onOpenAITasks,
   onSaveCloudScene,
+  activeCloudScene,
+  cloudSceneRemoteUpdate,
+  onCheckCurrentCloudScene,
+  onRefreshCurrentCloudScene,
   className,
 }) => {
   const { isAuthAvailable, status, isSignedIn } = useCloudAuth();
@@ -63,6 +75,10 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
           onOpenCloudScenes={onOpenCloudScenes}
           onOpenAITasks={onOpenAITasks}
           onSaveCloudScene={onSaveCloudScene}
+          activeCloudScene={activeCloudScene}
+          cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
+          onCheckCurrentCloudScene={onCheckCurrentCloudScene}
+          onRefreshCurrentCloudScene={onRefreshCurrentCloudScene}
         />
       </div>
     );
@@ -81,6 +97,10 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
         onOpenCloudScenes={onOpenCloudScenes}
         onOpenAITasks={onOpenAITasks}
         onSaveCloudScene={onSaveCloudScene}
+        activeCloudScene={activeCloudScene}
+        cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
+        onCheckCurrentCloudScene={onCheckCurrentCloudScene}
+        onRefreshCurrentCloudScene={onRefreshCurrentCloudScene}
       />
     </div>
   );

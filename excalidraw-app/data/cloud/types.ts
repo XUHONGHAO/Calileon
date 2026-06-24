@@ -21,6 +21,7 @@ export interface BackendCapabilities {
   assetStorage: boolean;
   share: boolean;
   aiTasks: boolean;
+  collaborationMetadata: boolean;
   realtime: boolean;
   cast: boolean;
   embed: boolean;
@@ -60,6 +61,8 @@ export interface SceneSummary {
   updatedAt: number;
   thumbnailMeta?: SceneRecord["thumbnailMeta"];
 }
+
+export type SceneMetadata = SceneSummary;
 
 export type AssetType =
   | "image"
@@ -138,6 +141,30 @@ export type AITaskCreateInput = Omit<
   "id" | "ownerId" | "createdAt" | "updatedAt" | "deletedAt"
 >;
 
+export type SceneActivityOperation =
+  | "create"
+  | "update"
+  | "delete"
+  | "bind"
+  | "status-change"
+  | "tone-change";
+
+export interface SceneActivityRecord {
+  id: string;
+  ownerId: string;
+  sceneId: string;
+  elementId: string | null;
+  actorId: string;
+  operation: SceneActivityOperation;
+  summary: string | null;
+  createdAt: number;
+}
+
+export type SceneActivityCreateInput = Omit<
+  SceneActivityRecord,
+  "id" | "ownerId" | "createdAt"
+>;
+
 // —— Auth (BR-AUTH, Phase 1) ——
 // First version implements password sign-in only; oauth / magic-link
 // signatures are reserved and not implemented in Phase 1.
@@ -157,6 +184,7 @@ export interface AuthProvider {
 export interface SceneStorage {
   save(scene: SceneRecord): Promise<{ id: string; version: number }>;
   load(id: string): Promise<SceneRecord>;
+  getMetadata(id: string): Promise<SceneMetadata>;
   list(opts?: { sort?: "updatedAt" }): Promise<SceneSummary[]>;
   rename(id: string, title: string): Promise<void>;
   remove(id: string): Promise<void>; // soft delete
@@ -204,6 +232,15 @@ export interface AITaskService {
   remove(id: string): Promise<void>;
 }
 
+// —— Collaboration metadata (BR-META, Phase 3A) ——
+export interface SceneActivityService {
+  create(input: SceneActivityCreateInput): Promise<SceneActivityRecord>;
+  listByScene(
+    sceneId: string,
+    opts?: { limit?: number },
+  ): Promise<SceneActivityRecord[]>;
+}
+
 // —— Realtime (BR-RT, Phase 3/4; Phase 0 only declares existence) ——
 export interface RealtimeService {
   isAvailable(): boolean;
@@ -229,6 +266,7 @@ export interface CloudBackend {
   assets: AssetStorage;
   shares: ShareService;
   aiTasks: AITaskService;
+  activity: SceneActivityService;
   realtime: RealtimeService;
   cast: CastService;
   embed: EmbedService;

@@ -29,6 +29,7 @@ describe("readCapabilities", () => {
     expect(caps.assetStorage).toBe(false);
     expect(caps.share).toBe(false);
     expect(caps.aiTasks).toBe(false);
+    expect(caps.collaborationMetadata).toBe(false);
     expect(caps.aiGateway).toBe(false);
     expect(caps.realtime).toBe(false);
   });
@@ -44,6 +45,7 @@ describe("readCapabilities", () => {
     expect(caps.assetStorage).toBe(true);
     expect(caps.share).toBe(true);
     expect(caps.aiTasks).toBe(true);
+    expect(caps.collaborationMetadata).toBe(true);
     expect(caps.aiGateway).toBe(false);
   });
 

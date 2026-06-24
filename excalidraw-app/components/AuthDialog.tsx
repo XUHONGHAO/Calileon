@@ -19,7 +19,11 @@ import { t } from "@excalidraw/excalidraw/i18n";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { useCloudAuth } from "../auth/useCloudAuth";
-import { getCloudBackend, type AITaskStatus } from "../data/cloud";
+import {
+  getCloudBackend,
+  type AITaskStatus,
+  type SceneSummary,
+} from "../data/cloud";
 
 import "./AuthDialog.scss";
 
@@ -39,6 +43,20 @@ const getAITaskStatusLabel = (status: AITaskStatus) => {
   return t("cloud.aiTasks.statusQueued");
 };
 
+export type CloudSceneRemoteUpdateState =
+  | { status: "idle" }
+  | { status: "checking" }
+  | { status: "up-to-date"; checkedAt: number }
+  | { status: "remote-newer"; metadata: SceneSummary; checkedAt: number }
+  | { status: "error"; message: string; checkedAt: number };
+
+export interface ActiveCloudSceneInfo {
+  id: string;
+  title: string;
+  version: number;
+  updatedAt: number;
+}
+
 export interface AuthDialogProps {
   open: boolean;
   onClose: () => void;
@@ -50,6 +68,14 @@ export interface AuthDialogProps {
   onOpenAITasks?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
+  /** Current account-owned cloud whiteboard, if the local canvas is bound. */
+  activeCloudScene?: ActiveCloudSceneInfo | null;
+  /** Latest lightweight remote-version check result for the current whiteboard. */
+  cloudSceneRemoteUpdate?: CloudSceneRemoteUpdateState;
+  /** Checks whether the current cloud whiteboard has a newer remote version. */
+  onCheckCurrentCloudScene?: () => void | Promise<void>;
+  /** Reloads the current cloud whiteboard from the backend. */
+  onRefreshCurrentCloudScene?: () => void | Promise<void>;
 }
 
 export const AuthDialog: React.FC<AuthDialogProps> = ({
@@ -59,6 +85,10 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   onOpenCloudScenes,
   onOpenAITasks,
   onSaveCloudScene,
+  activeCloudScene,
+  cloudSceneRemoteUpdate = { status: "idle" },
+  onCheckCurrentCloudScene,
+  onRefreshCurrentCloudScene,
 }) => {
   const { isSignedIn, user, signIn, signOut } = useCloudAuth();
   const [email, setEmail] = useState("");
@@ -67,6 +97,8 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [savingCloudScene, setSavingCloudScene] = useState(false);
+  const [checkingCurrentScene, setCheckingCurrentScene] = useState(false);
+  const [refreshingCurrentScene, setRefreshingCurrentScene] = useState(false);
   const [sceneStats, setSceneStats] = useState<
     | { status: "idle" | "loading" | "unavailable" }
     | {
@@ -195,10 +227,18 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     setSubmitting(false);
     setSigningOut(false);
     setSavingCloudScene(false);
+    setCheckingCurrentScene(false);
+    setRefreshingCurrentScene(false);
   };
 
   const handleClose = () => {
-    if (submitting || signingOut || savingCloudScene) {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene
+    ) {
       return;
     }
     reset();
@@ -250,7 +290,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   };
 
   const handleOpenCloudScenes = () => {
-    if (submitting || signingOut || !onOpenCloudScenes) {
+    if (
+      submitting ||
+      signingOut ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      !onOpenCloudScenes
+    ) {
       return;
     }
     reset();
@@ -259,7 +305,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   };
 
   const handleOpenAITasks = () => {
-    if (submitting || signingOut || !onOpenAITasks) {
+    if (
+      submitting ||
+      signingOut ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      !onOpenAITasks
+    ) {
       return;
     }
     reset();
@@ -268,7 +320,14 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   };
 
   const handleSaveCloudScene = async () => {
-    if (submitting || signingOut || savingCloudScene || !onSaveCloudScene) {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      !onSaveCloudScene
+    ) {
       return;
     }
 
@@ -278,6 +337,45 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       await loadSceneStats();
     } finally {
       setSavingCloudScene(false);
+    }
+  };
+
+  const handleCheckCurrentCloudScene = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      !onCheckCurrentCloudScene
+    ) {
+      return;
+    }
+
+    setCheckingCurrentScene(true);
+    try {
+      await onCheckCurrentCloudScene();
+    } finally {
+      setCheckingCurrentScene(false);
+    }
+  };
+
+  const handleRefreshCurrentCloudScene = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      !onRefreshCurrentCloudScene
+    ) {
+      return;
+    }
+
+    setRefreshingCurrentScene(true);
+    try {
+      await onRefreshCurrentCloudScene();
+      await loadSceneStats();
+    } finally {
+      setRefreshingCurrentScene(false);
     }
   };
 
@@ -310,6 +408,34 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
         })
       : t("cloud.auth.cloudAITasksLoading");
 
+  const currentSceneStatusLabel =
+    cloudSceneRemoteUpdate.status === "checking" || checkingCurrentScene
+      ? t("cloud.auth.currentCloudWhiteboardChecking")
+      : cloudSceneRemoteUpdate.status === "remote-newer"
+      ? t("cloud.auth.currentCloudWhiteboardRemoteNewer")
+      : cloudSceneRemoteUpdate.status === "up-to-date"
+      ? t("cloud.auth.currentCloudWhiteboardUpToDate")
+      : cloudSceneRemoteUpdate.status === "error"
+      ? cloudSceneRemoteUpdate.message
+      : t("cloud.auth.currentCloudWhiteboardIdle");
+
+  const canCheckCurrentScene =
+    !!activeCloudScene &&
+    !!onCheckCurrentCloudScene &&
+    !signingOut &&
+    !savingCloudScene &&
+    !checkingCurrentScene &&
+    !refreshingCurrentScene;
+
+  const canRefreshCurrentScene =
+    !!activeCloudScene &&
+    !!onRefreshCurrentCloudScene &&
+    cloudSceneRemoteUpdate.status === "remote-newer" &&
+    !signingOut &&
+    !savingCloudScene &&
+    !checkingCurrentScene &&
+    !refreshingCurrentScene;
+
   const closeButton = (
     <button
       className="AuthDialog__close"
@@ -317,7 +443,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       aria-label={t("buttons.close")}
       title={t("buttons.close")}
       onClick={handleClose}
-      disabled={submitting || signingOut || savingCloudScene}
+      disabled={
+        submitting ||
+        signingOut ||
+        savingCloudScene ||
+        checkingCurrentScene ||
+        refreshingCurrentScene
+      }
     >
       {CloseIcon}
     </button>
@@ -346,7 +478,12 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                 className="AuthDialog__cardAction"
                 type="button"
                 onClick={handleSignOut}
-                disabled={signingOut || savingCloudScene}
+                disabled={
+                  signingOut ||
+                  savingCloudScene ||
+                  checkingCurrentScene ||
+                  refreshingCurrentScene
+                }
               >
                 {signingOut
                   ? t("cloud.auth.signingOut")
@@ -358,7 +495,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
               className="AuthDialog__accountCard AuthDialog__accountCard--button"
               type="button"
               onClick={handleOpenCloudScenes}
-              disabled={!onOpenCloudScenes || signingOut || savingCloudScene}
+              disabled={
+                !onOpenCloudScenes ||
+                signingOut ||
+                savingCloudScene ||
+                checkingCurrentScene ||
+                refreshingCurrentScene
+              }
             >
               <span>{t("cloud.auth.cloudWhiteboards")}</span>
               <strong>{cloudSceneCountLabel}</strong>
@@ -378,7 +521,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
               className="AuthDialog__accountCard AuthDialog__accountCard--button"
               type="button"
               onClick={handleOpenAITasks}
-              disabled={!onOpenAITasks || signingOut || savingCloudScene}
+              disabled={
+                !onOpenAITasks ||
+                signingOut ||
+                savingCloudScene ||
+                checkingCurrentScene ||
+                refreshingCurrentScene
+              }
             >
               <span>{t("cloud.auth.cloudAITasks")}</span>
               <strong>{cloudTaskCountLabel}</strong>
@@ -393,6 +542,51 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                 <small>{taskStats.message}</small>
               )}
             </button>
+
+            {activeCloudScene && (
+              <div
+                className={`AuthDialog__accountCard AuthDialog__currentSceneCard ${
+                  cloudSceneRemoteUpdate.status === "remote-newer"
+                    ? "AuthDialog__currentSceneCard--stale"
+                    : ""
+                }`}
+              >
+                <span>{t("cloud.auth.currentCloudWhiteboard")}</span>
+                <strong title={activeCloudScene.title}>
+                  {activeCloudScene.title}
+                </strong>
+                <small>
+                  {t("cloud.auth.currentCloudWhiteboardVersion", {
+                    version: activeCloudScene.version,
+                  })}
+                </small>
+                <small>{currentSceneStatusLabel}</small>
+                <div className="AuthDialog__cardActions">
+                  <button
+                    className="AuthDialog__cardAction"
+                    type="button"
+                    onClick={() => void handleCheckCurrentCloudScene()}
+                    disabled={!canCheckCurrentScene}
+                  >
+                    {checkingCurrentScene
+                      ? t("cloud.auth.currentCloudWhiteboardChecking")
+                      : t("cloud.auth.checkCurrentCloudWhiteboard")}
+                  </button>
+                  {cloudSceneRemoteUpdate.status === "remote-newer" && (
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={() => void handleRefreshCurrentCloudScene()}
+                      disabled={!canRefreshCurrentScene}
+                    >
+                      {refreshingCurrentScene
+                        ? t("cloud.auth.refreshingCurrentCloudWhiteboard")
+                        : t("cloud.auth.refreshCurrentCloudWhiteboard")}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {error && (
@@ -405,7 +599,12 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
             {onSaveCloudScene && (
               <Button
                 onSelect={() => void handleSaveCloudScene()}
-                disabled={signingOut || savingCloudScene}
+                disabled={
+                  signingOut ||
+                  savingCloudScene ||
+                  checkingCurrentScene ||
+                  refreshingCurrentScene
+                }
               >
                 {t("cloud.scenes.saveToCloud")}
               </Button>

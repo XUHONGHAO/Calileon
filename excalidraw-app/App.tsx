@@ -187,13 +187,14 @@ import type {
   GenerationLogReuseRequest,
   PromptTemplateRequest,
 } from "./components/AppSidebar";
-import type { SceneRecord } from "./data/cloud";
+import type { SceneRecord, SceneSummary } from "./data/cloud";
 import type { CloudAITaskRun } from "./data/cloud/cloudAITasks";
 
 polyfill();
 
 const CLOUD_AUTOSAVE_DEBOUNCE_MS = 3000;
 const CLOUD_BINDING_SYNC_DEBOUNCE_MS = 500;
+const CLOUD_REMOTE_UPDATE_CHECK_MS = 60000;
 
 type ActiveCloudScene = {
   id: string;
@@ -208,6 +209,13 @@ type ActiveSharedScene = ActiveCloudScene & {
   token: string;
   mode: "read" | "write";
 };
+
+type CloudSceneRemoteUpdateState =
+  | { status: "idle" }
+  | { status: "checking" }
+  | { status: "up-to-date"; checkedAt: number }
+  | { status: "remote-newer"; metadata: SceneSummary; checkedAt: number }
+  | { status: "error"; message: string; checkedAt: number };
 
 // Phase 0: all backend/persistence access goes through the `data/cloud`
 // adapter layer. These bindings keep today's call sites unchanged while
@@ -536,6 +544,9 @@ const ExcalidrawWrapper = () => {
   const [activeCloudScene, setActiveCloudScene] =
     useState<ActiveCloudScene | null>(null);
   const activeCloudSceneRef = useRef<ActiveCloudScene | null>(null);
+  const [cloudSceneRemoteUpdate, setCloudSceneRemoteUpdate] =
+    useState<CloudSceneRemoteUpdateState>({ status: "idle" });
+  const cloudSceneRemoteUpdateToastRef = useRef<string | null>(null);
   const [activeSharedScene, setActiveSharedScene] =
     useState<ActiveSharedScene | null>(null);
   const activeSharedSceneRef = useRef<ActiveSharedScene | null>(null);
@@ -601,6 +612,8 @@ const ExcalidrawWrapper = () => {
 
     setActiveCloudScene(null);
     activeCloudSceneRef.current = null;
+    setCloudSceneRemoteUpdate({ status: "idle" });
+    cloudSceneRemoteUpdateToastRef.current = null;
     lastCloudLocalPayloadHashRef.current = null;
     lastCloudSavedPayloadHashRef.current = null;
 
@@ -1103,6 +1116,17 @@ const ExcalidrawWrapper = () => {
         if (activeScene?.id && checkRemoteVersion) {
           const remoteScene = await backend.scenes.load(activeScene.id);
           if (remoteScene.version > activeScene.version) {
+            setCloudSceneRemoteUpdate({
+              status: "remote-newer",
+              metadata: {
+                id: remoteScene.id!,
+                title: remoteScene.title,
+                version: remoteScene.version,
+                updatedAt: remoteScene.updatedAt,
+                thumbnailMeta: remoteScene.thumbnailMeta,
+              },
+              checkedAt: Date.now(),
+            });
             if (
               silent ||
               !window.confirm(t("cloud.scenes.remoteNewerConfirm"))
@@ -1153,6 +1177,8 @@ const ExcalidrawWrapper = () => {
 
         setActiveCloudScene(nextActiveScene);
         activeCloudSceneRef.current = nextActiveScene;
+        setCloudSceneRemoteUpdate({ status: "up-to-date", checkedAt: now });
+        cloudSceneRemoteUpdateToastRef.current = null;
         lastCloudLocalPayloadHashRef.current = payloadHash;
         lastCloudSavedPayloadHashRef.current = didSyncAssets
           ? payloadHash
@@ -1315,6 +1341,131 @@ const ExcalidrawWrapper = () => {
     },
     [cloudAuth.user],
   );
+
+  const checkActiveCloudSceneRemoteUpdate = useCallback(
+    async (opts: { silent?: boolean } = {}): Promise<SceneSummary | null> => {
+      const { silent = false } = opts;
+      const activeScene = activeCloudSceneRef.current;
+
+      if (
+        !activeScene?.id ||
+        !cloudAuth.isSignedIn ||
+        !cloudAuth.user ||
+        navigator.onLine === false
+      ) {
+        if (!activeScene?.id) {
+          setCloudSceneRemoteUpdate({ status: "idle" });
+        }
+        return null;
+      }
+
+      const backend = getCloudBackend();
+      if (!backend.capabilities.sceneStorage) {
+        setCloudSceneRemoteUpdate({ status: "idle" });
+        return null;
+      }
+
+      if (!silent) {
+        setCloudSceneRemoteUpdate({ status: "checking" });
+      }
+
+      try {
+        const metadata = await backend.scenes.getMetadata(activeScene.id);
+        const currentActiveScene = activeCloudSceneRef.current;
+
+        if (!currentActiveScene || currentActiveScene.id !== metadata.id) {
+          return null;
+        }
+
+        if (metadata.version > currentActiveScene.version) {
+          setCloudSceneRemoteUpdate({
+            status: "remote-newer",
+            metadata,
+            checkedAt: Date.now(),
+          });
+
+          const toastKey = `${metadata.id}:${metadata.version}`;
+          if (cloudSceneRemoteUpdateToastRef.current !== toastKey) {
+            cloudSceneRemoteUpdateToastRef.current = toastKey;
+            excalidrawAPI?.setToast({
+              message: t("cloud.scenes.remoteUpdateAvailable"),
+            });
+          }
+          return metadata;
+        }
+
+        if (
+          metadata.version === currentActiveScene.version &&
+          (metadata.updatedAt !== currentActiveScene.updatedAt ||
+            metadata.title !== currentActiveScene.title)
+        ) {
+          const nextActiveScene = {
+            ...currentActiveScene,
+            title: metadata.title,
+            updatedAt: metadata.updatedAt,
+          };
+          setActiveCloudScene(nextActiveScene);
+          activeCloudSceneRef.current = nextActiveScene;
+        }
+
+        setCloudSceneRemoteUpdate({
+          status: "up-to-date",
+          checkedAt: Date.now(),
+        });
+        cloudSceneRemoteUpdateToastRef.current = null;
+        return null;
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : t("cloud.scenes.genericError");
+        setCloudSceneRemoteUpdate({
+          status: "error",
+          message,
+          checkedAt: Date.now(),
+        });
+        if (!silent) {
+          excalidrawAPI?.setToast({ message });
+        }
+        return null;
+      }
+    },
+    [cloudAuth.isSignedIn, cloudAuth.user, excalidrawAPI],
+  );
+
+  useEffect(() => {
+    if (!activeCloudScene?.id || !cloudAuth.isSignedIn || !cloudAuth.user) {
+      setCloudSceneRemoteUpdate({ status: "idle" });
+      cloudSceneRemoteUpdateToastRef.current = null;
+      return;
+    }
+
+    void checkActiveCloudSceneRemoteUpdate({ silent: true });
+
+    const interval = window.setInterval(() => {
+      void checkActiveCloudSceneRemoteUpdate({ silent: true });
+    }, CLOUD_REMOTE_UPDATE_CHECK_MS);
+
+    const checkWhenVisible = () => {
+      if (!document.hidden) {
+        void checkActiveCloudSceneRemoteUpdate({ silent: true });
+      }
+    };
+
+    window.addEventListener(EVENT.FOCUS, checkWhenVisible);
+    document.addEventListener(EVENT.VISIBILITY_CHANGE, checkWhenVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener(EVENT.FOCUS, checkWhenVisible);
+      document.removeEventListener(EVENT.VISIBILITY_CHANGE, checkWhenVisible);
+    };
+  }, [
+    activeCloudScene?.id,
+    checkActiveCloudSceneRemoteUpdate,
+    cloudAuth.isSignedIn,
+    cloudAuth.user,
+  ]);
 
   const syncActiveCloudSceneLocalBinding = useCallback(
     (
@@ -1656,6 +1807,11 @@ const ExcalidrawWrapper = () => {
         };
         setActiveCloudScene(nextActiveScene);
         activeCloudSceneRef.current = nextActiveScene;
+        setCloudSceneRemoteUpdate({
+          status: "up-to-date",
+          checkedAt: Date.now(),
+        });
+        cloudSceneRemoteUpdateToastRef.current = null;
         const serializedPayload = serializeAsJSON(
           restoredElements,
           restoredAppState,
@@ -1685,6 +1841,39 @@ const ExcalidrawWrapper = () => {
     },
     [collabAPI, excalidrawAPI],
   );
+
+  const refreshActiveCloudSceneFromRemote = useCallback(async () => {
+    const activeScene = activeCloudSceneRef.current;
+    if (!activeScene?.id || !excalidrawAPI) {
+      return;
+    }
+
+    try {
+      const serializedPayload = serializeAsJSON(
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+        excalidrawAPI.getAppState(),
+        excalidrawAPI.getFiles(),
+        "database",
+      );
+      const payloadHash = getCloudPayloadHash(serializedPayload);
+      if (
+        payloadHash !== lastCloudSavedPayloadHashRef.current &&
+        !window.confirm(t("cloud.scenes.refreshUnsavedConfirm"))
+      ) {
+        return;
+      }
+
+      const record = await getCloudBackend().scenes.load(activeScene.id);
+      await onOpenCloudScene(record);
+    } catch (error) {
+      excalidrawAPI.setToast({
+        message:
+          error instanceof Error
+            ? error.message
+            : t("cloud.scenes.genericError"),
+      });
+    }
+  }, [excalidrawAPI, onOpenCloudScene]);
 
   const renderInputInviteContextMenuItems = useCallback<
     NonNullable<ExcalidrawProps["renderCustomContextMenuItems"]>
@@ -2112,6 +2301,12 @@ const ExcalidrawWrapper = () => {
           onSaveCloudScene={async () => {
             await saveCurrentSceneToCloud();
           }}
+          activeCloudScene={activeCloudScene}
+          cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
+          onCheckCurrentCloudScene={async () => {
+            await checkActiveCloudSceneRemoteUpdate();
+          }}
+          onRefreshCurrentCloudScene={refreshActiveCloudSceneFromRemote}
         />
         <SceneListDialog
           open={isCloudSceneListOpen}

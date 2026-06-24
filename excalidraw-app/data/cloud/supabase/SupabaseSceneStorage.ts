@@ -28,7 +28,12 @@ import {
 } from "./mappers";
 
 import type { SceneRow, SceneSummaryRow } from "./mappers";
-import type { SceneRecord, SceneStorage, SceneSummary } from "../types";
+import type {
+  SceneMetadata,
+  SceneRecord,
+  SceneStorage,
+  SceneSummary,
+} from "../types";
 
 const TABLE = "scenes";
 const SUMMARY_COLUMNS = "id,title,version,updated_at,thumbnail_meta";
@@ -103,6 +108,20 @@ export const createSupabaseSceneStorage = (): SceneStorage => {
     return rowToSceneRecord(data as SceneRow);
   };
 
+  const getMetadata = async (id: string): Promise<SceneMetadata> => {
+    const client = getSupabaseClient();
+    const { data, error } = await client
+      .from(TABLE)
+      .select(SUMMARY_COLUMNS)
+      .eq("id", id)
+      .is("deleted_at", null)
+      .single();
+    if (error || !data) {
+      throw mapDataError(error);
+    }
+    return rowToSceneSummary(data as SceneSummaryRow);
+  };
+
   const list = async (opts?: {
     sort?: "updatedAt";
   }): Promise<SceneSummary[]> => {
@@ -144,5 +163,5 @@ export const createSupabaseSceneStorage = (): SceneStorage => {
     }
   };
 
-  return { save, load, list, rename, remove };
+  return { save, load, getMetadata, list, rename, remove };
 };

@@ -23,6 +23,7 @@ import type {
   CastService,
   EmbedService,
   RealtimeService,
+  SceneActivityService,
   SceneStorage,
   ShareService,
 } from "./types";
@@ -41,6 +42,7 @@ export const createLocalAuthProvider = (): AuthProvider => ({
 export const createLocalSceneStorage = (): SceneStorage => ({
   save: async () => notConfigured(),
   load: async () => notConfigured(),
+  getMetadata: async () => notConfigured(),
   list: async () => notConfigured(),
   rename: async () => notConfigured(),
   remove: async () => notConfigured(),
@@ -67,6 +69,11 @@ export const createLocalAITaskService = (): AITaskService => ({
   create: async () => notConfigured(),
   list: async () => notConfigured(),
   remove: async () => notConfigured(),
+});
+
+export const createLocalSceneActivityService = (): SceneActivityService => ({
+  create: async () => notConfigured(),
+  listByScene: async () => notConfigured(),
 });
 
 export const createLocalRealtimeService = (): RealtimeService => ({

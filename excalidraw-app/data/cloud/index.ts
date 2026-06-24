@@ -19,12 +19,14 @@ import {
   createLocalCastService,
   createLocalEmbedService,
   createLocalRealtimeService,
+  createLocalSceneActivityService,
   createLocalSceneStorage,
   createLocalShareService,
 } from "./LocalAdapter";
 import { createSupabaseAssetStorage } from "./supabase/SupabaseAssetStorage";
 import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
 import { createSupabaseAITaskService } from "./supabase/SupabaseAITaskService";
+import { createSupabaseSceneActivityService } from "./supabase/SupabaseSceneActivityService";
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
 import { createSupabaseShareService } from "./supabase/SupabaseShareService";
 
@@ -39,6 +41,7 @@ const assembleLocalBackend = (): CloudBackend => ({
   assets: createLocalAssetStorage(),
   shares: createLocalShareService(),
   aiTasks: createLocalAITaskService(),
+  activity: createLocalSceneActivityService(),
   realtime: createLocalRealtimeService(),
   cast: createLocalCastService(),
   embed: createLocalEmbedService(),
@@ -61,6 +64,7 @@ const assembleSupabaseBackend = (
   assets: createSupabaseAssetStorage(),
   shares: createSupabaseShareService(),
   aiTasks: createSupabaseAITaskService(),
+  activity: createSupabaseSceneActivityService(),
   realtime: createLocalRealtimeService(),
   cast: createLocalCastService(),
   embed: createLocalEmbedService(),

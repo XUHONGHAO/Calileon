@@ -208,6 +208,40 @@ describe("SupabaseSceneStorage", () => {
     });
   });
 
+  describe("getMetadata", () => {
+    it("loads lightweight scene metadata without the payload", async () => {
+      const builder = makeBuilder({
+        data: {
+          id: "scene-1",
+          title: "Board",
+          version: 4,
+          updated_at: "2026-06-20T10:00:00.000Z",
+          thumbnail_meta: null,
+        },
+        error: null,
+      });
+      mockFrom.mockReturnValue(builder);
+
+      const metadata = await createSupabaseSceneStorage().getMetadata(
+        "scene-1",
+      );
+      expect(metadata).toMatchObject({
+        id: "scene-1",
+        title: "Board",
+        version: 4,
+      });
+
+      const calls = (
+        builder as { __calls: Array<{ method: string; args: unknown[] }> }
+      ).__calls;
+      const select = calls.find((c) => c.method === "select");
+      expect(select?.args[0]).toBe(
+        "id,title,version,updated_at,thumbnail_meta",
+      );
+      expect(calls.some((c) => c.method === "single")).toBe(true);
+    });
+  });
+
   describe("rename", () => {
     it("updates only the title on a non-deleted row", async () => {
       const builder = makeBuilder({ error: null });

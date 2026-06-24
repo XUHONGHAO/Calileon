@@ -57,6 +57,7 @@ export const readCapabilities = (): BackendCapabilities => {
     assetStorage,
     share,
     aiTasks: hasSupabase, // Phase 2C: Supabase AI task metadata/index
+    collaborationMetadata: hasSupabase, // Phase 3A: activity_log metadata
     realtime,
     cast: false, // Phase 3
     embed: false, // Phase 3
