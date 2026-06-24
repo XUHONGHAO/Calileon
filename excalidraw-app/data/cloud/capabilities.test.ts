@@ -31,6 +31,7 @@ describe("readCapabilities", () => {
     expect(caps.aiTasks).toBe(false);
     expect(caps.collaborationMetadata).toBe(false);
     expect(caps.cast).toBe(false);
+    expect(caps.embed).toBe(false);
     expect(caps.aiGateway).toBe(false);
     expect(caps.realtime).toBe(false);
   });
@@ -48,6 +49,7 @@ describe("readCapabilities", () => {
     expect(caps.aiTasks).toBe(true);
     expect(caps.collaborationMetadata).toBe(true);
     expect(caps.cast).toBe(true);
+    expect(caps.embed).toBe(true);
     expect(caps.aiGateway).toBe(false);
   });
 

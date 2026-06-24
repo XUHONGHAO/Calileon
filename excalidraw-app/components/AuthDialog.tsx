@@ -23,6 +23,7 @@ import {
   getCloudBackend,
   type AITaskStatus,
   type CastSessionStatus,
+  type EmbedMode,
   type SceneSummary,
 } from "../data/cloud";
 
@@ -57,6 +58,16 @@ const getCastSessionStatusLabel = (status: CastSessionStatus) => {
   return t("cloud.castArtifacts.statusDraft");
 };
 
+const getEmbedModeLabel = (mode: EmbedMode) => {
+  if (mode === "write") {
+    return t("cloud.embed.modeWrite");
+  }
+  if (mode === "collab") {
+    return t("cloud.embed.modeCollab");
+  }
+  return t("cloud.embed.modeRead");
+};
+
 export type CloudSceneRemoteUpdateState =
   | { status: "idle" }
   | { status: "checking" }
@@ -80,6 +91,8 @@ export interface AuthDialogProps {
   onOpenCloudScenes?: () => void;
   /** Opens the user's cloud AI task list from the account panel. */
   onOpenAITasks?: () => void;
+  /** Opens embed management for the current cloud whiteboard. */
+  onOpenEmbeds?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
   /** Current account-owned cloud whiteboard, if the local canvas is bound. */
@@ -98,6 +111,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   onSignedIn,
   onOpenCloudScenes,
   onOpenAITasks,
+  onOpenEmbeds,
   onSaveCloudScene,
   activeCloudScene,
   cloudSceneRemoteUpdate = { status: "idle" },
@@ -114,6 +128,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   const [checkingCurrentScene, setCheckingCurrentScene] = useState(false);
   const [refreshingCurrentScene, setRefreshingCurrentScene] = useState(false);
   const [refreshingCastStats, setRefreshingCastStats] = useState(false);
+  const [refreshingEmbedStats, setRefreshingEmbedStats] = useState(false);
   const [sceneStats, setSceneStats] = useState<
     | { status: "idle" | "loading" | "unavailable" }
     | {
@@ -139,6 +154,15 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
         sessionCount: number;
         exportCount: number;
         latestStatus: CastSessionStatus | null;
+      }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+  const [embedStats, setEmbedStats] = useState<
+    | { status: "idle" | "loading" | "unavailable" }
+    | {
+        status: "ready";
+        count: number;
+        latestMode: EmbedMode | null;
       }
     | { status: "error"; message: string }
   >({ status: "idle" });
@@ -271,11 +295,54 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     [activeCloudScene, isSignedIn],
   );
 
+  const loadEmbedStats = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      if (!isSignedIn || !activeCloudScene) {
+        setEmbedStats({ status: "idle" });
+        return;
+      }
+
+      const backend = getCloudBackend();
+      if (!backend.capabilities.embed) {
+        setEmbedStats({ status: "unavailable" });
+        return;
+      }
+
+      setEmbedStats({ status: "loading" });
+      try {
+        const embeds = await backend.embed.listByScene(activeCloudScene.id, {
+          limit: 20,
+        });
+        if (isCancelled()) {
+          return;
+        }
+
+        setEmbedStats({
+          status: "ready",
+          count: embeds.length,
+          latestMode: embeds[0]?.mode ?? null,
+        });
+      } catch (err) {
+        if (isCancelled()) {
+          return;
+        }
+
+        setEmbedStats({
+          status: "error",
+          message:
+            err instanceof Error ? err.message : t("cloud.embed.genericError"),
+        });
+      }
+    },
+    [activeCloudScene, isSignedIn],
+  );
+
   useEffect(() => {
     if (!open || !isSignedIn) {
       setSceneStats({ status: "idle" });
       setTaskStats({ status: "idle" });
       setCastStats({ status: "idle" });
+      setEmbedStats({ status: "idle" });
       return;
     }
 
@@ -283,11 +350,19 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     void loadSceneStats(() => cancelled);
     void loadTaskStats(() => cancelled);
     void loadCastStats(() => cancelled);
+    void loadEmbedStats(() => cancelled);
 
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, loadCastStats, loadSceneStats, loadTaskStats, open]);
+  }, [
+    isSignedIn,
+    loadCastStats,
+    loadEmbedStats,
+    loadSceneStats,
+    loadTaskStats,
+    open,
+  ]);
 
   if (!open) {
     return null;
@@ -303,6 +378,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     setCheckingCurrentScene(false);
     setRefreshingCurrentScene(false);
     setRefreshingCastStats(false);
+    setRefreshingEmbedStats(false);
   };
 
   const handleClose = () => {
@@ -311,7 +387,8 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       signingOut ||
       savingCloudScene ||
       checkingCurrentScene ||
-      refreshingCurrentScene
+      refreshingCurrentScene ||
+      refreshingEmbedStats
     ) {
       return;
     }
@@ -391,6 +468,21 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     reset();
     onClose();
     onOpenAITasks();
+  };
+
+  const handleOpenEmbeds = () => {
+    if (
+      submitting ||
+      signingOut ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      !onOpenEmbeds
+    ) {
+      return;
+    }
+    reset();
+    onClose();
+    onOpenEmbeds();
   };
 
   const handleSaveCloudScene = async () => {
@@ -473,6 +565,26 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     }
   };
 
+  const handleRefreshEmbedStats = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      refreshingEmbedStats
+    ) {
+      return;
+    }
+
+    setRefreshingEmbedStats(true);
+    try {
+      await loadEmbedStats();
+    } finally {
+      setRefreshingEmbedStats(false);
+    }
+  };
+
   const accountLabel =
     user?.email || user?.displayName || t("cloud.auth.account");
 
@@ -526,6 +638,19 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
           exports: castStats.exportCount,
         })
       : t("cloud.castArtifacts.loading");
+
+  const embedStatsLabel =
+    embedStats.status === "loading" || refreshingEmbedStats
+      ? t("cloud.embed.loading")
+      : embedStats.status === "unavailable"
+      ? t("cloud.embed.unavailable")
+      : embedStats.status === "error"
+      ? t("cloud.embed.unavailable")
+      : embedStats.status === "ready"
+      ? t("cloud.embed.count", {
+          count: embedStats.count,
+        })
+      : t("cloud.embed.loading");
 
   const canCheckCurrentScene =
     !!activeCloudScene &&
@@ -723,12 +848,65 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                       savingCloudScene ||
                       checkingCurrentScene ||
                       refreshingCurrentScene ||
-                      refreshingCastStats
+                      refreshingCastStats ||
+                      refreshingEmbedStats
                     }
                   >
                     {refreshingCastStats
                       ? t("cloud.castArtifacts.loading")
                       : t("cloud.castArtifacts.refresh")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeCloudScene && (
+              <div className="AuthDialog__accountCard AuthDialog__embedCard">
+                <span>{t("cloud.embed.title")}</span>
+                <strong>{embedStatsLabel}</strong>
+                {embedStats.status === "ready" && embedStats.latestMode && (
+                  <small>
+                    {t("cloud.embed.latest", {
+                      mode: getEmbedModeLabel(embedStats.latestMode),
+                    })}
+                  </small>
+                )}
+                {embedStats.status === "ready" && !embedStats.latestMode && (
+                  <small>{t("cloud.embed.empty")}</small>
+                )}
+                {embedStats.status === "error" && (
+                  <small>{embedStats.message}</small>
+                )}
+                <div className="AuthDialog__cardActions">
+                  <button
+                    className="AuthDialog__cardAction"
+                    type="button"
+                    onClick={handleOpenEmbeds}
+                    disabled={
+                      !onOpenEmbeds ||
+                      signingOut ||
+                      savingCloudScene ||
+                      checkingCurrentScene ||
+                      refreshingCurrentScene
+                    }
+                  >
+                    {t("cloud.embed.manage")}
+                  </button>
+                  <button
+                    className="AuthDialog__cardAction"
+                    type="button"
+                    onClick={() => void handleRefreshEmbedStats()}
+                    disabled={
+                      signingOut ||
+                      savingCloudScene ||
+                      checkingCurrentScene ||
+                      refreshingCurrentScene ||
+                      refreshingEmbedStats
+                    }
+                  >
+                    {refreshingEmbedStats
+                      ? t("cloud.embed.loading")
+                      : t("cloud.embed.refresh")}
                   </button>
                 </div>
               </div>

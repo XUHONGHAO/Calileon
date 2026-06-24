@@ -66,6 +66,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.share.revoked": "Revoked",
       "cloud.share.revokeConfirm": "Revoke this share link?",
       "cloud.share.unavailable": "Cloud sharing is not configured.",
+      "cloud.embed.action": "Embed",
     };
     return values[key] ?? key;
   },
@@ -93,7 +94,7 @@ const record: SceneRecord = {
 };
 
 const makeBackend = () => ({
-  capabilities: { sceneStorage: true, share: true },
+  capabilities: { sceneStorage: true, share: true, embed: true },
   scenes: {
     list: vi.fn(async () => summaries),
     load: vi.fn(async () => record),
@@ -234,6 +235,15 @@ describe("SceneListDialog", () => {
     expect(backendMock.backend.shares.listByScene).toHaveBeenCalledWith(
       "scene-1",
     );
+  });
+
+  it("opens embed management from a cloud scene", async () => {
+    const onOpenEmbeds = vi.fn();
+    renderDialog({ onOpenEmbeds });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Embed" }));
+
+    expect(onOpenEmbeds).toHaveBeenCalledWith(summaries[0]);
   });
 
   it("creates read and write share links", async () => {

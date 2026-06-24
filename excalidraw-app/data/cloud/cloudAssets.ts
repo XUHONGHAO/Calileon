@@ -12,7 +12,13 @@ import type {
   DataURL,
 } from "@excalidraw/excalidraw/types";
 
-import type { AssetRef, AssetType, CloudBackend, ShareService } from "./types";
+import type {
+  AssetRef,
+  AssetType,
+  CloudBackend,
+  EmbedService,
+  ShareService,
+} from "./types";
 
 export const getReferencedImageFileIds = (
   elements: readonly OrderedExcalidrawElement[],
@@ -88,6 +94,35 @@ export const uploadSharedSceneAssets = async (input: {
 
       await input.shares.uploadAsset({
         token: input.token,
+        blob: dataURLToFile(fileData.dataURL, fileId),
+        type: getAssetTypeForElement(input.elements, fileId),
+        sceneId: input.sceneId,
+        fileId,
+        mimeType: fileData.mimeType,
+      });
+    }),
+  );
+};
+
+export const uploadEmbeddedSceneAssets = async (input: {
+  embed: EmbedService;
+  token: string;
+  origin: string;
+  sceneId: string;
+  elements: readonly OrderedExcalidrawElement[];
+  files: BinaryFiles;
+}): Promise<void> => {
+  const fileIds = getReferencedImageFileIds(input.elements);
+  await Promise.all(
+    fileIds.map(async (fileId) => {
+      const fileData = input.files[fileId];
+      if (!fileData?.dataURL) {
+        return;
+      }
+
+      await input.embed.uploadAsset({
+        token: input.token,
+        origin: input.origin,
         blob: dataURLToFile(fileData.dataURL, fileId),
         type: getAssetTypeForElement(input.elements, fileId),
         sceneId: input.sceneId,

@@ -1,0 +1,198 @@
+.EmbedListDialogModal {
+  .Island {
+    position: relative;
+  }
+
+  .Dialog__title {
+    padding-right: 2rem;
+  }
+
+  &.Dialog--fullscreen {
+    .EmbedListDialog__close {
+      display: none;
+    }
+  }
+}
+
+.EmbedListDialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+
+  .EmbedListDialog__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: transparent;
+    color: var(--text-primary-color);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--button-hover-bg);
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+  }
+
+  .EmbedListDialog__toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+
+    p {
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--color-gray-60);
+    }
+  }
+
+  .EmbedListDialog__toolbarActions,
+  .EmbedListDialog__actions,
+  .EmbedListDialog__options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .EmbedListDialog__create {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    padding: 0.625rem;
+    border: 1px solid var(--default-border-color, var(--color-gray-30));
+    border-radius: var(--border-radius-md, 0.5rem);
+  }
+
+  label {
+    display: flex;
+    flex: 1 1 8rem;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+
+    span {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-gray-60);
+    }
+  }
+
+  textarea,
+  select {
+    width: 100%;
+    padding: 0.5rem 0.625rem;
+    border: 1px solid var(--default-border-color, var(--color-gray-30));
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: var(--input-bg-color, var(--island-bg-color));
+    color: var(--text-primary-color);
+    font: inherit;
+    font-size: 0.875rem;
+
+    &:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 1px var(--color-primary);
+    }
+  }
+
+  textarea {
+    resize: vertical;
+  }
+
+  .EmbedListDialog__status,
+  .EmbedListDialog__error {
+    padding: 0.625rem 0.75rem;
+    border-radius: var(--border-radius-md, 0.5rem);
+    font-size: 0.8125rem;
+  }
+
+  .EmbedListDialog__status {
+    color: var(--color-gray-60);
+    background: var(--island-bg-color);
+  }
+
+  .EmbedListDialog__error {
+    margin: 0;
+    color: var(--color-danger);
+    background: var(--color-danger-background);
+  }
+
+  .EmbedListDialog__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: min(42vh, 22rem);
+    margin: 0;
+    padding: 0;
+    overflow: auto;
+    list-style: none;
+  }
+
+  .EmbedListDialog__item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+    padding: 0.625rem 0;
+    border-bottom: 1px solid var(--default-border-color, var(--color-gray-30));
+  }
+
+  .EmbedListDialog__details {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+
+    strong,
+    span,
+    small {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      font-size: 0.875rem;
+    }
+
+    span,
+    small {
+      font-size: 0.75rem;
+      color: var(--color-gray-60);
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .EmbedListDialog {
+    .EmbedListDialog__toolbar,
+    .EmbedListDialog__item {
+      flex-direction: column;
+    }
+
+    .EmbedListDialog__toolbarActions,
+    .EmbedListDialog__actions {
+      width: 100%;
+
+      .excalidraw-button {
+        flex: 1 1 0;
+        min-width: 0;
+      }
+    }
+  }
+}

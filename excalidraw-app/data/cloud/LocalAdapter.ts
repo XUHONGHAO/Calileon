@@ -92,6 +92,14 @@ export const createLocalCastService = (): CastService => ({
 
 export const createLocalEmbedService = (): EmbedService => ({
   isAvailable: () => false,
+  create: async () => notConfigured(),
+  listByScene: async () => notConfigured(),
+  update: async () => notConfigured(),
+  revoke: async () => notConfigured(),
+  resolve: async () => notConfigured(),
+  loadScene: async () => notConfigured(),
+  saveScene: async () => notConfigured(),
+  uploadAsset: async () => notConfigured(),
 });
 
 export const createLocalAiGateway = (): AiGateway => ({

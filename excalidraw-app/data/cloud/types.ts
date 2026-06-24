@@ -86,6 +86,12 @@ export interface AssetRef {
 
 export type ShareMode = "read" | "write";
 
+export type EmbedMode = "read" | "write" | "collab";
+
+export type EmbedTheme = "light" | "dark" | "system";
+
+export type EmbedSize = "responsive" | "wide" | "compact";
+
 export interface ShareLink {
   id: string;
   sceneId: string;
@@ -100,6 +106,51 @@ export interface SharedSceneLoadResult {
   scene: SceneRecord;
   mode: ShareMode;
   assets: AssetRef[];
+}
+
+export interface EmbedRecord {
+  id: string;
+  ownerId: string;
+  sceneId: string;
+  mode: EmbedMode;
+  token: string;
+  allowedOrigins: string[];
+  theme: EmbedTheme;
+  size: EmbedSize;
+  revoked: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface EmbedCreateInput {
+  sceneId: string;
+  mode: EmbedMode;
+  allowedOrigins: string[];
+  theme?: EmbedTheme;
+  size?: EmbedSize;
+}
+
+export interface EmbedUpdateInput {
+  mode?: EmbedMode;
+  allowedOrigins?: string[];
+  theme?: EmbedTheme;
+  size?: EmbedSize;
+  revoked?: boolean;
+}
+
+export interface EmbedResolution {
+  sceneId: string;
+  mode: EmbedMode;
+  allowedOrigins: string[];
+  theme: EmbedTheme;
+  size: EmbedSize;
+}
+
+export interface EmbeddedSceneLoadResult {
+  scene: SceneRecord;
+  mode: EmbedMode;
+  assets: AssetRef[];
+  embed: EmbedResolution;
 }
 
 export type AITaskStatus =
@@ -319,10 +370,35 @@ export interface CastService {
   remove(sessionId: string): Promise<void>;
 }
 
-// —— Embed / AiGateway: Phase 0 only declares placeholders. ——
+// —— Embed (BR-EMBED, Phase 3C; D6: iframe + JS API) ——
 export interface EmbedService {
   isAvailable(): boolean;
+  create(input: EmbedCreateInput): Promise<EmbedRecord>;
+  listByScene(
+    sceneId: string,
+    opts?: { limit?: number },
+  ): Promise<EmbedRecord[]>;
+  update(id: string, input: EmbedUpdateInput): Promise<EmbedRecord>;
+  revoke(id: string): Promise<void>;
+  resolve(token: string, origin: string): Promise<EmbedResolution>;
+  loadScene(token: string, origin: string): Promise<EmbeddedSceneLoadResult>;
+  saveScene(
+    token: string,
+    origin: string,
+    scene: SceneRecord,
+  ): Promise<{ id: string; version: number }>;
+  uploadAsset(input: {
+    token: string;
+    origin: string;
+    blob: Blob;
+    type: AssetType;
+    sceneId: string;
+    fileId?: string;
+    mimeType?: string;
+  }): Promise<AssetRef>;
 }
+
+// —— AiGateway: Phase 0 only declares placeholders. ——
 export interface AiGateway {
   isEnabled(): boolean;
 }

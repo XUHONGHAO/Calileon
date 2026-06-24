@@ -104,6 +104,7 @@ import { AppMainMenu } from "./components/AppMainMenu";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import { AITaskListDialog } from "./components/AITaskListDialog";
 import { AuthDialog } from "./components/AuthDialog";
+import { EmbedListDialog } from "./components/EmbedListDialog";
 import { SceneListDialog } from "./components/SceneListDialog";
 import {
   ExportToExcalidrawPlus,
@@ -137,10 +138,19 @@ import {
   loadAssetRefsForElements,
   loadSceneAssets,
   uploadSceneAssets,
+  uploadEmbeddedSceneAssets,
   uploadSharedSceneAssets,
 } from "./data/cloud/cloudAssets";
 import { recordCloudAITask } from "./data/cloud/cloudAITasks";
+import { getCloudEmbedTokenFromUrl } from "./data/cloud/cloudEmbedLinks";
 import { getCloudShareTokenFromUrl } from "./data/cloud/cloudShareLinks";
+import {
+  createEmbedError,
+  createEmbedEvent,
+  createEmbedResponse,
+  isEmbedApiEnvelope,
+} from "./data/cloud/embedPostMessage";
+import { getEmbedParentOrigin } from "./data/cloud/embedOrigin";
 import {
   getCloudSceneFingerprint,
   getCloudPayloadHash,
@@ -187,7 +197,7 @@ import type {
   GenerationLogReuseRequest,
   PromptTemplateRequest,
 } from "./components/AppSidebar";
-import type { SceneRecord, SceneSummary } from "./data/cloud";
+import type { EmbedMode, SceneRecord, SceneSummary } from "./data/cloud";
 import type { CloudAITaskRun } from "./data/cloud/cloudAITasks";
 
 polyfill();
@@ -208,6 +218,12 @@ type ActiveCloudScene = {
 type ActiveSharedScene = ActiveCloudScene & {
   token: string;
   mode: "read" | "write";
+};
+
+type ActiveEmbeddedScene = ActiveCloudScene & {
+  token: string;
+  mode: EmbedMode;
+  origin: string;
 };
 
 type CloudSceneRemoteUpdateState =
@@ -305,7 +321,9 @@ const initializeScene = async (opts: {
   {
     scene: ExcalidrawInitialDataState | null;
     activeSharedScene?: ActiveSharedScene | null;
+    activeEmbeddedScene?: ActiveEmbeddedScene | null;
     isCloudShareScene?: boolean;
+    isCloudEmbedScene?: boolean;
   } & (
     | { isExternalScene: true; id: string; key: string }
     | { isExternalScene: false; id?: null; key?: null }
@@ -318,6 +336,7 @@ const initializeScene = async (opts: {
   );
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
   const cloudShareToken = getCloudShareTokenFromUrl(window.location.href);
+  const cloudEmbedToken = getCloudEmbedTokenFromUrl(window.location.href);
 
   const localDataState = importFromLocalStorage();
 
@@ -333,12 +352,15 @@ const initializeScene = async (opts: {
 
   let roomLinkData = getCollaborationLinkData(window.location.href);
   let activeSharedScene: ActiveSharedScene | null = null;
+  let activeEmbeddedScene: ActiveEmbeddedScene | null = null;
   let isCloudShareScene = false;
+  let isCloudEmbedScene = false;
   const isExternalScene = !!(
     id ||
     jsonBackendMatch ||
     roomLinkData ||
-    cloudShareToken
+    cloudShareToken ||
+    cloudEmbedToken
   );
   if (isExternalScene) {
     if (
@@ -349,7 +371,79 @@ const initializeScene = async (opts: {
       // otherwise, prompt whether user wants to override current scene
       (await openConfirmModal(shareableLinkConfirmDialog))
     ) {
-      if (cloudShareToken) {
+      if (cloudEmbedToken) {
+        try {
+          const origin = getEmbedParentOrigin({
+            referrer: document.referrer,
+            fallbackOrigin: window.location.origin,
+          });
+          if (!origin) {
+            throw new Error(t("cloud.embed.forbiddenOrigin"));
+          }
+
+          const embedded = await getCloudBackend().embed.loadScene(
+            cloudEmbedToken,
+            origin,
+          );
+          const payload = embedded.scene.payload as {
+            elements?: any;
+            appState?: any;
+          };
+          const restoredElements = restoreElements(
+            payload.elements ?? null,
+            null,
+            {
+              repairBindings: true,
+              deleteInvisibleElements: true,
+            },
+          );
+          const assetResult = await loadAssetRefsForElements({
+            assets: embedded.assets,
+            elements: restoredElements,
+          });
+          const files = assetResult.loadedFiles.reduce((acc, file) => {
+            acc[file.id] = file;
+            return acc;
+          }, {} as BinaryFiles);
+          scene = {
+            elements: restoredElements,
+            appState: {
+              ...restoreAppState(payload.appState ?? null, null),
+              isLoading: false,
+              name: embedded.scene.title,
+              viewModeEnabled: embedded.mode === "read",
+              ...(embedded.embed.theme === "system"
+                ? {}
+                : { theme: embedded.embed.theme }),
+            },
+            files,
+          };
+          activeEmbeddedScene = {
+            token: cloudEmbedToken,
+            mode: embedded.mode,
+            origin,
+            id: embedded.scene.id ?? "",
+            ownerId: embedded.scene.ownerId,
+            title: embedded.scene.title,
+            version: embedded.scene.version,
+            createdAt: embedded.scene.createdAt,
+            updatedAt: embedded.scene.updatedAt,
+          };
+          isCloudEmbedScene = true;
+        } catch (error) {
+          scene = {
+            appState: restoreAppState(
+              {
+                errorMessage:
+                  error instanceof Error
+                    ? error.message
+                    : t("cloud.embed.openFailed"),
+              },
+              null,
+            ),
+          };
+        }
+      } else if (cloudShareToken) {
         try {
           const shared = await getCloudBackend().shares.loadScene(
             cloudShareToken,
@@ -431,7 +525,7 @@ const initializeScene = async (opts: {
         };
       }
       scene.scrollToContent = true;
-      if (!roomLinkData && !cloudShareToken) {
+      if (!roomLinkData && !cloudShareToken && !cloudEmbedToken) {
         window.history.replaceState({}, APP_NAME, window.location.origin);
       }
     } else {
@@ -521,6 +615,17 @@ const initializeScene = async (opts: {
       };
     }
 
+    if (isCloudEmbedScene && activeEmbeddedScene) {
+      return {
+        scene,
+        isExternalScene: true,
+        id: activeEmbeddedScene.token,
+        key: "",
+        activeEmbeddedScene,
+        isCloudEmbedScene,
+      };
+    }
+
     return isExternalScene && jsonBackendMatch
       ? {
           scene,
@@ -528,9 +633,19 @@ const initializeScene = async (opts: {
           id: jsonBackendMatch[1],
           key: jsonBackendMatch[2],
         }
-      : { scene, isExternalScene: false, activeSharedScene: null };
+      : {
+          scene,
+          isExternalScene: false,
+          activeSharedScene: null,
+          activeEmbeddedScene: null,
+        };
   }
-  return { scene: null, isExternalScene: false, activeSharedScene: null };
+  return {
+    scene: null,
+    isExternalScene: false,
+    activeSharedScene: null,
+    activeEmbeddedScene: null,
+  };
 };
 
 const ExcalidrawWrapper = () => {
@@ -540,6 +655,13 @@ const ExcalidrawWrapper = () => {
   const [isCloudAccountOpen, setIsCloudAccountOpen] = useState(false);
   const [isCloudSceneListOpen, setIsCloudSceneListOpen] = useState(false);
   const [isCloudAITaskListOpen, setIsCloudAITaskListOpen] = useState(false);
+  const [isCloudEmbedListOpen, setIsCloudEmbedListOpen] = useState(false);
+  const [embedListScene, setEmbedListScene] = useState<SceneSummary | null>(
+    null,
+  );
+  const [embedListBackTarget, setEmbedListBackTarget] = useState<
+    "account" | "scenes"
+  >("account");
   const cloudAuth = useCloudAuth();
   const [activeCloudScene, setActiveCloudScene] =
     useState<ActiveCloudScene | null>(null);
@@ -550,9 +672,13 @@ const ExcalidrawWrapper = () => {
   const [activeSharedScene, setActiveSharedScene] =
     useState<ActiveSharedScene | null>(null);
   const activeSharedSceneRef = useRef<ActiveSharedScene | null>(null);
+  const [activeEmbeddedScene, setActiveEmbeddedScene] =
+    useState<ActiveEmbeddedScene | null>(null);
+  const activeEmbeddedSceneRef = useRef<ActiveEmbeddedScene | null>(null);
   const lastCloudLocalPayloadHashRef = useRef<string | null>(null);
   const lastCloudSavedPayloadHashRef = useRef<string | null>(null);
   const lastSharedSavedPayloadHashRef = useRef<string | null>(null);
+  const lastEmbeddedSavedPayloadHashRef = useRef<string | null>(null);
   const cloudAutosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -604,6 +730,10 @@ const ExcalidrawWrapper = () => {
   useEffect(() => {
     activeSharedSceneRef.current = activeSharedScene;
   }, [activeSharedScene]);
+
+  useEffect(() => {
+    activeEmbeddedSceneRef.current = activeEmbeddedScene;
+  }, [activeEmbeddedScene]);
 
   useEffect(() => {
     if (cloudAuth.isSignedIn) {
@@ -753,7 +883,11 @@ const ExcalidrawWrapper = () => {
             return acc;
           }, [] as FileId[]) || [];
 
-        if (data.isExternalScene && !data.isCloudShareScene) {
+        if (
+          data.isExternalScene &&
+          !data.isCloudShareScene &&
+          !data.isCloudEmbedScene
+        ) {
           if (fileIds.length) {
             // Direct Firebase call (not through FileManager), so track manually
             FileStatusStore.updateStatuses(
@@ -838,11 +972,27 @@ const ExcalidrawWrapper = () => {
     initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
       setActiveSharedScene(data.activeSharedScene ?? null);
       activeSharedSceneRef.current = data.activeSharedScene ?? null;
+      setActiveEmbeddedScene(data.activeEmbeddedScene ?? null);
+      activeEmbeddedSceneRef.current = data.activeEmbeddedScene ?? null;
       if (data.activeSharedScene) {
         setActiveCloudScene(null);
         activeCloudSceneRef.current = null;
         if (data.scene?.elements) {
           lastSharedSavedPayloadHashRef.current = getCloudPayloadHash(
+            serializeAsJSON(
+              data.scene.elements,
+              data.scene.appState ?? {},
+              data.scene.files ?? {},
+              "database",
+            ),
+          );
+        }
+      }
+      if (data.activeEmbeddedScene) {
+        setActiveCloudScene(null);
+        activeCloudSceneRef.current = null;
+        if (data.scene?.elements) {
+          lastEmbeddedSavedPayloadHashRef.current = getCloudPayloadHash(
             serializeAsJSON(
               data.scene.elements,
               data.scene.appState ?? {},
@@ -874,11 +1024,27 @@ const ExcalidrawWrapper = () => {
         initializeScene({ collabAPI, excalidrawAPI }).then((data) => {
           setActiveSharedScene(data.activeSharedScene ?? null);
           activeSharedSceneRef.current = data.activeSharedScene ?? null;
+          setActiveEmbeddedScene(data.activeEmbeddedScene ?? null);
+          activeEmbeddedSceneRef.current = data.activeEmbeddedScene ?? null;
           if (data.activeSharedScene) {
             setActiveCloudScene(null);
             activeCloudSceneRef.current = null;
             if (data.scene?.elements) {
               lastSharedSavedPayloadHashRef.current = getCloudPayloadHash(
+                serializeAsJSON(
+                  data.scene.elements,
+                  data.scene.appState ?? {},
+                  data.scene.files ?? {},
+                  "database",
+                ),
+              );
+            }
+          }
+          if (data.activeEmbeddedScene) {
+            setActiveCloudScene(null);
+            activeCloudSceneRef.current = null;
+            if (data.scene?.elements) {
+              lastEmbeddedSavedPayloadHashRef.current = getCloudPayloadHash(
                 serializeAsJSON(
                   data.scene.elements,
                   data.scene.appState ?? {},
@@ -1319,6 +1485,279 @@ const ExcalidrawWrapper = () => {
     [collabAPI, excalidrawAPI],
   );
 
+  const saveCurrentEmbeddedSceneToCloud = useCallback(
+    async (opts: { silent?: boolean } = {}): Promise<boolean> => {
+      const { silent = false } = opts;
+
+      if (!excalidrawAPI) {
+        return false;
+      }
+
+      const activeScene = activeEmbeddedSceneRef.current;
+      if (!activeScene?.id || activeScene.mode !== "write") {
+        return false;
+      }
+
+      if (collabAPI?.isCollaborating()) {
+        return false;
+      }
+
+      if (document.hidden || navigator.onLine === false) {
+        return false;
+      }
+
+      const backend = getCloudBackend();
+      if (!backend.capabilities.embed) {
+        return false;
+      }
+
+      try {
+        const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+        const appState = excalidrawAPI.getAppState();
+        const files = excalidrawAPI.getFiles();
+        const serializedPayload = serializeAsJSON(
+          elements,
+          appState,
+          files,
+          "database",
+        );
+        const payloadHash = getCloudPayloadHash(serializedPayload);
+        if (silent && payloadHash === lastEmbeddedSavedPayloadHashRef.current) {
+          return false;
+        }
+
+        const now = Date.now();
+        const title = excalidrawAPI.getName() || activeScene.title;
+        const result = await backend.embed.saveScene(
+          activeScene.token,
+          activeScene.origin,
+          {
+            id: activeScene.id,
+            ownerId: activeScene.ownerId,
+            title,
+            payloadKind: "plain",
+            payload: JSON.parse(serializedPayload),
+            version: activeScene.version,
+            createdAt: activeScene.createdAt,
+            updatedAt: now,
+            deletedAt: null,
+          },
+        );
+
+        let didSyncAssets = true;
+        try {
+          await uploadEmbeddedSceneAssets({
+            embed: backend.embed,
+            token: activeScene.token,
+            origin: activeScene.origin,
+            sceneId: result.id,
+            elements,
+            files,
+          });
+        } catch (error) {
+          didSyncAssets = false;
+          console.warn(error);
+        }
+
+        const nextActiveScene: ActiveEmbeddedScene = {
+          ...activeScene,
+          title,
+          version: result.version,
+          updatedAt: now,
+        };
+        setActiveEmbeddedScene(nextActiveScene);
+        activeEmbeddedSceneRef.current = nextActiveScene;
+        lastEmbeddedSavedPayloadHashRef.current = didSyncAssets
+          ? payloadHash
+          : null;
+
+        if (!silent) {
+          excalidrawAPI.setToast({
+            message: didSyncAssets
+              ? t("cloud.embed.saved")
+              : t("cloud.scenes.savedAssetsFailed"),
+          });
+        }
+        return true;
+      } catch (error) {
+        excalidrawAPI.setToast({
+          message:
+            error instanceof Error
+              ? error.message
+              : t("cloud.embed.saveFailed"),
+        });
+        return false;
+      }
+    },
+    [collabAPI, excalidrawAPI],
+  );
+
+  const postEmbedEvent = useCallback(
+    (name: "ready" | "sceneChange" | "saved" | "error", payload?: unknown) => {
+      const activeScene = activeEmbeddedSceneRef.current;
+      if (!activeScene || window.parent === window) {
+        return;
+      }
+      window.parent.postMessage(
+        createEmbedEvent(name, payload),
+        activeScene.origin,
+      );
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!activeEmbeddedScene || !excalidrawAPI) {
+      return;
+    }
+
+    postEmbedEvent("ready", {
+      sceneId: activeEmbeddedScene.id,
+      mode: activeEmbeddedScene.mode,
+      version: activeEmbeddedScene.version,
+    });
+  }, [
+    activeEmbeddedScene,
+    activeEmbeddedScene?.id,
+    activeEmbeddedScene?.mode,
+    activeEmbeddedScene?.version,
+    excalidrawAPI,
+    postEmbedEvent,
+  ]);
+
+  useEffect(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const handleEmbedMessage = async (event: MessageEvent) => {
+      const activeScene = activeEmbeddedSceneRef.current;
+      if (
+        !activeScene ||
+        event.origin !== activeScene.origin ||
+        !isEmbedApiEnvelope(event.data) ||
+        event.data.type !== "command"
+      ) {
+        return;
+      }
+
+      const source = event.source as Window | null;
+      const respond = (payload?: unknown) => {
+        source?.postMessage(
+          createEmbedResponse(event.data.requestId, event.data.name, payload),
+          event.origin,
+        );
+      };
+      const respondError = (message: string) => {
+        source?.postMessage(
+          createEmbedError(message, event.data.requestId),
+          event.origin,
+        );
+      };
+
+      try {
+        if (event.data.name === "ping") {
+          respond({ ok: true });
+          return;
+        }
+
+        if (event.data.name === "getScene") {
+          respond({
+            sceneId: activeScene.id,
+            version: activeScene.version,
+            payload: JSON.parse(
+              serializeAsJSON(
+                excalidrawAPI.getSceneElementsIncludingDeleted(),
+                excalidrawAPI.getAppState(),
+                excalidrawAPI.getFiles(),
+                "database",
+              ),
+            ),
+          });
+          return;
+        }
+
+        if (event.data.name === "setReadonly") {
+          const payload = event.data.payload as { readonly?: boolean } | null;
+          const nextReadonly = payload?.readonly ?? true;
+          if (activeScene.mode !== "write" && !nextReadonly) {
+            respondError(t("cloud.embed.readOnly"));
+            return;
+          }
+          excalidrawAPI.updateScene({
+            appState: {
+              viewModeEnabled: nextReadonly,
+            },
+            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+          });
+          respond({ ok: true });
+          return;
+        }
+
+        if (activeScene.mode !== "write") {
+          respondError(t("cloud.embed.readOnly"));
+          return;
+        }
+
+        if (event.data.name === "setScene") {
+          const payload = event.data.payload as {
+            elements?: any;
+            appState?: any;
+            files?: BinaryFiles;
+          } | null;
+          const restoredElements = restoreElements(
+            payload?.elements ?? null,
+            null,
+            {
+              repairBindings: true,
+              deleteInvisibleElements: true,
+            },
+          );
+          excalidrawAPI.updateScene({
+            elements: restoredElements,
+            appState: restoreAppState(payload?.appState ?? null, null),
+            captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+          });
+          if (payload?.files) {
+            excalidrawAPI.addFiles(Object.values(payload.files));
+          }
+          respond({ ok: true });
+          return;
+        }
+
+        if (event.data.name === "save") {
+          const saved = await saveCurrentEmbeddedSceneToCloud();
+          respond({
+            saved,
+            version:
+              activeEmbeddedSceneRef.current?.version ?? activeScene.version,
+          });
+          if (saved) {
+            postEmbedEvent("saved", {
+              sceneId: activeEmbeddedSceneRef.current?.id ?? activeScene.id,
+              version:
+                activeEmbeddedSceneRef.current?.version ?? activeScene.version,
+            });
+          }
+          return;
+        }
+
+        respondError(t("cloud.embed.unsupportedCommand"));
+      } catch (error) {
+        respondError(
+          error instanceof Error
+            ? error.message
+            : t("cloud.embed.genericError"),
+        );
+      }
+    };
+
+    window.addEventListener("message", handleEmbedMessage);
+    return () => {
+      window.removeEventListener("message", handleEmbedMessage);
+    };
+  }, [excalidrawAPI, postEmbedEvent, saveCurrentEmbeddedSceneToCloud]);
+
   const recordActiveCloudAITask = useCallback(
     async (run: CloudAITaskRun) => {
       const activeScene = activeCloudSceneRef.current;
@@ -1547,6 +1986,9 @@ const ExcalidrawWrapper = () => {
   const scheduleCloudAutosave = useCallback(() => {
     const activeShared = activeSharedSceneRef.current;
     const canSaveShared = !!activeShared?.id && activeShared.mode === "write";
+    const activeEmbedded = activeEmbeddedSceneRef.current;
+    const canSaveEmbedded =
+      !!activeEmbedded?.id && activeEmbedded.mode === "write";
     const canSaveAccount =
       !!activeCloudSceneRef.current?.id &&
       cloudAuth.isAuthAvailable &&
@@ -1554,7 +1996,7 @@ const ExcalidrawWrapper = () => {
       !!cloudAuth.user;
 
     if (
-      (!canSaveShared && !canSaveAccount) ||
+      (!canSaveShared && !canSaveEmbedded && !canSaveAccount) ||
       document.hidden ||
       navigator.onLine === false
     ) {
@@ -1574,7 +2016,9 @@ const ExcalidrawWrapper = () => {
 
       cloudSaveInFlightRef.current = true;
       const savePromise =
-        activeSharedSceneRef.current?.mode === "write"
+        activeEmbeddedSceneRef.current?.mode === "write"
+          ? saveCurrentEmbeddedSceneToCloud({ silent: true })
+          : activeSharedSceneRef.current?.mode === "write"
           ? saveCurrentSharedSceneToCloud({ silent: true })
           : saveCurrentSceneToCloud({ silent: true });
       savePromise
@@ -1590,6 +2034,7 @@ const ExcalidrawWrapper = () => {
     cloudAuth.isSignedIn,
     cloudAuth.user,
     saveCurrentSceneToCloud,
+    saveCurrentEmbeddedSceneToCloud,
     saveCurrentSharedSceneToCloud,
   ]);
 
@@ -1635,6 +2080,12 @@ const ExcalidrawWrapper = () => {
     }
 
     scheduleCloudBindingSync(elements, appState, files);
+    if (activeEmbeddedSceneRef.current) {
+      postEmbedEvent("sceneChange", {
+        sceneId: activeEmbeddedSceneRef.current.id,
+        version: activeEmbeddedSceneRef.current.version,
+      });
+    }
     scheduleCloudAutosave();
 
     // Render the debug scene if the debug canvas is available
@@ -1752,6 +2203,9 @@ const ExcalidrawWrapper = () => {
       setActiveSharedScene(null);
       activeSharedSceneRef.current = null;
       lastSharedSavedPayloadHashRef.current = null;
+      setActiveEmbeddedScene(null);
+      activeEmbeddedSceneRef.current = null;
+      lastEmbeddedSavedPayloadHashRef.current = null;
 
       const restoredElements = restoreElements(payload.elements ?? null, null, {
         repairBindings: true,
@@ -2298,6 +2752,20 @@ const ExcalidrawWrapper = () => {
             setIsCloudAccountOpen(false);
             setIsCloudAITaskListOpen(true);
           }}
+          onOpenEmbeds={() => {
+            if (!activeCloudScene) {
+              return;
+            }
+            setIsCloudAccountOpen(false);
+            setEmbedListScene({
+              id: activeCloudScene.id,
+              title: activeCloudScene.title,
+              version: activeCloudScene.version,
+              updatedAt: activeCloudScene.updatedAt,
+            });
+            setEmbedListBackTarget("account");
+            setIsCloudEmbedListOpen(true);
+          }}
           onSaveCloudScene={async () => {
             await saveCurrentSceneToCloud();
           }}
@@ -2317,6 +2785,28 @@ const ExcalidrawWrapper = () => {
             setIsCloudAccountOpen(true);
           }}
           onOpenScene={onOpenCloudScene}
+          onOpenEmbeds={(scene) => {
+            setIsCloudSceneListOpen(false);
+            setEmbedListScene(scene);
+            setEmbedListBackTarget("scenes");
+            setIsCloudEmbedListOpen(true);
+          }}
+        />
+        <EmbedListDialog
+          open={isCloudEmbedListOpen}
+          scene={embedListScene}
+          onClose={() => {
+            setIsCloudEmbedListOpen(false);
+            setEmbedListScene(null);
+          }}
+          onBack={() => {
+            setIsCloudEmbedListOpen(false);
+            if (embedListBackTarget === "account") {
+              setIsCloudAccountOpen(true);
+            } else {
+              setIsCloudSceneListOpen(true);
+            }
+          }}
         />
         <AITaskListDialog
           open={isCloudAITaskListOpen}

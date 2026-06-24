@@ -27,6 +27,7 @@ import { createSupabaseAssetStorage } from "./supabase/SupabaseAssetStorage";
 import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
 import { createSupabaseAITaskService } from "./supabase/SupabaseAITaskService";
 import { createSupabaseCastService } from "./supabase/SupabaseCastService";
+import { createSupabaseEmbedService } from "./supabase/SupabaseEmbedService";
 import { createSupabaseSceneActivityService } from "./supabase/SupabaseSceneActivityService";
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
 import { createSupabaseShareService } from "./supabase/SupabaseShareService";
@@ -51,7 +52,7 @@ const assembleLocalBackend = (): CloudBackend => ({
 
 /**
  * Supabase assembly: Phase 1 backs `auth` and `scenes`; later phases add
- * assets/shares/AI tasks/activity/cast metadata. Realtime/embed/ai gateway keep
+ * assets/shares/AI tasks/activity/cast/embed metadata. Realtime/ai gateway keep
  * the Phase 0 Local implementations until their own phases.
  */
 const assembleSupabaseBackend = (
@@ -66,7 +67,7 @@ const assembleSupabaseBackend = (
   activity: createSupabaseSceneActivityService(),
   realtime: createLocalRealtimeService(),
   cast: createSupabaseCastService(),
-  embed: createLocalEmbedService(),
+  embed: createSupabaseEmbedService(),
   ai: createLocalAiGateway(),
 });
 

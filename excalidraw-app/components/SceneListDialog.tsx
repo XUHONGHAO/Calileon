@@ -22,6 +22,7 @@ export interface SceneListDialogProps {
   onClose: () => void;
   onBack?: () => void;
   onOpenScene: (scene: SceneRecord) => void | Promise<void>;
+  onOpenEmbeds?: (scene: SceneSummary) => void;
 }
 
 const getErrorMessage = (error: unknown) =>
@@ -43,6 +44,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   onClose,
   onBack,
   onOpenScene,
+  onOpenEmbeds,
 }) => {
   const [scenes, setScenes] = useState<SceneSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -435,6 +437,16 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
                           disabled={isBusy || !backend.capabilities.share}
                         >
                           {t("cloud.share.action")}
+                        </Button>
+                        <Button
+                          onSelect={() => onOpenEmbeds?.(scene)}
+                          disabled={
+                            isBusy ||
+                            !onOpenEmbeds ||
+                            !backend.capabilities.embed
+                          }
+                        >
+                          {t("cloud.embed.action")}
                         </Button>
                         <Button
                           onSelect={() => void handleRemove(scene.id)}

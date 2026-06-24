@@ -66,6 +66,8 @@ const makeBackend = (
     cast?: boolean;
     castSessions?: any[];
     castExports?: any[];
+    embed?: boolean;
+    embeds?: any[];
   } = {},
 ) => {
   const listeners: Array<(u: any) => void> = [];
@@ -75,6 +77,7 @@ const makeBackend = (
       sceneStorage: true,
       aiTasks: true,
       cast: overrides.cast ?? true,
+      embed: overrides.embed ?? true,
     },
     auth: {
       getCurrentUser: vi.fn(async () => overrides.currentUser ?? null),
@@ -113,6 +116,9 @@ const makeBackend = (
     cast: {
       listByScene: vi.fn(async () => overrides.castSessions ?? []),
       listExportsByScene: vi.fn(async () => overrides.castExports ?? []),
+    },
+    embed: {
+      listByScene: vi.fn(async () => overrides.embeds ?? []),
     },
     __emit: (u: any) => listeners.forEach((l) => l(u)),
   };
@@ -445,5 +451,58 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     await waitFor(() =>
       expect(backend.cast.listByScene).toHaveBeenCalledTimes(2),
     );
+  });
+
+  it("shows current cloud scene embed summary and opens management", async () => {
+    const onOpenEmbeds = vi.fn();
+    const backend = makeBackend({
+      auth: true,
+      currentUser: {
+        id: "u1",
+        email: "me@example.com",
+        displayName: null,
+        avatarUrl: null,
+        createdAt: 0,
+        lastSignInAt: null,
+      },
+      embeds: [
+        {
+          id: "embed-1",
+          mode: "write",
+        },
+      ],
+    });
+    setBackend(backend);
+
+    render(
+      <CloudAuthButton
+        activeCloudScene={{
+          id: "scene-1",
+          title: "Roadmap",
+          version: 2,
+          updatedAt: 2,
+        }}
+        onOpenEmbeds={onOpenEmbeds}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cloud account" }),
+    );
+
+    expect(await screen.findByText("Embeds")).toBeInTheDocument();
+    expect(screen.getByText("1 embeds")).toBeInTheDocument();
+    expect(screen.getByText("Latest: Writable")).toBeInTheDocument();
+    expect(backend.embed.listByScene).toHaveBeenCalledWith("scene-1", {
+      limit: 20,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh embeds" }));
+    await waitFor(() =>
+      expect(backend.embed.listByScene).toHaveBeenCalledTimes(2),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Manage embeds" }));
+    expect(onOpenEmbeds).toHaveBeenCalledTimes(1);
   });
 });

@@ -28,6 +28,8 @@ export interface CloudAuthButtonProps {
   onOpenCloudScenes?: () => void;
   /** Opens the user's cloud AI task list from the account panel. */
   onOpenAITasks?: () => void;
+  /** Opens embed management for the current cloud whiteboard. */
+  onOpenEmbeds?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
   activeCloudScene?: ActiveCloudSceneInfo | null;
@@ -41,6 +43,7 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
   onSignedIn,
   onOpenCloudScenes,
   onOpenAITasks,
+  onOpenEmbeds,
   onSaveCloudScene,
   activeCloudScene,
   cloudSceneRemoteUpdate,
@@ -74,6 +77,7 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
           onSignedIn={onSignedIn}
           onOpenCloudScenes={onOpenCloudScenes}
           onOpenAITasks={onOpenAITasks}
+          onOpenEmbeds={onOpenEmbeds}
           onSaveCloudScene={onSaveCloudScene}
           activeCloudScene={activeCloudScene}
           cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
@@ -96,6 +100,7 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
         onSignedIn={onSignedIn}
         onOpenCloudScenes={onOpenCloudScenes}
         onOpenAITasks={onOpenAITasks}
+        onOpenEmbeds={onOpenEmbeds}
         onSaveCloudScene={onSaveCloudScene}
         activeCloudScene={activeCloudScene}
         cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
