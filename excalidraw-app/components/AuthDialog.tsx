@@ -22,6 +22,7 @@ import { useCloudAuth } from "../auth/useCloudAuth";
 import {
   getCloudBackend,
   type AITaskStatus,
+  type CastSessionStatus,
   type SceneSummary,
 } from "../data/cloud";
 
@@ -41,6 +42,19 @@ const getAITaskStatusLabel = (status: AITaskStatus) => {
     return t("cloud.aiTasks.statusRunning");
   }
   return t("cloud.aiTasks.statusQueued");
+};
+
+const getCastSessionStatusLabel = (status: CastSessionStatus) => {
+  if (status === "ready") {
+    return t("cloud.castArtifacts.statusReady");
+  }
+  if (status === "exported") {
+    return t("cloud.castArtifacts.statusExported");
+  }
+  if (status === "archived") {
+    return t("cloud.castArtifacts.statusArchived");
+  }
+  return t("cloud.castArtifacts.statusDraft");
 };
 
 export type CloudSceneRemoteUpdateState =
@@ -99,6 +113,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   const [savingCloudScene, setSavingCloudScene] = useState(false);
   const [checkingCurrentScene, setCheckingCurrentScene] = useState(false);
   const [refreshingCurrentScene, setRefreshingCurrentScene] = useState(false);
+  const [refreshingCastStats, setRefreshingCastStats] = useState(false);
   const [sceneStats, setSceneStats] = useState<
     | { status: "idle" | "loading" | "unavailable" }
     | {
@@ -114,6 +129,16 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
         status: "ready";
         count: number;
         latestStatus: AITaskStatus | null;
+      }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+  const [castStats, setCastStats] = useState<
+    | { status: "idle" | "loading" | "unavailable" }
+    | {
+        status: "ready";
+        sessionCount: number;
+        exportCount: number;
+        latestStatus: CastSessionStatus | null;
       }
     | { status: "error"; message: string }
   >({ status: "idle" });
@@ -200,21 +225,69 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     [isSignedIn],
   );
 
+  const loadCastStats = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      if (!isSignedIn || !activeCloudScene) {
+        setCastStats({ status: "idle" });
+        return;
+      }
+
+      const backend = getCloudBackend();
+      if (!backend.capabilities.cast) {
+        setCastStats({ status: "unavailable" });
+        return;
+      }
+
+      setCastStats({ status: "loading" });
+      try {
+        const [sessions, exports] = await Promise.all([
+          backend.cast.listByScene(activeCloudScene.id, { limit: 20 }),
+          backend.cast.listExportsByScene(activeCloudScene.id, { limit: 20 }),
+        ]);
+        if (isCancelled()) {
+          return;
+        }
+
+        setCastStats({
+          status: "ready",
+          sessionCount: sessions.length,
+          exportCount: exports.length,
+          latestStatus: sessions[0]?.status ?? null,
+        });
+      } catch (err) {
+        if (isCancelled()) {
+          return;
+        }
+
+        setCastStats({
+          status: "error",
+          message:
+            err instanceof Error
+              ? err.message
+              : t("cloud.castArtifacts.genericError"),
+        });
+      }
+    },
+    [activeCloudScene, isSignedIn],
+  );
+
   useEffect(() => {
     if (!open || !isSignedIn) {
       setSceneStats({ status: "idle" });
       setTaskStats({ status: "idle" });
+      setCastStats({ status: "idle" });
       return;
     }
 
     let cancelled = false;
     void loadSceneStats(() => cancelled);
     void loadTaskStats(() => cancelled);
+    void loadCastStats(() => cancelled);
 
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, loadSceneStats, loadTaskStats, open]);
+  }, [isSignedIn, loadCastStats, loadSceneStats, loadTaskStats, open]);
 
   if (!open) {
     return null;
@@ -229,6 +302,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     setSavingCloudScene(false);
     setCheckingCurrentScene(false);
     setRefreshingCurrentScene(false);
+    setRefreshingCastStats(false);
   };
 
   const handleClose = () => {
@@ -379,6 +453,26 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     }
   };
 
+  const handleRefreshCastStats = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      refreshingCastStats
+    ) {
+      return;
+    }
+
+    setRefreshingCastStats(true);
+    try {
+      await loadCastStats();
+    } finally {
+      setRefreshingCastStats(false);
+    }
+  };
+
   const accountLabel =
     user?.email || user?.displayName || t("cloud.auth.account");
 
@@ -418,6 +512,20 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       : cloudSceneRemoteUpdate.status === "error"
       ? cloudSceneRemoteUpdate.message
       : t("cloud.auth.currentCloudWhiteboardIdle");
+
+  const castStatsLabel =
+    castStats.status === "loading" || refreshingCastStats
+      ? t("cloud.castArtifacts.loading")
+      : castStats.status === "unavailable"
+      ? t("cloud.castArtifacts.unavailable")
+      : castStats.status === "error"
+      ? t("cloud.castArtifacts.unavailable")
+      : castStats.status === "ready"
+      ? t("cloud.castArtifacts.count", {
+          sessions: castStats.sessionCount,
+          exports: castStats.exportCount,
+        })
+      : t("cloud.castArtifacts.loading");
 
   const canCheckCurrentScene =
     !!activeCloudScene &&
@@ -584,6 +692,44 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                         : t("cloud.auth.refreshCurrentCloudWhiteboard")}
                     </button>
                   )}
+                </div>
+              </div>
+            )}
+
+            {activeCloudScene && (
+              <div className="AuthDialog__accountCard AuthDialog__castCard">
+                <span>{t("cloud.castArtifacts.title")}</span>
+                <strong>{castStatsLabel}</strong>
+                {castStats.status === "ready" && castStats.latestStatus && (
+                  <small>
+                    {t("cloud.castArtifacts.latest", {
+                      status: getCastSessionStatusLabel(castStats.latestStatus),
+                    })}
+                  </small>
+                )}
+                {castStats.status === "ready" && !castStats.latestStatus && (
+                  <small>{t("cloud.castArtifacts.empty")}</small>
+                )}
+                {castStats.status === "error" && (
+                  <small>{castStats.message}</small>
+                )}
+                <div className="AuthDialog__cardActions">
+                  <button
+                    className="AuthDialog__cardAction"
+                    type="button"
+                    onClick={() => void handleRefreshCastStats()}
+                    disabled={
+                      signingOut ||
+                      savingCloudScene ||
+                      checkingCurrentScene ||
+                      refreshingCurrentScene ||
+                      refreshingCastStats
+                    }
+                  >
+                    {refreshingCastStats
+                      ? t("cloud.castArtifacts.loading")
+                      : t("cloud.castArtifacts.refresh")}
+                  </button>
                 </div>
               </div>
             )}

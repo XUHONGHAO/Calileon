@@ -16,7 +16,16 @@ values (
   'excalidraw-assets',
   false,
   20971520,
-  array['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/svg+xml']
+  array[
+    'image/png',
+    'image/jpeg',
+    'image/webp',
+    'image/gif',
+    'image/svg+xml',
+    'application/json',
+    'video/mp4',
+    'video/webm'
+  ]
 )
 on conflict (id) do update set
   public = excluded.public,

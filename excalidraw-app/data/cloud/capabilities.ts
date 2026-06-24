@@ -59,7 +59,7 @@ export const readCapabilities = (): BackendCapabilities => {
     aiTasks: hasSupabase, // Phase 2C: Supabase AI task metadata/index
     collaborationMetadata: hasSupabase, // Phase 3A: activity_log metadata
     realtime,
-    cast: false, // Phase 3
+    cast: hasSupabase, // Phase 3B: Supabase cast session/export metadata
     embed: false, // Phase 3
     aiGateway: false, // Phase 2 (browser-direct AI is the default, not a gateway)
   };

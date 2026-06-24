@@ -26,6 +26,7 @@ import {
 import { createSupabaseAssetStorage } from "./supabase/SupabaseAssetStorage";
 import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
 import { createSupabaseAITaskService } from "./supabase/SupabaseAITaskService";
+import { createSupabaseCastService } from "./supabase/SupabaseCastService";
 import { createSupabaseSceneActivityService } from "./supabase/SupabaseSceneActivityService";
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
 import { createSupabaseShareService } from "./supabase/SupabaseShareService";
@@ -49,11 +50,9 @@ const assembleLocalBackend = (): CloudBackend => ({
 });
 
 /**
- * Supabase assembly: Phase 1 backs `auth` and `scenes`; Phase 2A also backs
- * Supabase (decision 0008 §4.3). Assets/shares/realtime/cast/embed/ai keep the
- * Phase 0 Local implementations (they report `not-configured` / `false` until
- * their own phases). The frozen contract shape is identical — only the two
- * slots differ.
+ * Supabase assembly: Phase 1 backs `auth` and `scenes`; later phases add
+ * assets/shares/AI tasks/activity/cast metadata. Realtime/embed/ai gateway keep
+ * the Phase 0 Local implementations until their own phases.
  */
 const assembleSupabaseBackend = (
   capabilities: BackendCapabilities,
@@ -66,7 +65,7 @@ const assembleSupabaseBackend = (
   aiTasks: createSupabaseAITaskService(),
   activity: createSupabaseSceneActivityService(),
   realtime: createLocalRealtimeService(),
-  cast: createLocalCastService(),
+  cast: createSupabaseCastService(),
   embed: createLocalEmbedService(),
   ai: createLocalAiGateway(),
 });

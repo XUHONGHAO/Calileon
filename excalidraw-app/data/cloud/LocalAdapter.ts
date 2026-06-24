@@ -82,6 +82,12 @@ export const createLocalRealtimeService = (): RealtimeService => ({
 
 export const createLocalCastService = (): CastService => ({
   isAvailable: () => false,
+  createSession: async () => notConfigured(),
+  listByScene: async () => notConfigured(),
+  attachScript: async () => notConfigured(),
+  registerExport: async () => notConfigured(),
+  listExportsByScene: async () => notConfigured(),
+  remove: async () => notConfigured(),
 });
 
 export const createLocalEmbedService = (): EmbedService => ({

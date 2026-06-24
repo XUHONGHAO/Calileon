@@ -1467,6 +1467,20 @@
       "saved": "Saved to shared cloud whiteboard.",
       "unavailable": "Cloud sharing is not configured."
     },
+    "castArtifacts": {
+      "count": "Sessions: {{sessions}} · Exports: {{exports}}",
+      "empty": "No recording artifacts yet.",
+      "genericError": "Cloud recording artifacts are unavailable. Please try again.",
+      "latest": "Latest: {{status}}",
+      "loading": "Loading...",
+      "refresh": "Refresh cast artifacts",
+      "statusArchived": "Archived",
+      "statusDraft": "Draft",
+      "statusExported": "Exported",
+      "statusReady": "Ready",
+      "title": "Recording artifacts",
+      "unavailable": "Unavailable"
+    },
     "aiTasks": {
       "delete": "Delete",
       "deleteConfirm": "Delete this AI task record?",

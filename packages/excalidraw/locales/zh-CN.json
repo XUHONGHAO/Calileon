@@ -1435,6 +1435,20 @@
       "saved": "已保存到共享云端白板。",
       "unavailable": "云端分享未配置。"
     },
+    "castArtifacts": {
+      "count": "录制 {{sessions}} 个 · 导出 {{exports}} 个",
+      "empty": "暂无录制产物。",
+      "genericError": "云端录制产物暂不可用，请重试。",
+      "latest": "最近：{{status}}",
+      "loading": "加载中……",
+      "refresh": "刷新录制产物",
+      "statusArchived": "已归档",
+      "statusDraft": "草稿",
+      "statusExported": "已导出",
+      "statusReady": "可回放",
+      "title": "录制产物",
+      "unavailable": "暂不可用"
+    },
     "aiTasks": {
       "delete": "删除",
       "deleteConfirm": "删除这条 AI 任务记录？",

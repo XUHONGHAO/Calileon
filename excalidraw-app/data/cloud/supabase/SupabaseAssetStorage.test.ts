@@ -132,6 +132,46 @@ describe("SupabaseAssetStorage", () => {
     });
   });
 
+  it("preserves recording/export asset metadata for cast artifacts", async () => {
+    const recordingRow = {
+      ...assetRow,
+      id: "recording-1",
+      type: "recording",
+      mime_type: "application/json",
+      storage_path: "owner-1/scene-1/cast-script.json",
+      file_id: "cast-script.json",
+      bytes: 13,
+    };
+    const builder = makeBuilder({ data: recordingRow, error: null });
+    mockFrom.mockReturnValue(builder);
+
+    const result = await createSupabaseAssetStorage().upload({
+      blob: new Blob(['{"events":[]}'], { type: "application/json" }),
+      type: "recording",
+      sceneId: "scene-1",
+      fileId: "cast-script.json",
+    });
+
+    expect(result).toMatchObject({
+      id: "recording-1",
+      type: "recording",
+      mimeType: "application/json",
+    });
+    expect(mockUpload).toHaveBeenCalledWith(
+      "owner-1/scene-1/cast-script.json",
+      expect.any(Blob),
+      { contentType: "application/json", upsert: true },
+    );
+
+    const calls = (
+      builder as { __calls: Array<{ method: string; args: unknown[] }> }
+    ).__calls;
+    expect(calls.find((c) => c.method === "upsert")?.args[0]).toMatchObject({
+      type: "recording",
+      mime_type: "application/json",
+    });
+  });
+
   it("lists scene assets and signs each private object URL", async () => {
     const builder = makeBuilder({ data: [assetRow], error: null });
     mockFrom.mockReturnValue(builder);

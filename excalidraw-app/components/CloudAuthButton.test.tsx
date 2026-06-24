@@ -63,6 +63,9 @@ const makeBackend = (
     signOut?: () => Promise<void>;
     sceneSummaries?: any[];
     aiTasks?: any[];
+    cast?: boolean;
+    castSessions?: any[];
+    castExports?: any[];
   } = {},
 ) => {
   const listeners: Array<(u: any) => void> = [];
@@ -71,6 +74,7 @@ const makeBackend = (
       auth: overrides.auth ?? true,
       sceneStorage: true,
       aiTasks: true,
+      cast: overrides.cast ?? true,
     },
     auth: {
       getCurrentUser: vi.fn(async () => overrides.currentUser ?? null),
@@ -105,6 +109,10 @@ const makeBackend = (
     },
     aiTasks: {
       list: vi.fn(async () => overrides.aiTasks ?? []),
+    },
+    cast: {
+      listByScene: vi.fn(async () => overrides.castSessions ?? []),
+      listExportsByScene: vi.fn(async () => overrides.castExports ?? []),
     },
     __emit: (u: any) => listeners.forEach((l) => l(u)),
   };
@@ -375,6 +383,67 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     );
     await waitFor(() =>
       expect(onRefreshCurrentCloudScene).toHaveBeenCalledTimes(1),
+    );
+  });
+
+  it("shows current cloud scene cast artifact summary and refreshes it", async () => {
+    const castSessions = [
+      {
+        id: "cast-1",
+        status: "exported",
+      },
+    ];
+    const castExports = [
+      {
+        id: "export-1",
+        type: "mp4",
+      },
+    ];
+    const backend = makeBackend({
+      auth: true,
+      currentUser: {
+        id: "u1",
+        email: "me@example.com",
+        displayName: null,
+        avatarUrl: null,
+        createdAt: 0,
+        lastSignInAt: null,
+      },
+      castSessions,
+      castExports,
+    });
+    setBackend(backend);
+
+    render(
+      <CloudAuthButton
+        activeCloudScene={{
+          id: "scene-1",
+          title: "Roadmap",
+          version: 2,
+          updatedAt: 2,
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cloud account" }),
+    );
+
+    expect(await screen.findByText("Recording artifacts")).toBeInTheDocument();
+    expect(screen.getByText("Sessions: 1 · Exports: 1")).toBeInTheDocument();
+    expect(screen.getByText("Latest: Exported")).toBeInTheDocument();
+    expect(backend.cast.listByScene).toHaveBeenCalledWith("scene-1", {
+      limit: 20,
+    });
+    expect(backend.cast.listExportsByScene).toHaveBeenCalledWith("scene-1", {
+      limit: 20,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Refresh cast artifacts" }),
+    );
+    await waitFor(() =>
+      expect(backend.cast.listByScene).toHaveBeenCalledTimes(2),
     );
   });
 });

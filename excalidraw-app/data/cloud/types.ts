@@ -165,6 +165,58 @@ export type SceneActivityCreateInput = Omit<
   "id" | "ownerId" | "createdAt"
 >;
 
+export type CastSessionStatus = "draft" | "ready" | "exported" | "archived";
+
+export type CastExportType = "gif" | "mp4" | "webm" | "interactive";
+
+export interface CastSessionRecord {
+  id: string;
+  ownerId: string;
+  sceneId: string;
+  title: string;
+  status: CastSessionStatus;
+  scriptAssetId: string | null;
+  coverAssetId: string | null;
+  durationMs: number | null;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+}
+
+export interface CastSessionCreateInput {
+  sceneId: string;
+  title: string;
+  status?: CastSessionStatus;
+  scriptAssetId?: string | null;
+  coverAssetId?: string | null;
+  durationMs?: number | null;
+}
+
+export interface CastScriptAttachInput {
+  scriptAssetId: string;
+  coverAssetId?: string | null;
+  durationMs?: number | null;
+}
+
+export interface CastExportRecord {
+  id: string;
+  ownerId: string;
+  sceneId: string;
+  sessionId: string;
+  assetId: string;
+  type: CastExportType;
+  label: string | null;
+  mimeType: string | null;
+  bytes: number;
+  createdAt: number;
+  deletedAt: number | null;
+}
+
+export type CastExportCreateInput = Omit<
+  CastExportRecord,
+  "id" | "ownerId" | "createdAt" | "deletedAt"
+>;
+
 // —— Auth (BR-AUTH, Phase 1) ——
 // First version implements password sign-in only; oauth / magic-link
 // signatures are reserved and not implemented in Phase 1.
@@ -247,10 +299,27 @@ export interface RealtimeService {
   // Phase 0 placeholder + surface capture; collab methods land in Phase 3/4.
 }
 
-// —— Cast / Embed / AiGateway: Phase 0 only declares placeholders. ——
+// —— Cast (BR-CAST, Phase 3B) ——
 export interface CastService {
   isAvailable(): boolean;
+  createSession(input: CastSessionCreateInput): Promise<CastSessionRecord>;
+  listByScene(
+    sceneId: string,
+    opts?: { limit?: number },
+  ): Promise<CastSessionRecord[]>;
+  attachScript(
+    sessionId: string,
+    input: CastScriptAttachInput,
+  ): Promise<CastSessionRecord>;
+  registerExport(input: CastExportCreateInput): Promise<CastExportRecord>;
+  listExportsByScene(
+    sceneId: string,
+    opts?: { limit?: number },
+  ): Promise<CastExportRecord[]>;
+  remove(sessionId: string): Promise<void>;
 }
+
+// —— Embed / AiGateway: Phase 0 only declares placeholders. ——
 export interface EmbedService {
   isAvailable(): boolean;
 }
