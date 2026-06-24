@@ -791,7 +791,6 @@
       "promptRequired": "请输入提示词。",
       "selectElementsFirst": "请先在画布上选择元素。",
       "referenceAdded": "参考图 #{{index}} 已添加。",
-      "referenceNotFoundWarning": "警告：找不到 #{{index}}（当前 {{count}} 张参考图）。",
       "referenceNotFoundWarningSingular": "警告：找不到 #{{index}}（当前 1 张参考图）。",
       "referenceNotFoundWarningPlural": "警告：找不到 #{{index}}（当前 {{count}} 张参考图）。",
       "exportSelectionFailed": "无法导出选区。",
