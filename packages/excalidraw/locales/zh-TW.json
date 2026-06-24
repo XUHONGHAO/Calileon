@@ -792,6 +792,8 @@
       "selectElementsFirst": "請先在畫布上選取元素。",
       "referenceAdded": "參考圖 #{{index}} 已新增。",
       "referenceNotFoundWarning": "警告：找不到 #{{index}}（目前 {{count}} 張參考圖）。",
+      "referenceNotFoundWarningSingular": "警告：找不到 #{{index}}（目前 1 張參考圖）。",
+      "referenceNotFoundWarningPlural": "警告：找不到 #{{index}}（目前 {{count}} 張參考圖）。",
       "exportSelectionFailed": "無法匯出選取區。",
       "selectOneImageBeforeGenerating": "生成前請只選取一張圖片。",
       "selectOneImageBeforeMask": "編輯遮罩前請只選取一張圖片。",
