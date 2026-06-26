@@ -1,8 +1,8 @@
 .zoom-actions,
 .undo-redo-buttons {
-  background-color: var(--island-bg-color);
-  border-radius: var(--border-radius-lg);
-  box-shadow: 0 0 0 1px var(--color-surface-lowest);
+  display: flex;
+  align-items: center;
+  gap: 0;
 }
 
 .zoom-button,
@@ -90,6 +90,18 @@
       border-bottom-left-radius: 0 !important;
     }
   }
+
+  .focus-content-button-container button {
+    margin-left: 0.5rem;
+    border-top-right-radius: var(--border-radius-lg) !important;
+    border-bottom-right-radius: var(--border-radius-lg) !important;
+    border-top-left-radius: var(--border-radius-lg) !important;
+    border-bottom-left-radius: var(--border-radius-lg) !important;
+
+    .ToolIcon__icon {
+      border-radius: var(--border-radius-lg) !important;
+    }
+  }
 }
 
 .compact-shape-actions {
@@ -120,9 +132,16 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s ease;
+      transition: background-color var(--ui-transition),
+        border-color var(--ui-transition), box-shadow var(--ui-transition),
+        color var(--ui-transition);
 
       background: var(--mobile-action-button-bg);
+
+      &:focus-visible {
+        outline: var(--ui-focus-outline);
+        outline-offset: var(--ui-focus-outline-offset);
+      }
 
       svg {
         width: 1rem;
@@ -184,7 +203,7 @@
 }
 
 .mobile-shape-actions {
-  z-index: 999;
+  z-index: var(--zIndex-ui-top);
   display: flex;
   flex-direction: row;
   justify-content: space-between;
@@ -205,4 +224,10 @@
 :root.theme--dark .shape-actions-theme-scope {
   --button-hover-bg: #363541;
   --button-bg: var(--color-surface-high);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .compact-shape-actions .compact-action-item .compact-action-button {
+    transition: none;
+  }
 }

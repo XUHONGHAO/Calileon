@@ -343,6 +343,7 @@ const restoreElementWithProperties = <
   > &
     Partial<Pick<ExcalidrawElement, "type" | "x" | "y" | "customData">>,
 ): T => {
+  const updated = element.updated ?? getUpdatedTimestamp();
   const base: Pick<T, keyof ExcalidrawElement> = {
     type: extra.type || element.type,
     // all elements must have version > 0 so getSceneVersion() will pick up
@@ -383,7 +384,8 @@ const restoreElementWithProperties = <
     boundElements: element.boundElementIds
       ? element.boundElementIds.map((id) => ({ type: "arrow", id }))
       : element.boundElements ?? [],
-    updated: element.updated ?? getUpdatedTimestamp(),
+    updated,
+    created: element.created ?? updated,
     link: element.link ? normalizeLink(element.link) : null,
     locked: element.locked ?? false,
   };

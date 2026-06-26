@@ -827,6 +827,87 @@ body.excalidraw-cursor-resize * {
     }
   }
 
+  .excalidraw__embeddable-video-placeholder {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #fb7299 0%, #00a1d6 100%),
+      rgba(0, 0, 0, 0.72);
+    background-position: center;
+    background-size: cover;
+    color: #fff;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-family: "Assistant";
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .excalidraw__embeddable-video-placeholder.has-cover {
+    background-color: #111;
+  }
+
+  .excalidraw__embeddable-video-placeholder__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        180deg,
+        rgba(0, 0, 0, 0.08) 0%,
+        rgba(0, 0, 0, 0.18) 48%,
+        rgba(0, 0, 0, 0.72) 100%
+      ),
+      rgba(0, 0, 0, 0.08);
+  }
+
+  .excalidraw__embeddable-video-placeholder__icon {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: clamp(3rem, 18%, 5rem);
+    height: clamp(3rem, 18%, 5rem);
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.58);
+    box-shadow: 0 0.25rem 1.25rem rgba(0, 0, 0, 0.32);
+    backdrop-filter: blur(2px);
+  }
+
+  .excalidraw__embeddable-video-placeholder__meta {
+    position: absolute;
+    z-index: 1;
+    right: 0.75rem;
+    bottom: 0.65rem;
+    left: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    text-align: left;
+  }
+
+  .excalidraw__embeddable-video-placeholder__platform {
+    font-size: 0.8125rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .excalidraw__embeddable-video-placeholder__title {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    line-height: 1.2;
+    opacity: 0.86;
+  }
+
   .excalidraw__embeddable-hint {
     position: absolute;
     z-index: 1;

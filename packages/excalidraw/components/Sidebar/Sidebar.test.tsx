@@ -236,6 +236,87 @@ describe("Sidebar", () => {
         expect(onStateChange).toHaveBeenCalledWith(null);
       });
     });
+
+    it("should keep sidebar open when outside close interactions are disabled", async () => {
+      const CustomExcalidraw = () => {
+        return (
+          <Excalidraw
+            initialData={{
+              appState: { openSidebar: { name: "customSidebar" } },
+            }}
+          >
+            <Sidebar
+              name="customSidebar"
+              className="test-sidebar"
+              docked={false}
+              closeOnOutsideClick={false}
+              closeOnEscape={false}
+            >
+              <Sidebar.Header />
+            </Sidebar>
+          </Excalidraw>
+        );
+      };
+
+      const { container } = await render(<CustomExcalidraw />);
+
+      await waitFor(() => {
+        expect(container.querySelector<HTMLElement>(".test-sidebar")).not.toBe(
+          null,
+        );
+      });
+
+      fireEvent.pointerDown(document.body);
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(container.querySelector<HTMLElement>(".test-sidebar")).not.toBe(
+        null,
+      );
+
+      fireEvent.click(queryByTestId(container, "sidebar-close")!);
+      await waitFor(() => {
+        expect(container.querySelector<HTMLElement>(".test-sidebar")).toBe(
+          null,
+        );
+      });
+    });
+
+    it("should keep sidebar open when trigger close toggling is disabled", async () => {
+      const CustomExcalidraw = () => {
+        return (
+          <Excalidraw
+            initialData={{
+              appState: { openSidebar: { name: "customSidebar" } },
+            }}
+          >
+            <Sidebar.Trigger
+              name="customSidebar"
+              title="Custom sidebar"
+              closeOnToggle={false}
+            />
+            <Sidebar name="customSidebar" className="test-sidebar">
+              <div id="test-sidebar-content">42</div>
+            </Sidebar>
+          </Excalidraw>
+        );
+      };
+
+      const { container } = await render(<CustomExcalidraw />);
+
+      await waitFor(() => {
+        expect(container.querySelector<HTMLElement>(".test-sidebar")).not.toBe(
+          null,
+        );
+      });
+
+      fireEvent.click(
+        container.querySelector('[aria-label="Custom sidebar"]')!,
+      );
+
+      expect(container.querySelector<HTMLElement>(".test-sidebar")).not.toBe(
+        null,
+      );
+    });
   });
 
   describe("Docking behavior", () => {

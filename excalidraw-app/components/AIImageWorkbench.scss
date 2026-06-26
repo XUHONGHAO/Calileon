@@ -1,0 +1,993 @@
+.excalidraw {
+  .AIImageWorkbenchTab {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .AIImageWorkbench {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--app-sidebar-gap, 0.75rem);
+    flex: 1 1 auto;
+    min-height: 0;
+    height: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding: var(--app-sidebar-padding, 0.75rem);
+    padding-bottom: 1rem;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 0.875rem;
+  }
+
+  .AIImageWorkbench button,
+  .AIImageWorkbench input,
+  .AIImageWorkbench select,
+  .AIImageWorkbench textarea {
+    transition: background-color var(--ui-transition),
+      border-color var(--ui-transition), box-shadow var(--ui-transition),
+      color var(--ui-transition);
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .AIImageWorkbench__section {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-width: 0;
+    max-width: 100%;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--default-border-color);
+  }
+
+  .AIImageWorkbench__sectionHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-width: 0;
+
+    h3 {
+      min-width: 0;
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AIImageWorkbench__statusStrip {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.25rem;
+    min-width: 0;
+
+    .AIImageWorkbench__statusPill {
+      min-width: 0;
+      border: 1px solid transparent;
+      border-radius: var(--border-radius-md);
+      padding: 0.25rem 0.4rem;
+      background: var(--color-surface-mid);
+      color: var(--app-sidebar-muted-text, var(--text-secondary-color));
+      font-size: 0.68rem;
+      font-weight: 600;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+
+      strong {
+        margin-right: 0.25rem;
+        color: var(--text-primary-color);
+        font-weight: 800;
+      }
+
+      &.is-ready {
+        background: var(--color-ai-accent-bg);
+        border-color: var(--color-ai-accent-border);
+        color: var(--color-ai-accent-text);
+      }
+
+      &.is-warning {
+        background: var(--color-warning-background);
+        border-color: var(--color-warning-dark);
+        color: var(--color-warning-color);
+      }
+
+      &.is-reference {
+        background: var(--color-ai-reference-bg);
+        border-color: color-mix(
+          in srgb,
+          var(--color-ai-reference-text) 24%,
+          transparent
+        );
+        color: var(--color-ai-reference-text);
+      }
+
+      &.is-mask {
+        background: var(--color-ai-mask-bg);
+        border-color: color-mix(
+          in srgb,
+          var(--color-ai-mask-text) 24%,
+          transparent
+        );
+        color: var(--color-ai-mask-text);
+      }
+
+      &.is-history {
+        background: var(--color-ai-history-bg);
+        border-color: color-mix(
+          in srgb,
+          var(--color-ai-history-text) 24%,
+          transparent
+        );
+        color: var(--color-ai-history-text);
+      }
+    }
+  }
+
+  .AIImageWorkbench__segmentedControl {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.25rem;
+    min-width: 0;
+    padding: 0.25rem;
+    border: 1px solid
+      var(--app-sidebar-panel-border, var(--default-border-color));
+    border-radius: 0.5rem;
+    background: var(--color-surface-mid);
+  }
+
+  .AIImageWorkbench__segment {
+    min-height: var(--app-sidebar-control-height, 2rem);
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--text-primary-color);
+    font: inherit;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+
+    &.is-selected {
+      background: var(--color-surface-primary-container);
+      color: var(--color-on-primary-container);
+      box-shadow: 0 0 0 1px var(--color-surface-primary-container);
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+  }
+
+  .AIImageWorkbench__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+
+    span {
+      color: var(--text-primary-color);
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+
+    input,
+    select,
+    textarea {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.45rem;
+      padding: 0.5rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+
+      &:hover:not(:disabled) {
+        border-color: var(--color-border-outline-variant);
+      }
+    }
+
+    textarea {
+      resize: vertical;
+    }
+  }
+
+  .AIImageWorkbench__promptBlock {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__promptInput.has-warning {
+    border-color: #d99a00;
+    box-shadow: 0 0 0 1px rgba(217, 154, 0, 0.2);
+  }
+
+  .AIImageWorkbench__templateRow,
+  .AIImageWorkbench__referenceHeader,
+  .AIImageWorkbench__referenceToolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__templateRow {
+    justify-content: space-between;
+  }
+
+  .AIImageWorkbench__promptActions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__promptActions--end {
+    justify-content: flex-end;
+  }
+
+  .AIImageWorkbench__templateMenu,
+  .AIImageWorkbench__referencePicker {
+    box-sizing: border-box;
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.45rem;
+    background: var(--app-sidebar-control-bg, var(--island-bg-color));
+    color: var(--text-primary-color);
+    box-shadow: 0 0.35rem 1.2rem rgba(0, 0, 0, 0.12);
+  }
+
+  .AIImageWorkbench__referencePicker {
+    position: absolute;
+    z-index: var(--zIndex-ui-styles-popup);
+    top: calc(100% - 0.2rem);
+    left: 0;
+    right: 0;
+  }
+
+  .AIImageWorkbench__templateGroup {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__templateGroupLabel {
+    color: var(--text-primary-color);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    opacity: 0.68;
+    text-transform: uppercase;
+  }
+
+  .AIImageWorkbench__templateItem,
+  .AIImageWorkbench__referencePickerItem {
+    display: grid;
+    min-width: 0;
+    border: 0;
+    border-radius: 0.35rem;
+    padding: 0.4rem 0.45rem;
+    background: transparent;
+    color: var(--text-primary-color);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover,
+    &.is-active {
+      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+    }
+
+    span,
+    small {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    small {
+      font-size: 0.68rem;
+      opacity: 0.65;
+    }
+  }
+
+  .AIImageWorkbench__referencePickerItem {
+    grid-template-columns: 2.2rem 2.4rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.45rem;
+
+    img {
+      width: 2.2rem;
+      height: 2.2rem;
+      border-radius: 0.3rem;
+      object-fit: cover;
+      background: var(--default-bg-color);
+    }
+  }
+
+  .AIImageWorkbench__warning {
+    border-radius: 0.4rem;
+    padding: 0.45rem 0.55rem;
+    background: rgba(217, 154, 0, 0.16);
+    color: var(--text-primary-color);
+    font-size: 0.76rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .AIImageWorkbench__grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__primaryButton {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    width: 100% !important;
+    height: 2.25rem !important;
+    min-width: 0;
+    --button-width: 100%;
+    --button-height: 2.25rem;
+    --button-bg: var(--color-primary);
+    --button-border: var(--color-primary);
+    --button-color: var(--color-icon-white);
+    --button-hover-bg: var(--color-primary-hover);
+    --button-hover-border: var(--color-primary-hover);
+    --button-hover-color: var(--color-icon-white);
+    --button-active-bg: var(--color-primary-darker);
+    --button-active-border: var(--color-primary-darker);
+    background: var(--sidebar-bg-color);
+    justify-content: center;
+    box-shadow: 0 -0.25rem 0.75rem var(--sidebar-bg-color);
+
+    &:disabled {
+      --button-bg: var(--color-surface-mid);
+      --button-border: var(--default-border-color);
+      --button-color: var(--color-text-disabled);
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+  }
+
+  .AIImageWorkbench__textButton {
+    border: 0;
+    background: transparent;
+    color: var(--color-primary);
+    font: inherit;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      color: var(--color-primary-hover);
+      text-decoration: underline;
+      text-underline-offset: 0.15rem;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  .AIImageWorkbench__inlineStatus {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    color: var(--app-sidebar-muted-text, var(--text-secondary-color));
+  }
+
+  .AIImageWorkbench__referencePanel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.55rem;
+    background: var(--app-sidebar-panel-bg, var(--default-bg-color));
+  }
+
+  .AIImageWorkbench__referenceHeader {
+    justify-content: space-between;
+
+    > span {
+      min-width: 0;
+      font-size: 0.78rem;
+      font-weight: 700;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AIImageWorkbench__referenceToolbar {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+
+    button {
+      min-height: 1.8rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.45rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      font-size: 0.74rem;
+      white-space: nowrap;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+    }
+  }
+
+  .AIImageWorkbench__referenceHint,
+  .AIImageWorkbench__emptyState {
+    color: var(--app-sidebar-muted-text, var(--text-secondary-color));
+    font-size: 0.74rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+
+  .AIImageWorkbench__referenceGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__assetGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+    gap: 0.55rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__assetCard {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.45rem;
+    background: var(--app-sidebar-control-bg, var(--island-bg-color));
+    color: var(--text-primary-color);
+    transition: border-color var(--ui-transition),
+      box-shadow var(--ui-transition), transform var(--ui-transition-fast);
+
+    &:hover {
+      border-color: var(--color-border-outline-variant);
+      box-shadow: var(--shadow-island);
+    }
+  }
+
+  .AIImageWorkbench__assetPreview {
+    position: relative;
+    min-width: 0;
+    aspect-ratio: 4 / 3;
+    border-radius: 0.35rem;
+    overflow: hidden;
+    background: var(--color-surface-mid);
+
+    img {
+      display: block;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .AIImageWorkbench__assetBadge {
+    position: absolute;
+    left: 0.3rem;
+    top: 0.3rem;
+    border-radius: 999px;
+    padding: 0.1rem 0.4rem;
+    background: var(--color-ai-history-bg);
+    color: var(--color-ai-history-text);
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.25;
+  }
+
+  .AIImageWorkbench__assetMeta {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.1rem 0.45rem;
+    min-width: 0;
+    font-size: 0.68rem;
+    line-height: 1.25;
+
+    strong,
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      color: var(--text-primary-color);
+      font-size: 0.72rem;
+    }
+
+    span {
+      color: var(--app-sidebar-muted-text, var(--text-secondary-color));
+    }
+
+    span:last-child {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      align-self: center;
+    }
+  }
+
+  .AIImageWorkbench__assetRevision {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--app-sidebar-muted-text, var(--text-secondary-color));
+    font-size: 0.68rem;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .AIImageWorkbench__assetActions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem;
+    min-width: 0;
+
+    button {
+      min-width: 0;
+      min-height: 1.65rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.35rem;
+      padding: 0.12rem 0.2rem;
+      background: var(--app-sidebar-panel-bg, var(--default-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      font-size: 0.64rem;
+      line-height: 1.15;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+    }
+  }
+
+  .AIImageWorkbench__assetDetails {
+    border-top: 1px solid var(--default-border-color);
+    padding-top: 0.35rem;
+    color: var(--app-sidebar-muted-text, var(--text-secondary-color));
+    font-size: 0.68rem;
+
+    summary {
+      cursor: pointer;
+      color: var(--text-primary-color);
+      font-weight: 700;
+    }
+
+    dl {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      margin: 0.4rem 0 0;
+    }
+
+    div {
+      display: grid;
+      grid-template-columns: 2.4rem minmax(0, 1fr);
+      gap: 0.4rem;
+      min-width: 0;
+    }
+
+    dt {
+      color: var(--text-primary-color);
+      font-weight: 700;
+    }
+
+    dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AIImageWorkbench__referenceCard {
+    position: relative;
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: 4rem auto auto;
+    gap: 0.25rem;
+    min-width: 0;
+    min-height: 7.1rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.35rem;
+    background: var(--app-sidebar-control-bg, var(--island-bg-color));
+    color: var(--text-primary-color);
+    cursor: pointer;
+    transition: border-color var(--ui-transition),
+      box-shadow var(--ui-transition), transform var(--ui-transition-fast);
+
+    &:hover {
+      border-color: var(--color-border-outline-variant);
+      box-shadow: var(--shadow-island);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+
+    &.is-dragging {
+      opacity: 0.48;
+    }
+
+    &.is-missing {
+      filter: grayscale(1);
+      opacity: 0.62;
+    }
+  }
+
+  .AIImageWorkbench__referenceBadge,
+  .AIImageWorkbench__referenceWeightBadge {
+    position: absolute;
+    z-index: 1;
+    top: 0.25rem;
+    border-radius: 999px;
+    padding: 0.1rem 0.4rem;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    line-height: 1.25;
+  }
+
+  .AIImageWorkbench__referenceBadge {
+    left: 0.25rem;
+    background: var(--color-primary);
+
+    &.is-warning {
+      background: #d99a00;
+    }
+  }
+
+  .AIImageWorkbench__referenceWeightBadge {
+    top: 1.65rem;
+    right: 0.25rem;
+    background: var(--color-gray-60);
+  }
+
+  .AIImageWorkbench__referenceRemoveButton {
+    position: absolute;
+    z-index: 2;
+    top: 0.25rem;
+    right: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 999px;
+    padding: 0;
+    background: var(--app-sidebar-control-bg, var(--island-bg-color));
+    color: var(--text-primary-color);
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover,
+    &:focus-visible {
+      border-color: var(--color-danger-color);
+      color: var(--color-danger-color);
+    }
+  }
+
+  .AIImageWorkbench__referenceCheckbox {
+    position: absolute;
+    z-index: 2;
+    top: 0.25rem;
+    left: 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    border-radius: 999px;
+    padding: 0.08rem 0.35rem;
+    background: var(--app-sidebar-panel-bg, var(--default-bg-color));
+    font-size: 0.68rem;
+    font-weight: 700;
+  }
+
+  .AIImageWorkbench__referenceThumb {
+    width: 100%;
+    min-width: 0;
+    height: 4rem;
+    border-radius: 0.35rem;
+    object-fit: cover;
+    background: linear-gradient(45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
+      linear-gradient(-45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.06) 75%),
+      linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.06) 75%);
+    background-position: 0 0, 0 0.35rem, 0.35rem -0.35rem, -0.35rem 0;
+    background-size: 0.7rem 0.7rem;
+  }
+
+  .AIImageWorkbench__referenceMeta,
+  .AIImageWorkbench__referenceCardActions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__referenceMeta {
+    font-size: 0.66rem;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .AIImageWorkbench__referenceCardActions {
+    button {
+      min-width: 0;
+      min-height: 1.45rem;
+      border: 0;
+      border-radius: 0.3rem;
+      padding: 0.1rem 0.25rem;
+      background: var(--app-sidebar-panel-bg, var(--default-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      font-size: 0.64rem;
+      cursor: pointer;
+
+      &:hover {
+        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      }
+    }
+  }
+
+  .AIImageWorkbench__batchPanel,
+  .AIImageWorkbench__weightPanel,
+  .AIImageWorkbench__advanced {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.5rem;
+    background: var(--app-sidebar-panel-bg, var(--default-bg-color));
+  }
+
+  .AIImageWorkbench__advanced {
+    summary {
+      color: var(--text-primary-color);
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+    }
+  }
+
+  .AIImageWorkbench__maskControls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__maskStatus {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.45rem 0.5rem;
+    background: var(--app-sidebar-panel-bg, var(--default-bg-color));
+    color: var(--text-primary-color);
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    button {
+      flex: 0 0 auto;
+      min-height: 1.75rem;
+      border: 0;
+      background: transparent;
+      color: var(--color-primary);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  .AIImageWorkbench__secondaryButton {
+    min-height: 2.25rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    background: var(--app-sidebar-control-bg, var(--island-bg-color));
+    color: var(--text-primary-color);
+    font: inherit;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  .AIImageWorkbench__notice,
+  .AIImageWorkbench__message {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-radius: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--color-gray-10);
+    color: var(--text-primary-color);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+
+    span {
+      min-width: 0;
+    }
+
+    button {
+      flex: 0 0 auto;
+      border: 0;
+      background: transparent;
+      color: var(--color-primary);
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+
+      &:hover {
+        color: var(--color-primary-hover);
+        text-decoration: underline;
+        text-underline-offset: 0.15rem;
+      }
+    }
+  }
+
+  .AIImageWorkbench__message.is-error {
+    background: var(--color-danger-background);
+    color: var(--color-danger-color);
+  }
+
+  .AIImageWorkbench__metadata {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin: 0;
+
+    div {
+      display: grid;
+      grid-template-columns: 4rem minmax(0, 1fr);
+      gap: 0.5rem;
+    }
+
+    dt {
+      color: var(--text-primary-color);
+      font-weight: 600;
+    }
+
+    dd {
+      min-width: 0;
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AIImageWorkbench__actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+
+    button {
+      min-height: 2rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.45rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      overflow-wrap: anywhere;
+      white-space: normal;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+  }
+
+  @media (max-width: 360px) {
+    .AIImageWorkbench__statusStrip,
+    .AIImageWorkbench__grid,
+    .AIImageWorkbench__actions,
+    .AIImageWorkbench__assetGrid,
+    .AIImageWorkbench__referenceGrid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 520px), (max-height: 860px) {
+    .AIImageWorkbench__primaryButton {
+      position: static;
+      box-shadow: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .AIImageWorkbench button,
+    .AIImageWorkbench input,
+    .AIImageWorkbench select,
+    .AIImageWorkbench textarea,
+    .AIImageWorkbench__assetCard,
+    .AIImageWorkbench__referenceCard {
+      transition: none;
+    }
+  }
+}

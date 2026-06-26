@@ -91,6 +91,7 @@ export type ActionName =
   | "zoomIn"
   | "zoomOut"
   | "resetZoom"
+  | "focusContent"
   | "zoomToFit"
   | "zoomToFitSelection"
   | "zoomToFitSelectionInViewport"
@@ -141,8 +142,10 @@ export type ActionName =
   | "searchMenu"
   | "copyElementLink"
   | "linkToElement"
+  | "inviteInput"
   | "cropEditor"
   | "wrapSelectionInFrame"
+  | "addSelectionToAIReference"
   | "toggleLassoTool"
   | "toggleShapeSwitch"
   | "togglePolygon";

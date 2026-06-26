@@ -200,9 +200,8 @@ const ImageExportModal = ({
           {!nativeFileSystemSupported && (
             <input
               type="text"
-              className="TextInput"
+              className="TextInput ImageExportModal__preview__filename-input"
               value={projectName}
-              style={{ width: "30ch" }}
               onChange={(event) => {
                 setProjectName(event.target.value);
                 actionManager.executeAction(
@@ -316,6 +315,7 @@ const ImageExportModal = ({
           <FilledButton
             className="ImageExportModal__settings__buttons__button"
             label={t("imageExportDialog.title.exportToSvg")}
+            variant="outlined"
             onClick={() =>
               onExportImage(EXPORT_IMAGE_TYPES.svg, exportedElements, {
                 exportingFrame,
@@ -329,6 +329,7 @@ const ImageExportModal = ({
             <FilledButton
               className="ImageExportModal__settings__buttons__button"
               label={t("imageExportDialog.title.copyPngToClipboard")}
+              variant="outlined"
               status={copyStatus}
               onClick={async () => {
                 await onExportImage(

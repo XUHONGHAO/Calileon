@@ -1,5 +1,7 @@
 import { expect, vi } from "vitest";
 
+import { EDITOR_LS_KEYS } from "@excalidraw/common";
+
 import { Excalidraw } from "../index";
 
 import { mockMermaidToExcalidraw } from "./helpers/mocks";
@@ -86,6 +88,8 @@ mockMermaidToExcalidraw({
 const normalizeDialogSnapshot = (dialog: Element) => {
   const dialogClone = dialog.cloneNode(true) as HTMLElement;
 
+  dialogClone.querySelector(".ttd-dialog-input")?.remove();
+
   dialogClone
     .querySelectorAll<HTMLElement>(".ttd-dialog-content")
     .forEach((element) => {
@@ -105,6 +109,8 @@ const normalizeDialogSnapshot = (dialog: Element) => {
 
 describe("Test <MermaidToExcalidraw/>", () => {
   beforeEach(async () => {
+    window.localStorage.removeItem(EDITOR_LS_KEYS.MERMAID_TO_EXCALIDRAW);
+
     await render(
       <Excalidraw
         initialData={{
@@ -118,7 +124,13 @@ describe("Test <MermaidToExcalidraw/>", () => {
 
   it("should open mermaid popup when active tool is mermaid", async () => {
     const dialog = document.querySelector(".ttd-dialog")!;
-    await waitFor(() => expect(dialog.querySelector("canvas")).not.toBeNull());
+    await waitFor(() => {
+      expect(dialog.querySelector("canvas")).not.toBeNull();
+      expect(
+        dialog.querySelector('[data-testid="ttd-dialog-output-error"]'),
+      ).toBeNull();
+      expect(dialog.querySelector(".ttd-dialog-input--loading")).toBeNull();
+    });
     expect(normalizeDialogSnapshot(dialog)).toMatchSnapshot();
   });
 
@@ -132,7 +144,10 @@ describe("Test <MermaidToExcalidraw/>", () => {
 
     expect(dialog.querySelector('[data-testid="mermaid-error"]')).toBeNull();
 
-    expect(editor.textContent).toMatchSnapshot();
+    await waitFor(() => {
+      expect(editor.value).toContain("flowchart TD");
+    });
+    expect(editor.value).toMatchSnapshot();
 
     updateTextEditor(editor, "flowchart TD1");
     editor = await getTextEditor({ selector, waitForEditor: false });

@@ -128,7 +128,8 @@ export type SocketUpdateData =
     _brand: "socketUpdateData";
   };
 
-const RE_COLLAB_LINK = /^#room=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/;
+const RE_COLLAB_LINK =
+  /^#room=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)(?:&inputTarget=([a-zA-Z0-9_-]+))?$/;
 
 export const isCollaborationLink = (link: string) => {
   const hash = new URL(link).hash;
@@ -142,10 +143,16 @@ export const getCollaborationLinkData = (link: string) => {
     window.alert(t("alerts.invalidEncryptionKey"));
     return null;
   }
-  return match ? { roomId: match[1], roomKey: match[2] } : null;
+  return match
+    ? { roomId: match[1], roomKey: match[2], inputTargetId: match[3] ?? null }
+    : null;
 };
 
 export const generateCollaborationLinkData = async () => {
+  if (!window.crypto?.subtle) {
+    throw new Error(t("cloud.collabRooms.secureContextRequired"));
+  }
+
   const roomId = await generateRoomId();
   const roomKey = await generateEncryptionKey();
 
@@ -159,8 +166,13 @@ export const generateCollaborationLinkData = async () => {
 export const getCollaborationLink = (data: {
   roomId: string;
   roomKey: string;
+  inputTargetId?: string | null;
 }) => {
-  return `${window.location.origin}${window.location.pathname}#room=${data.roomId},${data.roomKey}`;
+  const inputTarget = data.inputTargetId
+    ? `&inputTarget=${encodeURIComponent(data.inputTargetId)}`
+    : "";
+
+  return `${window.location.origin}${window.location.pathname}#room=${data.roomId},${data.roomKey}${inputTarget}`;
 };
 
 /**

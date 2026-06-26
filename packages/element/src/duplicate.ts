@@ -63,18 +63,28 @@ export const duplicateElement = <TElement extends ExcalidrawElement>(
   groupIdMapForOperation: Map<GroupId, GroupId>,
   element: TElement,
   randomizeSeed?: boolean,
+  options?: {
+    preserveCreated?: boolean;
+  },
 ): Readonly<TElement> => {
   const copy = deepCopyElement(element);
+  const timestamp = getUpdatedTimestamp();
 
   if (isTestEnv()) {
     __test__defineOrigId(copy, element.id);
   }
 
   copy.id = randomId();
-  copy.updated = getUpdatedTimestamp();
+  copy.updated = timestamp;
+  if (!options?.preserveCreated) {
+    copy.created = timestamp;
+  }
   if (randomizeSeed) {
     copy.seed = randomInteger();
     bumpVersion(copy);
+    if (!options?.preserveCreated) {
+      copy.created = copy.updated;
+    }
   }
 
   copy.groupIds = getNewGroupIdsForDuplication(
@@ -94,6 +104,7 @@ export const duplicateElements = (
   opts: {
     elements: readonly ExcalidrawElement[];
     randomizeSeed?: boolean;
+    preserveCreated?: boolean;
     overrides?: (data: {
       duplicateElement: ExcalidrawElement;
       origElement: ExcalidrawElement;
@@ -214,6 +225,7 @@ export const duplicateElements = (
           groupIdMap,
           element,
           opts.randomizeSeed,
+          { preserveCreated: opts.preserveCreated },
         );
 
         processedIds.set(newElement.id, true);

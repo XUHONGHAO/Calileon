@@ -6,7 +6,12 @@ import React, {
   useState,
 } from "react";
 
-import { MIME_TYPES, arrayToMap, nextAnimationFrame } from "@excalidraw/common";
+import {
+  KEYS,
+  MIME_TYPES,
+  arrayToMap,
+  nextAnimationFrame,
+} from "@excalidraw/common";
 
 import { duplicateElements } from "@excalidraw/element";
 
@@ -199,6 +204,7 @@ export default function LibraryMenuItems({
             type: "everything",
             elements: item.elements,
             randomizeSeed: true,
+            preserveCreated: true,
             preserveFrameChildrenOrder: true,
           }).duplicatedElements,
         };
@@ -305,10 +311,7 @@ export default function LibraryMenuItems({
       )}
 
       {publishedItems.length > 0 && (
-        <div
-          className="library-menu-items-container__header"
-          style={{ marginTop: "0.75rem" }}
-        >
+        <div className="library-menu-items-container__header library-menu-items-container__header--published">
           {t("labels.excalidrawLib")}
         </div>
       )}
@@ -335,13 +338,20 @@ export default function LibraryMenuItems({
         {!isLoading && (
           <div
             className="library-menu-items-container__header__hint"
-            style={{ cursor: "pointer" }}
+            role="button"
+            tabIndex={0}
             onPointerDown={(e) => e.preventDefault()}
-            onClick={(event) => {
+            onClick={() => {
               setSearchInputValue("");
             }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSearchInputValue("");
+              }
+            }}
           >
-            <kbd>esc</kbd> to clear
+            {t("library.search.clearSearchHint")}
           </div>
         )}
       </div>
@@ -367,7 +377,7 @@ export default function LibraryMenuItems({
             onSelect={() => {
               setSearchInputValue("");
             }}
-            style={{ width: "auto", marginTop: "1rem" }}
+            className="library-menu-items__clear-search"
           >
             {t("library.search.clearSearch")}
           </Button>
@@ -378,14 +388,9 @@ export default function LibraryMenuItems({
 
   return (
     <div
-      className="library-menu-items-container"
-      style={
-        pendingElements.length ||
-        unpublishedItems.length ||
-        publishedItems.length
-          ? { justifyContent: "flex-start" }
-          : { borderBottom: 0 }
-      }
+      className={clsx("library-menu-items-container", {
+        "library-menu-items-container--empty": IS_LIBRARY_EMPTY,
+      })}
     >
       <div className="library-menu-items-header">
         {!IS_LIBRARY_EMPTY && (
@@ -398,6 +403,12 @@ export default function LibraryMenuItems({
             placeholder={t("library.search.inputPlaceholder")}
             value={searchInputValue}
             onChange={(value) => setSearchInputValue(value)}
+            onKeyDown={(event) => {
+              if (event.key === KEYS.ESCAPE && searchInputValue) {
+                event.stopPropagation();
+                setSearchInputValue("");
+              }
+            }}
           />
         )}
         <LibraryDropdownMenu
@@ -407,23 +418,20 @@ export default function LibraryMenuItems({
         />
       </div>
       <Stack.Col
-        className="library-menu-items-container__items"
+        className={clsx("library-menu-items-container__items", {
+          "library-menu-items-container__items--with-published":
+            publishedItems.length > 0,
+          "library-menu-items-container__items--empty": IS_LIBRARY_EMPTY,
+        })}
         align="start"
         gap={1}
-        style={{
-          flex: publishedItems.length > 0 ? 1 : "0 1 auto",
-          margin: IS_LIBRARY_EMPTY ? "auto" : 0,
-        }}
         ref={libraryContainerRef}
       >
         {isLoading && (
           <div
-            style={{
-              position: "absolute",
-              top: "var(--container-padding-y)",
-              right: "var(--container-padding-x)",
-              transform: "translateY(50%)",
-            }}
+            className="library-menu-items-container__loading"
+            role="status"
+            aria-label={t("labels.libraryLoadingMessage")}
           >
             <Spinner />
           </div>
@@ -434,7 +442,7 @@ export default function LibraryMenuItems({
 
         {IS_LIBRARY_EMPTY && (
           <LibraryMenuControlButtons
-            style={{ padding: "16px 0", width: "100%" }}
+            className="library-menu-control-buttons--empty"
             id={id}
             libraryReturnUrl={libraryReturnUrl}
             theme={theme}

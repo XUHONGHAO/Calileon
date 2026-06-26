@@ -32,11 +32,13 @@
       font-weight: 600;
       font-size: 0.75rem;
       letter-spacing: 0.4px;
+      transition: background-color var(--ui-transition),
+        border-color var(--ui-transition), color var(--ui-transition);
 
       @at-root .excalidraw.theme--dark#{&} {
         --background: var(--color-surface-high);
         &:hover {
-          --background: #363541;
+          --background: var(--button-hover-bg);
         }
       }
 
@@ -47,6 +49,11 @@
 
       &:active {
         border-color: var(--color-primary);
+      }
+
+      &:focus-visible {
+        outline: var(--ui-focus-outline);
+        outline-offset: var(--ui-focus-outline-offset);
       }
     }
 
@@ -126,6 +133,12 @@
       align-items: center;
       font-family: inherit;
       line-height: 1;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      &__btn {
+        transition: none;
+      }
     }
   }
 }

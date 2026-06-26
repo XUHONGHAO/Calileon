@@ -59,6 +59,11 @@
     }
   }
 
+  .layer-ui__search-empty {
+    margin: 1rem auto;
+    color: var(--color-text-secondary);
+  }
+
   .layer-ui__search-result-container {
     overflow-y: auto;
     flex: 1 1 0;
@@ -110,6 +115,8 @@
     font-size: 16px;
 
     border-radius: var(--border-radius-md);
+    transition: background-color var(--ui-transition),
+      border-color var(--ui-transition);
 
     .text-icon {
       width: 1rem;
@@ -135,6 +142,13 @@
 
     &.active {
       background-color: var(--color-surface-high);
+      border-color: var(--dialog-border-color);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .layer-ui__result-item {
+      transition: none;
     }
   }
 }

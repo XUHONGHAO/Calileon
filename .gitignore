@@ -27,3 +27,6 @@ dev-dist
 html
 meta*.json
 .claude
+.git_disabled/
+.git_empty_backup_*/
+.gitignore.local

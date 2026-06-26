@@ -43,6 +43,36 @@ describe("restoreElements", () => {
     expect(restoredElements.length).toBe(elements.length);
   });
 
+  it("restores created timestamp safely", () => {
+    const elementWithCreated = API.createElement({
+      type: "rectangle",
+      updated: 20,
+      created: 10,
+    });
+    const elementWithUpdatedOnly = {
+      ...API.createElement({ type: "ellipse", updated: 30 }),
+      created: undefined,
+    };
+    const elementWithoutTimestamps = {
+      ...API.createElement({ type: "diamond" }),
+      updated: undefined,
+      created: undefined,
+    };
+
+    const restoredElements = restore.restoreElements(
+      [
+        elementWithCreated,
+        elementWithUpdatedOnly,
+        elementWithoutTimestamps,
+      ] as ExcalidrawElement[],
+      null,
+    );
+
+    expect(restoredElements[0].created).toBe(10);
+    expect(restoredElements[1].created).toBe(30);
+    expect(restoredElements[2].created).toEqual(expect.any(Number));
+  });
+
   it("when imported data state is null it should return an empty array of elements", () => {
     const restoredElements = restore.restoreElements(null, null);
     expect(restoredElements.length).toBe(0);

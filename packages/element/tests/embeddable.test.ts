@@ -1,4 +1,8 @@
-import { embeddableURLValidator, getEmbedLink } from "../src/embeddable";
+import {
+  embeddableURLValidator,
+  getEmbedLink,
+  maybeParseEmbedSrc,
+} from "../src/embeddable";
 
 describe("YouTube timestamp parsing", () => {
   it("should parse YouTube URLs with timestamp in seconds", () => {
@@ -229,5 +233,39 @@ describe("Google Drive video embedding", () => {
         undefined,
       ),
     ).toBe(true);
+  });
+});
+
+describe("Bilibili video embedding", () => {
+  const bilibiliPlayerLink =
+    "https://player.bilibili.com/player.html?isOutside=true&aid=116708371206231&bvid=BV1K2Eb6gEGb&cid=38932909009&p=1";
+
+  it("should parse Bilibili iframe embed code", () => {
+    const embedCode = `<iframe src="//player.bilibili.com/player.html?isOutside=true&amp;aid=116708371206231&amp;bvid=BV1K2Eb6gEGb&amp;cid=38932909009&amp;p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>`;
+
+    const parsedLink = maybeParseEmbedSrc(embedCode);
+    const result = getEmbedLink(parsedLink);
+
+    expect(parsedLink).toBe(bilibiliPlayerLink);
+    expect(embeddableURLValidator(parsedLink, undefined)).toBe(true);
+    expect(result).toBeTruthy();
+    expect(result?.type).toBe("video");
+    if (result?.type === "video" || result?.type === "generic") {
+      expect(result.link).toBe(bilibiliPlayerLink);
+    }
+    expect(result?.intrinsicSize).toEqual({ w: 560, h: 315 });
+  });
+
+  it("should validate Bilibili player links by default", () => {
+    expect(embeddableURLValidator(bilibiliPlayerLink, undefined)).toBe(true);
+  });
+
+  it("should not validate regular Bilibili video pages by default", () => {
+    expect(
+      embeddableURLValidator(
+        "https://www.bilibili.com/video/BV1K2Eb6gEGb/",
+        undefined,
+      ),
+    ).toBe(false);
   });
 });

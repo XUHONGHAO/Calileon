@@ -35,8 +35,13 @@ import { FILE_CACHE_MAX_AGE_SEC } from "../app_constants";
 import { getSyncableElements } from ".";
 
 import type { SyncableExcalidrawElement } from ".";
-import type Portal from "../collab/Portal";
 import type { Socket } from "socket.io-client";
+
+interface FirebaseRoomRef {
+  roomId: string | null;
+  roomKey: string | null;
+  socket: Socket | null;
+}
 
 // private
 // -----------------------------------------------------------------------------
@@ -84,6 +89,21 @@ export const loadFirebaseStorage = async () => {
   return _getStorage();
 };
 
+/**
+ * Uploads a single blob to Firebase Storage at `path`. Encapsulates the raw
+ * `ref`/`uploadBytes` SDK calls so callers (e.g. the Excalidraw+ migration
+ * export) never import the firebase SDK directly (decision 0001 / DoD §2).
+ */
+export const saveSceneToFirebaseStorage = async (
+  path: string,
+  blob: Blob,
+  customMetadata: Record<string, string>,
+) => {
+  const storage = await loadFirebaseStorage();
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, blob, { customMetadata });
+};
+
 type FirebaseStoredScene = {
   sceneVersion: number;
   iv: Bytes;
@@ -129,7 +149,7 @@ class FirebaseSceneVersionCache {
 }
 
 export const isSavedToFirebase = (
-  portal: Portal,
+  portal: FirebaseRoomRef,
   elements: readonly ExcalidrawElement[],
 ): boolean => {
   if (portal.socket && portal.roomId && portal.roomKey) {
@@ -185,7 +205,7 @@ const createFirebaseSceneDocument = async (
 };
 
 export const saveToFirebase = async (
-  portal: Portal,
+  portal: FirebaseRoomRef,
   elements: readonly SyncableExcalidrawElement[],
   appState: AppState,
 ) => {

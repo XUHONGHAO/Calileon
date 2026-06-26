@@ -293,6 +293,7 @@ import type {
 import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
 
 import {
+  actionAddSelectionToAIReference,
   actionAddToLibrary,
   actionBringForward,
   actionBringToFront,
@@ -451,7 +452,7 @@ import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import { StaticCanvas, InteractiveCanvas } from "./canvases";
 import NewElementCanvas from "./canvases/NewElementCanvas";
 import { isPointHittingLink } from "./hyperlink/helpers";
-import { MagicIcon, copyIcon, fullscreenIcon } from "./icons";
+import { MagicIcon, copyIcon, fullscreenIcon, playerPlayIcon } from "./icons";
 import { AppStateObserver, type OnStateChange } from "./AppStateObserver";
 
 import { findShapeByKey } from "./shapes";
@@ -605,6 +606,13 @@ const YOUTUBE_VIDEO_STATES = new Map<
 
 const MAX_EMBEDDABLE_VIEWPORT_SCALE = 4;
 
+type VideoEmbedPreview = {
+  status: "loaded";
+  imageUrl: string | null;
+  title: string | null;
+};
+type VideoIframeData = IframeData & { type: "video"; link: string };
+
 let IS_PLAIN_PASTE = false;
 let IS_PLAIN_PASTE_TIMER = 0;
 let PLAIN_PASTE_TOAST_SHOWN = false;
@@ -659,6 +667,8 @@ class App extends React.Component<AppProps, AppState> {
   /** embeds that have been inserted to DOM (as a perf optim, we don't want to
    * insert to DOM before user initially scrolls to them) */
   private initializedEmbeds = new Set<ExcalidrawIframeLikeElement["id"]>();
+  /** video embeds whose iframe was loaded during the current page session */
+  private loadedVideoEmbeds = new Set<ExcalidrawIframeLikeElement["id"]>();
 
   private elementsPendingErasure: ElementsPendingErasure = new Set();
 
@@ -757,6 +767,7 @@ class App extends React.Component<AppProps, AppState> {
         clear: this.resetHistory,
       },
       scrollToContent: this.scrollToContent,
+      startTextEditingForElement: this.startTextEditingForElement,
       getSceneElements: this.getSceneElements,
       getAppState: () => this.state,
       getFiles: () => this.files,
@@ -1247,6 +1258,128 @@ class App extends React.Component<AppProps, AppState> {
     }
   }
 
+  private getVideoEmbedPlatformLabel(src: IframeData | null) {
+    if (src?.type !== "video") {
+      return "Video";
+    }
+
+    try {
+      const hostname = new URL(src.link).hostname;
+      if (hostname.includes("bilibili.com")) {
+        return "Bilibili";
+      }
+      if (hostname.includes("youtube.com") || hostname.includes("youtu.be")) {
+        return "YouTube";
+      }
+      if (hostname.includes("vimeo.com")) {
+        return "Vimeo";
+      }
+      if (hostname.includes("drive.google.com")) {
+        return "Google Drive";
+      }
+    } catch {
+      // fall through to generic label
+    }
+
+    return "Video";
+  }
+
+  private isBilibiliVideoEmbed = (
+    src: IframeData | null,
+  ): src is VideoIframeData => {
+    if (src?.type !== "video") {
+      return false;
+    }
+
+    try {
+      const url = new URL(src.link);
+      return url.hostname === "player.bilibili.com";
+    } catch {
+      return false;
+    }
+  };
+
+  private withBilibiliPlayerDefaults = (link: string) => {
+    try {
+      const url = new URL(link);
+      if (
+        url.hostname !== "player.bilibili.com" ||
+        !url.pathname.endsWith("/player.html")
+      ) {
+        return link;
+      }
+
+      if (!url.searchParams.has("autoplay")) {
+        url.searchParams.set("autoplay", "0");
+      }
+      if (!url.searchParams.has("high_quality")) {
+        url.searchParams.set("high_quality", "1");
+      }
+      return url.toString();
+    } catch {
+      return link;
+    }
+  };
+
+  private getEmbeddableIframeSrc = (src: IframeData | null) => {
+    if (!src || src.type === "document") {
+      return undefined;
+    }
+
+    if (this.isBilibiliVideoEmbed(src)) {
+      return this.withBilibiliPlayerDefaults(src.link);
+    }
+
+    return src.link;
+  };
+
+  private getStaticVideoEmbedPreview = (
+    src: VideoIframeData,
+  ): VideoEmbedPreview | null => {
+    try {
+      const url = new URL(src.link);
+      if (url.hostname.includes("youtube.com")) {
+        const videoId = url.pathname.match(/^\/embed\/([^/]+)/)?.[1];
+        if (videoId && videoId !== "videoseries") {
+          return {
+            status: "loaded",
+            imageUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            title: "YouTube video",
+          };
+        }
+      }
+    } catch {
+      // fall through to async or generic preview
+    }
+
+    return null;
+  };
+
+  private getVideoEmbedPreview = (
+    src: IframeData | null,
+  ): VideoEmbedPreview | null => {
+    if (src?.type !== "video") {
+      return null;
+    }
+
+    const videoSrc = src as VideoIframeData;
+    const staticPreview = this.getStaticVideoEmbedPreview(videoSrc);
+    if (staticPreview) {
+      return staticPreview;
+    }
+
+    return null;
+  };
+
+  private loadVideoEmbed = (element: ExcalidrawIframeLikeElement) => {
+    this.loadedVideoEmbeds.add(element.id);
+    this.initializedEmbeds.add(element.id);
+    this.setState({
+      activeEmbeddable: { element, state: "active" },
+      selectedElementIds: { [element.id]: true },
+    });
+  };
+
   /**
    * Returns gridSize taking into account `gridModeEnabled`.
    * If disabled, returns null.
@@ -1543,6 +1676,8 @@ class App extends React.Component<AppProps, AppState> {
     this.iFrameRefs.forEach((ref, id) => {
       if (!iframeLikes.has(id)) {
         this.iFrameRefs.delete(id);
+        this.initializedEmbeds.delete(id);
+        this.loadedVideoEmbeds.delete(id);
       }
     });
   };
@@ -1734,13 +1869,32 @@ class App extends React.Component<AppProps, AppState> {
           const isHovered =
             this.state.activeEmbeddable?.element === el &&
             this.state.activeEmbeddable?.state === "hover";
+          const isVideoEmbed = src?.type === "video";
+          const isBilibiliVideoEmbed = this.isBilibiliVideoEmbed(src);
+          const shouldShowVideoPlaceholder =
+            isVideoEmbed &&
+            !isBilibiliVideoEmbed &&
+            !this.loadedVideoEmbeds.has(el.id);
+          const videoEmbedLink = src?.type === "video" ? src.link : "";
+          const videoEmbedPreview = shouldShowVideoPlaceholder
+            ? this.getVideoEmbedPreview(src)
+            : null;
+          const videoEmbedTitle =
+            videoEmbedPreview?.status === "loaded"
+              ? videoEmbedPreview.title
+              : null;
+          const videoEmbedImageUrl =
+            videoEmbedPreview?.status === "loaded"
+              ? videoEmbedPreview.imageUrl
+              : null;
 
           // scale video embeds based on zoom (capped) so that smaller embeds
           // on canvas when zoomed are still of legible quality
           // (note: for some embed types like gdrive, the quality is poor when
           // scaling mid playback and works only when you initially start the
           // playback at the higher zoom level)
-          const shouldScaleEmbeddableViewport = src?.type === "video";
+          const shouldScaleEmbeddableViewport =
+            isVideoEmbed && !shouldShowVideoPlaceholder;
           const embeddableViewportScale = clamp(
             shouldScaleEmbeddableViewport ? scale : 1,
             0.75,
@@ -1797,9 +1951,10 @@ class App extends React.Component<AppProps, AppState> {
                   width: isVisible ? `${el.width}px` : 0,
                   height: isVisible ? `${el.height}px` : 0,
                   transform: isVisible ? `rotate(${el.angle}rad)` : "none",
-                  pointerEvents: isActive
-                    ? POINTER_EVENTS.enabled
-                    : POINTER_EVENTS.disabled,
+                  pointerEvents:
+                    isActive || shouldShowVideoPlaceholder
+                      ? POINTER_EVENTS.enabled
+                      : POINTER_EVENTS.disabled,
                 }}
               >
                 {isHovered && (
@@ -1821,32 +1976,71 @@ class App extends React.Component<AppProps, AppState> {
                       transform: `scale(${1 / embeddableViewportScale})`,
                     }}
                   >
-                    {(isEmbeddableElement(el)
-                      ? this.props.renderEmbeddable?.(el, this.state)
-                      : null) ?? (
-                      <iframe
-                        ref={(ref) => this.cacheEmbeddableRef(el, ref)}
-                        className="excalidraw__embeddable"
-                        srcDoc={
-                          src?.type === "document"
-                            ? src.srcdoc(this.state.theme)
-                            : undefined
-                        }
-                        src={
-                          src?.type !== "document" ? src?.link ?? "" : undefined
-                        }
-                        // https://stackoverflow.com/q/18470015
-                        scrolling="no"
-                        referrerPolicy="no-referrer-when-downgrade"
-                        title="Excalidraw Embedded Content"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                        allowFullScreen={true}
-                        sandbox={`${
-                          src?.sandbox?.allowSameOrigin
-                            ? "allow-same-origin"
-                            : ""
-                        } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
-                      />
+                    {shouldShowVideoPlaceholder ? (
+                      <button
+                        type="button"
+                        className={clsx(
+                          "excalidraw__embeddable-video-placeholder",
+                          {
+                            "has-cover": !!videoEmbedImageUrl,
+                          },
+                        )}
+                        data-testid="video-embed-placeholder"
+                        aria-label={t("buttons.embeddableInteractionButton")}
+                        style={{
+                          backgroundImage: videoEmbedImageUrl
+                            ? `url(${JSON.stringify(videoEmbedImageUrl)})`
+                            : undefined,
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          this.loadVideoEmbed(el);
+                        }}
+                      >
+                        <span className="excalidraw__embeddable-video-placeholder__scrim" />
+                        <span className="excalidraw__embeddable-video-placeholder__icon">
+                          {playerPlayIcon}
+                        </span>
+                        <span className="excalidraw__embeddable-video-placeholder__meta">
+                          <span className="excalidraw__embeddable-video-placeholder__platform">
+                            {this.getVideoEmbedPlatformLabel(src)}
+                          </span>
+                          <span className="excalidraw__embeddable-video-placeholder__title">
+                            {videoEmbedTitle || videoEmbedLink}
+                          </span>
+                        </span>
+                      </button>
+                    ) : (
+                      (isEmbeddableElement(el)
+                        ? this.props.renderEmbeddable?.(el, this.state)
+                        : null) ?? (
+                        <iframe
+                          ref={(ref) => this.cacheEmbeddableRef(el, ref)}
+                          className="excalidraw__embeddable"
+                          srcDoc={
+                            src?.type === "document"
+                              ? src.srcdoc(this.state.theme)
+                              : undefined
+                          }
+                          src={
+                            src?.type !== "document"
+                              ? this.getEmbeddableIframeSrc(src)
+                              : undefined
+                          }
+                          // https://stackoverflow.com/q/18470015
+                          scrolling="no"
+                          referrerPolicy="no-referrer-when-downgrade"
+                          title="Excalidraw Embedded Content"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen={true}
+                          sandbox={`${
+                            src?.sandbox?.allowSameOrigin
+                              ? "allow-same-origin"
+                              : ""
+                          } allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-presentation allow-downloads`}
+                        />
+                      )
                     )}
                   </div>
                 </div>
@@ -3961,6 +4155,7 @@ class App extends React.Component<AppProps, AppState> {
         });
       }),
       randomizeSeed: !opts.retainSeed,
+      preserveCreated: true,
       preserveFrameChildrenOrder: opts.preserveFrameChildrenOrder,
     });
 
@@ -6362,6 +6557,52 @@ class App extends React.Component<AppProps, AppState> {
         multiElement: null,
       });
     }
+  };
+
+  startTextEditingForElement = (elementId: ExcalidrawElement["id"]) => {
+    const element = this.scene.getNonDeletedElement(elementId);
+
+    if (
+      !element ||
+      (!isTextElement(element) && !isValidTextContainer(element))
+    ) {
+      return false;
+    }
+
+    this.scrollToContent(element, {
+      fitToContent: true,
+      animate: true,
+    });
+    this.setState({
+      selectedElementIds: makeNextSelectedElementIds(
+        { [element.id]: true },
+        this.state,
+      ),
+      selectedGroupIds: {},
+      selectedLinearElement: null,
+    });
+
+    if (isTextElement(element)) {
+      this.startTextEditing({
+        sceneX: element.x,
+        sceneY: element.y,
+        initialCaretSceneCoords: undefined,
+      });
+    } else {
+      const center = getContainerCenter(
+        element,
+        this.state,
+        this.scene.getNonDeletedElementsMap(),
+      );
+      this.startTextEditing({
+        sceneX: center.x,
+        sceneY: center.y,
+        container: element,
+        initialCaretSceneCoords: undefined,
+      });
+    }
+
+    return true;
   };
 
   private startImageCropping = (image: ExcalidrawImageElement) => {
@@ -12149,6 +12390,7 @@ class App extends React.Component<AppProps, AppState> {
               type: "everything",
               elements: item.elements,
               randomizeSeed: true,
+              preserveCreated: true,
               preserveFrameChildrenOrder: true,
             }).duplicatedElements,
           }));
@@ -12177,16 +12419,17 @@ class App extends React.Component<AppProps, AppState> {
 
     if (textItem) {
       const text = textItem.value;
+      const embeddableUrl = maybeParseEmbedSrc(text);
       if (
         text &&
-        embeddableURLValidator(text, this.props.validateEmbeddable) &&
-        (/^(http|https):\/\/[^\s/$.?#].[^\s]*$/.test(text) ||
-          getEmbedLink(text)?.type === "video")
+        embeddableURLValidator(embeddableUrl, this.props.validateEmbeddable) &&
+        (/^(http|https):\/\/[^\s/$.?#].[^\s]*$/.test(embeddableUrl) ||
+          getEmbedLink(embeddableUrl)?.type === "video")
       ) {
         const embeddable = this.insertEmbeddableElement({
           sceneX,
           sceneY,
-          link: normalizeLink(text),
+          link: normalizeLink(embeddableUrl),
         });
         if (embeddable) {
           this.store.scheduleCapture();
@@ -12691,6 +12934,15 @@ class App extends React.Component<AppProps, AppState> {
     type: "canvas" | "element",
   ): ContextMenuItems => {
     const options: ContextMenuItems = [];
+    const customContextMenuItems =
+      this.props.renderCustomContextMenuItems?.(
+        this.scene.getSelectedElements(this.state),
+        this.state,
+      ) || [];
+    const customContextMenuSection: ContextMenuItems =
+      customContextMenuItems.length > 0
+        ? [...customContextMenuItems, CONTEXT_MENU_SEPARATOR]
+        : [];
 
     options.push(actionCopyAsPng, actionCopyAsSvg);
 
@@ -12754,6 +13006,7 @@ class App extends React.Component<AppProps, AppState> {
       actionCopy,
       actionPaste,
       CONTEXT_MENU_SEPARATOR,
+      ...customContextMenuSection,
       actionSelectAllElementsInFrame,
       actionRemoveAllElementsFromFrame,
       actionWrapSelectionInFrame,
@@ -12772,6 +13025,7 @@ class App extends React.Component<AppProps, AppState> {
       actionWrapTextInContainer,
       actionUngroup,
       CONTEXT_MENU_SEPARATOR,
+      actionAddSelectionToAIReference,
       actionAddToLibrary,
       ...zIndexActions,
       CONTEXT_MENU_SEPARATOR,
@@ -12820,34 +13074,15 @@ class App extends React.Component<AppProps, AppState> {
       const { deltaX, deltaY } = event;
       // note that event.ctrlKey is necessary to handle pinch zooming
       if (event.metaKey || event.ctrlKey) {
-        const sign = Math.sign(deltaY);
-        const MAX_STEP = ZOOM_STEP * 100;
-        const absDelta = Math.abs(deltaY);
-        let delta = deltaY;
-        if (absDelta > MAX_STEP) {
-          delta = MAX_STEP * sign;
-        }
+        this.zoomCanvasWithWheelDelta(deltaY);
+        return;
+      }
 
-        let newZoom = this.state.zoom.value - delta / 100;
-        // increase zoom steps the more zoomed-in we are (applies to >100% only)
-        newZoom +=
-          Math.log10(Math.max(1, this.state.zoom.value)) *
-          -sign *
-          // reduced amplification for small deltas (small movements on a trackpad)
-          Math.min(1, absDelta / 20);
-
-        this.translateCanvas((state) => ({
-          ...getStateForZoom(
-            {
-              viewportX: this.lastViewportPosition.x,
-              viewportY: this.lastViewportPosition.y,
-              nextZoom: getNormalizedZoom(newZoom),
-            },
-            state,
-          ),
-          shouldCacheIgnoreZoom: true,
-        }));
-        this.resetShouldCacheIgnoreZoomDebounced();
+      if (
+        this.state.activeTool.type === "selection" ||
+        this.state.activeTool.type === "hand"
+      ) {
+        this.zoomCanvasWithWheelDelta(deltaY);
         return;
       }
 
@@ -12866,6 +13101,37 @@ class App extends React.Component<AppProps, AppState> {
       }));
     },
   );
+
+  private zoomCanvasWithWheelDelta = (deltaY: number) => {
+    const sign = Math.sign(deltaY);
+    const MAX_STEP = ZOOM_STEP * 100;
+    const absDelta = Math.abs(deltaY);
+    let delta = deltaY;
+    if (absDelta > MAX_STEP) {
+      delta = MAX_STEP * sign;
+    }
+
+    let newZoom = this.state.zoom.value - delta / 100;
+    // increase zoom steps the more zoomed-in we are (applies to >100% only)
+    newZoom +=
+      Math.log10(Math.max(1, this.state.zoom.value)) *
+      -sign *
+      // reduced amplification for small deltas (small movements on a trackpad)
+      Math.min(1, absDelta / 20);
+
+    this.translateCanvas((state) => ({
+      ...getStateForZoom(
+        {
+          viewportX: this.lastViewportPosition.x,
+          viewportY: this.lastViewportPosition.y,
+          nextZoom: getNormalizedZoom(newZoom),
+        },
+        state,
+      ),
+      shouldCacheIgnoreZoom: true,
+    }));
+    this.resetShouldCacheIgnoreZoomDebounced();
+  };
 
   private getTextWysiwygSnappedToCenterPosition(
     x: number,

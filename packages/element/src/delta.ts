@@ -1013,7 +1013,7 @@ export class AppStateDelta implements DeltaContainer<AppState> {
 }
 
 type ElementPartial<TElement extends ExcalidrawElement = ExcalidrawElement> =
-  Omit<Partial<Ordered<TElement>>, "id" | "updated" | "seed">;
+  Omit<Partial<Ordered<TElement>>, "id" | "updated" | "created" | "seed">;
 
 export type ApplyToOptions = {
   excludedProperties?: Set<keyof ElementPartial>;

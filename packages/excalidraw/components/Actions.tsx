@@ -1251,8 +1251,8 @@ export const ShapesSwitcher = ({
               {t("toolBar.lasso")}
             </DropdownMenu.Item>
           )}
-          <div style={{ margin: "6px 0", fontSize: 14, fontWeight: 600 }}>
-            Generate
+          <div className="dropdown-menu-section-title">
+            {t("toolBar.generate")}
           </div>
           {app.props.aiEnabled !== false && <TTDDialogTriggerTunnel.Out />}
           <DropdownMenu.Item
@@ -1307,6 +1307,11 @@ export const UndoRedoActions = ({
     </div>
     <div className="redo-button-container">
       <Tooltip label={t("buttons.redo")}> {renderAction("redo")}</Tooltip>
+    </div>
+    <div className="focus-content-button-container">
+      <Tooltip label={t("buttons.focusContent")}>
+        {renderAction("focusContent")}
+      </Tooltip>
     </div>
   </div>
 );

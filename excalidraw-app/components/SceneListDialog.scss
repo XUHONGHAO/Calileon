@@ -1,0 +1,268 @@
+.SceneListDialogModal {
+  .Island {
+    position: relative;
+  }
+
+  .Dialog__title {
+    padding-right: 2rem;
+  }
+
+  &.Dialog--fullscreen {
+    .SceneListDialog__close {
+      display: none;
+    }
+  }
+}
+
+.SceneListDialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+  width: min(32rem, calc(100vw - 2rem));
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+
+  .SceneListDialog__close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 0;
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: transparent;
+    color: var(--text-primary-color);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--button-hover-bg);
+    }
+  }
+
+  .SceneListDialog__toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+
+    p {
+      flex: 1 1 14rem;
+      margin: 0;
+      font-size: 0.875rem;
+      color: var(--color-gray-60);
+    }
+  }
+
+  .SceneListDialog__toolbarActions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+
+    .excalidraw-button {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      min-width: 4rem;
+      white-space: nowrap;
+      writing-mode: horizontal-tb;
+    }
+  }
+
+  .SceneListDialog__error {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    color: var(--color-danger);
+    background: var(--color-danger-background);
+    border-radius: var(--border-radius-md, 0.5rem);
+  }
+
+  .SceneListDialog__status {
+    padding: 1rem;
+    text-align: center;
+    color: var(--color-gray-60);
+    border: 1px solid var(--default-border-color, var(--color-gray-30));
+    border-radius: var(--border-radius-md, 0.5rem);
+  }
+
+  .SceneListDialog__list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+    max-height: min(22rem, 52vh);
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    list-style: none;
+  }
+
+  .SceneListDialog__shareView {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .SceneListDialog__shareActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+
+    .excalidraw-button {
+      flex: 0 0 auto;
+      width: auto;
+      min-width: 0;
+      white-space: nowrap;
+      writing-mode: horizontal-tb;
+    }
+  }
+
+  .SceneListDialog__item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0.625rem;
+    border: 1px solid var(--default-border-color, var(--color-gray-30));
+    border-radius: var(--border-radius-md, 0.5rem);
+  }
+
+  .SceneListDialog__item--withThumbnail {
+    grid-template-columns: 4rem minmax(0, 1fr) auto;
+  }
+
+  .SceneListDialog__thumbnail {
+    width: 4rem;
+    height: 4rem;
+    object-fit: cover;
+    border: 1px solid var(--default-border-color, var(--color-gray-30));
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: var(--color-gray-10);
+  }
+
+  .SceneListDialog__details {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    gap: 0.25rem;
+
+    span {
+      font-size: 0.75rem;
+      color: var(--color-gray-60);
+    }
+
+    input {
+      width: 100%;
+      min-width: 0;
+      padding: 0.5rem 0.75rem;
+      font-size: 0.875rem;
+      border: 1px solid var(--default-border-color, var(--color-gray-30));
+      border-radius: var(--border-radius-md, 0.5rem);
+      background: var(--input-bg-color, var(--island-bg-color));
+      color: var(--text-primary-color);
+    }
+  }
+
+  .SceneListDialog__titleRow {
+    display: flex;
+    min-width: 0;
+
+    strong {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .SceneListDialog__metaRow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.375rem;
+    min-width: 0;
+  }
+
+  .SceneListDialog__details .SceneListDialog__currentBadge {
+    display: inline-flex;
+    align-items: center;
+    width: max-content;
+    max-width: 100%;
+    padding: 0.125rem 0.375rem;
+    border: 1px solid var(--color-primary);
+    border-radius: var(--border-radius-md, 0.5rem);
+    background: var(--color-primary);
+    color: var(--color-surface-low);
+    font-size: 0.75rem;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .SceneListDialog__actions {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: flex-end;
+    justify-self: end;
+    gap: 0.25rem;
+    width: max-content;
+    max-width: 100%;
+    overflow-x: auto;
+
+    .excalidraw-button {
+      --button-height: auto;
+      --button-width: auto;
+
+      flex: 0 0 auto;
+      width: auto;
+      height: auto;
+      min-width: 0;
+      min-height: 1.875rem;
+      padding: 0.375rem 0.5rem;
+      line-height: 1;
+      white-space: nowrap;
+      writing-mode: horizontal-tb;
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .SceneListDialog {
+    width: calc(100vw - 1.5rem);
+
+    .SceneListDialog__toolbar,
+    .SceneListDialog__item {
+      grid-template-columns: 1fr;
+    }
+
+    .SceneListDialog__toolbar {
+      justify-content: stretch;
+    }
+
+    .SceneListDialog__toolbarActions {
+      width: 100%;
+      justify-content: stretch;
+
+      .excalidraw-button {
+        flex: 1 1 0;
+      }
+    }
+
+    .SceneListDialog__actions {
+      justify-content: flex-start;
+      justify-self: start;
+      width: auto;
+      max-width: none;
+    }
+  }
+}

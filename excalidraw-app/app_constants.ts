@@ -42,6 +42,12 @@ export const STORAGE_KEYS = {
   LOCAL_STORAGE_COLLAB: "excalidraw-collab",
   LOCAL_STORAGE_THEME: "excalidraw-theme",
   LOCAL_STORAGE_DEBUG: "excalidraw-debug",
+  LOCAL_STORAGE_AI_IMAGE: "excalidraw-ai-image",
+  LOCAL_STORAGE_AI_AGENT: "excalidraw-ai-agent",
+  LOCAL_STORAGE_AI_GENERATION_LOGS: "excalidraw-ai-generation-logs",
+  LOCAL_STORAGE_CUSTOM_AGENT_CHAT: "excalidraw-custom-agent-chat-history",
+  LOCAL_STORAGE_CLOUD_SCENE: "excalidraw-cloud-scene",
+  LOCAL_STORAGE_CLOUD_KEYRING: "excalidraw-cloud-keyring",
   VERSION_DATA_STATE: "version-dataState",
   VERSION_FILES: "version-files",
 

@@ -1,0 +1,936 @@
+.excalidraw {
+  .AISettingsDialog {
+    .Island {
+      padding: 1.35rem;
+    }
+
+    .Dialog__title {
+      margin-bottom: 1rem;
+      padding-bottom: 0.65rem;
+    }
+
+    .Dialog__content {
+      overflow: hidden;
+    }
+  }
+
+  .AISettings {
+    display: flex;
+    max-height: min(40rem, calc(100vh - 9rem));
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.65rem;
+    color: var(--text-primary-color);
+  }
+
+  .AISettings button,
+  .AISettings input,
+  .AISettings select,
+  .AISettings textarea {
+    transition: background-color var(--ui-transition),
+      border-color var(--ui-transition), box-shadow var(--ui-transition),
+      color var(--ui-transition);
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .AISettings__toolbar,
+  .AISettings__editorHeader,
+  .AISettings__editorActions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+  }
+
+  .AISettings__toolbar {
+    justify-content: space-between;
+    font-weight: 600;
+
+    button {
+      min-height: 2rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.45rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      }
+
+      &:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+    }
+  }
+
+  .AISettings__toolbarActions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AISettings__tabs {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.25rem;
+    min-width: 0;
+    padding: 0.25rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    background: var(--color-surface-mid);
+  }
+
+  .AISettings__tabs--top {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .AISettings__tabs--agents {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .AISettings__tab {
+    min-height: 2rem;
+    border: 0;
+    border-radius: 0.35rem;
+    background: transparent;
+    color: var(--text-primary-color);
+    font: inherit;
+    overflow-wrap: anywhere;
+    cursor: pointer;
+
+    &.is-selected {
+      background: var(--color-surface-primary-container);
+      color: var(--color-on-primary-container);
+      box-shadow: 0 0 0 1px var(--color-surface-primary-container);
+    }
+
+    &:hover:not(.is-selected) {
+      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+    }
+  }
+
+  .AISettings__models,
+  .AISettings__editorBody {
+    min-width: 0;
+    gap: 0.55rem;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding-right: 0.125rem;
+  }
+
+  .AISettings__models {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: min(31rem, 58vh);
+  }
+
+  .AISettings__editorBody {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    max-height: min(31rem, 58vh);
+  }
+
+  .AISettings__editorBody--single {
+    grid-template-columns: 1fr;
+  }
+
+  .AISettings__emptyState {
+    grid-column: 1 / -1;
+    border: 1px dashed var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.85rem;
+    background: var(--default-bg-color);
+    color: var(--text-primary-color);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .AISettings__modelPreviewCard {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.6rem;
+    background: var(--island-bg-color);
+  }
+
+  .AISettings__editorHeader {
+    h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.25;
+    }
+  }
+
+  .AISettings__providerPresets {
+    display: grid;
+    min-width: 0;
+    gap: 0.4rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--default-bg-color);
+  }
+
+  .AISettings__providerPresetsLabel {
+    color: var(--text-primary-color);
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.25;
+    opacity: 0.72;
+  }
+
+  .AISettings__providerPresetList {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    min-width: 0;
+
+    button {
+      display: grid;
+      min-width: 0;
+      gap: 0.15rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.45rem;
+      padding: 0.45rem 0.55rem;
+      background: var(--island-bg-color);
+      color: var(--text-primary-color);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+
+      &:focus-visible {
+        outline: var(--ui-focus-outline);
+        outline-offset: var(--ui-focus-outline-offset);
+      }
+    }
+
+    strong,
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    strong {
+      font-size: 0.78rem;
+      line-height: 1.25;
+    }
+
+    span {
+      font-size: 0.72rem;
+      line-height: 1.25;
+      opacity: 0.72;
+    }
+  }
+
+  .AISettings__textButton,
+  .AISettings__dangerButton {
+    border: 0;
+    background: transparent;
+    color: var(--color-primary);
+    font: inherit;
+    cursor: pointer;
+
+    &:hover {
+      color: var(--color-primary-hover);
+      text-decoration: underline;
+      text-underline-offset: 0.15rem;
+    }
+  }
+
+  .AISettings__dangerButton {
+    margin-right: auto;
+    color: var(--color-danger-color);
+  }
+
+  .AISettings__field {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.25rem;
+
+    span {
+      font-size: 0.72rem;
+      font-weight: 600;
+      line-height: 1.2;
+    }
+
+    input,
+    select,
+    textarea {
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      min-height: 2rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.4rem;
+      padding: 0.4rem 0.5rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+    }
+  }
+
+  .AISettings__fieldHint {
+    color: var(--text-primary-color);
+    font-size: 0.72rem;
+    font-weight: 400 !important;
+    line-height: 1.35;
+    opacity: 0.72;
+    overflow-wrap: anywhere;
+  }
+
+  .AISettings__visuallyHidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .AISettings__formSection {
+    display: grid;
+    min-width: 0;
+    gap: 0.5rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+
+    &.AISettings__formSection--wide {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .AISettings__sectionHeader {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+
+    h4 {
+      margin: 0;
+      color: var(--text-primary-color);
+      font-size: 0.78rem;
+      line-height: 1.25;
+    }
+  }
+
+  .AISettings__connectionGrid {
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.48fr) minmax(14rem, 1fr);
+    gap: 0.5rem;
+    min-width: 0;
+
+    .AISettings__field:last-child {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .AISettings__presetField {
+    display: grid;
+    grid-template-columns: minmax(12rem, 0.45fr) minmax(0, 1fr);
+    align-items: end;
+    gap: 0.35rem 0.75rem;
+
+    > span:first-child {
+      grid-column: 1 / -1;
+    }
+
+    .AISettings__fieldHint {
+      align-self: center;
+      padding-bottom: 0.42rem;
+    }
+  }
+
+  .AISettings__endpointMatrix {
+    display: grid;
+    min-width: 0;
+    gap: 0.35rem;
+  }
+
+  .AISettings__endpointHeader {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.25fr) minmax(14rem, 1fr) minmax(
+        7rem,
+        0.28fr
+      );
+    gap: 0.5rem;
+    min-width: 0;
+    padding: 0 0.5rem;
+    color: var(--text-primary-color);
+    font-size: 0.68rem;
+    font-weight: 600;
+    line-height: 1.2;
+    opacity: 0.62;
+  }
+
+  .AISettings__endpointRow {
+    display: grid;
+    grid-template-columns: minmax(7rem, 0.25fr) minmax(14rem, 1fr) minmax(
+        7rem,
+        0.28fr
+      );
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+    border-radius: 0.45rem;
+    padding: 0.35rem 0.5rem;
+    background: var(--island-bg-color);
+  }
+
+  .AISettings__endpointLabel {
+    min-width: 0;
+    color: var(--text-primary-color);
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+  }
+
+  .AISettings__fieldMappingGrid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AISettings__advanced {
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.5rem 0.6rem;
+    background: var(--island-bg-color);
+
+    summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      color: var(--text-primary-color);
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+  }
+
+  .AISettings__advanced[open] {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .AISettings__summaryBadge {
+    border: 1px solid var(--default-border-color);
+    border-radius: 999px;
+    padding: 0.05rem 0.4rem;
+    background: var(--default-bg-color);
+    font-size: 0.68rem;
+    line-height: 1.3;
+  }
+
+  .AISettings__modelGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AISettings__modelIdsField {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+  }
+
+  .AISettings__modelRightField1,
+  .AISettings__modelRightField2,
+  .AISettings__modelRightField3 {
+    grid-column: 2;
+  }
+
+  .AISettings__modelRightField1 {
+    grid-row: 1;
+  }
+
+  .AISettings__modelRightField2 {
+    grid-row: 2;
+  }
+
+  .AISettings__modelRightField3 {
+    grid-row: 3;
+  }
+
+  .AISettings__defaultField {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .AISettings__capabilities {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.3rem 0.5rem;
+    min-width: 0;
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      min-width: 0;
+      font-size: 0.74rem;
+      line-height: 1.25;
+    }
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AISettings__templateSections {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    min-width: 0;
+    max-height: min(31rem, 58vh);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding-right: 0.125rem;
+  }
+
+  .AISettings__agentIntro {
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+    color: var(--text-primary-color);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    opacity: 0.82;
+    overflow-wrap: anywhere;
+  }
+
+  .AISettings__agentSections {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    min-width: 0;
+    max-height: min(31rem, 58vh);
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    padding-right: 0.125rem;
+  }
+
+  .AISettings__agentSections--single {
+    grid-template-columns: 1fr;
+  }
+
+  .AISettings__agentSection {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.5rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+
+    .AISettings__sectionHeader {
+      align-items: flex-start;
+
+      h4 {
+        display: grid;
+        gap: 0.1rem;
+
+        span {
+          font-size: 0.68rem;
+          font-weight: 500;
+          opacity: 0.72;
+        }
+      }
+
+      button {
+        flex: 0 0 auto;
+        min-height: 1.85rem;
+        border: 1px solid var(--default-border-color);
+        border-radius: 0.4rem;
+        background: var(--island-bg-color);
+        color: var(--text-primary-color);
+        font: inherit;
+        font-size: 0.74rem;
+        cursor: pointer;
+      }
+    }
+  }
+
+  .AISettings__agentList {
+    display: grid;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .AISettings__agentCard {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.6rem;
+    background: var(--island-bg-color);
+  }
+
+  .AISettings__agentCardHeader,
+  .AISettings__agentActions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AISettings__agentCardHeader {
+    justify-content: space-between;
+
+    strong {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .AISettings__agentMeta {
+    display: grid;
+    gap: 0.2rem;
+    min-width: 0;
+    color: var(--text-primary-color);
+    font-size: 0.72rem;
+    line-height: 1.3;
+    opacity: 0.76;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .AISettings__agentActions {
+    flex-wrap: wrap;
+
+    button {
+      border: 0;
+      background: transparent;
+      color: var(--color-primary);
+      font: inherit;
+      font-size: 0.74rem;
+      cursor: pointer;
+
+      &:disabled {
+        color: var(--text-primary-color);
+        cursor: default;
+        opacity: 0.52;
+      }
+    }
+  }
+
+  .AISettings__agentToggle {
+    display: flex;
+    grid-column: 1 / -1;
+    align-items: flex-start;
+    gap: 0.45rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+    color: var(--text-primary-color);
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.25;
+
+    span {
+      display: grid;
+      min-width: 0;
+      gap: 0.2rem;
+    }
+
+    small {
+      font-size: 0.7rem;
+      font-weight: 400;
+      line-height: 1.35;
+      opacity: 0.72;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AISettings__providerPresetList--agents {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .AISettings__agentRecommendations {
+    display: grid;
+    gap: 0.25rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--island-bg-color);
+    color: var(--text-primary-color);
+    font-size: 0.74rem;
+    line-height: 1.35;
+
+    strong {
+      font-size: 0.76rem;
+    }
+
+    span {
+      overflow-wrap: anywhere;
+      opacity: 0.78;
+    }
+  }
+
+  .AISettings__templateSection {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.5rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+  }
+
+  .AISettings__templateList {
+    display: grid;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AISettings__templateCard {
+    display: grid;
+    gap: 0.35rem;
+    min-width: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    padding: 0.55rem;
+    background: var(--island-bg-color);
+
+    p {
+      min-width: 0;
+      margin: 0;
+      color: var(--text-primary-color);
+      font-size: 0.74rem;
+      line-height: 1.35;
+      opacity: 0.78;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AISettings__agentDescription {
+    min-width: 0;
+    margin: 0;
+    color: var(--text-primary-color);
+    font-size: 0.74rem;
+    line-height: 1.35;
+    opacity: 0.78;
+    overflow-wrap: anywhere;
+  }
+
+  .AISettings__iconBadge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 1.35rem;
+    margin-right: 0.35rem;
+    font-size: 0.86rem;
+    line-height: 1;
+  }
+
+  .AISettings__templateCardHeader,
+  .AISettings__templateActions,
+  .AISettings__templateMeta,
+  .AISettings__templateModeGrid {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    min-width: 0;
+  }
+
+  .AISettings__templateCardHeader {
+    justify-content: space-between;
+
+    strong {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+
+  .AISettings__templateActions {
+    flex: 0 0 auto;
+
+    button {
+      border: 0;
+      background: transparent;
+      color: var(--color-primary);
+      font: inherit;
+      font-size: 0.74rem;
+      cursor: pointer;
+    }
+  }
+
+  .AISettings__templateMeta {
+    flex-wrap: wrap;
+
+    span {
+      border: 1px solid var(--default-border-color);
+      border-radius: 999px;
+      padding: 0.05rem 0.4rem;
+      background: var(--default-bg-color);
+      font-size: 0.68rem;
+      line-height: 1.35;
+      white-space: nowrap;
+    }
+  }
+
+  .AISettings__templateModeGrid {
+    flex-wrap: wrap;
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.76rem;
+      font-weight: 600;
+      line-height: 1.25;
+    }
+  }
+
+  .AISettings__editorActions {
+    justify-content: flex-end;
+  }
+
+  .AISettings__saveButton {
+    box-sizing: border-box;
+    justify-content: center;
+    min-width: 8.5rem;
+    padding-inline: 1rem;
+    white-space: nowrap;
+  }
+
+  .AISettings__message {
+    border-radius: 0.45rem;
+    padding: 0.55rem 0.65rem;
+    background: var(--color-gray-10);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .AISettings__message.is-error {
+    background: var(--color-danger-background);
+    color: var(--color-danger-color);
+  }
+
+  @media (max-width: 520px) {
+    .AISettings {
+      max-height: none;
+    }
+
+    .AISettingsDialog {
+      .Island {
+        padding: 1rem;
+      }
+    }
+
+    .AISettings__editorBody,
+    .AISettings__models,
+    .AISettings__agentSections,
+    .AISettings__templateSections,
+    .AISettings__connectionGrid,
+    .AISettings__modelGrid,
+    .AISettings__presetField,
+    .AISettings__providerPresetList,
+    .AISettings__providerPresetList--agents,
+    .AISettings__tabs--agents,
+    .AISettings__endpointRow,
+    .AISettings__fieldMappingGrid,
+    .AISettings__capabilities {
+      grid-template-columns: 1fr;
+    }
+
+    .AISettings__endpointLabel {
+      padding-bottom: 0;
+    }
+
+    .AISettings__endpointHeader {
+      display: none;
+    }
+
+    .AISettings__modelIdsField,
+    .AISettings__modelRightField1,
+    .AISettings__modelRightField2,
+    .AISettings__modelRightField3 {
+      grid-column: auto;
+      grid-row: auto;
+    }
+  }
+
+  @media (min-width: 521px) and (max-width: 760px) {
+    .AISettings__models,
+    .AISettings__editorBody,
+    .AISettings__agentSections,
+    .AISettings__templateSections,
+    .AISettings__fieldMappingGrid,
+    .AISettings__capabilities {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .AISettings__endpointHeader,
+    .AISettings__endpointRow {
+      grid-template-columns: minmax(6rem, 0.35fr) minmax(0, 1fr);
+    }
+
+    .AISettings__endpointRow {
+      .AISettings__field:last-child {
+        grid-column: 2;
+      }
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .AISettings button,
+    .AISettings input,
+    .AISettings select,
+    .AISettings textarea {
+      transition: none;
+    }
+  }
+}

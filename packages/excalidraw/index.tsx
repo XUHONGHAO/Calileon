@@ -86,6 +86,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     theme,
     name,
     renderCustomStats,
+    renderCustomContextMenuItems,
     onPaste,
     detectScroll = true,
     handleKeyboardGlobally = false,
@@ -205,6 +206,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           theme={theme}
           name={name}
           renderCustomStats={renderCustomStats}
+          renderCustomContextMenuItems={renderCustomContextMenuItems}
           UIOptions={UIOptions}
           onPaste={onPaste}
           detectScroll={detectScroll}

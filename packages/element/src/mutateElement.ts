@@ -23,7 +23,7 @@ import type {
 
 export type ElementUpdate<TElement extends ExcalidrawElement> = Omit<
   Partial<TElement>,
-  "id" | "updated"
+  "id" | "updated" | "created"
 >;
 
 /**

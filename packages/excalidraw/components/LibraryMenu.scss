@@ -67,6 +67,10 @@
     gap: 0.625rem;
     position: relative;
 
+    &--at-bottom {
+      padding: 16px 12px 0 12px;
+    }
+
     &--at-bottom::before {
       content: "";
       width: calc(100% - 1.5rem);

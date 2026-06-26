@@ -388,7 +388,7 @@ export const SearchMenu = () => {
         />
       </div>
 
-      <div className="layer-ui__search-count">
+      <div className="layer-ui__search-count" aria-live="polite">
         {searchMatches.items.length > 0 && (
           <>
             {focusIndex !== null && focusIndex > -1 ? (
@@ -404,6 +404,7 @@ export const SearchMenu = () => {
                   goToNextItem();
                 }}
                 className="result-nav-btn"
+                aria-label={t("buttons.next")}
               >
                 {collapseDownIcon}
               </Button>
@@ -412,6 +413,7 @@ export const SearchMenu = () => {
                   goToPreviousItem();
                 }}
                 className="result-nav-btn"
+                aria-label={t("buttons.previous")}
               >
                 {upIcon}
               </Button>
@@ -422,7 +424,7 @@ export const SearchMenu = () => {
         {searchMatches.items.length === 0 &&
           searchQuery &&
           searchedQueryRef.current && (
-            <div style={{ margin: "1rem auto" }}>{t("search.noMatch")}</div>
+            <div className="layer-ui__search-empty">{t("search.noMatch")}</div>
           )}
       </div>
 
