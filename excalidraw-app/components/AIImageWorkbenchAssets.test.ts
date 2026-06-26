@@ -102,7 +102,7 @@ describe("AIImageWorkbenchAssets", () => {
   });
 
   it("formats generated asset labels and reference file extensions", () => {
-    expect(getGeneratedAssetModeLabel("text-to-image")).toBe("Text to image");
+    expect(getGeneratedAssetModeLabel("text-to-image")).toBe("Text-to-image");
     expect(getGeneratedAssetModeLabel("image-to-image")).toBe("Reference");
     expect(getGeneratedAssetModeLabel("inpaint")).toBe("Inpaint");
     expect(

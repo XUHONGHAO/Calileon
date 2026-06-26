@@ -120,10 +120,14 @@ export const validatePromptReferences = (
       (referenceIndex < 1 || referenceIndex > imageCount)
     ) {
       warnings.add(
-        t("ai.workbench.referenceNotFoundWarning", {
-          index: referenceIndex,
-          count: imageCount,
-        }),
+        imageCount === 1
+          ? t("ai.workbench.referenceNotFoundWarningSingular", {
+              index: referenceIndex,
+            })
+          : t("ai.workbench.referenceNotFoundWarningPlural", {
+              index: referenceIndex,
+              count: imageCount,
+            }),
       );
     }
   }

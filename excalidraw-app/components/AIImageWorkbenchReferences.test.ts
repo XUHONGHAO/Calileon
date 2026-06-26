@@ -125,6 +125,9 @@ describe("AIImageWorkbenchReferences", () => {
   });
 
   it("warns when prompt reference indexes are outside the reference tray", () => {
+    expect(validatePromptReferences("use #1", 0)).toEqual([
+      "Warning: #1 not found (0 references).",
+    ]);
     expect(validatePromptReferences("use #1 and image 4", 2)).toEqual([
       "Warning: #4 not found (2 references).",
     ]);
