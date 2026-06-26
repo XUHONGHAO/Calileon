@@ -9,11 +9,14 @@ import type {
 import type { AppState, BinaryFileData } from "@excalidraw/excalidraw/types";
 
 import { STORAGE_KEYS } from "./app_constants";
-import { LocalData } from "./data/LocalData";
+import { localStore } from "./data/cloud";
 
 const EVENT_REQUEST_SCENE = "REQUEST_SCENE";
 
 const EXCALIDRAW_PLUS_ORIGIN = import.meta.env.VITE_APP_PLUS_APP;
+
+// Phase 0: local file storage access goes through data/cloud passthrough.
+const { LocalData } = localStore;
 
 // -----------------------------------------------------------------------------
 // outgoing message

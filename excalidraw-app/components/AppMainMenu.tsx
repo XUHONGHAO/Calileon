@@ -15,6 +15,7 @@ import type { Theme } from "@excalidraw/element/types";
 
 import { LanguageList } from "../app-language/LanguageList";
 import { AI_OPEN_SETTINGS_EVENT } from "../ai/workflowEvents";
+import { useCloudAuth } from "../auth/useCloudAuth";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 import { AISettings } from "./AISettings";
@@ -26,11 +27,14 @@ export const AppMainMenu: React.FC<{
   isCollabEnabled: boolean;
   theme: Theme | "system";
   refresh: () => void;
+  onCloudAccountOpen?: () => void;
 }> = React.memo((props) => {
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
     "models" | "agents" | "templates"
   >("models");
+
+  const { isAuthAvailable, isSignedIn } = useCloudAuth();
 
   React.useEffect(() => {
     const openAISettings = (
@@ -75,17 +79,37 @@ export const AppMainMenu: React.FC<{
           Excalidraw+
         </MainMenu.ItemLink>
         <MainMenu.DefaultItems.Socials />
-        <MainMenu.ItemLink
-          icon={loginIcon}
-          href={`${import.meta.env.VITE_APP_PLUS_APP}${
-            isExcalidrawPlusSignedUser ? "" : "/sign-up"
-          }?utm_source=signin&utm_medium=app&utm_content=hamburger`}
-          className="highlighted"
-        >
-          {isExcalidrawPlusSignedUser
-            ? t("buttons.signIn")
-            : t("buttons.signUp")}
-        </MainMenu.ItemLink>
+        {isAuthAvailable ? (
+          isSignedIn ? (
+            <MainMenu.Item
+              icon={loginIcon}
+              onSelect={() => props.onCloudAccountOpen?.()}
+              className="highlighted"
+            >
+              {t("cloud.auth.accountMenu")}
+            </MainMenu.Item>
+          ) : (
+            <MainMenu.Item
+              icon={loginIcon}
+              onSelect={() => props.onCloudAccountOpen?.()}
+              className="highlighted"
+            >
+              {t("cloud.auth.signIn")}
+            </MainMenu.Item>
+          )
+        ) : (
+          <MainMenu.ItemLink
+            icon={loginIcon}
+            href={`${import.meta.env.VITE_APP_PLUS_APP}${
+              isExcalidrawPlusSignedUser ? "" : "/sign-up"
+            }?utm_source=signin&utm_medium=app&utm_content=hamburger`}
+            className="highlighted"
+          >
+            {isExcalidrawPlusSignedUser
+              ? t("buttons.signIn")
+              : t("buttons.signUp")}
+          </MainMenu.ItemLink>
+        )}
         {isDevEnv() && (
           <MainMenu.Item
             icon={eyeIcon}

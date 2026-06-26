@@ -160,6 +160,44 @@ describe("AIImageWorkbench", () => {
     });
   });
 
+  it("reports completed generation runs to the cloud task callback", async () => {
+    const onCloudAITaskRun = vi.fn(async () => {});
+    vi.mocked(generateImagesWithOpenAIAdapter).mockResolvedValue([
+      generatedOutput,
+    ]);
+
+    render(
+      <AIImageWorkbench
+        excalidrawAPI={createExcalidrawAPI()}
+        onCloudAITaskRun={onCloudAITaskRun}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Prompt"), {
+      target: { value: "A calm whiteboard concept" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Generate image",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(onCloudAITaskRun).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "success",
+          prompt: "A calm whiteboard concept",
+          outputs: [
+            expect.objectContaining({
+              insertedElementId: "inserted-image",
+              insertedFileId: "inserted-file",
+            }),
+          ],
+        }),
+      );
+    });
+  });
+
   it("aborts generation on unmount and ignores late results", async () => {
     const generationSignalRef: { current: AbortSignal | null } = {
       current: null,
