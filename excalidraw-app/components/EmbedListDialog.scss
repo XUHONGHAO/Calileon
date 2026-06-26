@@ -1,10 +1,25 @@
 .EmbedListDialogModal {
+  .Modal__content {
+    overflow: hidden;
+  }
+
   .Island {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    min-height: 0;
+    width: 100%;
+    overflow: hidden;
     position: relative;
   }
 
   .Dialog__title {
     padding-right: 2rem;
+  }
+
+  .Dialog__content {
+    min-height: 0;
+    overflow: hidden;
   }
 
   &.Dialog--fullscreen {
@@ -18,7 +33,17 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: calc(100vh - 5rem);
+  min-height: 0;
   min-width: 0;
+
+  .excalidraw-button {
+    min-width: 0;
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.2;
+  }
 
   .EmbedListDialog__close {
     position: absolute;
@@ -51,11 +76,14 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
+    min-width: 0;
 
     p {
+      min-width: 0;
       margin: 0;
       font-size: 0.875rem;
       color: var(--color-gray-60);
+      overflow-wrap: anywhere;
     }
   }
 
@@ -65,12 +93,17 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.5rem;
+
+    label {
+      flex: 1 1 10rem;
+    }
   }
 
   .EmbedListDialog__create {
     display: flex;
     flex-direction: column;
     gap: 0.625rem;
+    min-width: 0;
     padding: 0.625rem;
     border: 1px solid var(--default-border-color, var(--color-gray-30));
     border-radius: var(--border-radius-md, 0.5rem);
@@ -93,6 +126,8 @@
   textarea,
   select {
     width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
     padding: 0.5rem 0.625rem;
     border: 1px solid var(--default-border-color, var(--color-gray-30));
     border-radius: var(--border-radius-md, 0.5rem);
@@ -114,9 +149,11 @@
 
   .EmbedListDialog__status,
   .EmbedListDialog__error {
+    min-width: 0;
     padding: 0.625rem 0.75rem;
     border-radius: var(--border-radius-md, 0.5rem);
     font-size: 0.8125rem;
+    overflow-wrap: anywhere;
   }
 
   .EmbedListDialog__status {
@@ -134,6 +171,8 @@
     display: flex;
     flex-direction: column;
     gap: 0.5rem;
+    min-height: 0;
+    min-width: 0;
     max-height: min(42vh, 22rem);
     margin: 0;
     padding: 0;
@@ -146,6 +185,7 @@
     align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
+    flex-wrap: wrap;
     min-width: 0;
     padding: 0.625rem 0;
     border-bottom: 1px solid var(--default-border-color, var(--color-gray-30));
@@ -153,14 +193,12 @@
 
   .EmbedListDialog__details {
     display: flex;
-    flex: 1 1 auto;
+    flex: 1 1 18rem;
     flex-direction: column;
     gap: 0.25rem;
     min-width: 0;
 
-    strong,
-    span,
-    small {
+    strong {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -174,11 +212,22 @@
     small {
       font-size: 0.75rem;
       color: var(--color-gray-60);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .EmbedListDialog__actions {
+    flex: 1 1 14rem;
+    justify-content: flex-end;
+    min-width: 0;
+
+    .excalidraw-button {
+      flex: 1 1 6.5rem;
     }
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 640px) {
   .EmbedListDialog {
     .EmbedListDialog__toolbar,
     .EmbedListDialog__item {

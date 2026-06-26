@@ -21,6 +21,9 @@ import type {
   AssetStorage,
   AuthProvider,
   CastService,
+  CloudEncryptionService,
+  CollabPersistenceService,
+  CollabRoomService,
   EmbedService,
   RealtimeService,
   SceneActivityService,
@@ -79,6 +82,42 @@ export const createLocalSceneActivityService = (): SceneActivityService => ({
 export const createLocalRealtimeService = (): RealtimeService => ({
   isAvailable: () => false,
 });
+
+export const createLocalCollabRoomService = (): CollabRoomService => ({
+  isAvailable: () => false,
+  createForScene: async () => notConfigured(),
+  getByScene: async () => notConfigured(),
+  getByRoomId: async () => notConfigured(),
+  revoke: async () => notConfigured(),
+  touch: async () => notConfigured(),
+});
+
+export const createLocalCollabPersistenceService =
+  (): CollabPersistenceService => ({
+    isAvailable: () => false,
+    backend: "none",
+    isRoomActive: async () => true,
+    isSaved: () => true,
+    saveScene: async () => notConfigured(),
+    loadScene: async () => notConfigured(),
+    saveFiles: async () => notConfigured(),
+    loadFiles: async () => notConfigured(),
+    saveSnapshot: async () => notConfigured(),
+    loadSnapshot: async () => notConfigured(),
+  });
+
+export const createLocalCloudEncryptionService =
+  (): CloudEncryptionService => ({
+    isAvailable: () => false,
+    generateKey: async () => notConfigured(),
+    encryptScenePayload: async () => notConfigured(),
+    decryptScenePayload: async () => notConfigured(),
+    encryptBlob: async () => notConfigured(),
+    decryptBlob: async () => notConfigured(),
+    saveKey: () => notConfigured(),
+    getKey: () => null,
+    removeKey: () => notConfigured(),
+  });
 
 export const createLocalCastService = (): CastService => ({
   isAvailable: () => false,

@@ -95,6 +95,10 @@ const record: SceneRecord = {
 
 const makeBackend = () => ({
   capabilities: { sceneStorage: true, share: true, embed: true },
+  encryption: {
+    getKey: vi.fn((): any => null),
+    removeKey: vi.fn(),
+  },
   scenes: {
     list: vi.fn(async () => summaries),
     load: vi.fn(async () => record),
@@ -223,7 +227,9 @@ describe("SceneListDialog", () => {
     expect(window.confirm).toHaveBeenCalledWith(
       "Delete this cloud whiteboard?",
     );
-    expect(backendMock.backend.scenes.list).toHaveBeenCalledTimes(2);
+    await waitFor(() => {
+      expect(backendMock.backend.scenes.list).toHaveBeenCalledTimes(2);
+    });
   });
 
   it("opens share management from a cloud scene", async () => {
@@ -285,5 +291,23 @@ describe("SceneListDialog", () => {
       expect(backendMock.backend.shares.revoke).toHaveBeenCalledWith("share-1");
     });
     expect(window.confirm).toHaveBeenCalledWith("Revoke this share link?");
+  });
+
+  it("copies encrypted share links with the local key", async () => {
+    backendMock.backend.encryption.getKey.mockReturnValue({
+      sceneId: "scene-1",
+      key: "key-1",
+      createdAt: 0,
+      updatedAt: 0,
+    });
+    renderDialog();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy" }));
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        "http://localhost:3000/#cloud=token-1,key-1",
+      );
+    });
   });
 });

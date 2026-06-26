@@ -1,9 +1,12 @@
 import { STORAGE_KEYS } from "../../app_constants";
 
+import type { ScenePayloadKind } from "./types";
+
 export interface CloudSceneBinding {
   id: string;
   ownerId: string;
   title: string;
+  payloadKind?: ScenePayloadKind;
   version: number;
   createdAt: number;
   updatedAt: number;
@@ -24,6 +27,9 @@ const isValidStoredBinding = (
   typeof value.id === "string" &&
   typeof value.ownerId === "string" &&
   typeof value.title === "string" &&
+  (value.payloadKind === undefined ||
+    value.payloadKind === "plain" ||
+    value.payloadKind === "encrypted") &&
   typeof value.version === "number" &&
   typeof value.createdAt === "number" &&
   typeof value.updatedAt === "number" &&

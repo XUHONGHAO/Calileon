@@ -90,6 +90,9 @@ const embed = {
 
 const makeBackend = () => ({
   capabilities: { embed: true },
+  encryption: {
+    getKey: vi.fn((): any => null),
+  },
   embed: {
     listByScene: vi.fn(async () => [embed]),
     create: vi.fn(async () => embed),
@@ -157,6 +160,27 @@ describe("EmbedListDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
     await waitFor(() => {
       expect(backend.embed.revoke).toHaveBeenCalledWith("embed-1");
+    });
+  });
+
+  it("copies encrypted iframe snippets with the local key", async () => {
+    const backend = makeBackend();
+    backend.encryption.getKey.mockReturnValue({
+      sceneId: "scene-1",
+      key: "key-1",
+      createdAt: 0,
+      updatedAt: 0,
+    });
+    backendMock.backend = backend;
+
+    render(<EmbedListDialog open={true} scene={scene} onClose={() => {}} />);
+
+    await screen.findByText("Read-only");
+    fireEvent.click(screen.getByRole("button", { name: "Copy iframe" }));
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        expect.stringContaining("#embed=token-1,key-1"),
+      );
     });
   });
 });

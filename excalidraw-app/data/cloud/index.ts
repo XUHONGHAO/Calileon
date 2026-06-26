@@ -11,12 +11,18 @@
  */
 
 import { readCapabilities } from "./capabilities";
+import { readCollabPersistenceBackend } from "./capabilities";
+import { createCloudEncryptionService } from "./CloudEncryptionService";
+import { createFirebaseCollabPersistenceService } from "./FirebaseCollabPersistenceService";
 import {
   createLocalAITaskService,
   createLocalAiGateway,
   createLocalAssetStorage,
   createLocalAuthProvider,
   createLocalCastService,
+  createLocalCloudEncryptionService,
+  createLocalCollabPersistenceService,
+  createLocalCollabRoomService,
   createLocalEmbedService,
   createLocalRealtimeService,
   createLocalSceneActivityService,
@@ -27,6 +33,8 @@ import { createSupabaseAssetStorage } from "./supabase/SupabaseAssetStorage";
 import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
 import { createSupabaseAITaskService } from "./supabase/SupabaseAITaskService";
 import { createSupabaseCastService } from "./supabase/SupabaseCastService";
+import { createSupabaseCollabPersistenceService } from "./supabase/SupabaseCollabPersistenceService";
+import { createSupabaseCollabRoomService } from "./supabase/SupabaseCollabRoomService";
 import { createSupabaseEmbedService } from "./supabase/SupabaseEmbedService";
 import { createSupabaseSceneActivityService } from "./supabase/SupabaseSceneActivityService";
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
@@ -35,6 +43,16 @@ import { createSupabaseShareService } from "./supabase/SupabaseShareService";
 import type { BackendCapabilities, CloudBackend } from "./types";
 
 let _backend: CloudBackend | null = null;
+
+const ensureBackendShape = (backend: CloudBackend): CloudBackend => {
+  const legacyBackend = backend as Partial<CloudBackend>;
+  if (!legacyBackend.encryption) {
+    backend.encryption = backend.capabilities.encryptedCloudStorage
+      ? createCloudEncryptionService(true)
+      : createLocalCloudEncryptionService();
+  }
+  return backend;
+};
 
 const assembleLocalBackend = (): CloudBackend => ({
   capabilities: readCapabilities(),
@@ -45,6 +63,12 @@ const assembleLocalBackend = (): CloudBackend => ({
   aiTasks: createLocalAITaskService(),
   activity: createLocalSceneActivityService(),
   realtime: createLocalRealtimeService(),
+  collabRooms: createLocalCollabRoomService(),
+  collabPersistence:
+    readCollabPersistenceBackend() === "firebase"
+      ? createFirebaseCollabPersistenceService()
+      : createLocalCollabPersistenceService(),
+  encryption: createLocalCloudEncryptionService(),
   cast: createLocalCastService(),
   embed: createLocalEmbedService(),
   ai: createLocalAiGateway(),
@@ -66,6 +90,15 @@ const assembleSupabaseBackend = (
   aiTasks: createSupabaseAITaskService(),
   activity: createSupabaseSceneActivityService(),
   realtime: createLocalRealtimeService(),
+  collabRooms: capabilities.collabRoomBinding
+    ? createSupabaseCollabRoomService()
+    : createLocalCollabRoomService(),
+  collabPersistence: capabilities.collabPersistence
+    ? readCollabPersistenceBackend() === "firebase"
+      ? createFirebaseCollabPersistenceService()
+      : createSupabaseCollabPersistenceService()
+    : createLocalCollabPersistenceService(),
+  encryption: createCloudEncryptionService(capabilities.encryptedCloudStorage),
   cast: createSupabaseCastService(),
   embed: createSupabaseEmbedService(),
   ai: createLocalAiGateway(),
@@ -84,7 +117,7 @@ export const getCloudBackend = (): CloudBackend => {
       ? assembleSupabaseBackend(capabilities)
       : assembleLocalBackend();
   }
-  return _backend;
+  return ensureBackendShape(_backend);
 };
 
 /** Test-only: reset the assembled singleton between tests. */
@@ -97,6 +130,7 @@ export * from "./types";
 export { BackendError } from "./errors";
 export type { BackendErrorCode } from "./errors";
 export { readCapabilities } from "./capabilities";
+export { readCloudDeploymentConfig } from "./deploymentConfig";
 
 // —— Phase 0 passthrough surface (today's behavior, verbatim) ——
 export * as localStore from "./passthrough/localStore";

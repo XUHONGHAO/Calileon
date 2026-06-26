@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getCloudShareAccessFromUrl,
   getCloudShareLink,
   getCloudShareTokenFromUrl,
 } from "./cloudShareLinks";
@@ -10,6 +11,9 @@ describe("cloudShareLinks", () => {
     expect(
       getCloudShareTokenFromUrl("https://app.example/#cloud=abc_123"),
     ).toBe("abc_123");
+    expect(
+      getCloudShareAccessFromUrl("https://app.example/#cloud=abc_123,key-1"),
+    ).toEqual({ token: "abc_123", key: "key-1" });
   });
 
   it("does not match legacy json or collaboration links", () => {
@@ -26,6 +30,9 @@ describe("cloudShareLinks", () => {
 
     expect(getCloudShareLink("token-1")).toBe(
       "http://localhost:3000/board#cloud=token-1",
+    );
+    expect(getCloudShareLink("token-1", "key-1")).toBe(
+      "http://localhost:3000/board#cloud=token-1,key-1",
     );
   });
 });

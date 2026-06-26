@@ -1,29 +1,39 @@
 .AuthDialogModal {
+  .Modal__content {
+    display: flex;
+    max-height: calc(100vh - 5rem);
+    overflow: hidden;
+  }
+
   .Island {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    width: 100%;
     position: relative;
   }
 
   .Dialog__title {
+    flex: 0 0 auto;
+    margin-bottom: 0;
     padding-right: 2rem;
   }
 
-  &.Dialog--fullscreen {
-    .AuthDialog__close {
-      display: none;
-    }
+  .Dialog__content {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 1.5rem;
   }
-}
-
-.AuthDialog {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  min-width: 0;
 
   .AuthDialog__close {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
+    top: 2rem;
+    right: 2rem;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -44,6 +54,39 @@
       cursor: default;
       opacity: 0.5;
     }
+  }
+
+  &.Dialog--fullscreen {
+    .Modal__content {
+      max-height: 100%;
+    }
+
+    .Island {
+      height: 100%;
+    }
+
+    .AuthDialog__close {
+      display: none;
+    }
+  }
+}
+
+.AuthDialog {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1 1 auto;
+  max-height: 100%;
+  min-height: 0;
+  min-width: 0;
+
+  .AuthDialog__scrollBody {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 0.75rem;
+    min-height: 0;
+    overflow-y: auto;
   }
 
   .AuthDialog__intro {
@@ -199,8 +242,12 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
+    flex: 0 0 auto;
     gap: 0.5rem;
-    margin-top: 0.25rem;
+    margin-top: 0;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--dialog-border-color);
+    background: var(--island-bg-color);
 
     .excalidraw-button {
       flex: 0 0 auto;

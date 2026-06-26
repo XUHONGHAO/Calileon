@@ -35,8 +35,13 @@ import { FILE_CACHE_MAX_AGE_SEC } from "../app_constants";
 import { getSyncableElements } from ".";
 
 import type { SyncableExcalidrawElement } from ".";
-import type Portal from "../collab/Portal";
 import type { Socket } from "socket.io-client";
+
+interface FirebaseRoomRef {
+  roomId: string | null;
+  roomKey: string | null;
+  socket: Socket | null;
+}
 
 // private
 // -----------------------------------------------------------------------------
@@ -144,7 +149,7 @@ class FirebaseSceneVersionCache {
 }
 
 export const isSavedToFirebase = (
-  portal: Portal,
+  portal: FirebaseRoomRef,
   elements: readonly ExcalidrawElement[],
 ): boolean => {
   if (portal.socket && portal.roomId && portal.roomKey) {
@@ -200,7 +205,7 @@ const createFirebaseSceneDocument = async (
 };
 
 export const saveToFirebase = async (
-  portal: Portal,
+  portal: FirebaseRoomRef,
   elements: readonly SyncableExcalidrawElement[],
   appState: AppState,
 ) => {

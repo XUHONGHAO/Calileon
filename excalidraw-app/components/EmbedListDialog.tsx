@@ -164,6 +164,7 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
       await navigator.clipboard.writeText(
         getCloudEmbedIframeCode({
           token: embed.token,
+          key: backend.encryption?.getKey?.(embed.sceneId)?.key,
           title: scene.title,
           height: embed.size === "compact" ? "420" : "600",
         }),
@@ -213,7 +214,7 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
   return (
     <Dialog
       className="EmbedListDialogModal"
-      size="small"
+      size="regular"
       closeOnClickOutside={false}
       onCloseRequest={handleClose}
       title={t("cloud.embed.title")}

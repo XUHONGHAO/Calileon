@@ -136,14 +136,19 @@ import { localStore, shareLink, firebaseStore } from "./data/cloud";
 import { getCloudBackend } from "./data/cloud";
 import {
   loadAssetRefsForElements,
+  loadEncryptedAssetRefsForElements,
+  loadEncryptedSceneAssets,
   loadSceneAssets,
+  uploadEncryptedEmbeddedSceneAssets,
+  uploadEncryptedSharedSceneAssets,
+  uploadEncryptedSceneAssets,
   uploadSceneAssets,
   uploadEmbeddedSceneAssets,
   uploadSharedSceneAssets,
 } from "./data/cloud/cloudAssets";
 import { recordCloudAITask } from "./data/cloud/cloudAITasks";
-import { getCloudEmbedTokenFromUrl } from "./data/cloud/cloudEmbedLinks";
-import { getCloudShareTokenFromUrl } from "./data/cloud/cloudShareLinks";
+import { getCloudEmbedAccessFromUrl } from "./data/cloud/cloudEmbedLinks";
+import { getCloudShareAccessFromUrl } from "./data/cloud/cloudShareLinks";
 import {
   createEmbedError,
   createEmbedEvent,
@@ -157,6 +162,7 @@ import {
   loadCloudSceneBinding,
   saveCloudSceneBinding,
 } from "./data/cloud/sceneBinding";
+import { isEncryptedScenePayloadV1 } from "./data/cloud/CloudEncryptionService";
 
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
@@ -197,7 +203,13 @@ import type {
   GenerationLogReuseRequest,
   PromptTemplateRequest,
 } from "./components/AppSidebar";
-import type { EmbedMode, SceneRecord, SceneSummary } from "./data/cloud";
+import type {
+  CollabRoomRecord,
+  EmbedMode,
+  ScenePayloadKind,
+  SceneRecord,
+  SceneSummary,
+} from "./data/cloud";
 import type { CloudAITaskRun } from "./data/cloud/cloudAITasks";
 
 polyfill();
@@ -210,6 +222,7 @@ type ActiveCloudScene = {
   id: string;
   ownerId: string;
   title: string;
+  payloadKind: ScenePayloadKind;
   version: number;
   createdAt: number;
   updatedAt: number;
@@ -218,12 +231,14 @@ type ActiveCloudScene = {
 type ActiveSharedScene = ActiveCloudScene & {
   token: string;
   mode: "read" | "write";
+  encryptionKey: string | null;
 };
 
 type ActiveEmbeddedScene = ActiveCloudScene & {
   token: string;
   mode: EmbedMode;
   origin: string;
+  encryptionKey: string | null;
 };
 
 type CloudSceneRemoteUpdateState =
@@ -320,6 +335,7 @@ const initializeScene = async (opts: {
 }): Promise<
   {
     scene: ExcalidrawInitialDataState | null;
+    activeCloudScene?: ActiveCloudScene | null;
     activeSharedScene?: ActiveSharedScene | null;
     activeEmbeddedScene?: ActiveEmbeddedScene | null;
     isCloudShareScene?: boolean;
@@ -335,8 +351,10 @@ const initializeScene = async (opts: {
     /^#json=([a-zA-Z0-9_-]+),([a-zA-Z0-9_-]+)$/,
   );
   const externalUrlMatch = window.location.hash.match(/^#url=(.*)$/);
-  const cloudShareToken = getCloudShareTokenFromUrl(window.location.href);
-  const cloudEmbedToken = getCloudEmbedTokenFromUrl(window.location.href);
+  const cloudShareAccess = getCloudShareAccessFromUrl(window.location.href);
+  const cloudEmbedAccess = getCloudEmbedAccessFromUrl(window.location.href);
+  const cloudShareToken = cloudShareAccess?.token ?? null;
+  const cloudEmbedToken = cloudEmbedAccess?.token ?? null;
 
   const localDataState = importFromLocalStorage();
 
@@ -371,6 +389,7 @@ const initializeScene = async (opts: {
       // otherwise, prompt whether user wants to override current scene
       (await openConfirmModal(shareableLinkConfirmDialog))
     ) {
+      const backend = getCloudBackend();
       if (cloudEmbedToken) {
         try {
           const origin = getEmbedParentOrigin({
@@ -381,14 +400,43 @@ const initializeScene = async (opts: {
             throw new Error(t("cloud.embed.forbiddenOrigin"));
           }
 
-          const embedded = await getCloudBackend().embed.loadScene(
+          const embedded = await backend.embed.loadScene(
             cloudEmbedToken,
             origin,
           );
-          const payload = embedded.scene.payload as {
+          let payload = embedded.scene.payload as {
             elements?: any;
             appState?: any;
           };
+          let encryptionKey: string | null = null;
+          if (embedded.scene.payloadKind === "encrypted") {
+            if (!isEncryptedScenePayloadV1(embedded.scene.payload)) {
+              throw new Error(t("cloud.scenes.invalidPayload"));
+            }
+            encryptionKey =
+              cloudEmbedAccess?.key ??
+              (embedded.scene.id
+                ? backend.encryption.getKey(embedded.scene.id)?.key ?? null
+                : null);
+            if (!encryptionKey) {
+              throw new Error(t("cloud.e2e.missingKey"));
+            }
+            payload = (await backend.encryption.decryptScenePayload(
+              embedded.scene.payload,
+              encryptionKey,
+            )) as {
+              elements?: any;
+              appState?: any;
+            };
+            if (embedded.scene.id) {
+              backend.encryption.saveKey({
+                sceneId: embedded.scene.id,
+                key: encryptionKey,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              });
+            }
+          }
           const restoredElements = restoreElements(
             payload.elements ?? null,
             null,
@@ -397,10 +445,17 @@ const initializeScene = async (opts: {
               deleteInvisibleElements: true,
             },
           );
-          const assetResult = await loadAssetRefsForElements({
-            assets: embedded.assets,
-            elements: restoredElements,
-          });
+          const assetResult = encryptionKey
+            ? await loadEncryptedAssetRefsForElements({
+                backend,
+                assets: embedded.assets,
+                elements: restoredElements,
+                encryptionKey,
+              })
+            : await loadAssetRefsForElements({
+                assets: embedded.assets,
+                elements: restoredElements,
+              });
           const files = assetResult.loadedFiles.reduce((acc, file) => {
             acc[file.id] = file;
             return acc;
@@ -425,9 +480,11 @@ const initializeScene = async (opts: {
             id: embedded.scene.id ?? "",
             ownerId: embedded.scene.ownerId,
             title: embedded.scene.title,
+            payloadKind: embedded.scene.payloadKind,
             version: embedded.scene.version,
             createdAt: embedded.scene.createdAt,
             updatedAt: embedded.scene.updatedAt,
+            encryptionKey,
           };
           isCloudEmbedScene = true;
         } catch (error) {
@@ -445,13 +502,40 @@ const initializeScene = async (opts: {
         }
       } else if (cloudShareToken) {
         try {
-          const shared = await getCloudBackend().shares.loadScene(
-            cloudShareToken,
-          );
-          const payload = shared.scene.payload as {
+          const shared = await backend.shares.loadScene(cloudShareToken);
+          let payload = shared.scene.payload as {
             elements?: any;
             appState?: any;
           };
+          let encryptionKey: string | null = null;
+          if (shared.scene.payloadKind === "encrypted") {
+            if (!isEncryptedScenePayloadV1(shared.scene.payload)) {
+              throw new Error(t("cloud.scenes.invalidPayload"));
+            }
+            encryptionKey =
+              cloudShareAccess?.key ??
+              (shared.scene.id
+                ? backend.encryption.getKey(shared.scene.id)?.key ?? null
+                : null);
+            if (!encryptionKey) {
+              throw new Error(t("cloud.e2e.missingKey"));
+            }
+            payload = (await backend.encryption.decryptScenePayload(
+              shared.scene.payload,
+              encryptionKey,
+            )) as {
+              elements?: any;
+              appState?: any;
+            };
+            if (shared.scene.id) {
+              backend.encryption.saveKey({
+                sceneId: shared.scene.id,
+                key: encryptionKey,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              });
+            }
+          }
           const restoredElements = restoreElements(
             payload.elements ?? null,
             null,
@@ -460,10 +544,17 @@ const initializeScene = async (opts: {
               deleteInvisibleElements: true,
             },
           );
-          const assetResult = await loadAssetRefsForElements({
-            assets: shared.assets,
-            elements: restoredElements,
-          });
+          const assetResult = encryptionKey
+            ? await loadEncryptedAssetRefsForElements({
+                backend,
+                assets: shared.assets,
+                elements: restoredElements,
+                encryptionKey,
+              })
+            : await loadAssetRefsForElements({
+                assets: shared.assets,
+                elements: restoredElements,
+              });
           const files = assetResult.loadedFiles.reduce((acc, file) => {
             acc[file.id] = file;
             return acc;
@@ -484,9 +575,11 @@ const initializeScene = async (opts: {
             id: shared.scene.id ?? "",
             ownerId: shared.scene.ownerId,
             title: shared.scene.title,
+            payloadKind: shared.scene.payloadKind,
             version: shared.scene.version,
             createdAt: shared.scene.createdAt,
             updatedAt: shared.scene.updatedAt,
+            encryptionKey,
           };
           isCloudShareScene = true;
         } catch (error) {
@@ -574,6 +667,31 @@ const initializeScene = async (opts: {
     const { excalidrawAPI } = opts;
 
     const scene = await opts.collabAPI.startCollaboration(roomLinkData);
+    let activeCloudScene: ActiveCloudScene | null = null;
+    try {
+      const backend = getCloudBackend();
+      if (backend.capabilities.collabRoomBinding) {
+        const room = await backend.collabRooms.getByRoomId(roomLinkData.roomId);
+        if (room) {
+          const record = await backend.scenes.load(room.sceneId);
+          if (record.id) {
+            activeCloudScene = {
+              id: record.id,
+              ownerId: record.ownerId,
+              title: record.title,
+              payloadKind: record.payloadKind,
+              version: record.version,
+              createdAt: record.createdAt,
+              updatedAt: record.updatedAt,
+            };
+          }
+        }
+      }
+    } catch (error) {
+      // Only the room owner can resolve this metadata. Anonymous collaborators
+      // should still be able to join the realtime room.
+      console.warn(error);
+    }
 
     return {
       // when collaborating, the state may have already been updated at this
@@ -602,6 +720,7 @@ const initializeScene = async (opts: {
       isExternalScene: true,
       id: roomLinkData.roomId,
       key: roomLinkData.roomKey,
+      activeCloudScene,
     };
   } else if (scene) {
     if (isCloudShareScene && activeSharedScene) {
@@ -817,10 +936,116 @@ const ExcalidrawWrapper = () => {
 
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
+  const [collabRoomRefreshKey, setCollabRoomRefreshKey] = useState(0);
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
     return isCollaborationLink(window.location.href);
   });
   const collabError = useAtomValue(collabErrorIndicatorAtom);
+
+  const notifyCollabRoomChanged = useCallback(() => {
+    setCollabRoomRefreshKey((key) => key + 1);
+  }, []);
+
+  const stopCurrentCollabRoomIfRevoked = useCallback(
+    (room: CollabRoomRecord) => {
+      const activeRoomLink = collabAPI?.getActiveRoomLink();
+      if (
+        collabAPI?.isCollaborating() &&
+        activeRoomLink?.includes(`#room=${room.roomId},`)
+      ) {
+        collabAPI.stopCollaboration(false);
+      }
+    },
+    [collabAPI],
+  );
+
+  const hydrateActiveCloudSceneFromLocalBinding = useCallback(() => {
+    if (
+      !excalidrawAPI ||
+      !cloudAuth.isSignedIn ||
+      !cloudAuth.user ||
+      activeCloudSceneRef.current ||
+      activeSharedSceneRef.current ||
+      activeEmbeddedSceneRef.current ||
+      collabAPI?.isCollaborating()
+    ) {
+      return false;
+    }
+
+    try {
+      const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const appState = excalidrawAPI.getAppState();
+      const files = excalidrawAPI.getFiles();
+      const serializedPayload = serializeAsJSON(
+        elements,
+        appState,
+        files,
+        "database",
+      );
+      const payloadHash = getCloudPayloadHash(serializedPayload);
+      const localFingerprint = getCloudSceneFingerprint(elements);
+      const storedBinding = loadCloudSceneBinding(cloudAuth.user.id, {
+        localPayloadHash: payloadHash,
+        localFingerprint,
+      });
+
+      if (!storedBinding) {
+        return false;
+      }
+
+      const nextActiveScene: ActiveCloudScene = {
+        id: storedBinding.id,
+        ownerId: storedBinding.ownerId,
+        title: storedBinding.title,
+        payloadKind: storedBinding.payloadKind ?? "plain",
+        version: storedBinding.version,
+        createdAt: storedBinding.createdAt,
+        updatedAt: storedBinding.updatedAt,
+      };
+      setActiveCloudScene(nextActiveScene);
+      activeCloudSceneRef.current = nextActiveScene;
+      lastCloudLocalPayloadHashRef.current = storedBinding.localPayloadHash;
+      lastCloudSavedPayloadHashRef.current = storedBinding.savedPayloadHash;
+      setCloudSceneRemoteUpdate({
+        status: "up-to-date",
+        checkedAt: Date.now(),
+      });
+      cloudSceneRemoteUpdateToastRef.current = null;
+      return true;
+    } catch (error) {
+      console.warn(error);
+      return false;
+    }
+  }, [cloudAuth.isSignedIn, cloudAuth.user, collabAPI, excalidrawAPI]);
+
+  useEffect(() => {
+    if (hydrateActiveCloudSceneFromLocalBinding()) {
+      return;
+    }
+
+    let cancelled = false;
+    let retries = 10;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+
+    const retry = () => {
+      if (cancelled || hydrateActiveCloudSceneFromLocalBinding()) {
+        return;
+      }
+      retries -= 1;
+      if (retries > 0) {
+        timer = setTimeout(retry, 250);
+      }
+    };
+
+    timer = setTimeout(retry, 100);
+
+    return () => {
+      cancelled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+    };
+  }, [hydrateActiveCloudSceneFromLocalBinding]);
 
   useHandleLibrary({
     excalidrawAPI,
@@ -974,6 +1199,10 @@ const ExcalidrawWrapper = () => {
       activeSharedSceneRef.current = data.activeSharedScene ?? null;
       setActiveEmbeddedScene(data.activeEmbeddedScene ?? null);
       activeEmbeddedSceneRef.current = data.activeEmbeddedScene ?? null;
+      if (data.activeCloudScene) {
+        setActiveCloudScene(data.activeCloudScene);
+        activeCloudSceneRef.current = data.activeCloudScene;
+      }
       if (data.activeSharedScene) {
         setActiveCloudScene(null);
         activeCloudSceneRef.current = null;
@@ -1026,6 +1255,10 @@ const ExcalidrawWrapper = () => {
           activeSharedSceneRef.current = data.activeSharedScene ?? null;
           setActiveEmbeddedScene(data.activeEmbeddedScene ?? null);
           activeEmbeddedSceneRef.current = data.activeEmbeddedScene ?? null;
+          if (data.activeCloudScene) {
+            setActiveCloudScene(data.activeCloudScene);
+            activeCloudSceneRef.current = data.activeCloudScene;
+          }
           if (data.activeSharedScene) {
             setActiveCloudScene(null);
             activeCloudSceneRef.current = null;
@@ -1262,6 +1495,7 @@ const ExcalidrawWrapper = () => {
               id: storedBinding.id,
               ownerId: storedBinding.ownerId,
               title: storedBinding.title,
+              payloadKind: storedBinding.payloadKind ?? "plain",
               version: storedBinding.version,
               createdAt: storedBinding.createdAt,
               updatedAt: storedBinding.updatedAt,
@@ -1306,13 +1540,28 @@ const ExcalidrawWrapper = () => {
         }
 
         const now = Date.now();
-        const title = excalidrawAPI.getName() || t("labels.untitled");
+        const title =
+          activeScene?.title || excalidrawAPI.getName() || t("labels.untitled");
+        const encryptionKey =
+          activeScene?.payloadKind === "encrypted" && activeScene.id
+            ? backend.encryption.getKey(activeScene.id)?.key
+            : null;
+        if (activeScene?.payloadKind === "encrypted" && !encryptionKey) {
+          throw new Error(t("cloud.e2e.missingKey"));
+        }
+        const scenePayload =
+          activeScene?.payloadKind === "encrypted" && encryptionKey
+            ? await backend.encryption.encryptScenePayload(
+                JSON.parse(serializedPayload),
+                encryptionKey,
+              )
+            : JSON.parse(serializedPayload);
         const result = await backend.scenes.save({
           id: activeScene?.id ?? null,
           ownerId: cloudAuth.user.id,
           title,
-          payloadKind: "plain",
-          payload: JSON.parse(serializedPayload),
+          payloadKind: activeScene?.payloadKind ?? "plain",
+          payload: scenePayload,
           version: activeScene?.version ?? 0,
           createdAt: activeScene?.createdAt ?? now,
           updatedAt: now,
@@ -1321,12 +1570,22 @@ const ExcalidrawWrapper = () => {
 
         let didSyncAssets = true;
         try {
-          await uploadSceneAssets({
-            backend,
-            sceneId: result.id,
-            elements,
-            files,
-          });
+          if (activeScene?.payloadKind === "encrypted" && encryptionKey) {
+            await uploadEncryptedSceneAssets({
+              backend,
+              sceneId: result.id,
+              elements,
+              files,
+              encryptionKey,
+            });
+          } else {
+            await uploadSceneAssets({
+              backend,
+              sceneId: result.id,
+              elements,
+              files,
+            });
+          }
         } catch (error) {
           didSyncAssets = false;
           console.warn(error);
@@ -1336,6 +1595,7 @@ const ExcalidrawWrapper = () => {
           id: result.id,
           ownerId: cloudAuth.user.id,
           title,
+          payloadKind: activeScene?.payloadKind ?? "plain",
           version: result.version,
           createdAt: activeScene?.createdAt ?? now,
           updatedAt: now,
@@ -1383,6 +1643,131 @@ const ExcalidrawWrapper = () => {
     ],
   );
 
+  const saveCurrentSceneAsEncryptedCloudScene = useCallback(async () => {
+    if (
+      !excalidrawAPI ||
+      !cloudAuth.isAuthAvailable ||
+      !cloudAuth.isSignedIn ||
+      !cloudAuth.user
+    ) {
+      return false;
+    }
+
+    if (collabAPI?.isCollaborating()) {
+      excalidrawAPI.setToast({
+        message: t("cloud.scenes.saveSkippedCollab"),
+      });
+      return false;
+    }
+
+    const backend = getCloudBackend();
+    if (
+      !backend.capabilities.sceneStorage ||
+      !backend.capabilities.encryptedCloudStorage ||
+      !backend.encryption.isAvailable()
+    ) {
+      excalidrawAPI.setToast({
+        message: t("cloud.e2e.unavailable"),
+      });
+      return false;
+    }
+
+    try {
+      const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const appState = excalidrawAPI.getAppState();
+      const files = excalidrawAPI.getFiles();
+      const serializedPayload = serializeAsJSON(
+        elements,
+        appState,
+        files,
+        "database",
+      );
+      const payloadHash = getCloudPayloadHash(serializedPayload);
+      const localFingerprint = getCloudSceneFingerprint(elements);
+      const now = Date.now();
+      const title = excalidrawAPI.getName() || t("labels.untitled");
+      const key = await backend.encryption.generateKey();
+      const payload = await backend.encryption.encryptScenePayload(
+        JSON.parse(serializedPayload),
+        key,
+      );
+
+      const result = await backend.scenes.save({
+        id: null,
+        ownerId: cloudAuth.user.id,
+        title,
+        payloadKind: "encrypted",
+        payload,
+        version: 0,
+        createdAt: now,
+        updatedAt: now,
+        deletedAt: null,
+      });
+
+      let didSyncAssets = true;
+      try {
+        await uploadEncryptedSceneAssets({
+          backend,
+          sceneId: result.id,
+          elements,
+          files,
+          encryptionKey: key,
+        });
+      } catch (error) {
+        didSyncAssets = false;
+        console.warn(error);
+      }
+
+      backend.encryption.saveKey({
+        sceneId: result.id,
+        key,
+        createdAt: now,
+        updatedAt: now,
+      });
+
+      const nextActiveScene: ActiveCloudScene = {
+        id: result.id,
+        ownerId: cloudAuth.user.id,
+        title,
+        payloadKind: "encrypted",
+        version: result.version,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setActiveCloudScene(nextActiveScene);
+      activeCloudSceneRef.current = nextActiveScene;
+      setCloudSceneRemoteUpdate({ status: "up-to-date", checkedAt: now });
+      cloudSceneRemoteUpdateToastRef.current = null;
+      lastCloudLocalPayloadHashRef.current = payloadHash;
+      lastCloudSavedPayloadHashRef.current = didSyncAssets ? payloadHash : null;
+      saveCloudSceneBinding({
+        ...nextActiveScene,
+        localPayloadHash: payloadHash,
+        localFingerprint,
+        savedPayloadHash: didSyncAssets ? payloadHash : null,
+      });
+
+      excalidrawAPI.setToast({
+        message: didSyncAssets
+          ? t("cloud.e2e.saved")
+          : t("cloud.scenes.savedAssetsFailed"),
+      });
+      return true;
+    } catch (error) {
+      excalidrawAPI.setToast({
+        message:
+          error instanceof Error ? error.message : t("cloud.e2e.saveFailed"),
+      });
+      return false;
+    }
+  }, [
+    cloudAuth.isAuthAvailable,
+    cloudAuth.isSignedIn,
+    cloudAuth.user,
+    collabAPI,
+    excalidrawAPI,
+  ]);
+
   const saveCurrentSharedSceneToCloud = useCallback(
     async (opts: { silent?: boolean } = {}): Promise<boolean> => {
       const { silent = false } = opts;
@@ -1425,13 +1810,33 @@ const ExcalidrawWrapper = () => {
         }
 
         const now = Date.now();
-        const title = excalidrawAPI.getName() || activeScene.title;
+        const title = activeScene.title;
+        const payloadObject = JSON.parse(serializedPayload);
+        const encryptionKey =
+          activeScene.payloadKind === "encrypted"
+            ? activeScene.encryptionKey
+            : null;
+        if (activeScene.payloadKind === "encrypted") {
+          if (!backend.encryption.isAvailable()) {
+            throw new Error(t("cloud.e2e.unavailable"));
+          }
+          if (!encryptionKey) {
+            throw new Error(t("cloud.e2e.missingKey"));
+          }
+        }
+        const scenePayload =
+          activeScene.payloadKind === "encrypted" && encryptionKey
+            ? await backend.encryption.encryptScenePayload(
+                payloadObject,
+                encryptionKey,
+              )
+            : payloadObject;
         const result = await backend.shares.saveScene(activeScene.token, {
           id: activeScene.id,
           ownerId: activeScene.ownerId,
           title,
-          payloadKind: "plain",
-          payload: JSON.parse(serializedPayload),
+          payloadKind: activeScene.payloadKind,
+          payload: scenePayload,
           version: activeScene.version,
           createdAt: activeScene.createdAt,
           updatedAt: now,
@@ -1440,13 +1845,25 @@ const ExcalidrawWrapper = () => {
 
         let didSyncAssets = true;
         try {
-          await uploadSharedSceneAssets({
-            shares: backend.shares,
-            token: activeScene.token,
-            sceneId: result.id,
-            elements,
-            files,
-          });
+          if (activeScene.payloadKind === "encrypted" && encryptionKey) {
+            await uploadEncryptedSharedSceneAssets({
+              backend,
+              shares: backend.shares,
+              token: activeScene.token,
+              sceneId: result.id,
+              elements,
+              files,
+              encryptionKey,
+            });
+          } else {
+            await uploadSharedSceneAssets({
+              shares: backend.shares,
+              token: activeScene.token,
+              sceneId: result.id,
+              elements,
+              files,
+            });
+          }
         } catch (error) {
           didSyncAssets = false;
           console.warn(error);
@@ -1455,6 +1872,7 @@ const ExcalidrawWrapper = () => {
         const nextActiveScene: ActiveSharedScene = {
           ...activeScene,
           title,
+          payloadKind: activeScene.payloadKind,
           version: result.version,
           updatedAt: now,
         };
@@ -1527,7 +1945,27 @@ const ExcalidrawWrapper = () => {
         }
 
         const now = Date.now();
-        const title = excalidrawAPI.getName() || activeScene.title;
+        const title = activeScene.title;
+        const payloadObject = JSON.parse(serializedPayload);
+        const encryptionKey =
+          activeScene.payloadKind === "encrypted"
+            ? activeScene.encryptionKey
+            : null;
+        if (activeScene.payloadKind === "encrypted") {
+          if (!backend.encryption.isAvailable()) {
+            throw new Error(t("cloud.e2e.unavailable"));
+          }
+          if (!encryptionKey) {
+            throw new Error(t("cloud.e2e.missingKey"));
+          }
+        }
+        const scenePayload =
+          activeScene.payloadKind === "encrypted" && encryptionKey
+            ? await backend.encryption.encryptScenePayload(
+                payloadObject,
+                encryptionKey,
+              )
+            : payloadObject;
         const result = await backend.embed.saveScene(
           activeScene.token,
           activeScene.origin,
@@ -1535,8 +1973,8 @@ const ExcalidrawWrapper = () => {
             id: activeScene.id,
             ownerId: activeScene.ownerId,
             title,
-            payloadKind: "plain",
-            payload: JSON.parse(serializedPayload),
+            payloadKind: activeScene.payloadKind,
+            payload: scenePayload,
             version: activeScene.version,
             createdAt: activeScene.createdAt,
             updatedAt: now,
@@ -1546,14 +1984,27 @@ const ExcalidrawWrapper = () => {
 
         let didSyncAssets = true;
         try {
-          await uploadEmbeddedSceneAssets({
-            embed: backend.embed,
-            token: activeScene.token,
-            origin: activeScene.origin,
-            sceneId: result.id,
-            elements,
-            files,
-          });
+          if (activeScene.payloadKind === "encrypted" && encryptionKey) {
+            await uploadEncryptedEmbeddedSceneAssets({
+              backend,
+              embed: backend.embed,
+              token: activeScene.token,
+              origin: activeScene.origin,
+              sceneId: result.id,
+              elements,
+              files,
+              encryptionKey,
+            });
+          } else {
+            await uploadEmbeddedSceneAssets({
+              embed: backend.embed,
+              token: activeScene.token,
+              origin: activeScene.origin,
+              sceneId: result.id,
+              elements,
+              files,
+            });
+          }
         } catch (error) {
           didSyncAssets = false;
           console.warn(error);
@@ -1562,6 +2013,7 @@ const ExcalidrawWrapper = () => {
         const nextActiveScene: ActiveEmbeddedScene = {
           ...activeScene,
           title,
+          payloadKind: activeScene.payloadKind,
           version: result.version,
           updatedAt: now,
         };
@@ -2192,10 +2644,30 @@ const ExcalidrawWrapper = () => {
         throw new Error(t("cloud.scenes.invalidPayload"));
       }
 
-      const payload = record.payload as {
+      const backend = getCloudBackend();
+      let payload = record.payload as {
         elements?: any;
         appState?: any;
       };
+      let encryptionKey: string | null = null;
+
+      if (record.payloadKind === "encrypted") {
+        if (!record.id || !isEncryptedScenePayloadV1(record.payload)) {
+          throw new Error(t("cloud.scenes.invalidPayload"));
+        }
+
+        encryptionKey = backend.encryption.getKey(record.id)?.key ?? null;
+        if (!encryptionKey) {
+          throw new Error(t("cloud.e2e.missingKey"));
+        }
+        payload = (await backend.encryption.decryptScenePayload(
+          record.payload,
+          encryptionKey,
+        )) as {
+          elements?: any;
+          appState?: any;
+        };
+      }
 
       if (collabAPI?.isCollaborating()) {
         collabAPI.stopCollaboration(false);
@@ -2221,11 +2693,19 @@ const ExcalidrawWrapper = () => {
       let didFailCloudAssetList = false;
       if (record.id) {
         try {
-          const assetResult = await loadSceneAssets({
-            backend: getCloudBackend(),
-            sceneId: record.id,
-            elements: restoredElements,
-          });
+          const assetResult =
+            record.payloadKind === "encrypted" && encryptionKey
+              ? await loadEncryptedSceneAssets({
+                  backend,
+                  sceneId: record.id,
+                  elements: restoredElements,
+                  encryptionKey,
+                })
+              : await loadSceneAssets({
+                  backend,
+                  sceneId: record.id,
+                  elements: restoredElements,
+                });
           loadedCloudFiles = assetResult.loadedFiles;
           cloudAssetErrors = assetResult.erroredFiles;
         } catch (error) {
@@ -2255,6 +2735,7 @@ const ExcalidrawWrapper = () => {
           id: record.id,
           ownerId: record.ownerId,
           title: record.title,
+          payloadKind: record.payloadKind,
           version: record.version,
           createdAt: record.createdAt,
           updatedAt: record.updatedAt,
@@ -2769,7 +3250,25 @@ const ExcalidrawWrapper = () => {
           onSaveCloudScene={async () => {
             await saveCurrentSceneToCloud();
           }}
+          onSaveEncryptedCloudScene={async () => {
+            await saveCurrentSceneAsEncryptedCloudScene();
+          }}
+          onStartCollabRoom={(room) => {
+            if (!collabAPI) {
+              throw new Error(t("cloud.collabRooms.genericError"));
+            }
+            if (collabAPI.isCollaborating()) {
+              return;
+            }
+            void collabAPI.startCollaboration(room, {
+              preserveLocalScene: true,
+            });
+          }}
+          collabRoomRefreshKey={collabRoomRefreshKey}
+          onCollabRoomChanged={notifyCollabRoomChanged}
+          onCollabRoomRevoked={stopCurrentCollabRoomIfRevoked}
           activeCloudScene={activeCloudScene}
+          isCollaborationActive={isCollaborating}
           cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
           onCheckCurrentCloudScene={async () => {
             await checkActiveCloudSceneRemoteUpdate();
@@ -2867,6 +3366,7 @@ const ExcalidrawWrapper = () => {
         )}
 
         <ShareDialog
+          activeCloudScene={activeCloudScene}
           collabAPI={collabAPI}
           onExportToBackend={async () => {
             if (excalidrawAPI) {
@@ -2881,6 +3381,23 @@ const ExcalidrawWrapper = () => {
               }
             }
           }}
+          onSaveCloudScene={async () => {
+            await saveCurrentSceneToCloud();
+          }}
+          onStartCollabRoom={async (room) => {
+            if (!collabAPI) {
+              throw new Error(t("cloud.collabRooms.genericError"));
+            }
+            if (collabAPI.isCollaborating()) {
+              return;
+            }
+            await collabAPI.startCollaboration(room, {
+              preserveLocalScene: true,
+            });
+          }}
+          collabRoomRefreshKey={collabRoomRefreshKey}
+          onCollabRoomChanged={notifyCollabRoomChanged}
+          onCollabRoomRevoked={stopCurrentCollabRoomIfRevoked}
         />
 
         <AppSidebar

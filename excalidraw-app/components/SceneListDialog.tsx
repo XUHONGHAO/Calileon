@@ -160,6 +160,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     setError(null);
     try {
       await backend.scenes.remove(id);
+      backend.encryption?.removeKey?.(id);
       await loadScenes();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -208,7 +209,12 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     setBusyShareId(share.id);
     setError(null);
     try {
-      await navigator.clipboard.writeText(getCloudShareLink(share.token));
+      await navigator.clipboard.writeText(
+        getCloudShareLink(
+          share.token,
+          backend.encryption?.getKey?.(share.sceneId)?.key,
+        ),
+      );
     } catch {
       setError(t("cloud.share.copyFailed"));
     } finally {

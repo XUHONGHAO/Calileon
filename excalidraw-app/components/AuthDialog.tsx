@@ -21,11 +21,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useCloudAuth } from "../auth/useCloudAuth";
 import {
   getCloudBackend,
+  shareLink,
   type AITaskStatus,
   type CastSessionStatus,
+  type CollabRoomRecord,
   type EmbedMode,
   type SceneSummary,
 } from "../data/cloud";
+import { readCloudDeploymentConfig } from "../data/cloud/deploymentConfig";
 
 import "./AuthDialog.scss";
 
@@ -68,6 +71,14 @@ const getEmbedModeLabel = (mode: EmbedMode) => {
   return t("cloud.embed.modeRead");
 };
 
+const getAvailabilityLabel = (available: boolean) =>
+  available
+    ? t("cloud.deployment.available")
+    : t("cloud.deployment.unavailable");
+
+const getCollabRoomStatusLabel = (room: CollabRoomRecord | null) =>
+  room ? t("cloud.collabRooms.active") : t("cloud.collabRooms.empty");
+
 export type CloudSceneRemoteUpdateState =
   | { status: "idle" }
   | { status: "checking" }
@@ -95,14 +106,29 @@ export interface AuthDialogProps {
   onOpenEmbeds?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
+  /** Saves the current whiteboard as a new end-to-end encrypted cloud scene. */
+  onSaveEncryptedCloudScene?: () => void | Promise<void>;
   /** Current account-owned cloud whiteboard, if the local canvas is bound. */
   activeCloudScene?: ActiveCloudSceneInfo | null;
+  /** Whether a realtime collaboration room is currently active. */
+  isCollaborationActive?: boolean;
   /** Latest lightweight remote-version check result for the current whiteboard. */
   cloudSceneRemoteUpdate?: CloudSceneRemoteUpdateState;
   /** Checks whether the current cloud whiteboard has a newer remote version. */
   onCheckCurrentCloudScene?: () => void | Promise<void>;
   /** Reloads the current cloud whiteboard from the backend. */
   onRefreshCurrentCloudScene?: () => void | Promise<void>;
+  /** Starts local realtime collaboration after creating a cloud room binding. */
+  onStartCollabRoom?: (room: {
+    roomId: string;
+    roomKey: string;
+  }) => void | Promise<void>;
+  /** Refresh token shared with other collaboration controls. */
+  collabRoomRefreshKey?: number;
+  /** Called after a cloud collaboration room binding changes. */
+  onCollabRoomChanged?: () => void;
+  /** Called after a cloud collaboration room binding is revoked. */
+  onCollabRoomRevoked?: (room: CollabRoomRecord) => void | Promise<void>;
 }
 
 export const AuthDialog: React.FC<AuthDialogProps> = ({
@@ -113,10 +139,16 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   onOpenAITasks,
   onOpenEmbeds,
   onSaveCloudScene,
+  onSaveEncryptedCloudScene,
   activeCloudScene,
   cloudSceneRemoteUpdate = { status: "idle" },
   onCheckCurrentCloudScene,
   onRefreshCurrentCloudScene,
+  onStartCollabRoom,
+  collabRoomRefreshKey,
+  onCollabRoomChanged,
+  onCollabRoomRevoked,
+  isCollaborationActive = false,
 }) => {
   const { isSignedIn, user, signIn, signOut } = useCloudAuth();
   const [email, setEmail] = useState("");
@@ -125,10 +157,16 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [savingCloudScene, setSavingCloudScene] = useState(false);
+  const [savingEncryptedCloudScene, setSavingEncryptedCloudScene] =
+    useState(false);
   const [checkingCurrentScene, setCheckingCurrentScene] = useState(false);
   const [refreshingCurrentScene, setRefreshingCurrentScene] = useState(false);
   const [refreshingCastStats, setRefreshingCastStats] = useState(false);
   const [refreshingEmbedStats, setRefreshingEmbedStats] = useState(false);
+  const [refreshingCollabRoom, setRefreshingCollabRoom] = useState(false);
+  const [creatingCollabRoom, setCreatingCollabRoom] = useState(false);
+  const [revokingCollabRoom, setRevokingCollabRoom] = useState(false);
+  const [collabRoomLink, setCollabRoomLink] = useState<string | null>(null);
   const [sceneStats, setSceneStats] = useState<
     | { status: "idle" | "loading" | "unavailable" }
     | {
@@ -166,6 +204,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       }
     | { status: "error"; message: string }
   >({ status: "idle" });
+  const [collabRoomStats, setCollabRoomStats] = useState<
+    | { status: "idle" | "loading" | "unavailable" }
+    | { status: "ready"; room: CollabRoomRecord | null }
+    | { status: "error"; message: string }
+  >({ status: "idle" });
+
+  const deploymentConfig = readCloudDeploymentConfig();
 
   const loadSceneStats = useCallback(
     async (isCancelled: () => boolean = () => false) => {
@@ -337,12 +382,51 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     [activeCloudScene, isSignedIn],
   );
 
+  const loadCollabRoomStats = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
+      if (!isSignedIn || !activeCloudScene) {
+        setCollabRoomStats({ status: "idle" });
+        return;
+      }
+
+      const backend = getCloudBackend();
+      if (!backend.capabilities.collabRoomBinding) {
+        setCollabRoomStats({ status: "unavailable" });
+        return;
+      }
+
+      setCollabRoomStats({ status: "loading" });
+      try {
+        const room = await backend.collabRooms.getByScene(activeCloudScene.id);
+        if (isCancelled()) {
+          return;
+        }
+
+        setCollabRoomStats({ status: "ready", room });
+      } catch (err) {
+        if (isCancelled()) {
+          return;
+        }
+
+        setCollabRoomStats({
+          status: "error",
+          message:
+            err instanceof Error
+              ? err.message
+              : t("cloud.collabRooms.genericError"),
+        });
+      }
+    },
+    [activeCloudScene, isSignedIn],
+  );
+
   useEffect(() => {
     if (!open || !isSignedIn) {
       setSceneStats({ status: "idle" });
       setTaskStats({ status: "idle" });
       setCastStats({ status: "idle" });
       setEmbedStats({ status: "idle" });
+      setCollabRoomStats({ status: "idle" });
       return;
     }
 
@@ -351,6 +435,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     void loadTaskStats(() => cancelled);
     void loadCastStats(() => cancelled);
     void loadEmbedStats(() => cancelled);
+    void loadCollabRoomStats(() => cancelled);
 
     return () => {
       cancelled = true;
@@ -358,11 +443,20 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   }, [
     isSignedIn,
     loadCastStats,
+    loadCollabRoomStats,
     loadEmbedStats,
     loadSceneStats,
     loadTaskStats,
     open,
   ]);
+
+  useEffect(() => {
+    if (!open || !isSignedIn || !collabRoomRefreshKey) {
+      return;
+    }
+
+    void loadCollabRoomStats();
+  }, [collabRoomRefreshKey, isSignedIn, loadCollabRoomStats, open]);
 
   if (!open) {
     return null;
@@ -379,6 +473,10 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     setRefreshingCurrentScene(false);
     setRefreshingCastStats(false);
     setRefreshingEmbedStats(false);
+    setRefreshingCollabRoom(false);
+    setCreatingCollabRoom(false);
+    setRevokingCollabRoom(false);
+    setSavingEncryptedCloudScene(false);
   };
 
   const handleClose = () => {
@@ -388,7 +486,11 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       savingCloudScene ||
       checkingCurrentScene ||
       refreshingCurrentScene ||
-      refreshingEmbedStats
+      refreshingEmbedStats ||
+      refreshingCollabRoom ||
+      creatingCollabRoom ||
+      revokingCollabRoom ||
+      savingEncryptedCloudScene
     ) {
       return;
     }
@@ -506,6 +608,28 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     }
   };
 
+  const handleSaveEncryptedCloudScene = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      savingEncryptedCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      !onSaveEncryptedCloudScene
+    ) {
+      return;
+    }
+
+    setSavingEncryptedCloudScene(true);
+    try {
+      await onSaveEncryptedCloudScene();
+      await loadSceneStats();
+    } finally {
+      setSavingEncryptedCloudScene(false);
+    }
+  };
+
   const handleCheckCurrentCloudScene = async () => {
     if (
       submitting ||
@@ -585,6 +709,124 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     }
   };
 
+  const handleRefreshCollabRoom = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      refreshingCollabRoom ||
+      creatingCollabRoom ||
+      revokingCollabRoom
+    ) {
+      return;
+    }
+
+    setRefreshingCollabRoom(true);
+    try {
+      await loadCollabRoomStats();
+    } finally {
+      setRefreshingCollabRoom(false);
+    }
+  };
+
+  const handleCreateCollabRoom = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      refreshingCollabRoom ||
+      creatingCollabRoom ||
+      revokingCollabRoom ||
+      !activeCloudScene
+    ) {
+      return;
+    }
+
+    const backend = getCloudBackend();
+    if (!backend.capabilities.collabRoomBinding) {
+      return;
+    }
+
+    setCreatingCollabRoom(true);
+    setError(null);
+    try {
+      const { roomId, roomKey } =
+        await shareLink.generateCollaborationLinkData();
+      await backend.collabRooms.createForScene({
+        sceneId: activeCloudScene.id,
+        roomId,
+      });
+      const link = shareLink.getCollaborationLink({ roomId, roomKey });
+      await onStartCollabRoom?.({ roomId, roomKey });
+      setCollabRoomLink(link);
+      await navigator.clipboard?.writeText(link);
+      await loadCollabRoomStats();
+      onCollabRoomChanged?.();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("cloud.collabRooms.genericError"),
+      );
+    } finally {
+      setCreatingCollabRoom(false);
+    }
+  };
+
+  const handleCopyCollabRoom = async () => {
+    if (!collabRoomLink) {
+      return;
+    }
+    try {
+      await navigator.clipboard?.writeText(collabRoomLink);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : t("cloud.collabRooms.copyFailed"),
+      );
+    }
+  };
+
+  const handleRevokeCollabRoom = async () => {
+    if (
+      submitting ||
+      signingOut ||
+      savingCloudScene ||
+      checkingCurrentScene ||
+      refreshingCurrentScene ||
+      refreshingCollabRoom ||
+      creatingCollabRoom ||
+      revokingCollabRoom ||
+      collabRoomStats.status !== "ready" ||
+      !collabRoomStats.room ||
+      !window.confirm(t("cloud.collabRooms.revokeConfirm"))
+    ) {
+      return;
+    }
+
+    setRevokingCollabRoom(true);
+    setError(null);
+    try {
+      const room = collabRoomStats.room;
+      await getCloudBackend().collabRooms.revoke(room.id);
+      await onCollabRoomRevoked?.(room);
+      setCollabRoomLink(null);
+      await loadCollabRoomStats();
+      onCollabRoomChanged?.();
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : t("cloud.collabRooms.genericError"),
+      );
+    } finally {
+      setRevokingCollabRoom(false);
+    }
+  };
+
   const accountLabel =
     user?.email || user?.displayName || t("cloud.auth.account");
 
@@ -652,6 +894,17 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
         })
       : t("cloud.embed.loading");
 
+  const collabRoomStatsLabel =
+    collabRoomStats.status === "loading" || refreshingCollabRoom
+      ? t("cloud.collabRooms.loading")
+      : collabRoomStats.status === "unavailable"
+      ? t("cloud.collabRooms.unavailable")
+      : collabRoomStats.status === "error"
+      ? t("cloud.collabRooms.unavailable")
+      : collabRoomStats.status === "ready"
+      ? getCollabRoomStatusLabel(collabRoomStats.room)
+      : t("cloud.collabRooms.loading");
+
   const canCheckCurrentScene =
     !!activeCloudScene &&
     !!onCheckCurrentCloudScene &&
@@ -688,6 +941,10 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     </button>
   );
 
+  const dialogTitle = isSignedIn
+    ? t("cloud.auth.accountTitle")
+    : t("cloud.auth.signInTitle");
+
   return (
     <Dialog
       className="AuthDialogModal"
@@ -695,229 +952,365 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       closeOnClickOutside={false}
       onCloseRequest={handleClose}
       title={
-        isSignedIn ? t("cloud.auth.accountTitle") : t("cloud.auth.signInTitle")
+        <>
+          {dialogTitle}
+          {closeButton}
+        </>
       }
     >
       {isSignedIn ? (
         <div className="AuthDialog AuthDialog--account">
-          {closeButton}
-          <p className="AuthDialog__intro">{t("cloud.auth.accountIntro")}</p>
+          <div className="AuthDialog__scrollBody">
+            <p className="AuthDialog__intro">{t("cloud.auth.accountIntro")}</p>
 
-          <div className="AuthDialog__accountGrid">
-            <div className="AuthDialog__accountCard">
-              <span>{t("cloud.auth.signedInAs")}</span>
-              <strong title={accountLabel}>{accountLabel}</strong>
+            <div className="AuthDialog__accountGrid">
+              <div className="AuthDialog__accountCard">
+                <span>{t("cloud.auth.signedInAs")}</span>
+                <strong title={accountLabel}>{accountLabel}</strong>
+                <button
+                  className="AuthDialog__cardAction"
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={
+                    signingOut ||
+                    savingCloudScene ||
+                    checkingCurrentScene ||
+                    refreshingCurrentScene
+                  }
+                >
+                  {signingOut
+                    ? t("cloud.auth.signingOut")
+                    : t("cloud.auth.signOutShort")}
+                </button>
+              </div>
+
               <button
-                className="AuthDialog__cardAction"
+                className="AuthDialog__accountCard AuthDialog__accountCard--button"
                 type="button"
-                onClick={handleSignOut}
+                onClick={handleOpenCloudScenes}
                 disabled={
+                  !onOpenCloudScenes ||
                   signingOut ||
                   savingCloudScene ||
                   checkingCurrentScene ||
                   refreshingCurrentScene
                 }
               >
-                {signingOut
-                  ? t("cloud.auth.signingOut")
-                  : t("cloud.auth.signOutShort")}
+                <span>{t("cloud.auth.cloudWhiteboards")}</span>
+                <strong>{cloudSceneCountLabel}</strong>
+                {sceneStats.status === "ready" && sceneStats.latestTitle && (
+                  <small title={sceneStats.latestTitle}>
+                    {t("cloud.auth.latestCloudWhiteboard", {
+                      title: sceneStats.latestTitle,
+                    })}
+                  </small>
+                )}
+                {sceneStats.status === "error" && (
+                  <small>{sceneStats.message}</small>
+                )}
               </button>
-            </div>
 
-            <button
-              className="AuthDialog__accountCard AuthDialog__accountCard--button"
-              type="button"
-              onClick={handleOpenCloudScenes}
-              disabled={
-                !onOpenCloudScenes ||
-                signingOut ||
-                savingCloudScene ||
-                checkingCurrentScene ||
-                refreshingCurrentScene
-              }
-            >
-              <span>{t("cloud.auth.cloudWhiteboards")}</span>
-              <strong>{cloudSceneCountLabel}</strong>
-              {sceneStats.status === "ready" && sceneStats.latestTitle && (
-                <small title={sceneStats.latestTitle}>
-                  {t("cloud.auth.latestCloudWhiteboard", {
-                    title: sceneStats.latestTitle,
-                  })}
-                </small>
-              )}
-              {sceneStats.status === "error" && (
-                <small>{sceneStats.message}</small>
-              )}
-            </button>
-
-            <button
-              className="AuthDialog__accountCard AuthDialog__accountCard--button"
-              type="button"
-              onClick={handleOpenAITasks}
-              disabled={
-                !onOpenAITasks ||
-                signingOut ||
-                savingCloudScene ||
-                checkingCurrentScene ||
-                refreshingCurrentScene
-              }
-            >
-              <span>{t("cloud.auth.cloudAITasks")}</span>
-              <strong>{cloudTaskCountLabel}</strong>
-              {taskStats.status === "ready" && taskStats.latestStatus && (
-                <small>
-                  {t("cloud.auth.latestCloudAITask", {
-                    status: getAITaskStatusLabel(taskStats.latestStatus),
-                  })}
-                </small>
-              )}
-              {taskStats.status === "error" && (
-                <small>{taskStats.message}</small>
-              )}
-            </button>
-
-            {activeCloudScene && (
-              <div
-                className={`AuthDialog__accountCard AuthDialog__currentSceneCard ${
-                  cloudSceneRemoteUpdate.status === "remote-newer"
-                    ? "AuthDialog__currentSceneCard--stale"
-                    : ""
-                }`}
+              <button
+                className="AuthDialog__accountCard AuthDialog__accountCard--button"
+                type="button"
+                onClick={handleOpenAITasks}
+                disabled={
+                  !onOpenAITasks ||
+                  signingOut ||
+                  savingCloudScene ||
+                  checkingCurrentScene ||
+                  refreshingCurrentScene
+                }
               >
-                <span>{t("cloud.auth.currentCloudWhiteboard")}</span>
-                <strong title={activeCloudScene.title}>
-                  {activeCloudScene.title}
-                </strong>
+                <span>{t("cloud.auth.cloudAITasks")}</span>
+                <strong>{cloudTaskCountLabel}</strong>
+                {taskStats.status === "ready" && taskStats.latestStatus && (
+                  <small>
+                    {t("cloud.auth.latestCloudAITask", {
+                      status: getAITaskStatusLabel(taskStats.latestStatus),
+                    })}
+                  </small>
+                )}
+                {taskStats.status === "error" && (
+                  <small>{taskStats.message}</small>
+                )}
+              </button>
+
+              <div className="AuthDialog__accountCard AuthDialog__deploymentCard">
+                <span>{t("cloud.deployment.title")}</span>
+                <strong>{t("cloud.deployment.selfHosted")}</strong>
                 <small>
-                  {t("cloud.auth.currentCloudWhiteboardVersion", {
-                    version: activeCloudScene.version,
+                  {t("cloud.deployment.supabase", {
+                    status: getAvailabilityLabel(deploymentConfig.hasSupabase),
                   })}
                 </small>
-                <small>{currentSceneStatusLabel}</small>
-                <div className="AuthDialog__cardActions">
-                  <button
-                    className="AuthDialog__cardAction"
-                    type="button"
-                    onClick={() => void handleCheckCurrentCloudScene()}
-                    disabled={!canCheckCurrentScene}
-                  >
-                    {checkingCurrentScene
-                      ? t("cloud.auth.currentCloudWhiteboardChecking")
-                      : t("cloud.auth.checkCurrentCloudWhiteboard")}
-                  </button>
-                  {cloudSceneRemoteUpdate.status === "remote-newer" && (
+                <small>
+                  {t("cloud.deployment.roomServer", {
+                    status: getAvailabilityLabel(
+                      deploymentConfig.hasRoomServer,
+                    ),
+                  })}
+                </small>
+                <small>
+                  {t("cloud.deployment.collabPersistence", {
+                    backend: deploymentConfig.collabPersistenceBackend,
+                    status: getAvailabilityLabel(
+                      getCloudBackend().capabilities.collabPersistence,
+                    ),
+                  })}
+                </small>
+                <small>
+                  {t("cloud.deployment.e2e", {
+                    status: getAvailabilityLabel(
+                      deploymentConfig.e2eCloudStorageEnabled,
+                    ),
+                  })}
+                </small>
+              </div>
+
+              {activeCloudScene && (
+                <div
+                  className={`AuthDialog__accountCard AuthDialog__currentSceneCard ${
+                    cloudSceneRemoteUpdate.status === "remote-newer"
+                      ? "AuthDialog__currentSceneCard--stale"
+                      : ""
+                  }`}
+                >
+                  <span>{t("cloud.auth.currentCloudWhiteboard")}</span>
+                  <strong title={activeCloudScene.title}>
+                    {activeCloudScene.title}
+                  </strong>
+                  <small>
+                    {t("cloud.auth.currentCloudWhiteboardVersion", {
+                      version: activeCloudScene.version,
+                    })}
+                  </small>
+                  <small>{currentSceneStatusLabel}</small>
+                  <div className="AuthDialog__cardActions">
                     <button
                       className="AuthDialog__cardAction"
                       type="button"
-                      onClick={() => void handleRefreshCurrentCloudScene()}
-                      disabled={!canRefreshCurrentScene}
+                      onClick={() => void handleCheckCurrentCloudScene()}
+                      disabled={!canCheckCurrentScene}
                     >
-                      {refreshingCurrentScene
-                        ? t("cloud.auth.refreshingCurrentCloudWhiteboard")
-                        : t("cloud.auth.refreshCurrentCloudWhiteboard")}
+                      {checkingCurrentScene
+                        ? t("cloud.auth.currentCloudWhiteboardChecking")
+                        : t("cloud.auth.checkCurrentCloudWhiteboard")}
                     </button>
+                    {cloudSceneRemoteUpdate.status === "remote-newer" && (
+                      <button
+                        className="AuthDialog__cardAction"
+                        type="button"
+                        onClick={() => void handleRefreshCurrentCloudScene()}
+                        disabled={!canRefreshCurrentScene}
+                      >
+                        {refreshingCurrentScene
+                          ? t("cloud.auth.refreshingCurrentCloudWhiteboard")
+                          : t("cloud.auth.refreshCurrentCloudWhiteboard")}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeCloudScene && (
+                <div className="AuthDialog__accountCard AuthDialog__castCard">
+                  <span>{t("cloud.castArtifacts.title")}</span>
+                  <strong>{castStatsLabel}</strong>
+                  {castStats.status === "ready" && castStats.latestStatus && (
+                    <small>
+                      {t("cloud.castArtifacts.latest", {
+                        status: getCastSessionStatusLabel(
+                          castStats.latestStatus,
+                        ),
+                      })}
+                    </small>
                   )}
+                  {castStats.status === "ready" && !castStats.latestStatus && (
+                    <small>{t("cloud.castArtifacts.empty")}</small>
+                  )}
+                  {castStats.status === "error" && (
+                    <small>{castStats.message}</small>
+                  )}
+                  <div className="AuthDialog__cardActions">
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={() => void handleRefreshCastStats()}
+                      disabled={
+                        signingOut ||
+                        savingCloudScene ||
+                        checkingCurrentScene ||
+                        refreshingCurrentScene ||
+                        refreshingCastStats ||
+                        refreshingEmbedStats
+                      }
+                    >
+                      {refreshingCastStats
+                        ? t("cloud.castArtifacts.loading")
+                        : t("cloud.castArtifacts.refresh")}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeCloudScene && (
-              <div className="AuthDialog__accountCard AuthDialog__castCard">
-                <span>{t("cloud.castArtifacts.title")}</span>
-                <strong>{castStatsLabel}</strong>
-                {castStats.status === "ready" && castStats.latestStatus && (
-                  <small>
-                    {t("cloud.castArtifacts.latest", {
-                      status: getCastSessionStatusLabel(castStats.latestStatus),
-                    })}
-                  </small>
-                )}
-                {castStats.status === "ready" && !castStats.latestStatus && (
-                  <small>{t("cloud.castArtifacts.empty")}</small>
-                )}
-                {castStats.status === "error" && (
-                  <small>{castStats.message}</small>
-                )}
-                <div className="AuthDialog__cardActions">
-                  <button
-                    className="AuthDialog__cardAction"
-                    type="button"
-                    onClick={() => void handleRefreshCastStats()}
-                    disabled={
-                      signingOut ||
-                      savingCloudScene ||
-                      checkingCurrentScene ||
-                      refreshingCurrentScene ||
-                      refreshingCastStats ||
-                      refreshingEmbedStats
-                    }
-                  >
-                    {refreshingCastStats
-                      ? t("cloud.castArtifacts.loading")
-                      : t("cloud.castArtifacts.refresh")}
-                  </button>
+              {activeCloudScene && (
+                <div className="AuthDialog__accountCard AuthDialog__collabRoomCard">
+                  <span>{t("cloud.collabRooms.title")}</span>
+                  <strong>{collabRoomStatsLabel}</strong>
+                  {collabRoomStats.status === "ready" && collabRoomStats.room && (
+                    <small title={collabRoomStats.room.roomId}>
+                      {t("cloud.collabRooms.roomId", {
+                        roomId: collabRoomStats.room.roomId,
+                      })}
+                    </small>
+                  )}
+                  {collabRoomStats.status === "ready" &&
+                    collabRoomStats.room &&
+                    !collabRoomLink && (
+                      <small>{t("cloud.collabRooms.keyNotStored")}</small>
+                    )}
+                  {collabRoomStats.status === "error" && (
+                    <small>{collabRoomStats.message}</small>
+                  )}
+                  <div className="AuthDialog__cardActions">
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={() => void handleCreateCollabRoom()}
+                      disabled={
+                        signingOut ||
+                        savingCloudScene ||
+                        checkingCurrentScene ||
+                        refreshingCurrentScene ||
+                        refreshingCollabRoom ||
+                        creatingCollabRoom ||
+                        revokingCollabRoom ||
+                        !getCloudBackend().capabilities.collabRoomBinding
+                      }
+                    >
+                      {creatingCollabRoom
+                        ? t("cloud.collabRooms.creating")
+                        : t("cloud.collabRooms.create")}
+                    </button>
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={() => void handleCopyCollabRoom()}
+                      disabled={
+                        !collabRoomLink ||
+                        signingOut ||
+                        savingCloudScene ||
+                        checkingCurrentScene ||
+                        refreshingCurrentScene ||
+                        refreshingCollabRoom ||
+                        creatingCollabRoom ||
+                        revokingCollabRoom
+                      }
+                    >
+                      {t("cloud.collabRooms.copyLink")}
+                    </button>
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={() => void handleRevokeCollabRoom()}
+                      disabled={
+                        collabRoomStats.status !== "ready" ||
+                        !collabRoomStats.room ||
+                        signingOut ||
+                        savingCloudScene ||
+                        checkingCurrentScene ||
+                        refreshingCurrentScene ||
+                        refreshingCollabRoom ||
+                        creatingCollabRoom ||
+                        revokingCollabRoom
+                      }
+                    >
+                      {revokingCollabRoom
+                        ? t("cloud.collabRooms.revoking")
+                        : t("cloud.collabRooms.revoke")}
+                    </button>
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={() => void handleRefreshCollabRoom()}
+                      disabled={
+                        signingOut ||
+                        savingCloudScene ||
+                        checkingCurrentScene ||
+                        refreshingCurrentScene ||
+                        refreshingCollabRoom ||
+                        creatingCollabRoom ||
+                        revokingCollabRoom
+                      }
+                    >
+                      {refreshingCollabRoom
+                        ? t("cloud.collabRooms.loading")
+                        : t("cloud.collabRooms.refresh")}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {activeCloudScene && (
-              <div className="AuthDialog__accountCard AuthDialog__embedCard">
-                <span>{t("cloud.embed.title")}</span>
-                <strong>{embedStatsLabel}</strong>
-                {embedStats.status === "ready" && embedStats.latestMode && (
-                  <small>
-                    {t("cloud.embed.latest", {
-                      mode: getEmbedModeLabel(embedStats.latestMode),
-                    })}
-                  </small>
-                )}
-                {embedStats.status === "ready" && !embedStats.latestMode && (
-                  <small>{t("cloud.embed.empty")}</small>
-                )}
-                {embedStats.status === "error" && (
-                  <small>{embedStats.message}</small>
-                )}
-                <div className="AuthDialog__cardActions">
-                  <button
-                    className="AuthDialog__cardAction"
-                    type="button"
-                    onClick={handleOpenEmbeds}
-                    disabled={
-                      !onOpenEmbeds ||
-                      signingOut ||
-                      savingCloudScene ||
-                      checkingCurrentScene ||
-                      refreshingCurrentScene
-                    }
-                  >
-                    {t("cloud.embed.manage")}
-                  </button>
-                  <button
-                    className="AuthDialog__cardAction"
-                    type="button"
-                    onClick={() => void handleRefreshEmbedStats()}
-                    disabled={
-                      signingOut ||
-                      savingCloudScene ||
-                      checkingCurrentScene ||
-                      refreshingCurrentScene ||
-                      refreshingEmbedStats
-                    }
-                  >
-                    {refreshingEmbedStats
-                      ? t("cloud.embed.loading")
-                      : t("cloud.embed.refresh")}
-                  </button>
+              {activeCloudScene && (
+                <div className="AuthDialog__accountCard AuthDialog__embedCard">
+                  <span>{t("cloud.embed.title")}</span>
+                  <strong>{embedStatsLabel}</strong>
+                  {embedStats.status === "ready" && embedStats.latestMode && (
+                    <small>
+                      {t("cloud.embed.latest", {
+                        mode: getEmbedModeLabel(embedStats.latestMode),
+                      })}
+                    </small>
+                  )}
+                  {embedStats.status === "ready" && !embedStats.latestMode && (
+                    <small>{t("cloud.embed.empty")}</small>
+                  )}
+                  {embedStats.status === "error" && (
+                    <small>{embedStats.message}</small>
+                  )}
+                  <div className="AuthDialog__cardActions">
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={handleOpenEmbeds}
+                      disabled={
+                        !onOpenEmbeds ||
+                        signingOut ||
+                        savingCloudScene ||
+                        checkingCurrentScene ||
+                        refreshingCurrentScene
+                      }
+                    >
+                      {t("cloud.embed.manage")}
+                    </button>
+                    <button
+                      className="AuthDialog__cardAction"
+                      type="button"
+                      onClick={() => void handleRefreshEmbedStats()}
+                      disabled={
+                        signingOut ||
+                        savingCloudScene ||
+                        checkingCurrentScene ||
+                        refreshingCurrentScene ||
+                        refreshingEmbedStats
+                      }
+                    >
+                      {refreshingEmbedStats
+                        ? t("cloud.embed.loading")
+                        : t("cloud.embed.refresh")}
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
+
+            {error && (
+              <p className="AuthDialog__error" role="alert">
+                {error}
+              </p>
             )}
           </div>
-
-          {error && (
-            <p className="AuthDialog__error" role="alert">
-              {error}
-            </p>
-          )}
 
           <div className="AuthDialog__actions">
             {onSaveCloudScene && (
@@ -926,11 +1319,31 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                 disabled={
                   signingOut ||
                   savingCloudScene ||
+                  savingEncryptedCloudScene ||
+                  isCollaborationActive ||
                   checkingCurrentScene ||
                   refreshingCurrentScene
                 }
               >
                 {t("cloud.scenes.saveToCloud")}
+              </Button>
+            )}
+            {onSaveEncryptedCloudScene && (
+              <Button
+                onSelect={() => void handleSaveEncryptedCloudScene()}
+                disabled={
+                  signingOut ||
+                  savingCloudScene ||
+                  savingEncryptedCloudScene ||
+                  isCollaborationActive ||
+                  checkingCurrentScene ||
+                  refreshingCurrentScene ||
+                  !getCloudBackend().capabilities.encryptedCloudStorage
+                }
+              >
+                {savingEncryptedCloudScene
+                  ? t("cloud.e2e.saving")
+                  : t("cloud.e2e.saveEncrypted")}
               </Button>
             )}
           </div>
@@ -941,44 +1354,45 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
           onSubmit={handleSubmit}
           onKeyDown={stopShortcutPropagation}
         >
-          {closeButton}
-          <p className="AuthDialog__intro">{t("cloud.auth.signInIntro")}</p>
+          <div className="AuthDialog__scrollBody">
+            <p className="AuthDialog__intro">{t("cloud.auth.signInIntro")}</p>
 
-          <div className="AuthDialog__field">
-            <label htmlFor="cloud-auth-email">{t("cloud.auth.email")}</label>
-            <input
-              id="cloud-auth-email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              disabled={submitting}
-              onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={stopShortcutPropagation}
-            />
+            <div className="AuthDialog__field">
+              <label htmlFor="cloud-auth-email">{t("cloud.auth.email")}</label>
+              <input
+                id="cloud-auth-email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                disabled={submitting}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={stopShortcutPropagation}
+              />
+            </div>
+
+            <div className="AuthDialog__field">
+              <label htmlFor="cloud-auth-password">
+                {t("cloud.auth.password")}
+              </label>
+              <input
+                id="cloud-auth-password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                disabled={submitting}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={stopShortcutPropagation}
+              />
+            </div>
+
+            {error && (
+              <p className="AuthDialog__error" role="alert">
+                {error}
+              </p>
+            )}
           </div>
-
-          <div className="AuthDialog__field">
-            <label htmlFor="cloud-auth-password">
-              {t("cloud.auth.password")}
-            </label>
-            <input
-              id="cloud-auth-password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              disabled={submitting}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={stopShortcutPropagation}
-            />
-          </div>
-
-          {error && (
-            <p className="AuthDialog__error" role="alert">
-              {error}
-            </p>
-          )}
 
           <div className="AuthDialog__actions">
             <Button onSelect={handleClose} disabled={submitting}>

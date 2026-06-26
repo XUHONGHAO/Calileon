@@ -1,3 +1,13 @@
+import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
+import type { AppState, BinaryFileData } from "@excalidraw/excalidraw/types";
+import type {
+  ExcalidrawElement,
+  FileId,
+  OrderedExcalidrawElement,
+} from "@excalidraw/element/types";
+
+import type { Socket } from "socket.io-client";
+
 /**
  * Phase 0 frozen adapter contract.
  *
@@ -23,8 +33,11 @@ export interface BackendCapabilities {
   aiTasks: boolean;
   collaborationMetadata: boolean;
   realtime: boolean;
+  collabRoomBinding: boolean;
+  collabPersistence: boolean;
   cast: boolean;
   embed: boolean;
+  encryptedCloudStorage: boolean;
   aiGateway: boolean;
 }
 
@@ -52,6 +65,20 @@ export interface SceneRecord {
   createdAt: number;
   updatedAt: number;
   deletedAt: number | null; // soft delete
+}
+
+export interface EncryptedScenePayloadV1 {
+  version: 1;
+  algorithm: "AES-GCM";
+  iv: string;
+  ciphertext: string;
+}
+
+export interface CloudKeyringEntry {
+  sceneId: string;
+  key: string;
+  createdAt: number;
+  updatedAt: number;
 }
 
 export interface SceneSummary {
@@ -91,6 +118,8 @@ export type EmbedMode = "read" | "write" | "collab";
 export type EmbedTheme = "light" | "dark" | "system";
 
 export type EmbedSize = "responsive" | "wide" | "compact";
+
+export type CollabPersistenceBackend = "none" | "firebase" | "supabase";
 
 export interface ShareLink {
   id: string;
@@ -268,6 +297,52 @@ export type CastExportCreateInput = Omit<
   "id" | "ownerId" | "createdAt" | "deletedAt"
 >;
 
+export type CollabRoomStatus = "active" | "revoked";
+
+export interface CollabRoomRecord {
+  id: string;
+  ownerId: string;
+  sceneId: string;
+  roomId: string;
+  status: CollabRoomStatus;
+  createdAt: number;
+  updatedAt: number;
+  revokedAt: number | null;
+}
+
+export interface CollabRoomCreateInput {
+  sceneId: string;
+  roomId: string;
+}
+
+export interface CollabPersistenceSnapshot {
+  roomId: string;
+  encryptedData: ArrayBuffer;
+  iv: Uint8Array;
+  updatedAt: number;
+}
+
+export interface CollabPersistenceRoomRef {
+  roomId: string | null;
+  roomKey: string | null;
+  socket: Socket | null;
+}
+
+export interface CollabPersistenceSaveSceneInput
+  extends CollabPersistenceRoomRef {
+  elements: readonly OrderedExcalidrawElement[];
+  appState: AppState;
+}
+
+export interface CollabPersistenceFilesInput extends CollabPersistenceRoomRef {
+  files: { id: FileId; buffer: Uint8Array }[];
+}
+
+export interface CollabPersistenceLoadFilesInput
+  extends CollabPersistenceRoomRef {
+  fileIds: readonly FileId[];
+}
+
 // —— Auth (BR-AUTH, Phase 1) ——
 // First version implements password sign-in only; oauth / magic-link
 // signatures are reserved and not implemented in Phase 1.
@@ -350,6 +425,63 @@ export interface RealtimeService {
   // Phase 0 placeholder + surface capture; collab methods land in Phase 3/4.
 }
 
+// —— Cloud scene ↔ realtime collaboration room binding (BR-RT, Phase 4B) ——
+export interface CollabRoomService {
+  isAvailable(): boolean;
+  createForScene(input: CollabRoomCreateInput): Promise<CollabRoomRecord>;
+  getByScene(sceneId: string): Promise<CollabRoomRecord | null>;
+  getByRoomId(roomId: string): Promise<CollabRoomRecord | null>;
+  revoke(id: string): Promise<void>;
+  touch(id: string): Promise<CollabRoomRecord>;
+}
+
+// —— Collaboration persistence adapter (BR-RT, Phase 4C) ——
+export interface CollabPersistenceService {
+  isAvailable(): boolean;
+  backend: CollabPersistenceBackend;
+  isRoomActive(roomId: string): Promise<boolean>;
+  isSaved(
+    input: CollabPersistenceRoomRef & {
+      elements: readonly ExcalidrawElement[];
+    },
+  ): boolean;
+  saveScene(
+    input: CollabPersistenceSaveSceneInput,
+  ): Promise<readonly RemoteExcalidrawElement[] | null>;
+  loadScene(
+    input: CollabPersistenceRoomRef,
+  ): Promise<readonly OrderedExcalidrawElement[] | null>;
+  saveFiles(input: CollabPersistenceFilesInput): Promise<{
+    savedFiles: FileId[];
+    erroredFiles: FileId[];
+  }>;
+  loadFiles(input: CollabPersistenceLoadFilesInput): Promise<{
+    loadedFiles: BinaryFileData[];
+    erroredFiles: Map<FileId, true>;
+  }>;
+  saveSnapshot(input: CollabPersistenceSnapshot): Promise<void>;
+  loadSnapshot(roomId: string): Promise<CollabPersistenceSnapshot | null>;
+}
+
+// —— End-to-end encrypted cloud storage (BR-E2E, Phase 4D) ——
+export interface CloudEncryptionService {
+  isAvailable(): boolean;
+  generateKey(): Promise<string>;
+  encryptScenePayload(
+    payload: unknown,
+    key: string,
+  ): Promise<EncryptedScenePayloadV1>;
+  decryptScenePayload(
+    payload: EncryptedScenePayloadV1,
+    key: string,
+  ): Promise<unknown>;
+  encryptBlob(blob: Blob, key: string): Promise<Blob>;
+  decryptBlob(blob: Blob, key: string): Promise<Blob>;
+  saveKey(entry: CloudKeyringEntry): void;
+  getKey(sceneId: string): CloudKeyringEntry | null;
+  removeKey(sceneId: string): void;
+}
+
 // —— Cast (BR-CAST, Phase 3B) ——
 export interface CastService {
   isAvailable(): boolean;
@@ -413,6 +545,9 @@ export interface CloudBackend {
   aiTasks: AITaskService;
   activity: SceneActivityService;
   realtime: RealtimeService;
+  collabRooms: CollabRoomService;
+  collabPersistence: CollabPersistenceService;
+  encryption: CloudEncryptionService;
   cast: CastService;
   embed: EmbedService;
   ai: AiGateway;

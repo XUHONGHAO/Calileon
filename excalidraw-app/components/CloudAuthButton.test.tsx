@@ -68,6 +68,9 @@ const makeBackend = (
     castExports?: any[];
     embed?: boolean;
     embeds?: any[];
+    collabRoomBinding?: boolean;
+    collabRoom?: any;
+    encryptedCloudStorage?: boolean;
   } = {},
 ) => {
   const listeners: Array<(u: any) => void> = [];
@@ -78,6 +81,9 @@ const makeBackend = (
       aiTasks: true,
       cast: overrides.cast ?? true,
       embed: overrides.embed ?? true,
+      collabPersistence: true,
+      collabRoomBinding: overrides.collabRoomBinding ?? true,
+      encryptedCloudStorage: overrides.encryptedCloudStorage ?? false,
     },
     auth: {
       getCurrentUser: vi.fn(async () => overrides.currentUser ?? null),
@@ -120,6 +126,25 @@ const makeBackend = (
     embed: {
       listByScene: vi.fn(async () => overrides.embeds ?? []),
     },
+    collabRooms: {
+      getByScene: vi.fn(async () => overrides.collabRoom ?? null),
+      createForScene: vi.fn(async ({ sceneId, roomId }: any) => ({
+        id: "collab-room-1",
+        ownerId: "u1",
+        sceneId,
+        roomId,
+        status: "active",
+        createdAt: 0,
+        updatedAt: 0,
+        revokedAt: null,
+      })),
+      revoke: vi.fn(async () => {}),
+      touch: vi.fn(async () => overrides.collabRoom),
+    },
+    encryption: {
+      isAvailable: vi.fn(() => overrides.encryptedCloudStorage ?? false),
+      removeKey: vi.fn(),
+    },
     __emit: (u: any) => listeners.forEach((l) => l(u)),
   };
 };
@@ -127,6 +152,11 @@ const makeBackend = (
 describe("CloudAuthButton (standalone cloud auth entry)", () => {
   beforeEach(() => {
     __resetCloudAuthForTests();
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(async () => {}),
+      },
+    });
   });
 
   it("renders nothing in pure-local mode (auth capability false)", async () => {
@@ -292,10 +322,44 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     expect(await screen.findByText("2 saved")).toBeInTheDocument();
     expect(screen.getByText("Latest: Updated plan")).toBeInTheDocument();
     expect(await screen.findByText("1 recent")).toBeInTheDocument();
+    expect(await screen.findByText("Deployment status")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
     await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("Cloud sign in")).toBeInTheDocument();
+  });
+
+  it("saves an encrypted cloud copy when E2E storage is enabled", async () => {
+    const onSaveEncryptedCloudScene = vi.fn(async () => {});
+    setBackend(
+      makeBackend({
+        auth: true,
+        currentUser: {
+          id: "u1",
+          email: "me@example.com",
+          displayName: null,
+          avatarUrl: null,
+          createdAt: 0,
+          lastSignInAt: null,
+        },
+        encryptedCloudStorage: true,
+      }),
+    );
+
+    render(
+      <CloudAuthButton onSaveEncryptedCloudScene={onSaveEncryptedCloudScene} />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cloud account" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save encrypted copy" }),
+    );
+
+    await waitFor(() =>
+      expect(onSaveEncryptedCloudScene).toHaveBeenCalledTimes(1),
+    );
   });
 
   it("opens cloud AI tasks from the account dialog", async () => {
@@ -504,5 +568,120 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Manage embeds" }));
     expect(onOpenEmbeds).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows collaboration room binding controls and creates a copied link", async () => {
+    const onStartCollabRoom = vi.fn();
+    const onCollabRoomChanged = vi.fn();
+    const backend = makeBackend({
+      auth: true,
+      currentUser: {
+        id: "u1",
+        email: "me@example.com",
+        displayName: null,
+        avatarUrl: null,
+        createdAt: 0,
+        lastSignInAt: null,
+      },
+    });
+    setBackend(backend);
+
+    render(
+      <CloudAuthButton
+        onStartCollabRoom={onStartCollabRoom}
+        onCollabRoomChanged={onCollabRoomChanged}
+        activeCloudScene={{
+          id: "scene-1",
+          title: "Roadmap",
+          version: 2,
+          updatedAt: 2,
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cloud account" }),
+    );
+
+    expect(
+      await screen.findByText("Live collaboration room"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No room binding")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create room link" }));
+
+    await waitFor(() =>
+      expect(backend.collabRooms.createForScene).toHaveBeenCalledWith({
+        sceneId: "scene-1",
+        roomId: expect.any(String),
+      }),
+    );
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      expect.stringContaining("#room="),
+    );
+    expect(onStartCollabRoom).toHaveBeenCalledWith({
+      roomId: expect.any(String),
+      roomKey: expect.any(String),
+    });
+    expect(onCollabRoomChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it("notifies when a collaboration room binding is revoked", async () => {
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    const onCollabRoomChanged = vi.fn();
+    const onCollabRoomRevoked = vi.fn();
+    const collabRoom = {
+      id: "collab-room-1",
+      ownerId: "u1",
+      sceneId: "scene-1",
+      roomId: "room-1",
+      status: "active",
+      createdAt: 0,
+      updatedAt: 0,
+      revokedAt: null,
+    };
+    const backend = makeBackend({
+      auth: true,
+      currentUser: {
+        id: "u1",
+        email: "me@example.com",
+        displayName: null,
+        avatarUrl: null,
+        createdAt: 0,
+        lastSignInAt: null,
+      },
+      collabRoom,
+    });
+    setBackend(backend);
+
+    render(
+      <CloudAuthButton
+        onCollabRoomChanged={onCollabRoomChanged}
+        onCollabRoomRevoked={onCollabRoomRevoked}
+        activeCloudScene={{
+          id: "scene-1",
+          title: "Roadmap",
+          version: 2,
+          updatedAt: 2,
+        }}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Cloud account" }),
+    );
+
+    expect(
+      await screen.findByText("Live collaboration room"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Active room")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    await waitFor(() =>
+      expect(backend.collabRooms.revoke).toHaveBeenCalledWith("collab-room-1"),
+    );
+    expect(onCollabRoomRevoked).toHaveBeenCalledWith(collabRoom);
+    expect(onCollabRoomChanged).toHaveBeenCalledTimes(1);
   });
 });

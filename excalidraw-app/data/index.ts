@@ -149,6 +149,10 @@ export const getCollaborationLinkData = (link: string) => {
 };
 
 export const generateCollaborationLinkData = async () => {
+  if (!window.crypto?.subtle) {
+    throw new Error(t("cloud.collabRooms.secureContextRequired"));
+  }
+
   const roomId = await generateRoomId();
   const roomKey = await generateEncryptionKey();
 

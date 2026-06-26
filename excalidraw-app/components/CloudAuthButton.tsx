@@ -21,6 +21,8 @@ import {
 
 import "./CloudAuthButton.scss";
 
+import type { CollabRoomRecord } from "../data/cloud";
+
 export interface CloudAuthButtonProps {
   /** Called after a successful sign-in (e.g. open the scene list). */
   onSignedIn?: () => void;
@@ -32,7 +34,18 @@ export interface CloudAuthButtonProps {
   onOpenEmbeds?: () => void;
   /** Saves the current whiteboard to the signed-in cloud account. */
   onSaveCloudScene?: () => void | Promise<void>;
+  /** Saves the current whiteboard as a new end-to-end encrypted cloud scene. */
+  onSaveEncryptedCloudScene?: () => void | Promise<void>;
+  /** Starts local realtime collaboration after creating a cloud room binding. */
+  onStartCollabRoom?: (room: {
+    roomId: string;
+    roomKey: string;
+  }) => void | Promise<void>;
+  collabRoomRefreshKey?: number;
+  onCollabRoomChanged?: () => void;
+  onCollabRoomRevoked?: (room: CollabRoomRecord) => void | Promise<void>;
   activeCloudScene?: ActiveCloudSceneInfo | null;
+  isCollaborationActive?: boolean;
   cloudSceneRemoteUpdate?: CloudSceneRemoteUpdateState;
   onCheckCurrentCloudScene?: () => void | Promise<void>;
   onRefreshCurrentCloudScene?: () => void | Promise<void>;
@@ -45,7 +58,13 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
   onOpenAITasks,
   onOpenEmbeds,
   onSaveCloudScene,
+  onSaveEncryptedCloudScene,
+  onStartCollabRoom,
+  collabRoomRefreshKey,
+  onCollabRoomChanged,
+  onCollabRoomRevoked,
   activeCloudScene,
+  isCollaborationActive,
   cloudSceneRemoteUpdate,
   onCheckCurrentCloudScene,
   onRefreshCurrentCloudScene,
@@ -79,7 +98,13 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
           onOpenAITasks={onOpenAITasks}
           onOpenEmbeds={onOpenEmbeds}
           onSaveCloudScene={onSaveCloudScene}
+          onSaveEncryptedCloudScene={onSaveEncryptedCloudScene}
+          onStartCollabRoom={onStartCollabRoom}
+          collabRoomRefreshKey={collabRoomRefreshKey}
+          onCollabRoomChanged={onCollabRoomChanged}
+          onCollabRoomRevoked={onCollabRoomRevoked}
           activeCloudScene={activeCloudScene}
+          isCollaborationActive={isCollaborationActive}
           cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
           onCheckCurrentCloudScene={onCheckCurrentCloudScene}
           onRefreshCurrentCloudScene={onRefreshCurrentCloudScene}
@@ -102,7 +127,13 @@ export const CloudAuthButton: React.FC<CloudAuthButtonProps> = ({
         onOpenAITasks={onOpenAITasks}
         onOpenEmbeds={onOpenEmbeds}
         onSaveCloudScene={onSaveCloudScene}
+        onSaveEncryptedCloudScene={onSaveEncryptedCloudScene}
+        onStartCollabRoom={onStartCollabRoom}
+        collabRoomRefreshKey={collabRoomRefreshKey}
+        onCollabRoomChanged={onCollabRoomChanged}
+        onCollabRoomRevoked={onCollabRoomRevoked}
         activeCloudScene={activeCloudScene}
+        isCollaborationActive={isCollaborationActive}
         cloudSceneRemoteUpdate={cloudSceneRemoteUpdate}
         onCheckCurrentCloudScene={onCheckCurrentCloudScene}
         onRefreshCurrentCloudScene={onRefreshCurrentCloudScene}

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
+  getCloudEmbedAccessFromUrl,
   getCloudEmbedIframeCode,
   getCloudEmbedLink,
   getCloudEmbedTokenFromUrl,
@@ -15,6 +16,9 @@ describe("cloudEmbedLinks", () => {
     expect(getCloudEmbedTokenFromUrl("http://localhost/#embed=token-1")).toBe(
       "token-1",
     );
+    expect(
+      getCloudEmbedAccessFromUrl("http://localhost/#embed=token-1,key-1"),
+    ).toEqual({ token: "token-1", key: "key-1" });
     expect(getCloudEmbedTokenFromUrl("http://localhost/#cloud=token-1")).toBe(
       null,
     );
@@ -27,6 +31,9 @@ describe("cloudEmbedLinks", () => {
     expect(getCloudEmbedLink("token-1")).toBe(
       "http://localhost:3000/board#embed=token-1",
     );
+    expect(getCloudEmbedLink("token-1", "key-1")).toBe(
+      "http://localhost:3000/board#embed=token-1,key-1",
+    );
   });
 
   it("generates iframe snippets", () => {
@@ -36,5 +43,12 @@ describe("cloudEmbedLinks", () => {
         title: "Roadmap",
       }),
     ).toContain('src="http://localhost:3000/board#embed=token-1"');
+    expect(
+      getCloudEmbedIframeCode({
+        token: "token-1",
+        key: "key-1",
+        title: "Roadmap",
+      }),
+    ).toContain('src="http://localhost:3000/board#embed=token-1,key-1"');
   });
 });
