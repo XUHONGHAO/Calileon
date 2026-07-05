@@ -33,6 +33,38 @@
     "strokeStyle_dotted": "点虚线",
     "sloppiness": "线条风格",
     "opacity": "透明度",
+    "lumina": {
+      "toggle": "光照开关",
+      "addLight": "放置光源",
+      "addSun": "放置太阳（平行光）",
+      "material": {
+        "label": "材质",
+        "solid": "实心",
+        "translucent": "半透明",
+        "glass": "玻璃",
+        "mirror": "镜面",
+        "emissive": "自发光"
+      },
+      "light": {
+        "label": "光源",
+        "color": "光色",
+        "intensity": "强度",
+        "radius": "半径",
+        "cone": "锥角",
+        "direction": "方向",
+        "type": {
+          "label": "类型",
+          "point": "点光源",
+          "spot": "聚光灯",
+          "sun": "太阳"
+        }
+      },
+      "webglFallback": "高级材质（玻璃、镜面）需要 WebGL，当前降级为简单阴影。"
+    },
+    "experimental": {
+      "label": "实验功能",
+      "lumina": "光照 Lumina"
+    },
     "textAlign": "文本对齐",
     "edges": "边角",
     "sharp": "尖锐",

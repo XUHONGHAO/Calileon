@@ -56,6 +56,7 @@ import { serializeAsJSON } from "../data/json";
 import { Fonts } from "../fonts";
 
 import { renderStaticScene } from "../renderer/staticScene";
+import { renderLuminaScene } from "../renderer/lumina";
 import { renderSceneToSvg } from "../renderer/staticSvgScene";
 
 import type { RenderableElementsMap } from "./types";
@@ -275,6 +276,31 @@ export const exportToCanvas = async (
       theme: appState.exportWithDarkMode ? THEME.DARK : THEME.LIGHT,
     },
   });
+
+  // C1 Lumina：把光照合成到同一离屏画布上，保证导出与屏幕所见一致
+  // （技术设计文档 §3.3）。仅在开启光照时执行，关闭时导出逐像素不变。
+  if (appState.luminaEnabled) {
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      renderLuminaScene(
+        ctx,
+        elementsForRender,
+        toBrandedType<RenderableElementsMap>(arrayToMap(elementsForRender)),
+        {
+          scrollX: -minX + exportPadding,
+          scrollY: -minY + exportPadding,
+          zoom: defaultAppState.zoom.value,
+          width,
+          height,
+          scale,
+        },
+        {
+          ambient: appState.luminaAmbient,
+          caustics: appState.luminaCaustics,
+        },
+      );
+    }
+  }
 
   return canvas;
 };

@@ -2124,6 +2124,28 @@ export const boltIcon = createIcon(
   </g>,
   tablerIconProps,
 );
+// tabler-icons: flask (实验室烧瓶) — used for the Experimental features menu
+export const ExperimentIcon = createIcon(
+  <g strokeWidth={1.5}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M9 3l6 0" />
+    <path d="M10 9l4 0" />
+    <path d="M10 3v6l-4 8a1.7 1.7 0 0 0 1.5 2.5h9a1.7 1.7 0 0 0 1.5 -2.5l-4 -8v-6" />
+  </g>,
+  tablerIconProps,
+);
+
+// tabler-icons: bulb (小灯泡) — used for the "add light source" menu item
+export const LightBulbIcon = createIcon(
+  <g strokeWidth={1.5}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M3 12h1m8 -9v1m8 8h1m-15.4 -6.4l.7 .7m12.1 -.7l-.7 .7" />
+    <path d="M9 16a5 5 0 1 1 6 0a3.5 3.5 0 0 0 -1 3a2 2 0 0 1 -4 0a3.5 3.5 0 0 0 -1 -3" />
+    <path d="M9.7 17l4.6 0" />
+  </g>,
+  tablerIconProps,
+);
+
 export const selectAllIcon = createIcon(
   <g>
     <path stroke="none" d="M0 0h24v24H0z" fill="none" />

@@ -5,12 +5,15 @@ import { THEME } from "@excalidraw/common";
 import type { Theme } from "@excalidraw/element/types";
 
 import {
+  actionAddLightSource,
+  actionAddSun,
   actionClearCanvas,
   actionLoadScene,
   actionSaveToActiveFile,
   actionShortcuts,
   actionToggleArrowBinding,
   actionToggleGridMode,
+  actionToggleLumina,
   actionToggleMidpointSnapping,
   actionToggleObjectsSnapMode,
   actionToggleSearchMenu,
@@ -45,9 +48,11 @@ import {
   XBrandIcon,
   settingsIcon,
   emptyIcon,
+  ExperimentIcon,
 } from "../icons";
 import {
   boltIcon,
+  LightBulbIcon,
   DeviceDesktopIcon,
   ExportIcon,
   ExportImageIcon,
@@ -597,6 +602,106 @@ const PreferencesToggleElementPropertiesItem = () => {
     </DropdownMenuItemCheckbox>
   );
 };
+
+const ExperimentalToggleLuminaItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+  return (
+    <DropdownMenuItemCheckbox
+      checked={appState.luminaEnabled}
+      data-testid="lumina-toggle-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionToggleLumina);
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.toggle")}
+    </DropdownMenuItemCheckbox>
+  );
+};
+
+const ExperimentalAddLightSourceItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  return (
+    <DropdownMenuItem
+      icon={LightBulbIcon}
+      onSelect={() => {
+        actionManager.executeAction(actionAddLightSource);
+      }}
+      data-testid="lumina-add-light-menu-item"
+      aria-label={t("labels.lumina.addLight")}
+    >
+      {t("labels.lumina.addLight")}
+    </DropdownMenuItem>
+  );
+};
+
+const ExperimentalAddSunItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  return (
+    <DropdownMenuItem
+      icon={SunIcon}
+      onSelect={() => {
+        actionManager.executeAction(actionAddSun);
+      }}
+      data-testid="lumina-add-sun-menu-item"
+      aria-label={t("labels.lumina.addSun")}
+    >
+      {t("labels.lumina.addSun")}
+    </DropdownMenuItem>
+  );
+};
+
+export const LuminaFeatureSubmenu = ({
+  children,
+}: {
+  children?: React.ReactNode;
+}) => {
+  const { t } = useI18n();
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSub.Trigger icon={SunIcon}>
+        {t("labels.experimental.lumina")}
+      </DropdownMenuSub.Trigger>
+      <DropdownMenuSub.Content>
+        {children || (
+          <>
+            <ExperimentalToggleLuminaItem />
+            <ExperimentalAddLightSourceItem />
+            <ExperimentalAddSunItem />
+          </>
+        )}
+      </DropdownMenuSub.Content>
+    </DropdownMenuSub>
+  );
+};
+
+export const ExperimentalFeatures = ({
+  children,
+}: {
+  children?: React.ReactNode;
+}) => {
+  const { t } = useI18n();
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSub.Trigger icon={ExperimentIcon}>
+        {t("labels.experimental.label")}
+      </DropdownMenuSub.Trigger>
+      <DropdownMenuSub.Content>
+        {children || <LuminaFeatureSubmenu />}
+      </DropdownMenuSub.Content>
+    </DropdownMenuSub>
+  );
+};
+
+ExperimentalFeatures.Lumina = LuminaFeatureSubmenu;
+ExperimentalFeatures.ToggleLumina = ExperimentalToggleLuminaItem;
+ExperimentalFeatures.AddLightSource = ExperimentalAddLightSourceItem;
+ExperimentalFeatures.AddSun = ExperimentalAddSunItem;
+ExperimentalFeatures.displayName = "ExperimentalFeatures";
 
 export const Preferences = ({
   children,

@@ -128,6 +128,7 @@ export const AppMainMenu: React.FC<{
           </MainMenu.Item>
         )}
         <MainMenu.Separator />
+        <MainMenu.DefaultItems.ExperimentalFeatures />
         <MainMenu.DefaultItems.Preferences
           additionalItems={
             <MainMenu.Item

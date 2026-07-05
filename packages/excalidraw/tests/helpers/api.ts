@@ -221,6 +221,7 @@ export class API {
     fixedSegments?: FixedSegment[] | null;
     updated?: ExcalidrawGenericElement["updated"];
     created?: ExcalidrawGenericElement["created"];
+    customData?: ExcalidrawGenericElement["customData"];
   }): T extends "arrow" | "line"
     ? ExcalidrawLinearElement
     : T extends "freedraw"
@@ -393,6 +394,9 @@ export class API {
     }
     if (rest.updated !== undefined) {
       element.updated = rest.updated;
+    }
+    if (rest.customData !== undefined) {
+      element.customData = rest.customData;
     }
     return element as any;
   };

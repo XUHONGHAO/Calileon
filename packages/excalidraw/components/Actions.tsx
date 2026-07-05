@@ -22,6 +22,8 @@ import {
   toolIsArrow,
 } from "@excalidraw/element";
 
+import { isLuminaLightSource } from "@excalidraw/element/lumina";
+
 import type {
   ExcalidrawElement,
   ExcalidrawElementType,
@@ -242,6 +244,14 @@ export const SelectedShapeActions = ({
       )}
 
       {renderAction("changeOpacity")}
+
+      {appState.luminaEnabled && (
+        <>
+          {targetElements.some((element) => isLuminaLightSource(element))
+            ? renderAction("changeLightProps")
+            : renderAction("changeMaterial")}
+        </>
+      )}
 
       <fieldset>
         <legend>{t("labels.layers")}</legend>

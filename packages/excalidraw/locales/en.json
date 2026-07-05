@@ -37,6 +37,38 @@
     "strokeStyle_dotted": "Dotted",
     "sloppiness": "Sloppiness",
     "opacity": "Opacity",
+    "lumina": {
+      "toggle": "Lighting toggle",
+      "addLight": "Add light source",
+      "addSun": "Add sun (directional)",
+      "material": {
+        "label": "Material",
+        "solid": "Solid",
+        "translucent": "Translucent",
+        "glass": "Glass",
+        "mirror": "Mirror",
+        "emissive": "Emissive"
+      },
+      "light": {
+        "label": "Light",
+        "color": "Light color",
+        "intensity": "Intensity",
+        "radius": "Radius",
+        "cone": "Cone angle",
+        "direction": "Direction",
+        "type": {
+          "label": "Type",
+          "point": "Point",
+          "spot": "Spot",
+          "sun": "Sun"
+        }
+      },
+      "webglFallback": "Advanced materials (glass, mirror) need WebGL; showing simple shadows instead."
+    },
+    "experimental": {
+      "label": "Experimental",
+      "lumina": "Lighting (Lumina)"
+    },
     "textAlign": "Text align",
     "edges": "Edges",
     "sharp": "Sharp",

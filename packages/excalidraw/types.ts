@@ -35,6 +35,8 @@ import type {
   ExcalidrawTextElement,
 } from "@excalidraw/element/types";
 
+import type { LuminaGameMode } from "@excalidraw/element/lumina/types";
+
 import type {
   Merge,
   MaybePromise,
@@ -430,6 +432,16 @@ export interface AppState {
   gridStep: number;
   gridModeEnabled: boolean;
   viewModeEnabled: boolean;
+
+  // C1 Lumina（点一盏灯）光照玩法的画布级状态
+  /** 光照总开关。false 时光照层完全不渲染、不参与导出，对现有体验零影响。 */
+  luminaEnabled: boolean;
+  /** 环境光亮度 0..1，1=不变暗。黑屋探宝可设为 0。 */
+  luminaAmbient: number;
+  /** 是否开启焦散（玻璃聚光），M2 起生效。 */
+  luminaCaustics: boolean;
+  /** 游戏模式状态，null=非游戏态。M3 起生效。 */
+  luminaGameMode: LuminaGameMode | null;
 
   /** top-most selected groups (i.e. does not include nested groups) */
   selectedGroupIds: { [groupId: string]: boolean };

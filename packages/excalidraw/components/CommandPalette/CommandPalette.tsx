@@ -365,6 +365,7 @@ function CommandPaletteInner({
         actionManager.actions.toggleHandTool,
         actionManager.actions.setFrameAsActiveTool,
         actionManager.actions.toggleLassoTool,
+        actionManager.actions.addLightSource,
       ].map((action) => actionToCommand(action, DEFAULT_CATEGORIES.tools));
 
       const canvasCommands: CommandPaletteItem[] = [
@@ -377,6 +378,9 @@ function CommandPaletteInner({
         actionManager.actions.gridMode,
         actionManager.actions.objectsSnapMode,
         actionManager.actions.stats,
+        actionManager.actions.toggleLumina,
+        actionManager.actions.addLightSource,
+        actionManager.actions.addSun,
       ].map((action) => actionToCommand(action, DEFAULT_CATEGORIES.canvas));
 
       const editorCommands: CommandPaletteItem[] = [

@@ -451,6 +451,7 @@ import { searchItemInFocusAtom } from "./SearchMenu";
 import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import { StaticCanvas, InteractiveCanvas } from "./canvases";
 import NewElementCanvas from "./canvases/NewElementCanvas";
+import LightingCanvas from "./canvases/LightingCanvas";
 import { isPointHittingLink } from "./hyperlink/helpers";
 import { MagicIcon, copyIcon, fullscreenIcon, playerPlayIcon } from "./icons";
 import { AppStateObserver, type OnStateChange } from "./AppStateObserver";
@@ -673,6 +674,9 @@ class App extends React.Component<AppProps, AppState> {
   private elementsPendingErasure: ElementsPendingErasure = new Set();
 
   private _initialized = false;
+
+  // C1 Lumina：「高级材质需 WebGL」轻提示只弹一次，避免每帧刷屏。
+  private luminaFallbackToastShown = false;
 
   private readonly editorLifecycleEvents = new AppEventBus<
     ExcalidrawImperativeAPIEventMap,
@@ -2548,6 +2552,25 @@ class App extends React.Component<AppProps, AppState> {
                               theme: this.state.theme,
                             }}
                           />
+                          {this.state.luminaEnabled && (
+                            <LightingCanvas
+                              appState={this.state}
+                              elementsMap={elementsMap}
+                              visibleElements={visibleElements}
+                              scale={window.devicePixelRatio}
+                              onAdvancedMaterialFallback={() => {
+                                if (this.luminaFallbackToastShown) {
+                                  return;
+                                }
+                                this.luminaFallbackToastShown = true;
+                                this.setToast({
+                                  message: t("labels.lumina.webglFallback"),
+                                  closable: true,
+                                  duration: 5000,
+                                });
+                              }}
+                            />
+                          )}
                           {newElementCanvasElement && (
                             <NewElementCanvas
                               appState={this.state}

@@ -62,6 +62,17 @@ describe("appState", () => {
     });
   });
 
+  it("has expected lumina (C1) defaults", () => {
+    const defaultAppState = getDefaultAppState();
+    // 光照默认关闭 → 对现有用户零影响。
+    expect(defaultAppState.luminaEnabled).toBe(false);
+    // 环境光默认压暗到 0.35：开启光照时画布立刻变暗，白色光源在暗背景上可辨识。
+    // 若有人把它改回 1（不变暗），开启光照会「看起来没反应」——见开发日志。
+    expect(defaultAppState.luminaAmbient).toBe(0.35);
+    expect(defaultAppState.luminaCaustics).toBe(false);
+    expect(defaultAppState.luminaGameMode).toBe(null);
+  });
+
   it("changing fontSize with text tool selected (no element created yet)", async () => {
     const { container } = await render(
       <Excalidraw

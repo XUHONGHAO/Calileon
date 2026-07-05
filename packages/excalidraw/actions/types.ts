@@ -148,7 +148,12 @@ export type ActionName =
   | "addSelectionToAIReference"
   | "toggleLassoTool"
   | "toggleShapeSwitch"
-  | "togglePolygon";
+  | "togglePolygon"
+  | "toggleLumina"
+  | "addLightSource"
+  | "addSun"
+  | "changeMaterial"
+  | "changeLightProps";
 
 export type PanelComponentProps = {
   elements: readonly ExcalidrawElement[];
