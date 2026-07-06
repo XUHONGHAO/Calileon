@@ -102,6 +102,32 @@ const deriveRadius = (
 };
 
 /**
+ * 从光源宿主元素的尺寸推导 spot 的锥半角（弧度）。
+ *
+ * 锥轴沿宿主元素的高度方向（direction = angle + π/2）射出，开口横跨宽度方向，
+ * 因此把宿主外接盒当作光束在「一个 height 距离处」张开到 width 的喇叭：
+ * 半角 = atan2(width/2, height)。拉宽 → 开角变大（更胖），拉高 → 开角变小
+ * （更窄），符合「捏住手柄拉伸调光束形状」的直觉。
+ *
+ * 显式设置的 angle 优先；height 退化为 0 时回落到默认锥角，避免 atan2 给出 π/2。
+ */
+const deriveSpotAngle = (
+  element: ExcalidrawElement,
+  explicit: number | undefined,
+): number => {
+  if (explicit != null && explicit > 0) {
+    return explicit;
+  }
+  const w = Math.abs(element.width);
+  const h = Math.abs(element.height);
+  if (h <= 0 || w <= 0) {
+    return DEFAULT_LUMINA_SPOT_ANGLE;
+  }
+  // 夹到 (0, π/2)：避免锥退化成一条线或张成半平面。
+  return Math.max(0.01, Math.min(Math.PI / 2 - 0.01, Math.atan2(w / 2, h)));
+};
+
+/**
  * 从可见元素与 appState 构建 LuminaScene。
  *
  * @param elements 可见元素（已过滤删除/不可见）。
@@ -143,7 +169,7 @@ export const buildLuminaScene = (
         // angle：spot 的锥半角；point/sun 无锥。
         angle:
           data.light === "spot"
-            ? data.angle ?? DEFAULT_LUMINA_SPOT_ANGLE
+            ? deriveSpotAngle(element, data.angle)
             : undefined,
       });
       // 显式光源宿主本身不作为挡光体，避免自挡光。

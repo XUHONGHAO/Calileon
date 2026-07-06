@@ -531,9 +531,11 @@ describe("Lumina rendering", () => {
       expect(pointLight.angle).toBeUndefined();
     });
 
-    it("defaults spot cone angle + direction when omitted", () => {
+    it("derives spot cone angle from host size + direction when omitted", () => {
       const spot = API.createElement({
         type: "ellipse",
+        width: 100,
+        height: 100,
         customData: {
           luminaLight: {
             light: "spot",
@@ -549,10 +551,67 @@ describe("Lumina rendering", () => {
         caustics: false,
       });
       const spotLight = scene.lights.find((l) => l.type === "spot")!;
-      // 锥半角缺省兜底 DEFAULT_LUMINA_SPOT_ANGLE(π/4)。
-      expect(spotLight.angle).toBeCloseTo(Math.PI / 4);
+      // 缺省锥半角从宿主尺寸推导：atan2(width/2, height) = atan2(50,100)。
+      expect(spotLight.angle).toBeCloseTo(Math.atan2(50, 100));
       // 方向 = 宿主旋转角(缺省 0) + π/2。
       expect(spotLight.direction).toBeCloseTo(Math.PI / 2);
+    });
+
+    it("widens/narrows the derived spot cone as the host is stretched", () => {
+      const mk = (width: number, height: number) => {
+        const spot = API.createElement({
+          type: "ellipse",
+          width,
+          height,
+          customData: {
+            luminaLight: {
+              light: "spot",
+              color: "#fff",
+              intensity: 1,
+              castShadows: true,
+            },
+          },
+        });
+        const elements = [spot] as NonDeletedExcalidrawElement[];
+        const scene = buildLuminaScene(elements, arrayToMap(elements), {
+          ambient: 1,
+          caustics: false,
+        });
+        return scene.lights.find((l) => l.type === "spot")!.angle!;
+      };
+      // 拉宽 → 开角变大；拉高 → 开角变小。
+      const wide = mk(300, 100);
+      const square = mk(100, 100);
+      const tall = mk(100, 300);
+      expect(wide).toBeGreaterThan(square);
+      expect(square).toBeGreaterThan(tall);
+      expect(wide).toBeCloseTo(Math.atan2(150, 100));
+      expect(tall).toBeCloseTo(Math.atan2(50, 300));
+    });
+
+    it("keeps an explicit spot angle regardless of host size", () => {
+      const spot = API.createElement({
+        type: "ellipse",
+        width: 300,
+        height: 100,
+        customData: {
+          luminaLight: {
+            light: "spot",
+            color: "#fff",
+            intensity: 1,
+            angle: 0.5,
+            castShadows: true,
+          },
+        },
+      });
+      const elements = [spot] as NonDeletedExcalidrawElement[];
+      const scene = buildLuminaScene(elements, arrayToMap(elements), {
+        ambient: 1,
+        caustics: false,
+      });
+      const spotLight = scene.lights.find((l) => l.type === "spot")!;
+      // 显式 angle 优先，忽略尺寸推导。
+      expect(spotLight.angle).toBeCloseTo(0.5);
     });
   });
 
