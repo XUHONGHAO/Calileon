@@ -21,7 +21,11 @@ const sidebars = {
         type: "doc",
         id: "introduction/get-started",
       },
-      items: ["introduction/development", "introduction/contributing"],
+      items: [
+        "introduction/development",
+        "introduction/self-hosting",
+        "introduction/contributing",
+      ],
     },
     {
       type: "category",

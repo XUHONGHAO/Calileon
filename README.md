@@ -1,124 +1,142 @@
-<a href="https://excalidraw.com/" target="_blank" rel="noopener">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" alt="Excalidraw" srcset="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2_dark.png" />
-    <img alt="Excalidraw" src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github/excalidraw_github_cover_2.png" />
-  </picture>
-</a>
-
-<h4 align="center">
-  <a href="https://excalidraw.com">Excalidraw Editor</a> |
-  <a href="https://plus.excalidraw.com/blog">Blog</a> |
-  <a href="https://docs.excalidraw.com">Documentation</a> |
-  <a href="https://plus.excalidraw.com">Excalidraw+</a>
-</h4>
-
 <div align="center">
-  <h2>
-    An open source virtual hand-drawn style whiteboard. </br>
-    Collaborative and end-to-end encrypted. </br>
-  <br />
-  </h2>
+  <h1>Calileon</h1>
+  <h3>手绘风格的 AI 无限画布</h3>
+  <p>
+    在 <a href="https://github.com/excalidraw/excalidraw">Excalidraw</a> 基础上二次开发，融合了 AI 图像工作台、云端协作与画布光影引擎的开源白板。
+  </p>
 </div>
 
-<br />
 <p align="center">
-  <a href="https://github.com/excalidraw/excalidraw/blob/master/LICENSE">
-    <img alt="Excalidraw is released under the MIT license." src="https://img.shields.io/badge/license-MIT-blue.svg"  /></a>
-  <a href="https://www.npmjs.com/package/@excalidraw/excalidraw">
-    <img alt="npm downloads/month" src="https://img.shields.io/npm/dm/@excalidraw/excalidraw"  /></a>
-  <a href="https://docs.excalidraw.com/docs/introduction/contributing">
-    <img alt="PRs welcome!" src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat"  /></a>
-  <a href="https://discord.gg/UexuTaE">
-    <img alt="Chat on Discord" src="https://img.shields.io/discord/723672430744174682?color=738ad6&label=Chat%20on%20Discord&logo=discord&logoColor=ffffff&widget=false"/></a>
-  <a href="https://deepwiki.com/excalidraw/excalidraw">
-    <img alt="Ask DeepWiki" src="https://deepwiki.com/badge.svg" /></a>
-  <a href="https://twitter.com/excalidraw">
-    <img alt="Follow Excalidraw on Twitter" src="https://img.shields.io/twitter/follow/excalidraw.svg?label=follow+@excalidraw&style=social&logo=twitter"/></a>
+  <a href="./LICENSE">
+    <img alt="License MIT" src="https://img.shields.io/badge/license-MIT-blue.svg" /></a>
+  <a href="https://calileon.com">
+    <img alt="Website" src="https://img.shields.io/badge/website-calileon.com-brightgreen.svg" /></a>
 </p>
 
-<div align="center">
-  <figure>
-    <a href="https://excalidraw.com" target="_blank" rel="noopener">
-      <img src="https://excalidraw.nyc3.cdn.digitaloceanspaces.com/github%2Fproduct_showcase.png" alt="Product showcase" />
-    </a>
-    <figcaption>
-      <p align="center">
-        Create beautiful hand-drawn like diagrams, wireframes, or whatever you like.
-      </p>
-    </figcaption>
-  </figure>
-</div>
+---
 
-## Features
+## 简介
 
-The Excalidraw editor (npm package) supports:
+Calileon 是基于 [Excalidraw](https://github.com/excalidraw/excalidraw) 的二次开发版本。它保留了 Excalidraw 全部的手绘风格无限画布能力，并在此之上加入了四类自研能力：
 
-- 💯&nbsp;Free & open-source.
-- 🎨&nbsp;Infinite, canvas-based whiteboard.
-- ✍️&nbsp;Hand-drawn like style.
-- 🌓&nbsp;Dark mode.
-- 🏗️&nbsp;Customizable.
-- 📷&nbsp;Image support.
-- 😀&nbsp;Shape libraries support.
-- 🌐&nbsp;Localization (i18n) support.
-- 🖼️&nbsp;Export to PNG, SVG & clipboard.
-- 💾&nbsp;Open format - export drawings as an `.excalidraw` json file.
-- ⚒️&nbsp;Wide range of tools - rectangle, circle, diamond, arrow, line, free-draw, eraser...
-- ➡️&nbsp;Arrow-binding & labeled arrows.
-- 🔙&nbsp;Undo / Redo.
-- 🔍&nbsp;Zoom and panning support.
+- **AI 工作台** —— 在画布内直接生成、编辑、局部重绘图片，并接入自定义智能体与技能。
+- **云端与协作** —— 基于 Supabase 的账号登录、云端白板、资源存储、分享链接与多人实时协作。
+- **Lumina 点一盏灯** —— 画布光影与材质引擎，支持点光/聚光/太阳光、实时软阴影、玻璃与镜面反射。
+- **自部署** —— 完整的 Docker + Nginx 部署方案，可从纯前端客户端逐步接入后端能力。
 
-## Excalidraw.com
+项目遵循与上游一致的 MIT 许可证，品牌与域名为 **Calileon / [calileon.com](https://calileon.com)**。
 
-The app hosted at [excalidraw.com](https://excalidraw.com) is a minimal showcase of what you can build with Excalidraw. Its [source code](https://github.com/excalidraw/excalidraw/tree/master/excalidraw-app) is part of this repository as well, and the app features:
+---
 
-- 📡&nbsp;PWA support (works offline).
-- 🤼&nbsp;Real-time collaboration.
-- 🔒&nbsp;End-to-end encryption.
-- 💾&nbsp;Local-first support (autosaves to the browser).
-- 🔗&nbsp;Shareable links (export to a readonly link you can share with others).
+## 核心能力
 
-We'll be adding these features as drop-in plugins for the npm package in the future.
+### 画布基础（继承自 Excalidraw）
 
-## Quick start
+- 🎨 无限画布，手绘风格。
+- 🌓 深色模式。
+- ⚒️ 矩形、圆形、菱形、箭头、线条、自由绘制、橡皮擦等工具。
+- ➡️ 箭头绑定与带标签箭头。
+- 🖼️ 导出 PNG、SVG 与剪贴板；`.excalidraw` JSON 格式。
+- 🔍 缩放与平移，撤销 / 重做。
+- 🌐 多语言支持，含简体中文（`zh-CN`）、繁体中文（`zh-TW`、`zh-HK`）。
 
-**Note:** following instructions are for installing the Excalidraw [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw) when integrating Excalidraw into your own app. To run the repository locally for development, please refer to our [Development Guide](https://docs.excalidraw.com/docs/introduction/development).
+### AI 工作台 / AI 媒体画布
 
-Use `npm` or `yarn` to install the package.
+在画布内完成从生成到编辑的完整 AI 图像流程：
+
+- **创意生成** —— 通过提示词生成图片，支持参考图输入。
+- **局部重绘（Inpaint）** —— 用蒙版圈选区域后重绘，配套蒙版编辑覆盖层。
+- **AI 助手侧边栏** —— 集成对话式 AI 助手。
+- **自定义智能体与技能** —— 配置文本智能体、视觉智能体、自定义智能体（Custom Agent）与技能（Skill）。
+- **多端点 API** —— 支持配置多个 AI 服务端点与模型。
+- **生成日志与任务列表** —— 记录生成任务，支持任务索引与回溯。
+
+### 云端与协作（Supabase）
+
+后端能力通过统一的适配层接入，纯前端模式下可完全降级为浏览器本地存储：
+
+- **账号登录** —— 基于 Supabase Auth 的邮箱密码登录。
+- **云端白板** —— 场景保存到云端，跨设备打开、重命名、删除。
+- **资源存储** —— 图片等资源存入对象存储。
+- **分享链接** —— 生成只读分享链接。
+- **多人实时协作** —— 基于 `excalidraw-room` 的协作房间，支持协作快照恢复。
+- **端到端加密** —— 可选的端到端加密云存储。
+
+### Lumina 点一盏灯
+
+画布光影与材质引擎，光照信息以 `customData` 挂载在普通元素上，屏幕渲染与导出路径一致：
+
+- **多光源** —— 点光源、聚光灯（锥形）、太阳光（平行光）。
+- **实时阴影** —— 拖动光源，阴影实时扫过。
+- **材质系统** —— 实体、半透明、玻璃（透光）、镜面（虚像反射）、自发光。
+- **光源属性面板** —— 颜色、强度、半径、锥角、方向可调。
+
+> Lumina 的长期目标是一个解谜游戏层（激光光路、阴影揭秘），当前光影 / 材质引擎（M1、M2）已落地。
+
+---
+
+## 快速开始
+
+本仓库是使用 Yarn 1 管理的 monorepo，Node 版本要求 `>=18`（推荐 Node 20 LTS）。
 
 ```bash
-npm install react react-dom @excalidraw/excalidraw
-# or
-yarn add react react-dom @excalidraw/excalidraw
+# 安装依赖
+yarn install
+
+# 启动开发服务器（默认端口 3000）
+yarn start
 ```
 
-Check out our [documentation](https://docs.excalidraw.com/docs/@excalidraw/excalidraw/installation) for more details!
+常用脚本：
 
-## Contributing
+```bash
+yarn test:typecheck   # TypeScript 类型检查
+yarn test:app         # 应用测试
+yarn test:update      # 运行全部测试并更新快照
+yarn fix              # 自动修复格式与 lint 问题
+yarn build            # 构建应用
+```
 
-- Missing something or found a bug? [Report here](https://github.com/excalidraw/excalidraw/issues).
-- Want to contribute? Check out our [contribution guide](https://docs.excalidraw.com/docs/introduction/contributing) or let us know on [Discord](https://discord.gg/UexuTaE).
-- Want to help with translations? See the [translation guide](https://docs.excalidraw.com/docs/introduction/contributing#translating).
+### 目录结构
 
-## Integrations
+```
+packages/excalidraw/   核心 React 组件库
+packages/element/      元素数据模型与几何
+packages/common/       共享常量与工具
+packages/math/         数学工具
+excalidraw-app/        完整 Web 应用（含 AI、云端、协作）
+```
 
-- [VScode extension](https://marketplace.visualstudio.com/items?itemName=pomdtr.excalidraw-editor)
-- [npm package](https://www.npmjs.com/package/@excalidraw/excalidraw)
+---
 
-## Who's integrating Excalidraw
+## 自部署
 
-[Google Cloud](https://googlecloudcheatsheet.withgoogle.com/architecture) • [Meta](https://meta.com/) • [CodeSandbox](https://codesandbox.io/) • [Obsidian Excalidraw](https://github.com/zsviczian/obsidian-excalidraw-plugin) • [Replit](https://replit.com/) • [Slite](https://slite.com/) • [Notion](https://notion.so/) • [HackerRank](https://www.hackerrank.com/) • and many others
+Calileon 可从纯前端客户端起步，按需接入 Supabase 与协作服务。
 
-## Sponsors & support
+| 模式 | 需要的后端 | 支持能力 |
+| --- | --- | --- |
+| 纯前端客户端 | 无 | 画布编辑、浏览器本地保存、手动导入导出。 |
+| 客户端 + Supabase | Supabase | 账号登录、云端白板、资源存储、分享链接。 |
+| 客户端 + Supabase + room server | Supabase、`excalidraw-room` | 多人实时协作、协作房间绑定、快照恢复。 |
 
-If you like the project, you can become a sponsor at [Open Collective](https://opencollective.com/excalidraw) or use [Excalidraw+](https://plus.excalidraw.com/).
+所有 `VITE_APP_*` 环境变量在构建时写入前端产物，修改后必须重新构建。只能放浏览器可见的公开配置（公开 URL、Supabase anon key、功能开关），**不要**放 `service_role` key、数据库密码或任何服务端密钥。
 
-## Thank you for supporting Excalidraw
+```bash
+# 构建镜像
+docker build -t calileon-self-hosted .
 
-[<img src="https://opencollective.com/excalidraw/tiers/sponsors/0/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/0/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/1/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/1/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/2/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/2/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/3/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/3/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/4/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/4/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/5/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/5/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/6/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/6/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/7/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/7/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/8/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/8/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/9/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/9/website) [<img src="https://opencollective.com/excalidraw/tiers/sponsors/10/avatar.svg?avatarHeight=120"/>](https://opencollective.com/excalidraw/tiers/sponsors/10/website)
+# 运行（仅绑定本机端口，由反向代理对外暴露）
+docker run -d \
+  --name calileon \
+  --restart unless-stopped \
+  -p 127.0.0.1:8080:80 \
+  calileon-self-hosted
+```
 
-<a href="https://opencollective.com/excalidraw#category-CONTRIBUTE" target="_blank"><img src="https://opencollective.com/excalidraw/tiers/backers.svg?avatarHeight=32"/></a>
+完整的环境变量说明、Supabase SQL 脚本清单、Nginx 反向代理与验证清单，见自部署指南：`dev-docs/docs/introduction/self-hosting.mdx`。
 
-Last but not least, we're thankful to these companies for offering their services for free:
+---
 
-[![Vercel](./.github/assets/vercel.svg)](https://vercel.com) [![Sentry](./.github/assets/sentry.svg)](https://sentry.io) [![Crowdin](./.github/assets/crowdin.svg)](https://crowdin.com)
+## 许可证与致谢
+
+Calileon 基于 [Excalidraw](https://github.com/excalidraw/excalidraw) 二次开发，遵循 [MIT 许可证](./LICENSE)。感谢 Excalidraw 团队与社区提供的优秀开源基础。

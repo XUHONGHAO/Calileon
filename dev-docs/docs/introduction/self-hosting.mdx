@@ -1,0 +1,170 @@
+# 自部署指南
+
+本文档面向需要将本项目部署到私有服务器、云主机或 CI/CD 平台的部署者。默认推荐先部署纯前端客户端，确认站点可用后，再按需接入 Supabase、对象资源存储、分享链接和多人协作能力。
+
+## 部署模式
+
+根据需要启用的功能选择部署模式。
+
+| 模式 | 需要的后端服务 | 支持能力 |
+| --- | --- | --- |
+| 纯前端客户端 | 无 | 画布编辑、浏览器本地保存、手动导入导出文件。 |
+| 客户端 + Supabase | Supabase | 账号登录、云端白板、资源存储、云端分享链接。 |
+| 客户端 + Supabase + room server | Supabase、`excalidraw-room` | 多人实时协作、协作房间绑定、协作快照恢复。 |
+
+生产部署不建议依赖 Excalidraw 官方公共服务作为默认后端。只有在明确接受该依赖时，才配置官方的分享、协作、资源库或 AI 相关 URL。
+
+## 环境变量
+
+本项目是 Vite 前端应用，所有 `VITE_APP_*` 变量都会在构建时写入前端产物。修改环境变量后必须重新构建镜像；只重启容器不会更新前端配置。
+
+推荐在部署服务器或 CI 构建环境的仓库根目录创建：
+
+```bash
+.env.production.local
+```
+
+不要提交 `.env.production.local`。仓库的 Git 忽略规则会忽略该文件；Docker 构建配置会在 build context 中保留该文件，因此 `docker build` 期间执行的 `vite build` 可以读取生产配置。该文件只用于构建阶段，最终 Nginx 镜像只复制构建产物。
+
+如果 CI 直接运行 `yarn build`，可以通过 CI 环境变量注入同名配置，不一定要创建文件。如果 CI 运行本仓库的 `Dockerfile`，需要在 `docker build` 前生成 `.env.production.local`，或把所需变量改造成 Docker build args。
+
+`VITE_APP_*` 变量会暴露给浏览器。只能放浏览器可见的配置，例如公开 URL、Supabase anon key、功能开关。不要放 Supabase `service_role` key、数据库密码、SSH 私钥、第三方管理 token 或任何服务端密钥。
+
+纯前端客户端不需要 Supabase：
+
+```bash
+VITE_APP_ENABLE_TRACKING=false
+```
+
+启用 Supabase 基础能力：
+
+```bash
+VITE_APP_ENABLE_TRACKING=false
+
+VITE_APP_SUPABASE_URL=https://your-project.supabase.co
+VITE_APP_SUPABASE_ANON_KEY=your-anon-public-key
+VITE_APP_COLLAB_PERSISTENCE=none
+```
+
+启用多人协作时增加：
+
+```bash
+VITE_APP_WS_SERVER_URL=https://room.example.com
+VITE_APP_COLLAB_PERSISTENCE=supabase
+```
+
+启用端到端加密云存储时增加：
+
+```bash
+VITE_APP_E2E_CLOUD_STORAGE=true
+```
+
+启用 `VITE_APP_E2E_CLOUD_STORAGE=true` 前，必须先运行对应的 Supabase SQL 脚本，见下方 Supabase 设置。
+
+## Supabase 设置
+
+创建 Supabase 项目时，选择靠近部署服务器和主要用户的区域。服务器在美国西海岸时，优先选择 US West 区域。
+
+在 Supabase 后台完成以下基础设置：
+
+1. 打开 `Authentication -> Providers`，确认 Email 登录已启用。
+2. 打开 `Authentication -> URL Configuration`，把生产域名加入允许的重定向 URL。
+3. 打开 `Project Settings -> API`，记录 `Project URL` 和 `anon public` key。
+4. 只把 `anon public` key 写入前端环境变量；不要使用 `service_role` key。
+
+然后在 Supabase SQL Editor 中按需运行脚本。必须先运行 `schema.sql`。
+
+| 功能 | SQL 脚本 |
+| --- | --- |
+| 账号和云端白板 | `excalidraw-app/data/cloud/supabase/schema.sql` |
+| 资源存储 | `schema_assets.sql` |
+| 云端分享链接 | `schema_assets.sql`，然后 `schema_shares.sql` |
+| 端到端加密云存储约束 | `schema_e2e_cloud.sql` |
+| 协作房间绑定 | `schema_collab_rooms.sql` |
+| 协作快照恢复 | `schema_assets.sql`、`schema_collab_rooms.sql`，然后 `schema_collab_persistence.sql` |
+
+保持 RLS 开启。前端使用公开 anon key 访问 Supabase，用户隔离依赖 RLS 策略。
+
+## Docker 部署
+
+在仓库根目录准备好 `.env.production.local` 或 CI 环境变量后构建镜像：
+
+```bash
+docker build -t excalidraw-self-hosted .
+```
+
+运行前端容器，并只绑定到本机端口，再由反向代理对外暴露：
+
+```bash
+docker run -d \
+  --name excalidraw \
+  --restart unless-stopped \
+  -p 127.0.0.1:8080:80 \
+  excalidraw-self-hosted
+```
+
+仓库根目录的 `docker-compose.yml` 面向本地开发，不适合作为生产配置直接使用。它使用 development 构建参数，并且会把源码目录挂载进容器。
+
+## Nginx 反向代理
+
+将业务域名解析到服务器 IP，然后用 Nginx 代理前端容器：
+
+```nginx
+server {
+    listen 80;
+    server_name draw.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+再使用 Certbot 或其他 ACME 工具签发 HTTPS 证书。生产环境应通过 HTTPS 访问，否则登录、协作和浏览器安全策略可能出现异常。
+
+多人协作需要单独部署 `excalidraw-room`。建议为 room server 使用独立域名，例如 `room.example.com`，并在 Nginx 中转发 WebSocket upgrade 请求：
+
+```nginx
+server {
+    listen 80;
+    server_name room.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+配置 room server 后，在前端构建环境中设置 `VITE_APP_WS_SERVER_URL=https://room.example.com`，然后重新构建前端镜像。
+
+## 验证清单
+
+部署完成后按顺序验证：
+
+- 通过 HTTPS 打开站点，确认画布正常加载。
+- 创建一个图形并刷新页面，确认浏览器本地保存正常。
+- 启用 Supabase 时，注册或登录账号，创建云端白板，刷新后确认可重新加载。
+- 启用资源存储或分享链接时，上传图片并创建分享链接，确认目标浏览器可以打开。
+- 启用多人协作时，用两个浏览器打开同一个协作链接，确认光标和图形变化可以同步。
+- 打开浏览器控制台，确认没有 Supabase、Storage、WebSocket 或 CORS 错误。
+
+## 环境文件误提交处理
+
+生产环境配置不应提交到 Git。若 `.env.production` 或其他真实环境文件曾被提交，先从索引中移除：
+
+```bash
+git rm --cached .env.production
+git commit -m "chore: stop tracking production env"
+```
+
+如果提交内容只包含公开 `VITE_APP_*` 值，例如 Supabase anon key、Firebase client config、公网 URL，通常不属于高危密钥泄露，但仍应从仓库移除。若提交内容包含 `service_role` key、数据库密码、SSH 私钥或第三方 token，应立即轮换相关密钥，并按已泄露处理。
