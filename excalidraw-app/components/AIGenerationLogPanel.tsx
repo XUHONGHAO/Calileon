@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from "react";
-import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -58,11 +57,6 @@ export const AIGenerationLogPanel = ({
     clearAIGenerationLogs();
     setExpandedLogId("");
     setStatusMessage("");
-  };
-
-  const copyPrompt = async (log: AIGenerationLogEntry) => {
-    await copyTextToSystemClipboard(log.prompt);
-    setStatusMessage(t("ai.common.promptCopied"));
   };
 
   const reuseLog = (log: AIGenerationLogEntry) => {
@@ -127,9 +121,6 @@ export const AIGenerationLogPanel = ({
                   <div className="AIGenerationLogPanel__actions">
                     <button type="button" onClick={() => reuseLog(log)}>
                       {t("ai.generationLog.reuseSettings")}
-                    </button>
-                    <button type="button" onClick={() => copyPrompt(log)}>
-                      {t("ai.common.copyPrompt")}
                     </button>
                   </div>
                   <dl>

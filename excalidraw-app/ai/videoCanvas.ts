@@ -132,6 +132,10 @@ export const insertVideoCoverIntoCanvas = async ({
     height: fittedDimensions.height,
     status: "saved",
     fileId,
+    // The canvas has no video element type, so the real video URL rides on the
+    // element's native `link`. Excalidraw shows a link badge on hover and opens
+    // it in a new tab on click — this is how the cover doubles as a play handle.
+    link: metadata.videoURL,
     customData: {
       aiVideoGeneration: metadata,
     },

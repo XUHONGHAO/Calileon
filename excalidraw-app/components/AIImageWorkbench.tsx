@@ -16,6 +16,7 @@ import type {
 } from "@excalidraw/element/types";
 import type { LocalPoint } from "@excalidraw/math";
 
+import { STORAGE_KEYS } from "../app_constants";
 import {
   AI_IMAGE_CONFIG_UPDATED_EVENT,
   DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS,
@@ -142,6 +143,18 @@ const DEFAULT_PARAMS: AIImageGenerationParams = {
   voice: "",
 };
 
+// Video reuses the shared params shape but must NOT inherit the image pixel
+// `size` ("1024x1024"), which gateways read as a 1:1 aspect ratio. Video drives
+// framing through `aspectRatio` + `resolution` instead, with concrete defaults
+// so a request carries them even when the user never touches the dropdowns.
+const DEFAULT_VIDEO_PARAMS: AIImageGenerationParams = {
+  ...DEFAULT_PARAMS,
+  size: "",
+  duration: 10,
+  aspectRatio: "16:9",
+  resolution: "720P",
+};
+
 const MODE_OPTIONS: Array<{
   value: AIImageGenerationMode;
   labelKey: "ai.common.text" | "ai.common.reference" | "ai.common.inpaint";
@@ -199,6 +212,36 @@ type AIImageWorkbenchProps = {
   onCloudAITaskRun?: (run: CloudAITaskRun) => void | Promise<void>;
 };
 
+const isAIModelMediaType = (value: unknown): value is AIModelMediaType => {
+  return value === "image" || value === "video" || value === "audio";
+};
+
+// The active media type (image / video / audio) is persisted so a page refresh
+// keeps the user on the same generation tab instead of resetting to the default
+// model's media type.
+const loadPersistedMediaType = (): AIModelMediaType | null => {
+  try {
+    const raw = localStorage.getItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_WORKBENCH_MEDIA_TYPE,
+    );
+
+    return isAIModelMediaType(raw) ? raw : null;
+  } catch {
+    return null;
+  }
+};
+
+const savePersistedMediaType = (mediaType: AIModelMediaType) => {
+  try {
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_WORKBENCH_MEDIA_TYPE,
+      mediaType,
+    );
+  } catch {
+    // Ignore storage failures (private mode / quota); the tab just won't persist.
+  }
+};
+
 const loadInitialWorkbenchState = () => {
   const config = loadAIImageConfig();
   const defaultModel = config.models.find(
@@ -207,7 +250,10 @@ const loadInitialWorkbenchState = () => {
 
   return {
     config,
-    mediaType: defaultModel?.mediaType || ("image" as AIModelMediaType),
+    mediaType:
+      loadPersistedMediaType() ||
+      defaultModel?.mediaType ||
+      ("image" as AIModelMediaType),
     selectedModelId: config.defaultModel,
   };
 };
@@ -220,11 +266,12 @@ const createDefaultParams = (): AIImageGenerationParams => ({
 
 const createGenerationDraftState = (
   selectedModelId: string,
+  params: AIImageGenerationParams = createDefaultParams(),
 ): AIWorkbenchGenerationDraftState => ({
   selectedModelId,
   prompt: "",
   negativePrompt: "",
-  params: createDefaultParams(),
+  params,
 });
 
 const createImageModeDraftState = (
@@ -260,6 +307,7 @@ export const createInitialAIImageWorkbenchDraftState =
       },
       video: createGenerationDraftState(
         getDefaultModelIdForMediaType(initialState.config, "video"),
+        { ...DEFAULT_VIDEO_PARAMS },
       ),
       audio: createGenerationDraftState(
         getDefaultModelIdForMediaType(initialState.config, "audio"),
@@ -343,6 +391,7 @@ export const AIImageWorkbench = ({
   );
   const setMediaType = useCallback(
     (nextMediaType: AIModelMediaType) => {
+      savePersistedMediaType(nextMediaType);
       setActiveDraftState((current) => ({
         ...current,
         mediaType: nextMediaType,
@@ -2083,6 +2132,22 @@ export const AIImageWorkbench = ({
     const { config } = generationStateRef.current;
     const videoDraft = activeDraftStateRef.current.video;
     const trimmedPrompt = videoDraft.prompt.trim();
+    // Normalize framing so the request reflects what the dropdowns display even
+    // when the stored value is still "auto" (untouched) or an inherited image
+    // pixel size. Video frames via aspect_ratio + resolution, never pixel size.
+    const videoParams: AIImageGenerationParams = {
+      ...videoDraft.params,
+      size: "",
+      aspectRatio:
+        videoDraft.params.aspectRatio &&
+        videoDraft.params.aspectRatio !== "auto"
+          ? videoDraft.params.aspectRatio
+          : "16:9",
+      resolution:
+        videoDraft.params.resolution && videoDraft.params.resolution !== "auto"
+          ? videoDraft.params.resolution
+          : "720P",
+    };
     const modelCard =
       config.models.find((model) => model.id === videoDraft.selectedModelId) ||
       config.models.find((model) => model.model === videoDraft.selectedModelId);
@@ -2139,7 +2204,7 @@ export const AIImageWorkbench = ({
         mode,
         model: modelCard.model,
         prompt: trimmedPrompt,
-        params: videoDraft.params,
+        params: videoParams,
         sources: mode === "image-to-video" ? videoSources : undefined,
       });
 
@@ -2151,7 +2216,7 @@ export const AIImageWorkbench = ({
         siteName: modelCard.siteName || modelCard.label || "Unknown site",
         mode,
         prompt: trimmedPrompt,
-        params: videoDraft.params,
+        params: videoParams,
         status: "queued",
         submittedAt,
       };
@@ -2180,7 +2245,7 @@ export const AIImageWorkbench = ({
             siteName: modelCard.siteName || modelCard.label || "Unknown site",
           },
           prompt: trimmedPrompt,
-          params: videoDraft.params,
+          params: videoParams,
           baseURL,
           endpoint: buildVideoSubmitEndpoint(baseURL),
           responseSummary:
@@ -3468,6 +3533,23 @@ export const AIImageWorkbench = ({
 
       {renderConfigurationNotice()}
 
+      {isGenerating && (
+        <div className="AIImageWorkbench__videoTasks">
+          <div className="AIImageWorkbench__videoTask">
+            <span className="AIImageWorkbench__videoTaskLabel">
+              {t("ai.workbench.generatingImage")}
+            </span>
+            <button
+              type="button"
+              className="AIImageWorkbench__textButton"
+              onClick={cancelGeneration}
+            >
+              {t("ai.common.cancel")}
+            </button>
+          </div>
+        </div>
+      )}
+
       <Button
         className="AIImageWorkbench__primaryButton"
         disabled={!canGenerate}
@@ -3538,17 +3620,16 @@ export const AIImageWorkbench = ({
           <span>{t("ai.workbench.resolution")}</span>
           <select
             value={
-              ["720p", "1080p", "4k"].includes(params.resolution || "")
+              params.resolution && params.resolution !== "auto"
                 ? params.resolution
-                : "1080p"
+                : "720P"
             }
             onChange={(event) =>
               updateParams({ resolution: event.target.value })
             }
           >
-            <option value="720p">720p</option>
-            <option value="1080p">1080p</option>
-            <option value="4k">4K</option>
+            <option value="720P">720P</option>
+            <option value="1080P">1080P</option>
           </select>
         </label>
       </div>

@@ -46,6 +46,7 @@ export const STORAGE_KEYS = {
   LOCAL_STORAGE_AI_AGENT: "excalidraw-ai-agent",
   LOCAL_STORAGE_AI_GENERATION_LOGS: "excalidraw-ai-generation-logs",
   LOCAL_STORAGE_AI_VIDEO_TASKS: "excalidraw-ai-video-tasks",
+  LOCAL_STORAGE_AI_WORKBENCH_MEDIA_TYPE: "excalidraw-ai-workbench-media-type",
   LOCAL_STORAGE_CUSTOM_AGENT_CHAT: "excalidraw-custom-agent-chat-history",
   LOCAL_STORAGE_CLOUD_SCENE: "excalidraw-cloud-scene",
   LOCAL_STORAGE_CLOUD_KEYRING: "excalidraw-cloud-keyring",
