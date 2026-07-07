@@ -318,8 +318,86 @@ export type AIImageGenerationMetadata = {
   createdAt: string;
 };
 
+export type AIVideoGenerationMode = "text-to-video" | "image-to-video";
+
+export type AIVideoGenerationRequest = {
+  config: AIImageProviderConfig;
+  mode: AIVideoGenerationMode;
+  model: string;
+  prompt: string;
+  params: AIImageGenerationParams;
+  // First-frame / reference images for image-to-video. Reuses the image source
+  // shape so the workbench can hand over selected canvas images unchanged.
+  sources?: AIImageSource[];
+  signal?: AbortSignal;
+};
+
+export type AIVideoTaskStatus =
+  | "queued"
+  | "processing"
+  | "completed"
+  | "failed";
+
+export type AIVideoGenerationOutput = {
+  videoURL: string;
+  thumbnailDataURL?: DataURL;
+  mimeType: string;
+  durationSeconds?: number;
+  revisedPrompt?: string;
+};
+
+// Result of a single poll. `videoURL`/`thumbnailURL`/`durationSeconds` are only
+// present once `status === "completed"`; `error` only when `status === "failed"`.
+export type AIVideoPollResult = {
+  status: AIVideoTaskStatus;
+  progress?: number;
+  videoURL?: string;
+  thumbnailURL?: string;
+  durationSeconds?: number;
+  revisedPrompt?: string;
+  error?: string;
+};
+
+// Stored on the cover image element's `customData.aiVideoGeneration`. The canvas
+// has no video element type, so the real video URL lives here alongside the
+// cover image that gets inserted.
+export type AIVideoGenerationMetadata = {
+  version: 1;
+  kind: "video";
+  mode: AIVideoGenerationMode;
+  model: string;
+  prompt: string;
+  params: AIImageGenerationParams;
+  videoURL: string;
+  mimeType: string;
+  durationSeconds?: number;
+  revisedPrompt?: string;
+  thumbnailStorageType: "data-url" | "placeholder";
+  createdAt: string;
+};
+
+// A submitted-but-not-yet-finished video task, persisted to localStorage so
+// polling can resume after a page refresh. `params`/`prompt`/`mode` are kept so
+// the resumed task can still build canvas metadata + a generation log on
+// completion without the original in-memory request.
+export type PendingVideoTask = {
+  taskId: string;
+  baseURL: string;
+  // Which model card the task was submitted with, so the resumed poll can look
+  // up its apiKey from the current config rather than persisting the secret.
+  modelId: string;
+  model: string;
+  siteName: string;
+  mode: AIVideoGenerationMode;
+  prompt: string;
+  params: AIImageGenerationParams;
+  status: AIVideoTaskStatus;
+  submittedAt: string;
+};
+
 export type AIImageCustomData = {
   aiGeneration?: AIImageGenerationMetadata;
+  aiVideoGeneration?: AIVideoGenerationMetadata;
 };
 
 export type AIMaskEditingState = {

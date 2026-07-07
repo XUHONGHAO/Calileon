@@ -668,9 +668,9 @@ const getAIImageProviderFlavor = (
   return "openai-compatible";
 };
 
-const getAuthorizationHeaderValue = (
+export const getAuthorizationHeaderValue = (
   apiKey: string,
-  providerFlavor: AIImageProviderFlavor,
+  providerFlavor: AIImageProviderFlavor = "openai-compatible",
 ) => {
   const trimmedApiKey = apiKey.trim();
 
@@ -838,9 +838,9 @@ const parseResponseJSON = async (response: Response) => {
   }
 };
 
-const normalizeProviderError = (
+export const normalizeProviderError = (
   status: number,
-  responseJSON: OpenAIImageResponse,
+  responseJSON: Pick<OpenAIImageResponse, "error">,
 ) => {
   const message =
     responseJSON.error?.message || `AI image provider returned HTTP ${status}.`;
@@ -869,7 +869,7 @@ const normalizeProviderError = (
   });
 };
 
-const fetchRemoteImageAsDataURL = async (
+export const fetchRemoteImageAsDataURL = async (
   url: string,
   signal: AbortSignal | undefined,
 ) => {
