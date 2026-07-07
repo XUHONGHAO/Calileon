@@ -3,6 +3,9 @@ import type {
   AIImageGenerationMode,
   AIImageGenerationOutput,
   AIImageGenerationParams,
+  AIVideoGenerationMetadata,
+  AIVideoGenerationMode,
+  AIVideoGenerationOutput,
 } from "./types";
 
 export const createAIImageGenerationMetadata = ({
@@ -52,4 +55,37 @@ export const createAIImageGenerationMetadata = ({
   }
 
   return metadata;
+};
+
+export const createAIVideoGenerationMetadata = ({
+  mode,
+  model,
+  prompt,
+  params,
+  output,
+  thumbnailStorageType,
+  createdAt = new Date().toISOString(),
+}: {
+  mode: AIVideoGenerationMode;
+  model: string;
+  prompt: string;
+  params: AIImageGenerationParams;
+  output: AIVideoGenerationOutput;
+  thumbnailStorageType: AIVideoGenerationMetadata["thumbnailStorageType"];
+  createdAt?: string;
+}): AIVideoGenerationMetadata => {
+  return {
+    version: 1,
+    kind: "video",
+    mode,
+    model,
+    prompt,
+    params,
+    videoURL: output.videoURL,
+    mimeType: output.mimeType,
+    durationSeconds: output.durationSeconds,
+    revisedPrompt: output.revisedPrompt,
+    thumbnailStorageType,
+    createdAt,
+  };
 };

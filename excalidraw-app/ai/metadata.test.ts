@@ -1,6 +1,9 @@
 import type { DataURL } from "@excalidraw/excalidraw/types";
 
-import { createAIImageGenerationMetadata } from "./metadata";
+import {
+  createAIImageGenerationMetadata,
+  createAIVideoGenerationMetadata,
+} from "./metadata";
 
 describe("AI image metadata", () => {
   it("stores generation parameters without provider secrets", () => {
@@ -41,5 +44,38 @@ describe("AI image metadata", () => {
     expect(JSON.stringify(metadata)).not.toContain("sk-");
     expect(JSON.stringify(metadata)).not.toContain("apiKey");
     expect(JSON.stringify(metadata)).not.toContain("Authorization");
+  });
+
+  it("stores video generation metadata with the real video URL", () => {
+    const metadata = createAIVideoGenerationMetadata({
+      mode: "text-to-video",
+      model: "grok-video-3",
+      prompt: "a cat listening to music",
+      params: {
+        size: "720P",
+        n: 1,
+        duration: 6,
+        aspectRatio: "9:16",
+      },
+      output: {
+        videoURL: "https://cdn.example.com/out.mp4",
+        mimeType: "video/mp4",
+        durationSeconds: 6,
+        revisedPrompt: "a fluffy cat listening to music",
+      },
+      thumbnailStorageType: "placeholder",
+      createdAt: "2026-07-07T00:00:00.000Z",
+    });
+
+    expect(metadata).toMatchObject({
+      version: 1,
+      kind: "video",
+      mode: "text-to-video",
+      model: "grok-video-3",
+      videoURL: "https://cdn.example.com/out.mp4",
+      mimeType: "video/mp4",
+      durationSeconds: 6,
+      thumbnailStorageType: "placeholder",
+    });
   });
 });

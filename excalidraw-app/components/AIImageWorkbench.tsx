@@ -42,7 +42,27 @@ import {
   buildOpenAIImageEndpoint,
   generateImagesWithOpenAIAdapter,
 } from "../ai/openAIImageAdapter";
-import { createAIImageGenerationMetadata } from "../ai/metadata";
+import {
+  buildVideoOutput,
+  buildVideoSubmitEndpoint,
+  fetchVideoThumbnailAsDataURL,
+  pollVideoTask,
+  submitVideoTask,
+} from "../ai/openAIVideoAdapter";
+import {
+  insertVideoCoverIntoCanvas,
+  resolveVideoCover,
+} from "../ai/videoCanvas";
+import {
+  loadPendingVideoTasks,
+  removeVideoTask,
+  updateVideoTaskStatus,
+  upsertVideoTask,
+} from "../ai/videoTaskStore";
+import {
+  createAIImageGenerationMetadata,
+  createAIVideoGenerationMetadata,
+} from "../ai/metadata";
 import {
   appendAIGenerationLog,
   createAIGenerationLogEntry,
@@ -97,6 +117,8 @@ import type {
   AIModelMediaType,
   AIMaskReadyPayload,
   AIReferenceExportOptions,
+  AIVideoGenerationMode,
+  PendingVideoTask,
   PromptTemplate,
   PromptTemplateCategory,
 } from "../ai/types";
@@ -533,7 +555,18 @@ export const AIImageWorkbench = ({
   const [errorMessage, setErrorMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
   const [runStatus, setRunStatus] = useState<AIImageWorkbenchRunStatus>("idle");
+  // In-flight async video tasks (submit -> poll). Persisted to localStorage so
+  // polling resumes after a page refresh; see decision 0015.
+  const [pendingVideoTasks, setPendingVideoTasks] = useState<
+    PendingVideoTask[]
+  >([]);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Per-task abort controllers keyed by taskId, so each poll loop can be
+  // cancelled independently of the synchronous image generation.
+  const videoPollControllersRef = useRef<Map<string, AbortController>>(
+    new Map(),
+  );
+  const didResumeVideoTasksRef = useRef(false);
   const activeRunIdRef = useRef(0);
   const generationTimeoutRef = useRef<number | null>(null);
   const mountedRef = useRef(true);
@@ -570,6 +603,11 @@ export const AIImageWorkbench = ({
     selectedModelId,
     selectedSources,
   };
+
+  // Latest full draft state, read by the video path (which runs its own draft
+  // regardless of the active media type / mode) without adding it to deps.
+  const activeDraftStateRef = useRef(activeDraftState);
+  activeDraftStateRef.current = activeDraftState;
 
   useEffect(() => {
     isReferenceLockedRef.current = isReferenceLocked;
@@ -658,6 +696,10 @@ export const AIImageWorkbench = ({
 
   useEffect(() => {
     mountedRef.current = true;
+    // Capture the Map instance so the cleanup uses the same reference that was
+    // live during this effect, per react-hooks/exhaustive-deps. The Map persists
+    // for the component's lifetime, so this reference stays valid.
+    const videoPollControllers = videoPollControllersRef.current;
 
     return () => {
       mountedRef.current = false;
@@ -674,6 +716,13 @@ export const AIImageWorkbench = ({
         window.clearTimeout(persistReferenceTimeoutRef.current);
         persistReferenceTimeoutRef.current = null;
       }
+
+      // Abort in-flight video poll loops; the tasks stay in localStorage so a
+      // remount (e.g. after a refresh) resumes them.
+      for (const controller of videoPollControllers.values()) {
+        controller.abort();
+      }
+      videoPollControllers.clear();
     };
   }, []);
 
@@ -962,6 +1011,14 @@ export const AIImageWorkbench = ({
     hasSelectedModelBaseURL: hasSelectedModelEndpoint,
     modelSupportsMode,
   });
+
+  const hasActiveVideoTasks = pendingVideoTasks.length > 0;
+  const canGenerateVideo =
+    mediaType === "video" &&
+    !hasActiveVideoTasks &&
+    !!prompt.trim() &&
+    !!selectedModelId &&
+    hasSelectedModelEndpoint;
 
   const updateParams = useCallback(
     (patch: Partial<AIImageGenerationParams>) => {
@@ -1779,6 +1836,395 @@ export const AIImageWorkbench = ({
   const cancelGeneration = useCallback(() => {
     abortControllerRef.current?.abort();
   }, []);
+
+  const syncPendingVideoTasks = useCallback(() => {
+    setPendingVideoTasks(loadPendingVideoTasks());
+  }, []);
+
+  // Poll a single submitted task until it completes or fails. On completion it
+  // resolves a cover image (thumbnail -> first frame -> placeholder) and inserts
+  // it into the canvas with the real video URL on customData.aiVideoGeneration.
+  // Runs against a per-task AbortController so it can be cancelled independently
+  // of image generation and survives across a resume-on-mount.
+  const runVideoPollLoop = useCallback(
+    async (task: PendingVideoTask, controller: AbortController) => {
+      const POLL_INTERVAL_MS = 4000;
+      const delay = (ms: number) =>
+        new Promise<void>((resolve) => {
+          const timeoutId = window.setTimeout(resolve, ms);
+
+          controller.signal.addEventListener(
+            "abort",
+            () => {
+              window.clearTimeout(timeoutId);
+              resolve();
+            },
+            { once: true },
+          );
+        });
+
+      const currentConfig = generationStateRef.current.config;
+      const modelCard =
+        currentConfig.models.find((model) => model.id === task.modelId) ||
+        currentConfig.models.find((model) => model.model === task.model);
+      const baseURL =
+        modelCard?.baseURL || task.baseURL || currentConfig.baseURL;
+      const apiKey = modelCard?.apiKey || currentConfig.apiKey;
+      const siteName = task.siteName;
+      const endpoint = baseURL ? buildVideoSubmitEndpoint(baseURL) : undefined;
+
+      try {
+        while (!controller.signal.aborted) {
+          const result = await pollVideoTask({
+            baseURL,
+            apiKey,
+            taskId: task.taskId,
+            signal: controller.signal,
+          });
+
+          if (controller.signal.aborted || !mountedRef.current) {
+            return;
+          }
+
+          if (result.status === "failed") {
+            appendGenerationLogEntry(
+              createAIGenerationLogEntry({
+                submittedAt: task.submittedAt,
+                mediaType: "video",
+                mode: "text-to-video",
+                status: "failed",
+                model: {
+                  id: task.modelId,
+                  name: task.model,
+                  siteName,
+                },
+                prompt: task.prompt,
+                params: task.params,
+                baseURL,
+                endpoint,
+                responseSummary:
+                  result.error || t("ai.workbench.videoTaskFailed"),
+                responseDetails: { error: result.error },
+              }),
+            );
+            removeVideoTask(task.taskId);
+            syncPendingVideoTasks();
+            setErrorMessage(result.error || t("ai.workbench.videoTaskFailed"));
+            setStatusMessage("");
+            setRunStatus("failed");
+            return;
+          }
+
+          if (result.status !== "completed") {
+            updateVideoTaskStatus(task.taskId, result.status);
+            syncPendingVideoTasks();
+            setStatusMessage(
+              result.progress != null
+                ? t("ai.workbench.videoTaskPollingProgress", {
+                    progress: Math.round(result.progress),
+                  })
+                : t("ai.workbench.videoTaskPolling"),
+            );
+            await delay(POLL_INTERVAL_MS);
+            continue;
+          }
+
+          // Completed: build output + resolve a cover, then insert.
+          const output = buildVideoOutput(result);
+          let thumbnailDataURL;
+
+          if (result.thumbnailURL) {
+            const fetched = await fetchVideoThumbnailAsDataURL(
+              result.thumbnailURL,
+              controller.signal,
+            ).catch(() => null);
+
+            thumbnailDataURL = fetched?.dataURL;
+          }
+
+          if (controller.signal.aborted || !mountedRef.current) {
+            return;
+          }
+
+          const cover = await resolveVideoCover({
+            thumbnailDataURL,
+            videoURL: output.videoURL,
+            signal: controller.signal,
+          });
+
+          if (controller.signal.aborted || !mountedRef.current) {
+            return;
+          }
+
+          const metadata = createAIVideoGenerationMetadata({
+            mode: task.mode,
+            model: task.model,
+            prompt: task.prompt,
+            params: task.params,
+            output,
+            thumbnailStorageType:
+              cover.storageType === "placeholder" ? "placeholder" : "data-url",
+          });
+
+          if (excalidrawAPI) {
+            await insertVideoCoverIntoCanvas({
+              excalidrawAPI,
+              cover,
+              metadata,
+            });
+          }
+
+          appendGenerationLogEntry(
+            createAIGenerationLogEntry({
+              submittedAt: task.submittedAt,
+              mediaType: "video",
+              mode: "text-to-video",
+              status: "success",
+              model: {
+                id: task.modelId,
+                name: task.model,
+                siteName,
+              },
+              prompt: task.prompt,
+              params: task.params,
+              baseURL,
+              endpoint,
+              responseSummary: t("ai.workbench.videoReady"),
+              responseDetails: {
+                videoURL: output.videoURL,
+                thumbnailStorageType: metadata.thumbnailStorageType,
+                durationSeconds: output.durationSeconds,
+              },
+            }),
+          );
+
+          removeVideoTask(task.taskId);
+          syncPendingVideoTasks();
+          setStatusMessage(t("ai.workbench.videoReady"));
+          setErrorMessage("");
+          setRunStatus("inserted");
+          excalidrawAPI?.setToast({ message: t("ai.workbench.videoReady") });
+          return;
+        }
+      } catch (error: any) {
+        if (error?.name === "AbortError" || controller.signal.aborted) {
+          return;
+        }
+
+        console.error("AI video task polling failed", error);
+        appendGenerationLogEntry(
+          createAIGenerationLogEntry({
+            submittedAt: task.submittedAt,
+            mediaType: "video",
+            mode: "text-to-video",
+            status: "failed",
+            model: {
+              id: task.modelId,
+              name: task.model,
+              siteName,
+            },
+            prompt: task.prompt,
+            params: task.params,
+            baseURL,
+            endpoint,
+            responseSummary:
+              error instanceof AIImageGenerationError
+                ? error.message
+                : t("ai.workbench.videoTaskFailed"),
+            responseDetails: createErrorResponseDetails(error),
+          }),
+        );
+        removeVideoTask(task.taskId);
+        syncPendingVideoTasks();
+        setErrorMessage(
+          error instanceof AIImageGenerationError
+            ? error.message
+            : t("ai.workbench.videoTaskFailed"),
+        );
+        setStatusMessage("");
+        setRunStatus("failed");
+      } finally {
+        videoPollControllersRef.current.delete(task.taskId);
+      }
+    },
+    [excalidrawAPI, syncPendingVideoTasks],
+  );
+
+  const startVideoPolling = useCallback(
+    (task: PendingVideoTask) => {
+      if (videoPollControllersRef.current.has(task.taskId)) {
+        return;
+      }
+
+      const controller = new AbortController();
+      videoPollControllersRef.current.set(task.taskId, controller);
+      void runVideoPollLoop(task, controller);
+    },
+    [runVideoPollLoop],
+  );
+
+  const cancelVideoTask = useCallback(
+    (taskId: string) => {
+      videoPollControllersRef.current.get(taskId)?.abort();
+      videoPollControllersRef.current.delete(taskId);
+      removeVideoTask(taskId);
+      syncPendingVideoTasks();
+      setStatusMessage("");
+      setRunStatus("idle");
+    },
+    [syncPendingVideoTasks],
+  );
+
+  const generateVideo = useCallback(async () => {
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const { config } = generationStateRef.current;
+    const videoDraft = activeDraftStateRef.current.video;
+    const trimmedPrompt = videoDraft.prompt.trim();
+    const modelCard =
+      config.models.find((model) => model.id === videoDraft.selectedModelId) ||
+      config.models.find((model) => model.model === videoDraft.selectedModelId);
+
+    if (!trimmedPrompt) {
+      setErrorMessage(t("ai.workbench.promptRequired"));
+      setStatusMessage("");
+      setRunStatus("failed");
+      return;
+    }
+
+    if (!modelCard) {
+      setErrorMessage(t("ai.workbench.noMediaModels", { mediaType: "video" }));
+      setStatusMessage("");
+      setRunStatus("failed");
+      return;
+    }
+
+    const baseURL = modelCard.baseURL || config.baseURL;
+
+    if (!baseURL) {
+      setErrorMessage(t("ai.workbench.videoTaskFailed"));
+      setStatusMessage("");
+      setRunStatus("failed");
+      return;
+    }
+
+    // Reference sources drive image-to-video when the model supports it.
+    const videoSources = selectedSources.filter(
+      (source) => !source.missingElement,
+    );
+    const mode: AIVideoGenerationMode =
+      videoSources.length > 0 &&
+      supportsAIImageMode(modelCard, "image-to-video")
+        ? "image-to-video"
+        : "text-to-video";
+    const submittedAt = new Date().toISOString();
+
+    setRunStatus("generating");
+    setStatusMessage(t("ai.workbench.generatingVideo"));
+    setErrorMessage("");
+
+    try {
+      const { taskId, model } = await submitVideoTask({
+        config: {
+          ...config,
+          baseURL: modelCard.baseURL,
+          apiKey: modelCard.apiKey,
+          models: [
+            modelCard,
+            ...config.models.filter((model) => model.id !== modelCard.id),
+          ],
+        },
+        mode,
+        model: modelCard.model,
+        prompt: trimmedPrompt,
+        params: videoDraft.params,
+        sources: mode === "image-to-video" ? videoSources : undefined,
+      });
+
+      const task: PendingVideoTask = {
+        taskId,
+        baseURL,
+        modelId: modelCard.id,
+        model,
+        siteName: modelCard.siteName || modelCard.label || "Unknown site",
+        mode,
+        prompt: trimmedPrompt,
+        params: videoDraft.params,
+        status: "queued",
+        submittedAt,
+      };
+
+      upsertVideoTask(task);
+      syncPendingVideoTasks();
+      setStatusMessage(t("ai.workbench.videoTaskQueued"));
+      startVideoPolling(task);
+    } catch (error: any) {
+      if (error?.name === "AbortError") {
+        setStatusMessage(t("ai.workbench.generationCanceled"));
+        setRunStatus("idle");
+        return;
+      }
+
+      console.error("AI video submission failed", error);
+      appendGenerationLogEntry(
+        createAIGenerationLogEntry({
+          submittedAt,
+          mediaType: "video",
+          mode: "text-to-video",
+          status: "failed",
+          model: {
+            id: modelCard.id,
+            name: modelCard.model,
+            siteName: modelCard.siteName || modelCard.label || "Unknown site",
+          },
+          prompt: trimmedPrompt,
+          params: videoDraft.params,
+          baseURL,
+          endpoint: buildVideoSubmitEndpoint(baseURL),
+          responseSummary:
+            error instanceof AIImageGenerationError
+              ? error.message
+              : getUnknownErrorMessage(error, t),
+          responseDetails: createErrorResponseDetails(error),
+        }),
+      );
+      setErrorMessage(
+        error instanceof AIImageGenerationError
+          ? error.message
+          : getUnknownErrorMessage(error, t),
+      );
+      setStatusMessage("");
+      setRunStatus("failed");
+    }
+  }, [
+    excalidrawAPI,
+    selectedSources,
+    startVideoPolling,
+    syncPendingVideoTasks,
+  ]);
+
+  // Resume-on-mount: pick up any unfinished video tasks persisted in a previous
+  // session (e.g. before a page refresh) and continue polling them. Runs once.
+  useEffect(() => {
+    if (didResumeVideoTasksRef.current) {
+      return;
+    }
+    didResumeVideoTasksRef.current = true;
+
+    const persisted = loadPendingVideoTasks();
+
+    if (!persisted.length) {
+      return;
+    }
+
+    setPendingVideoTasks(persisted);
+    setStatusMessage(t("ai.workbench.videoTaskResumed"));
+    for (const task of persisted) {
+      startVideoPolling(task);
+    }
+  }, [startVideoPolling]);
 
   const loadMetadataIntoWorkbench = useCallback(
     (metadata: AIImageGenerationMetadata, message: string) => {
@@ -3041,9 +3487,8 @@ export const AIImageWorkbench = ({
         <textarea
           value={prompt}
           rows={4}
-          disabled
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder={t("ai.workbench.videoPreviewOnly")}
+          placeholder={t("ai.workbench.videoPromptPlaceholder")}
         />
       </label>
 
@@ -3053,13 +3498,16 @@ export const AIImageWorkbench = ({
       </div>
 
       <div className="AIImageWorkbench__grid">
-        {renderModelSelect(true)}
+        {renderModelSelect()}
 
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.aspectRatio")}</span>
           <select
-            value={params.aspectRatio || "16:9"}
-            disabled
+            value={
+              params.aspectRatio && params.aspectRatio !== "auto"
+                ? params.aspectRatio
+                : "16:9"
+            }
             onChange={(event) =>
               updateParams({ aspectRatio: event.target.value })
             }
@@ -3077,7 +3525,6 @@ export const AIImageWorkbench = ({
             min={1}
             max={30}
             type="number"
-            disabled
             value={params.duration ?? 5}
             onChange={(event) =>
               updateParams({
@@ -3095,7 +3542,6 @@ export const AIImageWorkbench = ({
                 ? params.resolution
                 : "1080p"
             }
-            disabled
             onChange={(event) =>
               updateParams({ resolution: event.target.value })
             }
@@ -3105,33 +3551,46 @@ export const AIImageWorkbench = ({
             <option value="4k">4K</option>
           </select>
         </label>
-
-        <label className="AIImageWorkbench__field">
-          <span>FPS</span>
-          <input
-            min={12}
-            max={60}
-            type="number"
-            disabled
-            value={params.fps ?? 24}
-            onChange={(event) =>
-              updateParams({
-                fps: clampNumber(Number(event.target.value), 12, 60),
-              })
-            }
-          />
-        </label>
       </div>
 
+      {selectedSources.length > 0 &&
+        selectedModel &&
+        supportsAIImageMode(selectedModel, "image-to-video") &&
+        renderNotice(
+          t("ai.workbench.videoImageToVideoNotice", {
+            count: selectedSources.length,
+          }),
+        )}
+
       {renderConfigurationNotice()}
-      {renderNotice(t("ai.workbench.videoControlsPreviewOnly"))}
+
+      {pendingVideoTasks.length > 0 && (
+        <div className="AIImageWorkbench__videoTasks">
+          {pendingVideoTasks.map((task) => (
+            <div key={task.taskId} className="AIImageWorkbench__videoTask">
+              <span className="AIImageWorkbench__videoTaskLabel">
+                {task.status === "queued"
+                  ? t("ai.workbench.videoTaskQueued")
+                  : t("ai.workbench.videoTaskPolling")}
+              </span>
+              <button
+                type="button"
+                className="AIImageWorkbench__textButton"
+                onClick={() => cancelVideoTask(task.taskId)}
+              >
+                {t("ai.common.cancel")}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <Button
         className="AIImageWorkbench__primaryButton"
-        disabled
-        onSelect={() => null}
+        disabled={!canGenerateVideo}
+        onSelect={() => generateVideo()}
       >
-        {t("ai.workbench.videoPreviewOnly")}
+        {t("ai.workbench.generateVideo")}
       </Button>
     </>
   );
