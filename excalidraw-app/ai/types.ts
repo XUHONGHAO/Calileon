@@ -15,6 +15,7 @@ export type AIImageNativeModel =
   | "nano-banana"
   | "nano-banana-pro"
   | "nano-banana-2"
+  | "gpt-image-2"
   | "other";
 
 export type AIImageModelCapability =

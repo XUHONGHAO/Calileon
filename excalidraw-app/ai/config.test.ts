@@ -203,6 +203,13 @@ describe("AI image config", () => {
           model: "gemini-3.0-pro-image",
           endpointPresetId: "openai-standard",
         }),
+        expect.objectContaining({
+          id: "duoyuanx",
+          siteName: "多元探索",
+          baseURL: "https://duoyuanx.com/v1",
+          model: "gpt-image-2",
+          endpointPresetId: "openai-standard",
+        }),
       ]),
     );
     expect(

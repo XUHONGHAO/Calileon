@@ -31,6 +31,7 @@ export const AI_IMAGE_NATIVE_MODEL_OPTIONS: Array<{
   { value: "nano-banana", label: "Nano Banana" },
   { value: "nano-banana-pro", label: "Nano Banana Pro" },
   { value: "nano-banana-2", label: "Nano Banana 2" },
+  { value: "gpt-image-2", label: "gpt-image-2" },
   { value: "other", label: "Other" },
 ];
 
@@ -153,10 +154,21 @@ const OTHER_MODEL_SIZES: NativeModelSizeMap = {
   "3:2": { "1k": "1536x1024", "2k": "3072x2048", "4k": "3840x2560" },
 };
 
+// duoyuanx.com gpt-image-2 基础比例与尺寸档位（单档，网关按比例意图回退到最接近的官方尺寸）
+const GPT_IMAGE_2_SIZES: NativeModelSizeMap = {
+  "1:1": { "1k": "1024x1024" },
+  "4:3": { "1k": "1536x1152" },
+  "3:2": { "1k": "1536x1024" },
+  "2:3": { "1k": "1024x1536" },
+  "16:9": { "1k": "1920x1080" },
+  "9:16": { "1k": "1080x1920" },
+};
+
 const NATIVE_MODEL_SIZE_MAPS: Record<AIImageNativeModel, NativeModelSizeMap> = {
   "nano-banana": NANO_BANANA_SIZES,
   "nano-banana-pro": NANO_BANANA_PRO_SIZES,
   "nano-banana-2": NANO_BANANA_2_SIZES,
+  "gpt-image-2": GPT_IMAGE_2_SIZES,
   other: OTHER_MODEL_SIZES,
 };
 

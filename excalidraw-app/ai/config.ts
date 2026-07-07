@@ -147,6 +147,21 @@ export const DEFAULT_AI_MODEL_PROVIDER_PRESETS: AIModelProviderPreset[] = [
     endpoints: OPENAI_STANDARD_ENDPOINTS,
     endpointPresetId: "openai-standard",
   },
+  {
+    id: "duoyuanx",
+    name: "多元探索",
+    description:
+      "OpenAI-compatible image API via duoyuanx.com. Add your API key to use gpt-image-2.",
+    siteName: "多元探索",
+    baseURL: "https://duoyuanx.com/v1",
+    model: "gpt-image-2",
+    label: "gpt-image-2",
+    mediaType: "image",
+    nativeModel: "gpt-image-2",
+    capabilities: ["text-to-image", "image-to-image", "inpaint"],
+    endpoints: OPENAI_STANDARD_ENDPOINTS,
+    endpointPresetId: "openai-standard",
+  },
 ];
 
 export const createAIModelConfigId = () => {
