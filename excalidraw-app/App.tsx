@@ -64,7 +64,9 @@ import {
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type {
   FileId,
+  ExcalidrawEmbeddableElement,
   ExcalidrawFreeDrawElement,
+  NonDeleted,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
@@ -190,9 +192,12 @@ import "./index.scss";
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
 
+import { isLikelyVideoURL } from "./ai/videoCanvas";
+
 import type { CollabAPI } from "./collab/Collab";
 import type {
   AIGenerationLogEntry,
+  AIImageCustomData,
   AIMaskReadyPayload,
   AISkill,
   PromptTemplate,
@@ -3029,6 +3034,55 @@ const ExcalidrawWrapper = () => {
     [aiPromptTemplates, excalidrawAPI, requestPromptTemplateApply],
   );
 
+  // DEMO (approach B): let AI-generated video URLs pass the embeddable gate so
+  // they can be rendered as an inline player. Excalidraw's default whitelist only
+  // allows known platforms (YouTube/Vimeo/…), so without this a raw CDN video URL
+  // would render as an empty label. Returning `undefined` for everything else
+  // falls back to the default validation.
+  const validateEmbeddable = useCallback(
+    (link: string): boolean | undefined => {
+      return isLikelyVideoURL(link) ? true : undefined;
+    },
+    [],
+  );
+
+  // DEMO (approach B): render AI-generated video embeddables as a native
+  // `<video controls>`. This renders directly in Excalidraw's DOM (not inside an
+  // iframe), so playback works for cross-origin CDN URLs without CORS headers —
+  // unlike first-frame capture, plain playback never taints a canvas. Returning
+  // `null` for non-video embeddables leaves them on the default iframe path.
+  const renderEmbeddable = useCallback(
+    (element: NonDeleted<ExcalidrawEmbeddableElement>, _appState: AppState) => {
+      const metadata = (element.customData as AIImageCustomData | undefined)
+        ?.aiVideoGeneration;
+      const videoURL = metadata?.videoURL || element.link;
+
+      if (!metadata || !videoURL || !isLikelyVideoURL(videoURL)) {
+        return null;
+      }
+
+      return (
+        <video
+          src={videoURL}
+          controls
+          playsInline
+          preload="metadata"
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "contain",
+            background: "#000",
+            borderRadius: "inherit",
+          }}
+          // Stop pointer events from bubbling to the canvas so the player's
+          // controls (scrub/volume) work without moving the element.
+          onPointerDown={(event) => event.stopPropagation()}
+        />
+      );
+    },
+    [],
+  );
+
   const aiGenerationLogCommands = useMemo(
     () =>
       createAIGenerationLogCommands({
@@ -3142,6 +3196,8 @@ const ExcalidrawWrapper = () => {
         initialData={initialStatePromiseRef.current.promise}
         isCollaborating={isCollaborating}
         onPointerUpdate={collabAPI?.onPointerUpdate}
+        validateEmbeddable={validateEmbeddable}
+        renderEmbeddable={renderEmbeddable}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,

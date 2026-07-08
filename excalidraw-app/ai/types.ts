@@ -359,9 +359,9 @@ export type AIVideoPollResult = {
   error?: string;
 };
 
-// Stored on the cover image element's `customData.aiVideoGeneration`. The canvas
-// has no video element type, so the real video URL lives here alongside the
-// cover image that gets inserted.
+// Stored on the inserted embeddable element's `customData.aiVideoGeneration`.
+// The canvas has no native video element type, so the real video URL lives here
+// (and on the element's `link`); the app renders it as an inline <video> player.
 export type AIVideoGenerationMetadata = {
   version: 1;
   kind: "video";
@@ -373,7 +373,6 @@ export type AIVideoGenerationMetadata = {
   mimeType: string;
   durationSeconds?: number;
   revisedPrompt?: string;
-  thumbnailStorageType: "data-url" | "placeholder";
   createdAt: string;
 };
 

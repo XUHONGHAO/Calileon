@@ -46,13 +46,12 @@ import {
 import {
   buildVideoOutput,
   buildVideoSubmitEndpoint,
-  fetchVideoThumbnailAsDataURL,
   pollVideoTask,
   submitVideoTask,
 } from "../ai/openAIVideoAdapter";
 import {
-  insertVideoCoverIntoCanvas,
-  resolveVideoCover,
+  getVideoDimensions,
+  insertVideoEmbedIntoCanvas,
 } from "../ai/videoCanvas";
 import {
   loadPendingVideoTasks,
@@ -1978,28 +1977,17 @@ export const AIImageWorkbench = ({
             continue;
           }
 
-          // Completed: build output + resolve a cover, then insert.
+          // Completed: build output + read the video's intrinsic size, then
+          // insert it as an inline-playing embeddable card.
           const output = buildVideoOutput(result);
-          let thumbnailDataURL;
 
-          if (result.thumbnailURL) {
-            const fetched = await fetchVideoThumbnailAsDataURL(
-              result.thumbnailURL,
-              controller.signal,
-            ).catch(() => null);
-
-            thumbnailDataURL = fetched?.dataURL;
-          }
-
-          if (controller.signal.aborted || !mountedRef.current) {
-            return;
-          }
-
-          const cover = await resolveVideoCover({
-            thumbnailDataURL,
-            videoURL: output.videoURL,
-            signal: controller.signal,
-          });
+          // Metadata-only probe for the real aspect ratio. Cross-origin safe
+          // (reading videoWidth/Height never taints a canvas) and falls back to
+          // a 16:9 default on failure/timeout, so it never blocks insertion.
+          const dimensions = await getVideoDimensions(
+            output.videoURL,
+            controller.signal,
+          );
 
           if (controller.signal.aborted || !mountedRef.current) {
             return;
@@ -2011,15 +1999,13 @@ export const AIImageWorkbench = ({
             prompt: task.prompt,
             params: task.params,
             output,
-            thumbnailStorageType:
-              cover.storageType === "placeholder" ? "placeholder" : "data-url",
           });
 
           if (excalidrawAPI) {
-            await insertVideoCoverIntoCanvas({
+            insertVideoEmbedIntoCanvas({
               excalidrawAPI,
-              cover,
               metadata,
+              dimensions,
             });
           }
 
@@ -2041,7 +2027,6 @@ export const AIImageWorkbench = ({
               responseSummary: t("ai.workbench.videoReady"),
               responseDetails: {
                 videoURL: output.videoURL,
-                thumbnailStorageType: metadata.thumbnailStorageType,
                 durationSeconds: output.durationSeconds,
               },
             }),

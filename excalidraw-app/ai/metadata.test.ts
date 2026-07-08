@@ -63,7 +63,6 @@ describe("AI image metadata", () => {
         durationSeconds: 6,
         revisedPrompt: "a fluffy cat listening to music",
       },
-      thumbnailStorageType: "placeholder",
       createdAt: "2026-07-07T00:00:00.000Z",
     });
 
@@ -75,7 +74,6 @@ describe("AI image metadata", () => {
       videoURL: "https://cdn.example.com/out.mp4",
       mimeType: "video/mp4",
       durationSeconds: 6,
-      thumbnailStorageType: "placeholder",
     });
   });
 });

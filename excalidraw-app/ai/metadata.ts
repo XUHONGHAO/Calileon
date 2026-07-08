@@ -63,7 +63,6 @@ export const createAIVideoGenerationMetadata = ({
   prompt,
   params,
   output,
-  thumbnailStorageType,
   createdAt = new Date().toISOString(),
 }: {
   mode: AIVideoGenerationMode;
@@ -71,7 +70,6 @@ export const createAIVideoGenerationMetadata = ({
   prompt: string;
   params: AIImageGenerationParams;
   output: AIVideoGenerationOutput;
-  thumbnailStorageType: AIVideoGenerationMetadata["thumbnailStorageType"];
   createdAt?: string;
 }): AIVideoGenerationMetadata => {
   return {
@@ -85,7 +83,6 @@ export const createAIVideoGenerationMetadata = ({
     mimeType: output.mimeType,
     durationSeconds: output.durationSeconds,
     revisedPrompt: output.revisedPrompt,
-    thumbnailStorageType,
     createdAt,
   };
 };
