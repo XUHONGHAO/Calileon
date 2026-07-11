@@ -3,6 +3,7 @@ import {
   ExcalLogo,
   eyeIcon,
   MagicIcon,
+  SingleFileBoardIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
@@ -28,6 +29,7 @@ export const AppMainMenu: React.FC<{
   theme: Theme | "system";
   refresh: () => void;
   onCloudAccountOpen?: () => void;
+  onSingleFileDialogOpen: () => void;
 }> = React.memo((props) => {
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
@@ -128,7 +130,15 @@ export const AppMainMenu: React.FC<{
           </MainMenu.Item>
         )}
         <MainMenu.Separator />
-        <MainMenu.DefaultItems.ExperimentalFeatures />
+        <MainMenu.DefaultItems.ExperimentalFeatures>
+          <MainMenu.DefaultItems.ExperimentalFeatures.Lumina />
+          <MainMenu.Item
+            icon={SingleFileBoardIcon}
+            onSelect={props.onSingleFileDialogOpen}
+          >
+            {t("labels.experimental.singleFileBoard")}
+          </MainMenu.Item>
+        </MainMenu.DefaultItems.ExperimentalFeatures>
         <MainMenu.DefaultItems.Preferences
           additionalItems={
             <MainMenu.Item

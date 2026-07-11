@@ -103,6 +103,7 @@ import Collab, {
 } from "./collab/Collab";
 import { AppFooter } from "./components/AppFooter";
 import { AppMainMenu } from "./components/AppMainMenu";
+import { SingleFileDialog } from "./components/SingleFileDialog";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import { AITaskListDialog } from "./components/AITaskListDialog";
 import { AuthDialog } from "./components/AuthDialog";
@@ -777,6 +778,7 @@ const ExcalidrawWrapper = () => {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isCloudAccountOpen, setIsCloudAccountOpen] = useState(false);
+  const [isSingleFileDialogOpen, setIsSingleFileDialogOpen] = useState(false);
   const [isCloudSceneListOpen, setIsCloudSceneListOpen] = useState(false);
   const [isCloudAITaskListOpen, setIsCloudAITaskListOpen] = useState(false);
   const [isCloudEmbedListOpen, setIsCloudEmbedListOpen] = useState(false);
@@ -3276,6 +3278,12 @@ const ExcalidrawWrapper = () => {
           theme={appTheme}
           refresh={refreshApp}
           onCloudAccountOpen={() => setIsCloudAccountOpen(true)}
+          onSingleFileDialogOpen={() => setIsSingleFileDialogOpen(true)}
+        />
+        <SingleFileDialog
+          open={isSingleFileDialogOpen}
+          onClose={() => setIsSingleFileDialogOpen(false)}
+          excalidrawAPI={excalidrawAPI}
         />
         <AuthDialog
           open={isCloudAccountOpen}

@@ -106,7 +106,8 @@
     },
     "experimental": {
       "label": "實驗性",
-      "lumina": "光照 Lumina"
+      "lumina": "光照 Lumina",
+      "singleFileBoard": "單檔案白板"
     },
     "textAlign": "文字對齊",
     "edges": "邊緣",
@@ -248,6 +249,40 @@
     "wrapSelectionInFrame": "將選取內容放入框架",
     "tab": "",
     "shapeSwitch": ""
+  },
+  "singleFile": {
+    "title": "單檔案白板",
+    "description": "將目前白板匯出為一個可離線執行、可繼續編輯的自包含 HTML 檔案。",
+    "export": "匯出單一檔案",
+    "exporting": "正在匯出...",
+    "save": "儲存",
+    "saveAs": "另存新檔",
+    "saving": "正在儲存...",
+    "support": "檔案包含離線編輯、本機圖片與目前 Lumina 資料。單檔案執行環境不提供 AI、雲端、登入與即時協作。",
+    "overwriteSupported": "此瀏覽器可透過 File System Access API 覆寫已授權的 HTML 檔案。",
+    "overwriteUnsupported": "此瀏覽器不支援直接覆寫本機檔案。「儲存」會自動改為下載新的副本。",
+    "saveFallback": "無法覆寫目前檔案，已自動轉為「另存新檔」，你的編輯內容不會遺失。",
+    "firstSaveTitle": "授權覆寫儲存",
+    "firstSaveDescription": "首次覆寫需要你明確選擇並授權一個 HTML 檔案。你可隨時使用「另存新檔」，系統不會靜默覆寫任何檔案。",
+    "firstSaveContinue": "選擇檔案",
+    "firstOverwritePrompt": "覆寫單檔案白板前，需要你明確選擇並授權 HTML 檔案。如果瀏覽器不支援、授權遭拒或寫入失敗，儲存會自動轉為另存新檔。是否繼續？",
+    "sizeWarningTitle": "單檔案體積較大",
+    "sizeWarning": "產生的 HTML 約為 {{size}}。大型檔案開啟與儲存可能較慢，但系統不會靜默捨棄資源。",
+    "browserSupportTitle": "瀏覽器支援",
+    "browserSupport": "目前 Chromium、Firefox 與 Safari 支援開啟、編輯和另存。直接覆寫儲存主要支援 Chrome 與 Edge，且一律需要使用者授權。",
+    "fileBoundaryTitle": "檔案內容與邊界",
+    "fileBoundary": "HTML 包含目前場景、已引用的本機圖片、樣式、字型與執行階段程式碼。遠端嵌入內容可能仍需連線。API Key、Token、帳號憑證與檔案控制代碼不會寫入檔案。",
+    "errors": {
+      "exportFailed": "無法匯出單檔案白板，目前白板未被修改。",
+      "saveFailed": "無法儲存單檔案白板，你的編輯仍保留在目前頁面中。",
+      "saveAsFailed": "無法另存新副本，你的編輯仍保留在目前頁面中。",
+      "invalidFile": "所選檔案不是相容的單檔案白板。"
+    },
+    "success": {
+      "exported": "單檔案白板已匯出。",
+      "saved": "單檔案白板已儲存。",
+      "savedAs": "新的單檔案白板已儲存。"
+    }
   },
   "elementLink": {
     "title": "連結至物件",
