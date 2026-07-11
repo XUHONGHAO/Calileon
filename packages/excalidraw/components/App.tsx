@@ -135,6 +135,8 @@ import {
   refreshTextDimensions,
   deepCopyElement,
   duplicateElements,
+  remapEchoAnchorIds,
+  syncEchoChanges,
   hasBoundTextElement,
   isArrowElement,
   isBindingElement,
@@ -3007,7 +3009,15 @@ class App extends React.Component<AppProps, AppState> {
 
     let editingTextElement: AppState["editingTextElement"] | null = null;
     if (actionResult.elements) {
-      this.scene.replaceAllElements(actionResult.elements);
+      const nextElements =
+        actionResult.captureUpdate === CaptureUpdateAction.NEVER
+          ? actionResult.elements
+          : syncEchoChanges(
+              this.scene.getElementsIncludingDeleted(),
+              actionResult.elements,
+            );
+      actionResult = { ...actionResult, elements: nextElements };
+      this.scene.replaceAllElements(nextElements);
       didUpdate = true;
     }
 
@@ -4181,7 +4191,7 @@ class App extends React.Component<AppProps, AppState> {
 
     const { duplicatedElements } = duplicateElements({
       type: "everything",
-      elements: elements.map((element) => {
+      elements: remapEchoAnchorIds(elements).map((element) => {
         return newElementWith(element, {
           x: element.x + gridX - minX,
           y: element.y + gridY - minY,
@@ -5947,25 +5957,28 @@ class App extends React.Component<AppProps, AppState> {
     const elementsMap = this.scene.getElementsMapIncludingDeleted();
 
     const updateElement = (nextOriginalText: string, isDeleted: boolean) => {
-      this.scene.replaceAllElements([
-        // Not sure why we include deleted elements as well hence using deleted elements map
-        ...this.scene.getElementsIncludingDeleted().map((_element) => {
-          if (_element.id === element.id && isTextElement(_element)) {
-            return newElementWith(_element, {
-              originalText: nextOriginalText,
-              isDeleted: isDeleted ?? _element.isDeleted,
-              // returns (wrapped) text and new dimensions
-              ...refreshTextDimensions(
-                _element,
-                getContainerElement(_element, elementsMap),
-                elementsMap,
-                nextOriginalText,
-              ),
-            });
-          }
-          return _element;
-        }),
-      ]);
+      const previousElements = this.scene.getElementsIncludingDeleted();
+      this.scene.replaceAllElements(
+        syncEchoChanges(previousElements, [
+          // Not sure why we include deleted elements as well hence using deleted elements map
+          ...this.scene.getElementsIncludingDeleted().map((_element) => {
+            if (_element.id === element.id && isTextElement(_element)) {
+              return newElementWith(_element, {
+                originalText: nextOriginalText,
+                isDeleted: isDeleted ?? _element.isDeleted,
+                // returns (wrapped) text and new dimensions
+                ...refreshTextDimensions(
+                  _element,
+                  getContainerElement(_element, elementsMap),
+                  elementsMap,
+                  nextOriginalText,
+                ),
+              });
+            }
+            return _element;
+          }),
+        ]),
+      );
     };
 
     textWysiwyg({

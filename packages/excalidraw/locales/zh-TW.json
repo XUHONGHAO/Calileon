@@ -104,9 +104,19 @@
       },
       "webglFallback": "進階材質（玻璃、鏡面）需要 WebGL，目前降級為簡單陰影。"
     },
+    "echo": {
+      "createAnchor": "建立 Echo 錨點",
+      "bindSelection": "綁定所選元素",
+      "duplicateIndependent": "複製為獨立元素",
+      "unbind": "解除所選元素聯動",
+      "namePrompt": "Echo 錨點名稱",
+      "defaultName": "Echo 錨點",
+      "status": { "label": "狀態", "none": "無狀態", "todo": "待辦", "in-progress": "進行中", "blocked": "阻塞", "done": "完成" }
+    },
     "experimental": {
       "label": "實驗性",
-      "lumina": "光照 Lumina"
+      "lumina": "光照 Lumina",
+      "echo": "Echo 錨點分身"
     },
     "textAlign": "文字對齊",
     "edges": "邊緣",

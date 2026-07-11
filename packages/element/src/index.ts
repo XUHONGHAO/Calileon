@@ -79,6 +79,7 @@ export * from "./image";
 export * from "./linearElementEditor";
 export * from "./lumina/types";
 export * from "./lumina/helpers";
+export * from "./echo";
 export * from "./mutateElement";
 export * from "./newElement";
 export * from "./positionElementsOnGrid";

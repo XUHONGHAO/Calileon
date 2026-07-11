@@ -108,9 +108,19 @@
       },
       "webglFallback": "Advanced materials (glass, mirror) need WebGL; showing simple shadows instead."
     },
+    "echo": {
+      "createAnchor": "Create Echo anchor",
+      "bindSelection": "Bind selected elements",
+      "duplicateIndependent": "Duplicate as independent",
+      "unbind": "Unbind selected elements",
+      "namePrompt": "Echo anchor name",
+      "defaultName": "Echo anchor",
+      "status": { "label": "Status", "none": "No status", "todo": "To do", "in-progress": "In progress", "blocked": "Blocked", "done": "Done" }
+    },
     "experimental": {
       "label": "Experimental",
-      "lumina": "Lighting (Lumina)"
+      "lumina": "Lighting (Lumina)",
+      "echo": "Echo anchors"
     },
     "textAlign": "Text align",
     "edges": "Edges",

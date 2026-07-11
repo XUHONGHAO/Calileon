@@ -8,6 +8,13 @@ export {
 export { actionSelectAll } from "./actionSelectAll";
 export { actionDuplicateSelection } from "./actionDuplicateSelection";
 export {
+  actionCreateEchoAnchor,
+  actionBindEchoSelection,
+  actionUnbindEchoSelection,
+  actionSetEchoStatus,
+  actionDuplicateEchoIndependent,
+} from "./actionEcho";
+export {
   actionChangeStrokeColor,
   actionChangeBackgroundColor,
   actionChangeStrokeWidth,
