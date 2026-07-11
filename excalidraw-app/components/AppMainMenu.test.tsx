@@ -45,6 +45,7 @@ vi.mock("@excalidraw/common", async (importOriginal) => ({
 }));
 
 vi.mock("@excalidraw/excalidraw/components/icons", () => ({
+  CastIcon: null,
   CloseIcon: null,
   loginIcon: null,
   ExcalLogo: null,
@@ -149,6 +150,13 @@ vi.mock("@excalidraw/excalidraw/index", () => {
 
   MainMenu.Separator = () => <hr />;
 
+  const ExperimentalFeatures = ({
+    children,
+  }: {
+    children?: React.ReactNode;
+  }) => <div>Experimental features{children}</div>;
+  ExperimentalFeatures.Lumina = () => <div>Lighting (Lumina)</div>;
+
   MainMenu.DefaultItems = {
     ChangeCanvasBackground: () => (
       <button type="button">Canvas background</button>
@@ -156,7 +164,7 @@ vi.mock("@excalidraw/excalidraw/index", () => {
     ClearCanvas: () => <button type="button">Clear canvas</button>,
     CommandPalette: () => <button type="button">Command palette</button>,
     Export: () => <button type="button">Export</button>,
-    ExperimentalFeatures: () => <div>Experimental features</div>,
+    ExperimentalFeatures,
     Help: () => <button type="button">Help</button>,
     LiveCollaborationTrigger: ({ onSelect }: { onSelect: () => void }) => (
       <button type="button" onClick={onSelect}>
@@ -186,6 +194,11 @@ vi.mock("@excalidraw/excalidraw/index", () => {
 
 vi.mock("./AISettings", () => ({
   AISettings: () => <div>AI settings panel</div>,
+}));
+
+vi.mock("./CastDialog", () => ({
+  CastDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog">Cast dialog</div> : null,
 }));
 
 vi.mock("./DebugCanvas", () => ({
@@ -276,5 +289,17 @@ describe("AppMainMenu cloud auth account entry", () => {
     fireEvent.click(accountButton);
 
     expect(onCloudAccountOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("AppMainMenu Cast entry", () => {
+  it("opens Cast from the Experimental menu", () => {
+    renderMenu();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "labels.experimental.cast" }),
+    );
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Cast dialog");
   });
 });

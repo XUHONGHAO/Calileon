@@ -2135,6 +2135,22 @@ export const ExperimentIcon = createIcon(
   tablerIconProps,
 );
 
+// tabler-icons: presentation analytics — used for semantic Cast recording.
+export const CastIcon = createIcon(
+  <g strokeWidth={1.5}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M9 12v-4" />
+    <path d="M15 12v-2" />
+    <path d="M12 12v-1" />
+    <path d="M3 4h18" />
+    <path d="M4 4v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-10" />
+    <path d="M12 16v4" />
+    <path d="M9 20h6" />
+    <circle cx="18" cy="8" r="1.5" fill="currentColor" stroke="none" />
+  </g>,
+  tablerIconProps,
+);
+
 // tabler-icons: bulb (小灯泡) — used for the "add light source" menu item
 export const LightBulbIcon = createIcon(
   <g strokeWidth={1.5}>
