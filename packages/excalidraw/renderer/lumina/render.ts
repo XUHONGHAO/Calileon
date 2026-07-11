@@ -5,14 +5,15 @@
  * 保证所见即所得（技术设计文档 §3.2 / §3.3）。
  */
 
-import { buildLuminaScene } from "./scene";
-import { compositeLighting, sceneHasAdvancedMaterial } from "./composite";
-
-import type { LuminaViewport } from "./composite";
 import type {
   ElementsMap,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
+
+import { buildLuminaScene } from "./scene";
+import { compositeLighting, sceneHasAdvancedMaterial } from "./composite";
+
+import type { LuminaViewport } from "./composite";
 
 export interface RenderLuminaOptions {
   ambient: number;

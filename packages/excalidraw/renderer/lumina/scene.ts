@@ -14,7 +14,6 @@
 import { getElementAbsoluteCoords } from "@excalidraw/element";
 import { getElementLineSegments } from "@excalidraw/element";
 import {
-  DEFAULT_LUMINA_DIRECTION,
   DEFAULT_LUMINA_IOR,
   DEFAULT_LUMINA_LIGHT_COLOR,
   DEFAULT_LUMINA_LIGHT_INTENSITY,
@@ -23,6 +22,7 @@ import {
   getLuminaMaterial,
   getLuminaMaterialData,
   isLuminaLightSource,
+  normalizeLuminaIor,
 } from "@excalidraw/element/lumina";
 
 import type {
@@ -35,11 +35,13 @@ import type {
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
 
+import {
+  getLuminaElementSignature,
+  getLuminaElementsSignature,
+} from "./signature";
+
 /** 一条挡光线段的两端点（场景坐标）。 */
-export type LuminaEdge = readonly [
-  [number, number],
-  [number, number],
-];
+export type LuminaEdge = readonly [[number, number], [number, number]];
 
 /**
  * 一个挡光体：一组真实几何线段 + 材质。坐标为场景坐标（未经 scroll/zoom）。
@@ -127,6 +129,106 @@ const deriveSpotAngle = (
   return Math.max(0.01, Math.min(Math.PI / 2 - 0.01, Math.atan2(w / 2, h)));
 };
 
+interface LuminaElementSceneEntry {
+  light?: LuminaLight;
+  occluder?: LuminaOccluder;
+}
+
+interface LuminaElementSceneCacheEntry {
+  signature: string;
+  entry: LuminaElementSceneEntry;
+}
+
+let elementSceneCache = new WeakMap<
+  NonDeletedExcalidrawElement,
+  LuminaElementSceneCacheEntry
+>();
+
+const buildLuminaElementSceneEntry = (
+  element: NonDeletedExcalidrawElement,
+  elementsMap: ElementsMap,
+): LuminaElementSceneEntry => {
+  if (isLuminaLightSource(element)) {
+    const data = getLuminaLightData(element)!;
+    const [, , , , cx, cy] = getElementAbsoluteCoords(element, elementsMap);
+    return {
+      light: {
+        id: element.id,
+        type: data.light,
+        x: cx,
+        y: cy,
+        color: data.color,
+        intensity: data.intensity,
+        radius: deriveRadius(element, data.radius),
+        castShadows: data.castShadows,
+        direction:
+          data.light === "sun" || data.light === "spot"
+            ? element.angle + Math.PI / 2
+            : undefined,
+        angle:
+          data.light === "spot"
+            ? deriveSpotAngle(element, data.angle)
+            : undefined,
+      },
+    };
+  }
+
+  const material = getLuminaMaterial(element);
+  const materialData = getLuminaMaterialData(element);
+  if (material === "emissive") {
+    const [, , , , cx, cy] = getElementAbsoluteCoords(element, elementsMap);
+    return {
+      light: {
+        id: element.id,
+        type: "point",
+        x: cx,
+        y: cy,
+        color:
+          materialData?.emissiveColor ??
+          element.strokeColor ??
+          DEFAULT_LUMINA_LIGHT_COLOR,
+        intensity:
+          materialData?.emissiveIntensity ?? DEFAULT_LUMINA_LIGHT_INTENSITY,
+        radius: deriveRadius(element, undefined),
+        castShadows: false,
+        direction: undefined,
+      },
+    };
+  }
+
+  const segments = getElementLineSegments(element, elementsMap);
+  if (segments.length === 0) {
+    return {};
+  }
+  const edges: LuminaEdge[] = segments.map((segment) => [
+    [segment[0][0], segment[0][1]],
+    [segment[1][0], segment[1][1]],
+  ]);
+  return {
+    occluder: {
+      id: element.id,
+      edges,
+      material,
+      opacity: element.opacity,
+      ior: normalizeLuminaIor(materialData?.ior ?? DEFAULT_LUMINA_IOR),
+    },
+  };
+};
+
+const getLuminaElementSceneEntry = (
+  element: NonDeletedExcalidrawElement,
+  elementsMap: ElementsMap,
+): LuminaElementSceneEntry => {
+  const signature = getLuminaElementSignature(element);
+  const cached = elementSceneCache.get(element);
+  if (cached?.signature === signature) {
+    return cached.entry;
+  }
+  const entry = buildLuminaElementSceneEntry(element, elementsMap);
+  elementSceneCache.set(element, { signature, entry });
+  return entry;
+};
+
 /**
  * 从可见元素与 appState 构建 LuminaScene。
  *
@@ -134,7 +236,7 @@ const deriveSpotAngle = (
  * @param elementsMap 用于解析绝对坐标。
  * @param opts 全局光照参数。
  */
-export const buildLuminaScene = (
+const buildLuminaSceneReference = (
   elements: readonly NonDeletedExcalidrawElement[],
   elementsMap: ElementsMap,
   opts: { ambient: number; caustics: boolean },
@@ -192,7 +294,8 @@ export const buildLuminaScene = (
           materialData?.emissiveColor ??
           element.strokeColor ??
           DEFAULT_LUMINA_LIGHT_COLOR,
-        intensity: materialData?.emissiveIntensity ?? DEFAULT_LUMINA_LIGHT_INTENSITY,
+        intensity:
+          materialData?.emissiveIntensity ?? DEFAULT_LUMINA_LIGHT_INTENSITY,
         radius: deriveRadius(element, undefined),
         castShadows: false,
         direction: undefined,
@@ -214,7 +317,7 @@ export const buildLuminaScene = (
       edges,
       material,
       opacity: element.opacity,
-      ior: materialData?.ior ?? DEFAULT_LUMINA_IOR,
+      ior: normalizeLuminaIor(materialData?.ior ?? DEFAULT_LUMINA_IOR),
     });
   }
 
@@ -224,4 +327,84 @@ export const buildLuminaScene = (
     ambient: opts.ambient,
     caustics: opts.caustics,
   };
+};
+
+const buildLuminaSceneFromElementCache = (
+  elements: readonly NonDeletedExcalidrawElement[],
+  elementsMap: ElementsMap,
+  opts: { ambient: number; caustics: boolean },
+): LuminaScene => {
+  const occluders: LuminaOccluder[] = [];
+  const lights: LuminaLight[] = [];
+  for (const element of elements) {
+    const entry = getLuminaElementSceneEntry(element, elementsMap);
+    if (entry.light) {
+      lights.push(entry.light);
+    }
+    if (entry.occluder) {
+      occluders.push(entry.occluder);
+    }
+  }
+  return {
+    occluders,
+    lights,
+    ambient: opts.ambient,
+    caustics: opts.caustics,
+  };
+};
+
+export const __sceneTesting = {
+  buildLuminaSceneReference,
+};
+
+const MAX_SCENE_CACHE_ENTRIES = 8;
+const sceneCache = new Map<string, LuminaScene>();
+let sceneCacheHits = 0;
+let sceneCacheMisses = 0;
+
+export interface LuminaSceneCacheStats {
+  entries: number;
+  hits: number;
+  misses: number;
+}
+
+export const getLuminaSceneCacheStats = (): LuminaSceneCacheStats => ({
+  entries: sceneCache.size,
+  hits: sceneCacheHits,
+  misses: sceneCacheMisses,
+});
+
+export const clearLuminaSceneCache = () => {
+  sceneCache.clear();
+  elementSceneCache = new WeakMap();
+  sceneCacheHits = 0;
+  sceneCacheMisses = 0;
+};
+
+export const buildLuminaScene = (
+  elements: readonly NonDeletedExcalidrawElement[],
+  elementsMap: ElementsMap,
+  opts: { ambient: number; caustics: boolean },
+): LuminaScene => {
+  const signature = `${opts.ambient}\u001f${
+    opts.caustics ? 1 : 0
+  }\u001f${getLuminaElementsSignature(elements)}`;
+  const cached = sceneCache.get(signature);
+  if (cached) {
+    sceneCacheHits += 1;
+    sceneCache.delete(signature);
+    sceneCache.set(signature, cached);
+    return cached;
+  }
+
+  sceneCacheMisses += 1;
+  const scene = buildLuminaSceneFromElementCache(elements, elementsMap, opts);
+  sceneCache.set(signature, scene);
+  if (sceneCache.size > MAX_SCENE_CACHE_ENTRIES) {
+    const oldestKey = sceneCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      sceneCache.delete(oldestKey);
+    }
+  }
+  return scene;
 };

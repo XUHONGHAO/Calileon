@@ -1,19 +1,23 @@
 import clsx from "clsx";
+import { useSyncExternalStore } from "react";
 
-import { THEME } from "@excalidraw/common";
+import { THEME, arrayToMap } from "@excalidraw/common";
 
 import type { Theme } from "@excalidraw/element/types";
 
 import {
   actionAddLightSource,
   actionAddSun,
+  actionResetLuminaGame,
   actionClearCanvas,
   actionLoadScene,
   actionSaveToActiveFile,
+  actionSetLuminaGameMode,
   actionShortcuts,
   actionToggleArrowBinding,
   actionToggleGridMode,
   actionToggleLumina,
+  actionToggleLuminaCaustics,
   actionToggleMidpointSnapping,
   actionToggleObjectsSnapMode,
   actionToggleSearchMenu,
@@ -35,6 +39,11 @@ import {
   useAppProps,
   useApp,
 } from "../App";
+import { evaluateLuminaGame } from "../../renderer/lumina/game";
+import {
+  getLuminaGameSessionSnapshot,
+  subscribeLuminaGameSession,
+} from "../../renderer/lumina/gameSession";
 import { openConfirmModal } from "../OverwriteConfirm/OverwriteConfirmState";
 import Trans from "../Trans";
 import DropdownMenuItem from "../dropdownMenu/DropdownMenuItem";
@@ -49,8 +58,10 @@ import {
   settingsIcon,
   emptyIcon,
   ExperimentIcon,
+  CloseIcon,
 } from "../icons";
 import {
+  adjustmentsIcon,
   boltIcon,
   LightBulbIcon,
   DeviceDesktopIcon,
@@ -58,7 +69,11 @@ import {
   ExportImageIcon,
   HelpIcon,
   LoadIcon,
+  laserPointerToolIcon,
   MoonIcon,
+  pencilIcon,
+  playerPlayIcon,
+  RetryIcon,
   save,
   searchIcon,
   SunIcon,
@@ -608,8 +623,10 @@ const ExperimentalToggleLuminaItem = () => {
   const actionManager = useExcalidrawActionManager();
   const appState = useUIAppState();
   return (
-    <DropdownMenuItemCheckbox
-      checked={appState.luminaEnabled}
+    <DropdownMenuItem
+      icon={boltIcon}
+      selected={appState.luminaEnabled}
+      aria-pressed={appState.luminaEnabled}
       data-testid="lumina-toggle-menu-item"
       onSelect={(event) => {
         actionManager.executeAction(actionToggleLumina);
@@ -617,7 +634,7 @@ const ExperimentalToggleLuminaItem = () => {
       }}
     >
       {t("labels.lumina.toggle")}
-    </DropdownMenuItemCheckbox>
+    </DropdownMenuItem>
   );
 };
 
@@ -634,6 +651,29 @@ const ExperimentalAddLightSourceItem = () => {
       aria-label={t("labels.lumina.addLight")}
     >
       {t("labels.lumina.addLight")}
+    </DropdownMenuItem>
+  );
+};
+
+const ExperimentalToggleLuminaCausticsItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+  if (!appState.luminaEnabled) {
+    return null;
+  }
+  return (
+    <DropdownMenuItem
+      icon={adjustmentsIcon}
+      selected={appState.luminaCaustics}
+      aria-pressed={appState.luminaCaustics}
+      data-testid="lumina-caustics-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionToggleLuminaCaustics);
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.caustics")}
     </DropdownMenuItem>
   );
 };
@@ -655,12 +695,297 @@ const ExperimentalAddSunItem = () => {
   );
 };
 
+const LuminaGameStatusItem = () => {
+  const { t } = useI18n();
+  const appState = useUIAppState();
+  const elements = useExcalidrawElements();
+  const gameSession = useSyncExternalStore(
+    subscribeLuminaGameSession,
+    () => getLuminaGameSessionSnapshot(appState.luminaGameMode),
+    () => getLuminaGameSessionSnapshot(null),
+  );
+
+  if (!appState.luminaEnabled || appState.luminaGameMode?.phase !== "play") {
+    return null;
+  }
+
+  const evaluation = evaluateLuminaGame(elements, arrayToMap(elements), {
+    luminaEnabled: appState.luminaEnabled,
+    luminaAmbient: appState.luminaAmbient,
+    luminaCaustics: appState.luminaCaustics,
+    luminaGameMode: appState.luminaGameMode,
+  });
+
+  return (
+    <div
+      className="dropdown-menu-section-title"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
+      {appState.luminaGameMode.style === "dark-room"
+        ? t("labels.lumina.game.status.darkRoomProgress", {
+            discovered: gameSession.discoveredIds.filter((id) =>
+              gameSession.requiredIds.includes(id),
+            ).length,
+            required: gameSession.requiredIds.length,
+          })
+        : appState.luminaGameMode.style === "shadow-reveal"
+        ? evaluation.solved
+          ? t("labels.lumina.game.status.shadowMatched")
+          : t("labels.lumina.game.status.shadowUnmatched")
+        : evaluation.solved
+        ? t("labels.lumina.game.status.solved")
+        : t("labels.lumina.game.status.unsolved")}
+    </div>
+  );
+};
+
+const LuminaGameEditItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled) {
+    return null;
+  }
+
+  const selected =
+    appState.luminaGameMode?.style === "laser" &&
+    appState.luminaGameMode.phase === "edit";
+
+  return (
+    <DropdownMenuItem
+      icon={pencilIcon}
+      selected={selected}
+      aria-pressed={selected}
+      data-testid="lumina-game-edit-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionSetLuminaGameMode, "ui", {
+          style: "laser",
+          phase: "edit",
+        });
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.game.mode.edit")}
+    </DropdownMenuItem>
+  );
+};
+
+const LuminaShadowGameEditItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled) {
+    return null;
+  }
+
+  const selected =
+    appState.luminaGameMode?.style === "shadow-reveal" &&
+    appState.luminaGameMode.phase === "edit";
+
+  return (
+    <DropdownMenuItem
+      icon={adjustmentsIcon}
+      selected={selected}
+      aria-pressed={selected}
+      data-testid="lumina-shadow-game-edit-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionSetLuminaGameMode, "ui", {
+          style: "shadow-reveal",
+          phase: "edit",
+        });
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.game.mode.shadowEdit")}
+    </DropdownMenuItem>
+  );
+};
+
+const LuminaGamePlayItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled) {
+    return null;
+  }
+
+  const selected =
+    appState.luminaGameMode?.style === "laser" &&
+    appState.luminaGameMode.phase === "play";
+
+  return (
+    <DropdownMenuItem
+      icon={laserPointerToolIcon}
+      selected={selected}
+      aria-pressed={selected}
+      data-testid="lumina-game-play-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionSetLuminaGameMode, "ui", {
+          style: "laser",
+          phase: "play",
+        });
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.game.mode.play")}
+    </DropdownMenuItem>
+  );
+};
+
+const LuminaShadowGamePlayItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled) {
+    return null;
+  }
+
+  const selected =
+    appState.luminaGameMode?.style === "shadow-reveal" &&
+    appState.luminaGameMode.phase === "play";
+
+  return (
+    <DropdownMenuItem
+      icon={playerPlayIcon}
+      selected={selected}
+      aria-pressed={selected}
+      data-testid="lumina-shadow-game-play-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionSetLuminaGameMode, "ui", {
+          style: "shadow-reveal",
+          phase: "play",
+        });
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.game.mode.shadowPlay")}
+    </DropdownMenuItem>
+  );
+};
+
+const LuminaDarkRoomEditItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled) {
+    return null;
+  }
+
+  const selected =
+    appState.luminaGameMode?.style === "dark-room" &&
+    appState.luminaGameMode.phase === "edit";
+
+  return (
+    <DropdownMenuItem
+      icon={LightBulbIcon}
+      selected={selected}
+      aria-pressed={selected}
+      data-testid="lumina-dark-room-edit-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionSetLuminaGameMode, "ui", {
+          style: "dark-room",
+          phase: "edit",
+        });
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.game.mode.darkRoomEdit")}
+    </DropdownMenuItem>
+  );
+};
+
+const LuminaDarkRoomPlayItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled) {
+    return null;
+  }
+
+  const selected =
+    appState.luminaGameMode?.style === "dark-room" &&
+    appState.luminaGameMode.phase === "play";
+
+  return (
+    <DropdownMenuItem
+      icon={playerPlayIcon}
+      selected={selected}
+      aria-pressed={selected}
+      data-testid="lumina-dark-room-play-menu-item"
+      onSelect={(event) => {
+        actionManager.executeAction(actionSetLuminaGameMode, "ui", {
+          style: "dark-room",
+          phase: "play",
+        });
+        event.preventDefault();
+      }}
+    >
+      {t("labels.lumina.game.mode.darkRoomPlay")}
+    </DropdownMenuItem>
+  );
+};
+
+const LuminaGameOffItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled || !appState.luminaGameMode) {
+    return null;
+  }
+
+  return (
+    <DropdownMenuItem
+      icon={CloseIcon}
+      onSelect={() => {
+        actionManager.executeAction(actionSetLuminaGameMode, "ui", null);
+      }}
+      data-testid="lumina-game-off-menu-item"
+      aria-label={t("labels.lumina.game.mode.off")}
+    >
+      {t("labels.lumina.game.mode.off")}
+    </DropdownMenuItem>
+  );
+};
+
+const LuminaGameResetItem = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+
+  if (!appState.luminaEnabled || appState.luminaGameMode?.phase !== "play") {
+    return null;
+  }
+
+  return (
+    <DropdownMenuItem
+      icon={RetryIcon}
+      onSelect={() => {
+        actionManager.executeAction(actionResetLuminaGame);
+      }}
+      data-testid="lumina-game-reset-menu-item"
+      aria-label={t("labels.lumina.game.reset")}
+    >
+      {t("labels.lumina.game.reset")}
+    </DropdownMenuItem>
+  );
+};
+
 export const LuminaFeatureSubmenu = ({
   children,
 }: {
   children?: React.ReactNode;
 }) => {
   const { t } = useI18n();
+  const appState = useUIAppState();
   return (
     <DropdownMenuSub>
       <DropdownMenuSub.Trigger icon={SunIcon}>
@@ -669,9 +994,39 @@ export const LuminaFeatureSubmenu = ({
       <DropdownMenuSub.Content>
         {children || (
           <>
+            <div className="dropdown-menu-section-title">
+              {t("labels.lumina.sections.lighting")}
+            </div>
             <ExperimentalToggleLuminaItem />
+            <ExperimentalToggleLuminaCausticsItem />
             <ExperimentalAddLightSourceItem />
             <ExperimentalAddSunItem />
+            <LuminaGameStatusItem />
+            {appState.luminaEnabled && (
+              <>
+                <div className="dropdown-menu-section-title">
+                  {t("labels.lumina.sections.edit")}
+                </div>
+                <LuminaGameEditItem />
+                <LuminaShadowGameEditItem />
+                <LuminaDarkRoomEditItem />
+                <div className="dropdown-menu-section-title">
+                  {t("labels.lumina.sections.play")}
+                </div>
+                <LuminaGamePlayItem />
+                <LuminaShadowGamePlayItem />
+                <LuminaDarkRoomPlayItem />
+                {appState.luminaGameMode && (
+                  <>
+                    <div className="dropdown-menu-section-title">
+                      {t("labels.lumina.sections.session")}
+                    </div>
+                    <LuminaGameResetItem />
+                    <LuminaGameOffItem />
+                  </>
+                )}
+              </>
+            )}
           </>
         )}
       </DropdownMenuSub.Content>
@@ -699,8 +1054,15 @@ export const ExperimentalFeatures = ({
 
 ExperimentalFeatures.Lumina = LuminaFeatureSubmenu;
 ExperimentalFeatures.ToggleLumina = ExperimentalToggleLuminaItem;
+ExperimentalFeatures.ToggleLuminaCaustics =
+  ExperimentalToggleLuminaCausticsItem;
 ExperimentalFeatures.AddLightSource = ExperimentalAddLightSourceItem;
 ExperimentalFeatures.AddSun = ExperimentalAddSunItem;
+ExperimentalFeatures.LuminaGameEdit = LuminaGameEditItem;
+ExperimentalFeatures.LuminaGamePlay = LuminaGamePlayItem;
+ExperimentalFeatures.LuminaShadowGameEdit = LuminaShadowGameEditItem;
+ExperimentalFeatures.LuminaShadowGamePlay = LuminaShadowGamePlayItem;
+ExperimentalFeatures.LuminaGameReset = LuminaGameResetItem;
 ExperimentalFeatures.displayName = "ExperimentalFeatures";
 
 export const Preferences = ({

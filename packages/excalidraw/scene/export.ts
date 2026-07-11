@@ -16,6 +16,7 @@ import {
 } from "@excalidraw/common";
 
 import { getCommonBounds, getElementAbsoluteCoords } from "@excalidraw/element";
+import { hasLuminaGameData } from "@excalidraw/element/lumina";
 
 import {
   getInitializedImageElements,
@@ -56,7 +57,15 @@ import { serializeAsJSON } from "../data/json";
 import { Fonts } from "../fonts";
 
 import { renderStaticScene } from "../renderer/staticScene";
-import { renderLuminaScene } from "../renderer/lumina";
+import {
+  buildLuminaGameState,
+  getLuminaDarkRoomRenderModel,
+  getLuminaGameSessionSnapshot,
+  getLuminaLaserTrace,
+  getLuminaShadowRenderModel,
+  renderLuminaGameEffects,
+  renderLuminaScene,
+} from "../renderer/lumina";
 import { renderSceneToSvg } from "../renderer/staticSvgScene";
 
 import type { RenderableElementsMap } from "./types";
@@ -183,11 +192,13 @@ export const exportToCanvas = async (
     exportPadding = DEFAULT_EXPORT_PADDING,
     viewBackgroundColor,
     exportingFrame,
+    includeGameEffects = appState.exportIncludeGameEffects ?? false,
   }: {
     exportBackground: boolean;
     exportPadding?: number;
     viewBackgroundColor: string;
     exportingFrame?: ExcalidrawFrameLikeElement | null;
+    includeGameEffects?: boolean;
   },
   createCanvas: (
     width: number,
@@ -299,6 +310,72 @@ export const exportToCanvas = async (
           caustics: appState.luminaCaustics,
         },
       );
+
+      if (
+        includeGameEffects &&
+        appState.luminaGameMode &&
+        elementsForRender.some(hasLuminaGameData)
+      ) {
+        const elementsMap = toBrandedType<RenderableElementsMap>(
+          arrayToMap(elementsForRender),
+        );
+        const gameState = buildLuminaGameState(elementsForRender, elementsMap, {
+          luminaEnabled: appState.luminaEnabled,
+          luminaAmbient: appState.luminaAmbient,
+          luminaCaustics: appState.luminaCaustics,
+          luminaGameMode: appState.luminaGameMode,
+        });
+        if (gameState) {
+          const overlay = document.createElement("canvas");
+          overlay.width = canvas.width;
+          overlay.height = canvas.height;
+          const overlayContext = overlay.getContext("2d");
+          const viewport = {
+            scrollX: -minX + exportPadding,
+            scrollY: -minY + exportPadding,
+            zoom: defaultAppState.zoom.value,
+            width,
+            height,
+            scale,
+          };
+          if (overlayContext) {
+            if (gameState.mode.style === "laser") {
+              const trace = getLuminaLaserTrace(gameState);
+              renderLuminaGameEffects(
+                overlayContext,
+                { style: "laser", targets: gameState.targets, trace },
+                viewport,
+              );
+            } else if (gameState.mode.style === "shadow-reveal") {
+              renderLuminaGameEffects(
+                overlayContext,
+                {
+                  style: "shadow-reveal",
+                  phase: gameState.mode.phase,
+                  model: getLuminaShadowRenderModel(gameState),
+                },
+                viewport,
+              );
+            } else if (gameState.mode.style === "dark-room") {
+              renderLuminaGameEffects(
+                overlayContext,
+                {
+                  style: "dark-room",
+                  phase: gameState.mode.phase,
+                  model: getLuminaDarkRoomRenderModel(gameState),
+                  session: getLuminaGameSessionSnapshot(gameState.mode),
+                },
+                viewport,
+              );
+            }
+            ctx.save();
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
+            ctx.globalCompositeOperation = "source-over";
+            ctx.drawImage(overlay, 0, 0);
+            ctx.restore();
+          }
+        }
+      }
     }
   }
 

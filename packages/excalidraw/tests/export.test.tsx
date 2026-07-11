@@ -12,6 +12,7 @@ import { Excalidraw } from "../index";
 import {
   decodeSvgBase64Payload,
   encodeSvgBase64Payload,
+  exportToCanvas,
   exportToSvg,
 } from "../scene/export";
 
@@ -26,6 +27,8 @@ const testElements = [
       type: "text",
       id: "A",
       text: "😀",
+      created: 1,
+      updated: 1,
     }),
     // can't get jsdom text measurement to work so this is a temp hack
     // to ensure the element isn't stripped as invisible
@@ -82,10 +85,181 @@ describe("export", () => {
     ]);
   });
 
+  it("keeps Lumina game effects off by default and includes all three raster modes when enabled", async () => {
+    const light = API.createElement({
+      type: "ellipse",
+      id: "lumina-light",
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 40,
+      customData: {
+        luminaLight: {
+          light: "point",
+          color: "#80eaff",
+          intensity: 1,
+          radius: 500,
+          castShadows: true,
+        },
+        luminaGame: { role: "emitter" },
+      },
+    });
+    const roleElement = (role: "target" | "shadowTarget" | "treasure") =>
+      API.createElement({
+        type: "rectangle",
+        id: `lumina-${role}`,
+        x: 100,
+        y: 0,
+        width: 40,
+        height: 40,
+        customData: {
+          luminaGame: { role, tolerance: role === "target" ? 24 : 0.25 },
+        },
+      });
+    const renderCount = async (
+      style: "laser" | "shadow-reveal" | "dark-room",
+      includeGameEffects?: boolean,
+    ) => {
+      const role =
+        style === "laser"
+          ? "target"
+          : style === "shadow-reveal"
+          ? "shadowTarget"
+          : "treasure";
+      let drawImageCalls = 0;
+      await exportToCanvas(
+        [light, roleElement(role)],
+        {
+          ...h.state,
+          luminaEnabled: true,
+          luminaAmbient: 0.35,
+          luminaGameMode: { style, phase: "play" },
+          exportIncludeGameEffects: includeGameEffects ?? false,
+        },
+        {},
+        {
+          exportBackground: true,
+          viewBackgroundColor: "#ffffff",
+          includeGameEffects,
+        },
+        (width, height) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d")!;
+          const originalDrawImage = ctx.drawImage.bind(ctx);
+          ctx.drawImage = ((...args: Parameters<typeof ctx.drawImage>) => {
+            drawImageCalls += 1;
+            return originalDrawImage(...args);
+          }) as typeof ctx.drawImage;
+          return { canvas, scale: 1 };
+        },
+        async () => undefined,
+      );
+      return drawImageCalls;
+    };
+
+    for (const style of ["laser", "shadow-reveal", "dark-room"] as const) {
+      const defaultCount = await renderCount(style);
+      const explicitOffCount = await renderCount(style, false);
+      const enabledCount = await renderCount(style, true);
+      expect(defaultCount).toBe(explicitOffCount);
+      expect(enabledCount).toBeGreaterThan(explicitOffCount);
+    }
+  });
+
+  it("does not write game session progress into elements during raster export", async () => {
+    const elements = [
+      API.createElement({
+        type: "ellipse",
+        id: "light",
+        x: 0,
+        y: 0,
+        width: 40,
+        height: 40,
+        customData: {
+          luminaLight: {
+            light: "point",
+            color: "#fff",
+            intensity: 1,
+            radius: 500,
+            castShadows: true,
+          },
+        },
+      }),
+      API.createElement({
+        type: "diamond",
+        id: "treasure",
+        x: 100,
+        y: 0,
+        width: 40,
+        height: 40,
+        customData: {
+          luminaGame: { role: "treasure", tolerance: 0.2 },
+        },
+      }),
+    ];
+    const beforeCustomData = elements.map((element) => element.customData);
+    await exportToCanvas(
+      elements,
+      {
+        ...h.state,
+        luminaEnabled: true,
+        luminaGameMode: { style: "dark-room", phase: "play" },
+      },
+      {},
+      {
+        exportBackground: true,
+        viewBackgroundColor: "#fff",
+        includeGameEffects: true,
+      },
+      undefined,
+      async () => undefined,
+    );
+    expect(elements.map((element) => element.customData)).toEqual(
+      beforeCustomData,
+    );
+  });
+
+  it("keeps SVG output identical when raster game effects are enabled", async () => {
+    const element = API.createElement({
+      type: "rectangle",
+      id: "svg-treasure",
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 40,
+      customData: { luminaGame: { role: "treasure" } },
+    });
+    const appState = {
+      ...getDefaultAppState(),
+      luminaEnabled: true,
+      luminaGameMode: { style: "dark-room", phase: "play" } as const,
+    };
+    const withoutEffects = await exportToSvg(
+      [element],
+      { ...appState, exportIncludeGameEffects: false } as any,
+      {},
+    );
+    const withEffects = await exportToSvg(
+      [element],
+      { ...appState, exportIncludeGameEffects: true } as any,
+      {},
+    );
+    expect(withEffects.outerHTML).toBe(withoutEffects.outerHTML);
+  });
+
   it("export svg-embedded scene", async () => {
+    const appState = {
+      ...getDefaultAppState(),
+      luminaAmbient: 1,
+    };
     const svg = await exportToSvg(
       testElements,
-      { ...getDefaultAppState(), exportEmbedScene: true },
+      {
+        ...appState,
+        exportEmbedScene: true,
+      },
       {},
     );
     const svgText = svg.outerHTML;

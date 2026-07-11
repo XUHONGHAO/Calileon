@@ -14,6 +14,7 @@
  */
 
 import type { LuminaMaterial } from "@excalidraw/element/lumina";
+
 import type { LuminaOccluder } from "../scene";
 
 /** 每条边占用的 texel 数（见文件头布局）。 */

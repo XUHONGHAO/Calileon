@@ -10,11 +10,14 @@ import {
   DEFAULT_LUMINA_LIGHT_COLOR,
   DEFAULT_LUMINA_LIGHT_INTENSITY,
   DEFAULT_LUMINA_LIGHT_TYPE,
+  DEFAULT_LUMINA_IOR,
   DEFAULT_LUMINA_MATERIAL,
 } from "./types";
 
 import type {
   LuminaCustomData,
+  LuminaGameData,
+  LuminaGameRole,
   LuminaLightData,
   LuminaLightType,
   LuminaMaterial,
@@ -34,6 +37,13 @@ const LUMINA_LIGHT_TYPES: ReadonlySet<LuminaLightType> = new Set([
   "point",
   "spot",
   "sun",
+]);
+
+const LUMINA_GAME_ROLES: ReadonlySet<LuminaGameRole> = new Set([
+  "target",
+  "emitter",
+  "shadowTarget",
+  "treasure",
 ]);
 
 const getLuminaCustomData = (
@@ -85,6 +95,43 @@ export const hasLuminaMaterial = (
   return getLuminaMaterialData(element) !== null;
 };
 
+export const normalizeLuminaIor = (value: unknown): number => {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(1, Math.min(2.5, value))
+    : DEFAULT_LUMINA_IOR;
+};
+
+/** 黑屋探宝的最低照明评分阈值。 */
+export const normalizeLuminaDarkRoomThreshold = (value: unknown): number => {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.min(1, value))
+    : 0.35;
+};
+
+/** 读取元素的原始 M3 游戏数据（若有且合法）。 */
+export const getLuminaGameData = (
+  element: ExcalidrawElement | null | undefined,
+): LuminaGameData | null => {
+  const data = getLuminaCustomData(element)?.luminaGame;
+  if (data && LUMINA_GAME_ROLES.has(data.role)) {
+    return data;
+  }
+  return null;
+};
+
+export const hasLuminaGameData = (
+  element: ExcalidrawElement | null | undefined,
+): boolean => {
+  return getLuminaGameData(element) !== null;
+};
+
+export const isLuminaGameRole = (
+  element: ExcalidrawElement | null | undefined,
+  role: LuminaGameRole,
+): boolean => {
+  return getLuminaGameData(element)?.role === role;
+};
+
 /**
  * 把任意来源的材质数据补齐成带默认值的完整对象，用于写入 customData。
  * 不修改入参。
@@ -92,7 +139,11 @@ export const hasLuminaMaterial = (
 export const normalizeLuminaMaterialData = (
   data: Partial<LuminaMaterialData> & { material: LuminaMaterial },
 ): LuminaMaterialData => {
-  return { ...data, material: data.material };
+  return {
+    ...data,
+    material: data.material,
+    ior: data.material === "glass" ? normalizeLuminaIor(data.ior) : data.ior,
+  };
 };
 
 /**
@@ -110,5 +161,28 @@ export const normalizeLuminaLightData = (
     angle: data.angle,
     direction: data.direction,
     castShadows: data.castShadows ?? true,
+  };
+};
+
+/**
+ * 把任意来源的游戏数据补齐成可写入 customData 的对象。
+ * role 由调用方显式提供；其余字段按 JSON-safe 原样保留。
+ */
+export const normalizeLuminaGameData = (
+  data: Partial<LuminaGameData> & { role: LuminaGameRole },
+): LuminaGameData => {
+  return {
+    role: data.role,
+    puzzleId: typeof data.puzzleId === "string" ? data.puzzleId : undefined,
+    required: typeof data.required === "boolean" ? data.required : undefined,
+    tolerance:
+      typeof data.tolerance === "number" && Number.isFinite(data.tolerance)
+        ? data.tolerance
+        : undefined,
+    label: typeof data.label === "string" ? data.label : undefined,
+    meta:
+      data.meta && typeof data.meta === "object" && !Array.isArray(data.meta)
+        ? data.meta
+        : undefined,
   };
 };

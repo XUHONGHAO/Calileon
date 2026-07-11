@@ -43,7 +43,7 @@ export type LuminaLightType =
 /** 默认光源类型。 */
 export const DEFAULT_LUMINA_LIGHT_TYPE: LuminaLightType = "point";
 
-/** 默认聚光锥角（spot），单位弧度：整锥 45°。 */
+/** 默认聚光锥半角（spot），单位弧度。UI 显示整锥角时会乘以 2。 */
 export const DEFAULT_LUMINA_SPOT_ANGLE = Math.PI / 4;
 
 /** 默认光传播方向（spot/sun），单位弧度：0 = 沿 +x。 */
@@ -72,6 +72,26 @@ export interface LuminaLightData {
   castShadows: boolean;
 }
 
+/** M3 游戏层中元素承担的轻量角色。 */
+export type LuminaGameRole =
+  | "target" // 激光解谜：光必须命中此元素
+  | "emitter" // 激光解谜：激光起点（可选；不标则所有有向光源都发射）
+  | "shadowTarget" // 阴影揭秘：当前投影需匹配的目标图案
+  | "treasure"; // 黑屋探宝：照明覆盖达到阈值后发现
+
+/** 挂在 `element.customData.luminaGame` 上的 M3 关卡数据。 */
+export interface LuminaGameData {
+  role: LuminaGameRole;
+  /** 多目标/多关卡分组。 */
+  puzzleId?: string;
+  /** 是否通关必需，默认 true。 */
+  required?: boolean;
+  /** target=命中半径；shadowTarget=匹配容差；treasure=最低照明阈值，均 0..1。 */
+  tolerance?: number;
+  label?: string;
+  meta?: Record<string, unknown>;
+}
+
 /**
  * 元素 `customData` 中与 lumina 相关的字段。
  * 用于在不改动元素基础类型的前提下，给 customData 一个有类型的视图。
@@ -79,13 +99,14 @@ export interface LuminaLightData {
 export interface LuminaCustomData {
   luminaMaterial?: LuminaMaterialData;
   luminaLight?: LuminaLightData;
+  luminaGame?: LuminaGameData;
 }
 
-/**
- * 游戏层模式（M3）。M1/M2 不实现具体逻辑，此处先占位，
- * 让 appState.luminaGameMode 有一个稳定的类型，避免 M3 时改 appState 形状。
- */
-export type LuminaGameMode =
-  | { kind: "laser" } // 激光解谜
-  | { kind: "shadow-reveal" } // 阴影揭秘
-  | { kind: "dark-room" }; // 黑屋探宝
+export type LuminaGameStyle = "laser" | "shadow-reveal" | "dark-room";
+export type LuminaGamePhase = "edit" | "play";
+
+/** 运行时游戏模式。null（在 AppState 中）表示游戏层关闭。 */
+export interface LuminaGameMode {
+  style: LuminaGameStyle;
+  phase: LuminaGamePhase;
+}

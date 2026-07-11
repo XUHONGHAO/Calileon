@@ -118,6 +118,7 @@ export type ActionName =
   | "deselect"
   | "viewMode"
   | "exportWithDarkMode"
+  | "changeExportIncludeGameEffects"
   | "toggleTheme"
   | "increaseFontSize"
   | "decreaseFontSize"
@@ -150,10 +151,15 @@ export type ActionName =
   | "toggleShapeSwitch"
   | "togglePolygon"
   | "toggleLumina"
+  | "toggleLuminaCaustics"
   | "addLightSource"
   | "addSun"
   | "changeMaterial"
-  | "changeLightProps";
+  | "changeLightProps"
+  | "changeLuminaGameRole"
+  | "changeLuminaGameConstraint"
+  | "setLuminaGameMode"
+  | "resetLuminaGame";
 
 export type PanelComponentProps = {
   elements: readonly ExcalidrawElement[];

@@ -160,6 +160,16 @@ export const actionChangeExportEmbedScene = register<
   ),
 });
 
+export const actionChangeExportIncludeGameEffects = register<boolean>({
+  name: "changeExportIncludeGameEffects",
+  label: "imageExportDialog.label.includeGameEffects",
+  trackEvent: { category: "export", action: "toggleGameEffects" },
+  perform: (_elements, appState, value) => ({
+    appState: { ...appState, exportIncludeGameEffects: value },
+    captureUpdate: CaptureUpdateAction.EVENTUALLY,
+  }),
+});
+
 // ---------------------------------------------------------------------------
 // onExport interception helpers
 // ---------------------------------------------------------------------------

@@ -1,11 +1,19 @@
 import { useEffect, useRef } from "react";
 
-import { renderLuminaScene } from "../../renderer/lumina";
-
 import type {
   ElementsMap,
   NonDeletedExcalidrawElement,
 } from "@excalidraw/element/types";
+
+import { renderLuminaScene } from "../../renderer/lumina";
+import {
+  installLuminaPerformanceMonitor,
+  recordLuminaPerformanceSample,
+} from "../../renderer/lumina/performance";
+import { createLuminaRafScheduler } from "../../renderer/lumina/raf";
+
+import type { LuminaRafScheduler } from "../../renderer/lumina/raf";
+
 import type { AppState } from "../../types";
 
 interface LightingCanvasProps {
@@ -29,8 +37,18 @@ interface LightingCanvasProps {
  */
 const LightingCanvas = (props: LightingCanvasProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const schedulerRef = useRef<LuminaRafScheduler | null>(null);
 
   useEffect(() => {
+    schedulerRef.current = createLuminaRafScheduler(
+      window.requestAnimationFrame.bind(window),
+      window.cancelAnimationFrame.bind(window),
+    );
+    return () => schedulerRef.current?.cancel();
+  }, []);
+
+  useEffect(() => {
+    installLuminaPerformanceMonitor();
     const canvas = canvasRef.current;
     if (!canvas) {
       return;
@@ -43,9 +61,8 @@ const LightingCanvas = (props: LightingCanvasProps) => {
     // 每次 props 变化（拖光源/拖滑杆时每帧多次 setState）都调度到下一个 RAF，
     // 并合并同一帧内的多次调度为一次渲染——光照 pass 是全屏逐像素，若跟着每次
     // setState 同步跑会打满主线程与 GPU（拖半径滑杆时的卡顿与显卡飙升主因）。
-    let rafId = 0;
-
     const render = () => {
+      const frameStartedAt = window.performance.now();
       // 合成模型（见 composite.ts）：compositeLighting 以 multiply 把不透明光照图
       // 乘到目标且**不 clear**。屏幕层每帧先填白（白 = multiply 单位元），乘完
       // 得到不透明光照图；再靠下方的 CSS mix-blend-mode:multiply 与 StaticCanvas
@@ -82,18 +99,14 @@ const LightingCanvas = (props: LightingCanvasProps) => {
       if (result.usedFallback && result.hasAdvancedMaterial) {
         props.onAdvancedMaterialFallback?.();
       }
+      recordLuminaPerformanceSample(
+        "lighting",
+        window.performance.now() - frameStartedAt,
+      );
     };
 
     // 合并同一帧内的多次 props 更新为一次渲染。若已有一帧待渲染则不重复调度。
-    rafId = window.requestAnimationFrame(() => {
-      rafId = 0;
-      render();
-    });
-    return () => {
-      if (rafId) {
-        window.cancelAnimationFrame(rafId);
-      }
-    };
+    schedulerRef.current?.schedule(render);
   });
 
   return (

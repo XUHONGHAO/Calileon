@@ -97,8 +97,13 @@ export { actionToggleCropEditor } from "./actionCropEditor";
 
 export {
   actionToggleLumina,
+  actionToggleLuminaCaustics,
   actionAddLightSource,
   actionAddSun,
   actionChangeMaterial,
   actionChangeLightProps,
+  actionChangeLuminaGameRole,
+  actionChangeLuminaGameConstraint,
+  actionSetLuminaGameMode,
+  actionResetLuminaGame,
 } from "./actionLumina";

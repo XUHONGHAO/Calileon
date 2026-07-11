@@ -24,14 +24,27 @@
  * 「边数 × 光源数」而非视口像素数增长，故缩放/平移不飙 GPU。glass 透光软阴影、
  * mirror 本体硬阴影 + 虚像反射高光。为何弃用 WebGL 逐像素 ray-march 见
  * `compositeLighting` 处的演进史注释与 0015 决策附录。真实折射偏折、平行光镜像、
- * 链式反射留 M3。WebGL 代码（gl/）暂留仓库但已从渲染路径摘除。
+ * glass 二维折射与 point/spot/sun 一次镜面反射也在同一 CPU 几何路径完成。
+ * WebGL 代码（gl/）暂留仓库但已从渲染路径摘除。
  *
  * 函数本身不读 DOM、不依赖 React，纯输入→画布输出，便于在导出/测试中复用。
  */
 
 import { DEFAULT_LUMINA_SPOT_ANGLE } from "@excalidraw/element/lumina";
 
-import type { LuminaLight, LuminaOccluder, LuminaScene } from "./scene";
+import { buildGlassCausticContributions } from "./glassOptics";
+import {
+  buildReflectedLightContributions,
+  clipSegmentToCone,
+  selectMirrorEdges,
+} from "./mirrorOptics";
+
+import type {
+  LuminaEdge,
+  LuminaLight,
+  LuminaOccluder,
+  LuminaScene,
+} from "./scene";
 
 export interface LuminaViewport {
   scrollX: number;
@@ -111,9 +124,7 @@ const computeSunShadowQuad = (
 };
 
 /** Andrew's monotone chain 凸包。 */
-const convexHull = (
-  pts: Array<[number, number]>,
-): Array<[number, number]> => {
+const convexHull = (pts: Array<[number, number]>): Array<[number, number]> => {
   const points = [...pts].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
   if (points.length <= 2) {
     return points;
@@ -208,101 +219,97 @@ const shadowStrengthFor = (occluder: LuminaOccluder): number => {
   }
 };
 
-/**
- * 把点 (px,py) 对「过 (ax,ay)-(bx,by) 的直线」做镜像，返回镜像点。
- * 镜面反射虚像法的核心：光源对镜面所在直线的镜像 = 虚光源 L'；反射光看起来
- * 就是从 L' 直射出来的。且从 L' 到画面任一点 P 的直线距离，恰好等于真实反射
- * 光路 P→反射点→光源 的总长（反射保距），所以用「以 L' 为中心的径向衰减」
- * 表达反射亮度是**物理精确**的，而非近似。
- */
-const reflectAcrossLine = (
-  px: number,
-  py: number,
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-): [number, number] => {
-  const dx = bx - ax;
-  const dy = by - ay;
-  const len2 = dx * dx + dy * dy || 1;
-  const proj = ((px - ax) * dx + (py - ay) * dy) / len2;
-  const footX = ax + dx * proj;
-  const footY = ay + dy * proj;
-  return [2 * footX - px, 2 * footY - py];
+const MAX_DIRECT_SHADOW_EDGES_PER_LIGHT = 192;
+
+interface ShadowCastingEdge {
+  edge: LuminaEdge;
+  alpha: number;
+}
+
+const pointToEdgeDistance = (
+  x: number,
+  y: number,
+  edge: LuminaEdge,
+): number => {
+  const [a, b] = edge;
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared <= 1e-12) {
+    return Math.hypot(x - a[0], y - a[1]);
+  }
+  const t = Math.max(
+    0,
+    Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / lengthSquared),
+  );
+  return Math.hypot(x - (a[0] + t * dx), y - (a[1] + t * dy));
 };
 
-/**
- * 把线段 [A,B] 裁剪到「以 apex 为顶点、轴向 axis、半角 half」的聚光锥内，
- * 返回锥内的子段 [x1,y1,x2,y2]；整段都在锥外则返回 null。
- *
- * 用途：聚光灯背后（锥外）的镜面**不该反光**——没有光打到镜子哪来的反射。
- * 反射前先用本函数把镜面边裁到锥内，只有被照亮的那截镜面参与反射。
- *
- * 原理：half < 90° 时聚光锥 = 两个过 apex 的半平面之交（左边界 axis-half、
- * 右边界 axis+half）。点 P 在锥内 ⟺ 它在左边界的逆时针侧且在右边界的顺时针
- * 侧。两个约束都是关于 P 的线性函数，用参数化裁剪（Liang-Barsky 式）依次夹
- * 逼线段参数区间 [t0,t1] 即可。
- */
-const clipSegmentToCone = (
-  ax: number,
-  ay: number,
-  bx: number,
-  by: number,
-  apexX: number,
-  apexY: number,
-  axis: number,
-  half: number,
-): [number, number, number, number] | null => {
-  // 左/右边界方向向量。
-  const ldx = Math.cos(axis - half);
-  const ldy = Math.sin(axis - half);
-  const rdx = Math.cos(axis + half);
-  const rdy = Math.sin(axis + half);
-  // 两个半平面的法向（指向锥内为正）：
-  //  f1 = cross(leftDir, P-apex)  = n1·(P-apex),  n1 = (-ldy, ldx)
-  //  f2 = cross(P-apex, rightDir) = n2·(P-apex),  n2 = ( rdy, -rdx)
-  const constraints: Array<[number, number]> = [
-    [-ldy, ldx],
-    [rdy, -rdx],
-  ];
-
-  const dabx = bx - ax;
-  const daby = by - ay;
-  let t0 = 0;
-  let t1 = 1;
-
-  for (const [nx, ny] of constraints) {
-    // f(A) 与方向导数 f(B)-f(A)。
-    const fa = nx * (ax - apexX) + ny * (ay - apexY);
-    const dfa = nx * dabx + ny * daby;
-    if (Math.abs(dfa) < 1e-9) {
-      // 平行于边界：整段同侧，f 恒为 fa，负则整段在外。
-      if (fa < 0) {
-        return null;
-      }
+const selectDirectShadowEdges = (
+  scene: LuminaScene,
+  light: LuminaLight,
+  maxEdges = MAX_DIRECT_SHADOW_EDGES_PER_LIGHT,
+): ShadowCastingEdge[] => {
+  const selected: ShadowCastingEdge[] = [];
+  for (const occluder of scene.occluders) {
+    const alpha = shadowStrengthFor(occluder);
+    if (alpha <= 0) {
       continue;
     }
-    // f(t) = fa + t*dfa >= 0 求 t 区间。
-    const tAtZero = -fa / dfa;
-    if (dfa > 0) {
-      // f 随 t 增大：t >= tAtZero 才满足。
-      t0 = Math.max(t0, tAtZero);
-    } else {
-      // f 随 t 减小：t <= tAtZero 才满足。
-      t1 = Math.min(t1, tAtZero);
-    }
-    if (t0 > t1) {
-      return null;
+    for (const edge of occluder.edges) {
+      let selectedEdge = edge;
+      if (light.type !== "sun") {
+        if (pointToEdgeDistance(light.x, light.y, edge) > light.radius) {
+          continue;
+        }
+        if (light.type === "spot") {
+          const clipped = clipSegmentToCone(
+            edge[0][0],
+            edge[0][1],
+            edge[1][0],
+            edge[1][1],
+            light.x,
+            light.y,
+            light.direction ?? 0,
+            light.angle ?? DEFAULT_LUMINA_SPOT_ANGLE,
+          );
+          if (!clipped) {
+            continue;
+          }
+          selectedEdge = [
+            [clipped[0], clipped[1]],
+            [clipped[2], clipped[3]],
+          ];
+        }
+      }
+      selected.push({ edge: selectedEdge, alpha });
+      if (selected.length >= maxEdges) {
+        return selected;
+      }
     }
   }
+  return selected;
+};
 
-  return [
-    ax + dabx * t0,
-    ay + daby * t0,
-    ax + dabx * t1,
-    ay + daby * t1,
-  ];
+const selectDirectShadowOccluders = (
+  scene: LuminaScene,
+  light: LuminaLight,
+): LuminaOccluder[] => {
+  const edgeCount = scene.occluders.reduce(
+    (total, occluder) => total + occluder.edges.length,
+    0,
+  );
+  const maxEdges =
+    edgeCount > 256 ? (light.type === "sun" ? 128 : 96) : undefined;
+  return selectDirectShadowEdges(scene, light, maxEdges).map(
+    ({ edge, alpha }, index) => ({
+      id: `shadow-budget-${index}`,
+      edges: [edge],
+      material: "solid",
+      opacity: alpha * 100,
+      ior: 1.5,
+    }),
+  );
 };
 
 /** 轴对齐矩形（设备像素坐标）。 */
@@ -321,10 +328,7 @@ interface DeviceRect {
  * 局部 box——远处/小镜面时它远小于整个视口，避免「clip 后 fillRect 整个视口」
  * 的浪费。交集为空则整条反射不可见，直接跳过（视口外剔除）。
  */
-const intersectRects = (
-  a: DeviceRect,
-  b: DeviceRect,
-): DeviceRect | null => {
+const intersectRects = (a: DeviceRect, b: DeviceRect): DeviceRect | null => {
   const x1 = Math.max(a.x, b.x);
   const y1 = Math.max(a.y, b.y);
   const x2 = Math.min(a.x + a.width, b.x + b.width);
@@ -335,70 +339,57 @@ const intersectRects = (
   return { x: x1, y: y1, width: x2 - x1, height: y2 - y1 };
 };
 
-/** 一条镜面边（场景坐标）+ 其宿主的归一 opacity。 */
-export interface MirrorEdge {
-  a: readonly [number, number];
-  b: readonly [number, number];
-  opacity: number;
-}
-
-/**
- * 给镜面边数设一个安全上限：超过 `maxEdges` 时，按**边长**降序保留最长的
- * 若干条，短边先被舍弃。
- *
- * 这是防病态场景（几百个 mirror → 几千条边）拖垮帧率的兜底闸，正常场景
- * （<= maxEdges）原样返回、顺序不变。纯函数，便于单测。
- *
- * 为何按边长而非「离视口中心距离」取舍：取舍标准必须是**场景固定量**。若按
- * 视口中心距离选边，拖动/缩放画布时被保留的那 maxEdges 条边会逐帧重排，导致
- * 超限场景里部分镜面反射随平移忽隐忽现（穿帮）。边长与视口无关，同一组镜面
- * 无论画布怎么滚都保留同一个稳定子集。逐帧的视口裁剪由下游的局部 bbox（#2/#4，
- * 与 scroll 相关且**应当**相关——画面外的反射本就不该画）负责，与本函数正交。
- *
- * @param edges 全部镜面边。
- * @param maxEdges 上限，缺省 64。
- */
-const selectMirrorEdges = (
-  edges: readonly MirrorEdge[],
-  maxEdges = 64,
-): MirrorEdge[] => {
-  if (edges.length <= maxEdges) {
-    return edges as MirrorEdge[];
-  }
-  const len2 = (e: MirrorEdge): number => {
-    const dx = e.b[0] - e.a[0];
-    const dy = e.b[1] - e.a[1];
-    return dx * dx + dy * dy;
-  };
-  return [...edges]
-    .sort((p, q) => len2(q) - len2(p))
-    .slice(0, maxEdges);
-};
-
 /**
  * 创建离屏图层。优先用 OffscreenCanvas，回退到 document.createElement。
  * 测试环境（jsdom）可能两者都缺，此时返回 null（合成降级为无光照 no-op）。
  */
+type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
+type Ctx2D = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+let layerPools = new WeakMap<object, Map<string, AnyCanvas>>();
+
 const createLayer = (
+  owner: object,
+  key: string,
   width: number,
   height: number,
-): HTMLCanvasElement | OffscreenCanvas | null => {
-  if (typeof OffscreenCanvas !== "undefined") {
-    return new OffscreenCanvas(width, height);
+): AnyCanvas | null => {
+  let pool = layerPools.get(owner);
+  if (!pool) {
+    pool = new Map();
+    layerPools.set(owner, pool);
   }
-  if (typeof document !== "undefined") {
-    const canvas = document.createElement("canvas");
+  let canvas = pool.get(key);
+  if (!canvas) {
+    if (typeof OffscreenCanvas !== "undefined") {
+      canvas = new OffscreenCanvas(width, height);
+    } else if (typeof document !== "undefined") {
+      const htmlCanvas = document.createElement("canvas");
+      htmlCanvas.width = width;
+      htmlCanvas.height = height;
+      canvas = htmlCanvas;
+    } else {
+      return null;
+    }
+    pool.set(key, canvas);
+  }
+  if (canvas.width !== width || canvas.height !== height) {
     canvas.width = width;
     canvas.height = height;
-    return canvas;
+  } else {
+    const layerContext = canvas.getContext("2d") as Ctx2D | null;
+    layerContext?.setTransform(1, 0, 0, 1, 0, 0);
+    layerContext?.clearRect(0, 0, width, height);
   }
-  return null;
+  return canvas;
 };
 
-type AnyCanvas = HTMLCanvasElement | OffscreenCanvas;
-type Ctx2D =
-  | CanvasRenderingContext2D
-  | OffscreenCanvasRenderingContext2D;
+export const clearLuminaLayerPool = () => {
+  layerPools = new WeakMap();
+};
+
+export const getLuminaLayerPoolSize = (owner: object): number =>
+  layerPools.get(owner)?.size ?? 0;
 
 /**
  * Canvas2D 后端（M2 转正为**通用 base 后端**）：把 LuminaScene 渲染成一张
@@ -432,7 +423,7 @@ export const compositeLightingCanvas2D = (
   const deviceHeight = Math.max(1, Math.floor(height * scale));
   const t = zoom * scale; // 场景坐标 → 设备像素的缩放系数
 
-  const base = createLayer(deviceWidth, deviceHeight);
+  const base = createLayer(ctx, "base", deviceWidth, deviceHeight);
   if (!base) {
     return; // 无离屏能力（jsdom）→ no-op。
   }
@@ -453,7 +444,7 @@ export const compositeLightingCanvas2D = (
     (Math.hypot(deviceWidth, deviceHeight) / Math.max(t, 0.0001)) * 2;
 
   for (const light of scene.lights) {
-    const layer = createLayer(deviceWidth, deviceHeight);
+    const layer = createLayer(ctx, "light", deviceWidth, deviceHeight);
     if (!layer) {
       continue;
     }
@@ -499,7 +490,10 @@ export const compositeLightingCanvas2D = (
         // 远端」构成的楔形三角（远端在 projectionLength 处，远超 radius，
         // 而渐变在 radius 处已归零，故三角的平直远边不会露馅）。
         const axis = light.direction ?? 0;
-        const half = Math.max(0.01, Math.min(Math.PI - 0.01, light.angle ?? DEFAULT_LUMINA_SPOT_ANGLE));
+        const half = Math.max(
+          0.01,
+          Math.min(Math.PI - 0.01, light.angle ?? DEFAULT_LUMINA_SPOT_ANGLE),
+        );
         const dLeft = axis - half;
         const dRight = axis + half;
         const fx1 = light.x + Math.cos(dLeft) * projectionLength;
@@ -528,7 +522,7 @@ export const compositeLightingCanvas2D = (
     // ── 挖阴影 ──────────────────────────────────────────────
     if (light.castShadows) {
       lctx.globalCompositeOperation = "destination-out";
-      for (const occluder of scene.occluders) {
+      for (const occluder of selectDirectShadowOccluders(scene, light)) {
         const alpha = shadowStrengthFor(occluder);
         if (alpha <= 0) {
           continue;
@@ -564,174 +558,175 @@ export const compositeLightingCanvas2D = (
     bctx.globalCompositeOperation = "source-over";
   }
 
-  // 2.5 镜面反射（虚像法，Canvas2D 原生实现）。对每条镜面边、每盏点/聚光灯：
-  // 把光源对镜面所在直线镜像得到虚光源 L'，反射光看起来就是从 L' 直射出来的。
-  // 在「透过镜面段能看见 L' 的那片锥形区域」内画一团以 L' 为中心的径向光晕，
-  // 即为反射高光。这是纯几何 + 径向渐变，和 M1 直接光同一套硬件加速机制——
-  // 不需要逐像素 ray-march，因此不飙 GPU。sun（平行光）的镜面反射留 M3。
-  //
-  // ── 性能（2026-07-05 修订：mirror pass 单层化）─────────────────────
-  // 旧实现对「每条镜面边 × 每盏灯」都 createLayer(全画布) + clip + fillRect
-  // (整个视口) + drawImage(全画布)，成本 ≈ 边数 × 光源数 × 全画布离屏合成，
-  // 多个矩形 mirror（每个 4 条边）迅速放大成明显卡顿。现在改为：
-  //   #1 整帧只建一张 reflectionLayer，所有反射用 'lighter' 累加进去，循环
-  //      结束只把它 drawImage 一次到 base（lighter 满足结合律 → 观感等价）。
-  //   #2 每条反射只在其局部 bbox 内 fillRect：可见区 ⊆ disk(L', radius)，
-  //      与视口设备矩形求交得到最小绘制框（远处/小镜面时远小于整屏）。
-  //   #3 mirrorEdges 超上限（默认 64）按「离视口中心距离」就近截断（安全阀）。
-  //   #4 局部 bbox 与视口无交集 → 直接跳过，连 clip/gradient 都不建。
-  const rawMirrorEdges: MirrorEdge[] = [];
-  for (const occluder of scene.occluders) {
-    if (occluder.material !== "mirror") {
-      continue;
-    }
-    const op = normalizeOpacity(occluder.opacity);
-    for (const edge of occluder.edges) {
-      rawMirrorEdges.push({ a: edge[0], b: edge[1], opacity: op });
+  // 2.25 玻璃折射与焦散。只在 luminaCaustics=true 时启用，默认场景仍保留
+  // 现有廉价玻璃透光路径。纯几何层先按 Snell 定律生成 entry→exit→outgoing
+  // 折线路径，Canvas2D 这里只负责把有限射线以 lighter 累积成亮斑。
+  if (scene.caustics) {
+    const glassCount = scene.occluders.filter(
+      (occluder) => occluder.material === "glass",
+    ).length;
+    const glassPressure = glassCount * Math.max(1, scene.lights.length) > 24;
+    const contributions = buildGlassCausticContributions(scene, {
+      maxDistance: projectionLength,
+      maxGlass: glassPressure ? 5 : 8,
+      maxRaysPerGlass: glassPressure ? 6 : 10,
+      maxContributions: glassPressure ? 48 : 80,
+    });
+    if (contributions.length > 0) {
+      const causticLayer = createLayer(
+        ctx,
+        "caustic",
+        deviceWidth,
+        deviceHeight,
+      );
+      const cctx = (causticLayer?.getContext("2d") as Ctx2D | null) ?? null;
+      if (causticLayer && cctx) {
+        cctx.setTransform(t, 0, 0, t, scrollX * t, scrollY * t);
+        cctx.globalCompositeOperation = "lighter";
+        cctx.lineCap = "round";
+        cctx.lineJoin = "round";
+
+        for (const contribution of contributions) {
+          const [r, g, b] = parseColor(contribution.color);
+          const alpha = Math.min(0.7, contribution.intensity);
+          if (alpha <= 0) {
+            continue;
+          }
+          const gradient = cctx.createLinearGradient(
+            contribution.entry[0],
+            contribution.entry[1],
+            contribution.endpoint[0],
+            contribution.endpoint[1],
+          );
+          gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha * 0.2})`);
+          gradient.addColorStop(0.55, `rgba(${r}, ${g}, ${b}, ${alpha})`);
+          gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+          const tracePath = () => {
+            cctx.beginPath();
+            cctx.moveTo(contribution.entry[0], contribution.entry[1]);
+            cctx.lineTo(contribution.exit[0], contribution.exit[1]);
+            cctx.lineTo(contribution.endpoint[0], contribution.endpoint[1]);
+          };
+
+          tracePath();
+          cctx.strokeStyle = gradient;
+          cctx.lineWidth = 10 / Math.max(0.1, zoom);
+          cctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          cctx.shadowBlur = 14 * scale;
+          cctx.stroke();
+
+          tracePath();
+          cctx.lineWidth = 2.5 / Math.max(0.1, zoom);
+          cctx.shadowBlur = 4 * scale;
+          cctx.stroke();
+        }
+
+        bctx.setTransform(1, 0, 0, 1, 0, 0);
+        bctx.globalCompositeOperation = "lighter";
+        bctx.drawImage(causticLayer as AnyCanvas, 0, 0);
+        bctx.globalCompositeOperation = "source-over";
+      }
     }
   }
 
-  // #3 边数安全阀：按边长（场景固定量）截断，不依赖视口——否则拖动画布时
-  // 保留的子集逐帧重排，镜面反射会忽隐忽现。
-  const mirrorEdges = selectMirrorEdges(rawMirrorEdges);
-
-  // 视口设备矩形（所有反射 bbox 都与它求交）。
-  const viewDeviceRect: DeviceRect = {
-    x: 0,
-    y: 0,
-    width: deviceWidth,
-    height: deviceHeight,
-  };
-  // 场景坐标 → 设备像素：dev = (scene + scroll) * t。
-  const toDeviceX = (sx: number): number => (sx + scrollX) * t;
-  const toDeviceY = (sy: number): number => (sy + scrollY) * t;
-
-  if (mirrorEdges.length > 0) {
-    // #1 整帧唯一的反射累加层（透明起底）。
-    const reflectionLayer = createLayer(deviceWidth, deviceHeight);
-    const rctx =
-      (reflectionLayer?.getContext("2d") as Ctx2D | null) ?? null;
+  // 2.5 镜面反射。纯几何层先把 point/spot/sun 统一拆成有限宽度的反射条带：
+  // - point/spot 保留虚像法衰减，但只绘制真实受光的镜面子段；
+  // - sun 使用 reflectRay 得到平行反射方向，不伪造有限位置的“虚太阳”；
+  // - 每条带的两侧边界光线分别追踪最近遮挡，因此 solid/mirror 会截断后方反射，
+  //   translucent/glass 按材质透射率减弱；不做第二次环境光反弹。
+  const mirrorEdgeCount = scene.occluders
+    .filter((occluder) => occluder.material === "mirror")
+    .reduce((total, occluder) => total + occluder.edges.length, 0);
+  const mirrorPressure =
+    mirrorEdgeCount * Math.max(1, scene.lights.length) > 48;
+  const reflectedContributions = buildReflectedLightContributions(scene, {
+    maxDistance: projectionLength,
+    maxMirrorEdges: mirrorPressure ? 48 : 64,
+    maxContributions: mirrorPressure ? 64 : 192,
+    samplesPerEdge: mirrorPressure ? 3 : 6,
+  });
+  if (reflectedContributions.length > 0) {
+    const reflectionLayer = createLayer(
+      ctx,
+      "reflection",
+      deviceWidth,
+      deviceHeight,
+    );
+    const rctx = (reflectionLayer?.getContext("2d") as Ctx2D | null) ?? null;
     if (reflectionLayer && rctx) {
+      const viewDeviceRect: DeviceRect = {
+        x: 0,
+        y: 0,
+        width: deviceWidth,
+        height: deviceHeight,
+      };
       let drewAny = false;
 
-      for (const light of scene.lights) {
-        if (light.type === "sun") {
-          continue; // 平行光镜像留 M3
+      for (const contribution of reflectedContributions) {
+        const xs = contribution.polygon.map((point) => point[0]);
+        const ys = contribution.polygon.map((point) => point[1]);
+        const minX = Math.min(...xs);
+        const minY = Math.min(...ys);
+        const maxX = Math.max(...xs);
+        const maxY = Math.max(...ys);
+        const box = intersectRects(
+          {
+            x: (minX + scrollX) * t,
+            y: (minY + scrollY) * t,
+            width: Math.max(0, maxX - minX) * t,
+            height: Math.max(0, maxY - minY) * t,
+          },
+          viewDeviceRect,
+        );
+        if (!box) {
+          continue;
         }
-        const [r, g, b] = parseColor(light.color);
-        const peak = Math.max(0, light.intensity);
-        const radius = Math.max(1, light.radius);
 
-        for (const edge of mirrorEdges) {
-          // 反射只应发生在**真正被光照到**的那截镜面上。spot：先把镜面边裁到
-          // 聚光锥内——整条边都在锥外（灯背后的镜子）则跳过，不反光；点光：整条
-          // 边都算被照到（点光无方向），直接用原边。这修好了「聚光灯背后的镜面
-          // 也反光」的穿帮。
-          let ax: number;
-          let ay: number;
-          let bx: number;
-          let by: number;
-          if (light.type === "spot") {
-            const clipped = clipSegmentToCone(
-              edge.a[0],
-              edge.a[1],
-              edge.b[0],
-              edge.b[1],
-              light.x,
-              light.y,
-              light.direction ?? 0,
-              light.angle ?? DEFAULT_LUMINA_SPOT_ANGLE,
-            );
-            if (!clipped) {
-              continue; // 镜面整段在锥外，光没照到 → 无反射。
-            }
-            ax = clipped[0];
-            ay = clipped[1];
-            bx = clipped[2];
-            by = clipped[3];
-          } else {
-            ax = edge.a[0];
-            ay = edge.a[1];
-            bx = edge.b[0];
-            by = edge.b[1];
-          }
-          // 虚光源 L' = 光源对镜面直线的镜像。
-          const [lx, ly] = reflectAcrossLine(
-            light.x,
-            light.y,
-            ax,
-            ay,
-            bx,
-            by,
+        const [r, g, b] = parseColor(contribution.color);
+        const alpha = Math.min(1, contribution.intensity);
+        rctx.save();
+        rctx.setTransform(1, 0, 0, 1, 0, 0);
+        rctx.beginPath();
+        rctx.rect(box.x, box.y, box.width, box.height);
+        rctx.clip();
+
+        rctx.setTransform(t, 0, 0, t, scrollX * t, scrollY * t);
+        rctx.beginPath();
+        rctx.moveTo(contribution.polygon[0][0], contribution.polygon[0][1]);
+        for (let index = 1; index < contribution.polygon.length; index++) {
+          rctx.lineTo(
+            contribution.polygon[index][0],
+            contribution.polygon[index][1],
           );
-
-          // #2/#4 局部 bbox：可见反射 ⊆ 以 L' 为心、radius 为半径的圆盘（渐变
-          // 半径外 alpha=0）。取该圆盘设备包围盒与视口求交——为空则整条反射
-          // 不可见，直接跳过（视口外剔除），连 clip/gradient 都不建。
-          const discRect: DeviceRect = {
-            x: toDeviceX(lx - radius),
-            y: toDeviceY(ly - radius),
-            width: radius * 2 * t,
-            height: radius * 2 * t,
-          };
-          const box = intersectRects(discRect, viewDeviceRect);
-          if (!box) {
-            continue;
-          }
-
-          // 只有当真光源与观察侧在镜面异侧时才有反射（L' 落在观察侧）。这里用
-          // 「反射锥」裁剪：从镜面段两端点沿「背离 L'」方向外延，构成 L' 可见的
-          // 那片区域。锥外 clip 掉，锥内画 L' 的径向光晕。
-          const extend = (
-            px: number,
-            py: number,
-          ): [number, number] => {
-            const dx = px - lx;
-            const dy = py - ly;
-            const len = Math.hypot(dx, dy) || 1;
-            return [
-              px + (dx / len) * projectionLength,
-              py + (dy / len) * projectionLength,
-            ];
-          };
-          const [fax, fay] = extend(ax, ay);
-          const [fbx, fby] = extend(bx, by);
-
-          // 以 L' 为中心的径向光晕：距离衰减 = 真实反射光路长度（反射保距）。
-          // 0.9：镜面反射率（略有损耗）；再乘镜面 opacity。
-          const rp = Math.min(1, peak) * 0.9 * edge.opacity;
-
-          rctx.save();
-          // 设备像素坐标系下 clip 到局部 bbox（#2：只画这一小块），再叠加
-          // 场景变换画反射锥 + 渐变。两层裁剪取交：bbox ∩ 反射锥。
-          rctx.setTransform(1, 0, 0, 1, 0, 0);
-          rctx.beginPath();
-          rctx.rect(box.x, box.y, box.width, box.height);
-          rctx.clip();
-
-          rctx.setTransform(t, 0, 0, t, scrollX * t, scrollY * t);
-          rctx.beginPath();
-          rctx.moveTo(ax, ay);
-          rctx.lineTo(bx, by);
-          rctx.lineTo(fbx, fby);
-          rctx.lineTo(fax, fay);
-          rctx.closePath();
-          rctx.clip();
-
-          const grad = rctx.createRadialGradient(lx, ly, 0, lx, ly, radius);
-          grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${rp})`);
-          grad.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${rp * 0.4})`);
-          grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-          rctx.fillStyle = grad;
-          rctx.globalCompositeOperation = "lighter";
-          // 只填局部 bbox 对应的场景矩形（clip 已保证不越界，这里给足范围）。
-          rctx.fillRect(lx - radius, ly - radius, radius * 2, radius * 2);
-          rctx.restore();
-          drewAny = true;
         }
+        rctx.closePath();
+        rctx.clip();
+        rctx.globalCompositeOperation = "lighter";
+
+        if (contribution.lightType === "sun") {
+          rctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha * 0.34})`;
+          rctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+        } else if (contribution.virtualSource) {
+          const [virtualX, virtualY] = contribution.virtualSource;
+          const gradient = rctx.createRadialGradient(
+            virtualX,
+            virtualY,
+            0,
+            virtualX,
+            virtualY,
+            contribution.radius,
+          );
+          gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${alpha})`);
+          gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${alpha * 0.4})`);
+          gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+          rctx.fillStyle = gradient;
+          rctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+        }
+        rctx.restore();
+        drewAny = true;
       }
 
-      // #1 所有反射一次性 'lighter' 合成到 base（仅当确实画了东西）。
       if (drewAny) {
         bctx.setTransform(1, 0, 0, 1, 0, 0);
         bctx.globalCompositeOperation = "lighter";
@@ -780,8 +775,9 @@ export interface CompositeLightingOptions {
  * 因此 M2 定案：**ambient / 直接光 / 阴影 / 镜面反射全部走 Canvas2D**
  * （见 compositeLightingCanvas2D，反射由其中的 addMirrorReflections 段完成）。
  * 任何材质、任何场景都不飙 GPU、不留硬阴影暗楔。glass 走透光软阴影
- * （shadowStrengthFor），真实折射偏折留 M3。WebGL 后端代码暂留仓库但已从
- * 渲染路径摘除（见 0015 附录修订记录），M3 激光若需要再评估是否复活。
+ * （shadowStrengthFor），真实二维折射由 glassOptics 完成，环境镜面反射由
+ * mirrorOptics 完成。WebGL 后端代码暂留仓库但已从渲染路径摘除（见 0015
+ * 附录修订记录）；laser 继续使用有限 CPU 射线，不复活全屏 WebGL。
  */
 export const compositeLighting = (
   ctx: CanvasRenderingContext2D,
@@ -815,6 +811,7 @@ export const __testing = {
   convexHull,
   intersectRects,
   parseColor,
+  selectDirectShadowEdges,
   selectMirrorEdges,
   shadowStrengthFor,
 };

@@ -35,8 +35,15 @@
     "opacity": "透明度",
     "lumina": {
       "toggle": "光照开关",
+      "caustics": "玻璃折射与焦散",
       "addLight": "放置光源",
       "addSun": "放置太阳（平行光）",
+      "sections": {
+        "lighting": "光照设置",
+        "edit": "关卡编辑",
+        "play": "开始游玩",
+        "session": "当前会话"
+      },
       "material": {
         "label": "材质",
         "solid": "实心",
@@ -59,10 +66,46 @@
           "sun": "太阳"
         }
       },
+      "game": {
+        "label": "Lumina 游戏",
+        "mode": {
+          "edit": "编辑激光关卡",
+          "play": "游玩激光关卡",
+          "shadowEdit": "编辑阴影揭秘",
+          "shadowPlay": "游玩阴影揭秘",
+          "darkRoomEdit": "编辑黑屋探宝",
+          "darkRoomPlay": "游玩黑屋探宝",
+          "off": "退出游戏模式"
+        },
+        "role": {
+          "label": "游戏角色",
+          "none": "无",
+          "target": "目标",
+          "emitter": "发射器",
+          "shadowTarget": "阴影目标",
+          "treasure": "宝藏"
+        },
+        "constraints": {
+          "label": "游戏约束",
+          "required": "必需",
+          "tolerance": "容差",
+          "maxBounces": "最大反射次数",
+          "puzzleId": "谜题 ID",
+          "elementLabel": "标签"
+        },
+        "reset": "重置关卡",
+        "status": {
+          "solved": "已通关",
+          "unsolved": "未通关",
+          "shadowMatched": "图案已匹配",
+          "shadowUnmatched": "图案未匹配",
+          "darkRoomProgress": "已发现 {{discovered}} / {{required}} 个必需宝藏"
+        }
+      },
       "webglFallback": "高级材质（玻璃、镜面）需要 WebGL，当前降级为简单阴影。"
     },
     "experimental": {
-      "label": "实验功能",
+      "label": "实验性",
       "lumina": "光照 Lumina"
     },
     "textAlign": "文本对齐",
@@ -530,11 +573,13 @@
       "onlySelected": "仅选中",
       "darkMode": "深色模式",
       "embedScene": "包含画布数据",
+      "includeGameEffects": "导出游戏效果",
       "scale": "缩放比例",
       "padding": "内边距"
     },
     "tooltip": {
-      "embedScene": "画布数据将被保存到导出的 PNG/SVG 文件，以便恢复。\n将会增加导出文件的大小。"
+      "embedScene": "画布数据将被保存到导出的 PNG/SVG 文件，以便恢复。\n将会增加导出文件的大小。",
+      "includeGameEffects": "在 PNG 和剪贴板位图中包含当前 Lumina 游戏效果；SVG 保持不包含。"
     },
     "title": {
       "exportToPng": "导出为 PNG",

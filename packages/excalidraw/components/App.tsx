@@ -452,6 +452,7 @@ import { isSidebarDockedAtom } from "./Sidebar/Sidebar";
 import { StaticCanvas, InteractiveCanvas } from "./canvases";
 import NewElementCanvas from "./canvases/NewElementCanvas";
 import LightingCanvas from "./canvases/LightingCanvas";
+import LuminaGameCanvas from "./canvases/LuminaGameCanvas";
 import { isPointHittingLink } from "./hyperlink/helpers";
 import { MagicIcon, copyIcon, fullscreenIcon, playerPlayIcon } from "./icons";
 import { AppStateObserver, type OnStateChange } from "./AppStateObserver";
@@ -2571,6 +2572,15 @@ class App extends React.Component<AppProps, AppState> {
                               }}
                             />
                           )}
+                          {this.state.luminaEnabled &&
+                            this.state.luminaGameMode && (
+                              <LuminaGameCanvas
+                                appState={this.state}
+                                elements={this.scene.getNonDeletedElements()}
+                                elementsMap={allElementsMap}
+                                scale={window.devicePixelRatio}
+                              />
+                            )}
                           {newElementCanvasElement && (
                             <NewElementCanvas
                               appState={this.state}

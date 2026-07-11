@@ -4,17 +4,27 @@ import {
   getLuminaMaterial,
   getLuminaMaterialData,
   getLuminaLightData,
+  getLuminaGameData,
   isLuminaLightSource,
+  isLuminaGameRole,
   hasLuminaMaterial,
+  hasLuminaGameData,
   normalizeLuminaMaterialData,
+  normalizeLuminaIor,
   normalizeLuminaLightData,
+  normalizeLuminaGameData,
+  normalizeLuminaDarkRoomThreshold,
   DEFAULT_LUMINA_MATERIAL,
   DEFAULT_LUMINA_LIGHT_TYPE,
   DEFAULT_LUMINA_LIGHT_COLOR,
   DEFAULT_LUMINA_LIGHT_INTENSITY,
 } from "../src/lumina";
 
-import type { LuminaLightData, LuminaMaterialData } from "../src/lumina";
+import type {
+  LuminaGameData,
+  LuminaLightData,
+  LuminaMaterialData,
+} from "../src/lumina";
 
 describe("lumina data model helpers", () => {
   describe("material", () => {
@@ -44,6 +54,16 @@ describe("lumina data model helpers", () => {
       });
       expect(getLuminaMaterial(el)).toBe(DEFAULT_LUMINA_MATERIAL);
       expect(hasLuminaMaterial(el)).toBe(false);
+    });
+
+    it("normalizes glass IOR into the supported range", () => {
+      expect(normalizeLuminaIor(undefined)).toBe(1.5);
+      expect(normalizeLuminaIor(Number.NaN)).toBe(1.5);
+      expect(normalizeLuminaIor(0.5)).toBe(1);
+      expect(normalizeLuminaIor(3)).toBe(2.5);
+      expect(
+        normalizeLuminaMaterialData({ material: "glass", ior: 1.33 }).ior,
+      ).toBe(1.33);
     });
   });
 
@@ -100,12 +120,81 @@ describe("lumina data model helpers", () => {
     });
   });
 
+  describe("game data", () => {
+    it("returns null for elements without lumina game data", () => {
+      const el = API.createElement({ type: "rectangle" });
+      expect(getLuminaGameData(el)).toBeNull();
+      expect(hasLuminaGameData(el)).toBe(false);
+      expect(isLuminaGameRole(el, "target")).toBe(false);
+    });
+
+    it("reads a valid game target role", () => {
+      const el = API.createElement({
+        type: "rectangle",
+        customData: {
+          luminaGame: {
+            role: "target",
+            required: true,
+            tolerance: 24,
+            puzzleId: "laser-1",
+          } as LuminaGameData,
+        },
+      });
+      expect(getLuminaGameData(el)?.role).toBe("target");
+      expect(getLuminaGameData(el)?.tolerance).toBe(24);
+      expect(hasLuminaGameData(el)).toBe(true);
+      expect(isLuminaGameRole(el, "target")).toBe(true);
+    });
+
+    it("rejects an invalid game role defensively", () => {
+      const el = API.createElement({
+        type: "rectangle",
+        customData: { luminaGame: { role: "artifact" } },
+      });
+      expect(getLuminaGameData(el)).toBeNull();
+      expect(hasLuminaGameData(el)).toBe(false);
+    });
+
+    it("reads treasure roles and normalizes dark-room thresholds", () => {
+      const el = API.createElement({
+        type: "rectangle",
+        customData: { luminaGame: { role: "treasure", tolerance: 0.6 } },
+      });
+      expect(getLuminaGameData(el)?.role).toBe("treasure");
+      expect(isLuminaGameRole(el, "treasure")).toBe(true);
+      expect(normalizeLuminaDarkRoomThreshold(0.6)).toBe(0.6);
+      expect(normalizeLuminaDarkRoomThreshold(-1)).toBe(0);
+      expect(normalizeLuminaDarkRoomThreshold(2)).toBe(1);
+      expect(normalizeLuminaDarkRoomThreshold("bad")).toBe(0.35);
+    });
+
+    it("normalizeLuminaGameData preserves valid optional fields", () => {
+      const data = normalizeLuminaGameData({
+        role: "emitter",
+        puzzleId: "p1",
+        required: false,
+        tolerance: 12,
+        label: "A",
+        meta: { maxBounces: 4 },
+      });
+      expect(data).toEqual({
+        role: "emitter",
+        puzzleId: "p1",
+        required: false,
+        tolerance: 12,
+        label: "A",
+        meta: { maxBounces: 4 },
+      });
+    });
+  });
+
   describe("defensive reads", () => {
     it("handles null/undefined without throwing", () => {
       expect(getLuminaMaterial(null)).toBe(DEFAULT_LUMINA_MATERIAL);
       expect(getLuminaMaterial(undefined)).toBe(DEFAULT_LUMINA_MATERIAL);
       expect(isLuminaLightSource(null)).toBe(false);
       expect(getLuminaLightData(undefined)).toBeNull();
+      expect(getLuminaGameData(undefined)).toBeNull();
     });
   });
 

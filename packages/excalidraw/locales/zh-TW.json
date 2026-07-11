@@ -33,6 +33,81 @@
     "strokeStyle_dotted": "點線",
     "sloppiness": "線條風格",
     "opacity": "透明度",
+    "lumina": {
+      "toggle": "光照開關",
+      "caustics": "玻璃折射與焦散",
+      "addLight": "放置光源",
+      "addSun": "放置太陽（平行光）",
+      "sections": {
+        "lighting": "光照設定",
+        "edit": "關卡編輯",
+        "play": "開始遊玩",
+        "session": "目前工作階段"
+      },
+      "material": {
+        "label": "材質",
+        "solid": "實心",
+        "translucent": "半透明",
+        "glass": "玻璃",
+        "mirror": "鏡面",
+        "emissive": "自發光"
+      },
+      "light": {
+        "label": "光源",
+        "color": "光色",
+        "intensity": "強度",
+        "radius": "半徑",
+        "cone": "錐角",
+        "direction": "方向",
+        "type": {
+          "label": "類型",
+          "point": "點光源",
+          "spot": "聚光燈",
+          "sun": "太陽"
+        }
+      },
+      "game": {
+        "label": "Lumina 遊戲",
+        "mode": {
+          "edit": "編輯雷射關卡",
+          "play": "遊玩雷射關卡",
+          "shadowEdit": "編輯陰影揭秘",
+          "shadowPlay": "遊玩陰影揭秘",
+          "darkRoomEdit": "編輯黑屋尋寶",
+          "darkRoomPlay": "遊玩黑屋尋寶",
+          "off": "退出遊戲模式"
+        },
+        "role": {
+          "label": "遊戲角色",
+          "none": "無",
+          "target": "目標",
+          "emitter": "發射器",
+          "shadowTarget": "陰影目標",
+          "treasure": "寶藏"
+        },
+        "constraints": {
+          "label": "遊戲限制",
+          "required": "必需",
+          "tolerance": "容差",
+          "maxBounces": "最大反射次數",
+          "puzzleId": "謎題 ID",
+          "elementLabel": "標籤"
+        },
+        "reset": "重設關卡",
+        "status": {
+          "solved": "已通關",
+          "unsolved": "未通關",
+          "shadowMatched": "圖案已匹配",
+          "shadowUnmatched": "圖案未匹配",
+          "darkRoomProgress": "已發現 {{discovered}} / {{required}} 個必需寶藏"
+        }
+      },
+      "webglFallback": "進階材質（玻璃、鏡面）需要 WebGL，目前降級為簡單陰影。"
+    },
+    "experimental": {
+      "label": "實驗性",
+      "lumina": "光照 Lumina"
+    },
     "textAlign": "文字對齊",
     "edges": "邊緣",
     "sharp": "尖銳",
@@ -490,11 +565,13 @@
       "onlySelected": "僅選取物件",
       "darkMode": "深色模式",
       "embedScene": "嵌入場景",
+      "includeGameEffects": "匯出遊戲效果",
       "scale": "縮放比例",
       "padding": "內間距"
     },
     "tooltip": {
-      "embedScene": "用於回復場景的場景資料會被包含在輸出的 PNG/SVG 檔案中。\n會增加輸出的檔案大小。"
+      "embedScene": "用於回復場景的場景資料會被包含在輸出的 PNG/SVG 檔案中。\n會增加輸出的檔案大小。",
+      "includeGameEffects": "在 PNG 與剪貼簿點陣圖中包含目前的 Lumina 遊戲效果；SVG 維持不包含。"
     },
     "title": {
       "exportToPng": "輸出成 PNG",

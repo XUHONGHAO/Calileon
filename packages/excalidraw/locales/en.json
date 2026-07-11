@@ -39,8 +39,15 @@
     "opacity": "Opacity",
     "lumina": {
       "toggle": "Lighting toggle",
+      "caustics": "Glass refraction & caustics",
       "addLight": "Add light source",
       "addSun": "Add sun (directional)",
+      "sections": {
+        "lighting": "Lighting setup",
+        "edit": "Level editing",
+        "play": "Start playing",
+        "session": "Current session"
+      },
       "material": {
         "label": "Material",
         "solid": "Solid",
@@ -61,6 +68,42 @@
           "point": "Point",
           "spot": "Spot",
           "sun": "Sun"
+        }
+      },
+      "game": {
+        "label": "Lumina game",
+        "mode": {
+          "edit": "Edit laser level",
+          "play": "Play laser level",
+          "shadowEdit": "Edit shadow reveal",
+          "shadowPlay": "Play shadow reveal",
+          "darkRoomEdit": "Edit dark-room treasure hunt",
+          "darkRoomPlay": "Play dark-room treasure hunt",
+          "off": "Exit game mode"
+        },
+        "role": {
+          "label": "Game role",
+          "none": "None",
+          "target": "Target",
+          "emitter": "Emitter",
+          "shadowTarget": "Shadow target",
+          "treasure": "Treasure"
+        },
+        "constraints": {
+          "label": "Game constraints",
+          "required": "Required",
+          "tolerance": "Tolerance",
+          "maxBounces": "Max bounces",
+          "puzzleId": "Puzzle ID",
+          "elementLabel": "Label"
+        },
+        "reset": "Reset level",
+        "status": {
+          "solved": "Solved",
+          "unsolved": "Not solved",
+          "shadowMatched": "Pattern matched",
+          "shadowUnmatched": "Pattern not matched",
+          "darkRoomProgress": "Found {{discovered}} / {{required}} required treasures"
         }
       },
       "webglFallback": "Advanced materials (glass, mirror) need WebGL; showing simple shadows instead."
@@ -561,11 +604,13 @@
       "onlySelected": "Only selected",
       "darkMode": "Dark mode",
       "embedScene": "Embed scene",
+      "includeGameEffects": "Export game effects",
       "scale": "Scale",
       "padding": "Padding"
     },
     "tooltip": {
-      "embedScene": "Scene data will be saved into the exported PNG/SVG file so that the scene can be restored from it.\nWill increase exported file size."
+      "embedScene": "Scene data will be saved into the exported PNG/SVG file so that the scene can be restored from it.\nWill increase exported file size.",
+      "includeGameEffects": "Includes the current Lumina game overlay in PNG and clipboard raster output. SVG remains unchanged."
     },
     "title": {
       "exportToPng": "Export to PNG",

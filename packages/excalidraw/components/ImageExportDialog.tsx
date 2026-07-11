@@ -9,12 +9,15 @@ import {
   cloneJSON,
 } from "@excalidraw/common";
 
+import { hasLuminaGameData } from "@excalidraw/element/lumina";
+
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
 import {
   actionExportWithDarkMode,
   actionChangeExportBackground,
   actionChangeExportEmbedScene,
+  actionChangeExportIncludeGameEffects,
   actionChangeExportScale,
   actionChangeProjectName,
 } from "../actions/actionExport";
@@ -85,6 +88,9 @@ const ImageExportModal = ({
     appStateSnapshot.exportEmbedScene,
   );
   const [exportScale, setExportScale] = useState(appStateSnapshot.exportScale);
+  const [includeGameEffects, setIncludeGameEffects] = useState(false);
+  const showGameEffectsOption =
+    appStateSnapshot.luminaEnabled || elementsSnapshot.some(hasLuminaGameData);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const previewRenderRequestIdRef = useRef(0);
@@ -102,8 +108,19 @@ const ImageExportModal = ({
     exportWithDarkMode,
     exportScale,
     embedScene,
+    includeGameEffects,
     resetCopyStatus,
   ]);
+
+  useEffect(() => {
+    return () => {
+      actionManager.executeAction(
+        actionChangeExportIncludeGameEffects,
+        "ui",
+        false,
+      );
+    };
+  }, [actionManager]);
 
   const { exportedElements, exportingFrame } = prepareElementsForExport(
     elementsSnapshot,
@@ -136,6 +153,7 @@ const ImageExportModal = ({
         exportWithDarkMode,
         exportScale,
         exportEmbedScene: embedScene,
+        exportIncludeGameEffects: includeGameEffects,
       },
       files,
       exportPadding: DEFAULT_EXPORT_PADDING,
@@ -187,6 +205,7 @@ const ImageExportModal = ({
     exportWithDarkMode,
     exportScale,
     embedScene,
+    includeGameEffects,
   ]);
 
   return (
@@ -281,6 +300,26 @@ const ImageExportModal = ({
             }}
           />
         </ExportSetting>
+        {showGameEffectsOption && (
+          <ExportSetting
+            label={t("imageExportDialog.label.includeGameEffects")}
+            tooltip={t("imageExportDialog.tooltip.includeGameEffects")}
+            name="exportIncludeGameEffectsSwitch"
+          >
+            <Switch
+              name="exportIncludeGameEffectsSwitch"
+              checked={includeGameEffects}
+              onChange={(checked) => {
+                setIncludeGameEffects(checked);
+                actionManager.executeAction(
+                  actionChangeExportIncludeGameEffects,
+                  "ui",
+                  checked,
+                );
+              }}
+            />
+          </ExportSetting>
+        )}
         <ExportSetting
           label={t("imageExportDialog.label.scale")}
           name="exportScale"

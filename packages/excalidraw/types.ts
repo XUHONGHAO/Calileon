@@ -360,6 +360,8 @@ export interface AppState {
   exportBackground: boolean;
   exportEmbedScene: boolean;
   exportWithDarkMode: boolean;
+  /** Include the current Lumina game overlay in raster export. */
+  exportIncludeGameEffects: boolean;
   exportScale: number;
   currentItemStrokeColor: string;
   currentItemBackgroundColor: string;

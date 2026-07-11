@@ -53,6 +53,11 @@ import { useTextEditorFocus } from "../hooks/useTextEditorFocus";
 
 import { actionToggleViewMode } from "../actions/actionToggleViewMode";
 
+import {
+  shouldShowLuminaAuthorControls,
+  shouldShowLuminaGameEditorControls,
+} from "../renderer/lumina/game";
+
 import { getToolbarTools } from "./shapes";
 
 import "./Actions.scss";
@@ -245,11 +250,17 @@ export const SelectedShapeActions = ({
 
       {renderAction("changeOpacity")}
 
-      {appState.luminaEnabled && (
+      {shouldShowLuminaAuthorControls(appState) && (
         <>
           {targetElements.some((element) => isLuminaLightSource(element))
             ? renderAction("changeLightProps")
             : renderAction("changeMaterial")}
+          {shouldShowLuminaGameEditorControls(appState) && (
+            <>
+              {renderAction("changeLuminaGameRole")}
+              {renderAction("changeLuminaGameConstraint")}
+            </>
+          )}
         </>
       )}
 

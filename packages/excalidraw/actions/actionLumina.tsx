@@ -8,33 +8,47 @@
  *
  * action 一览：
  *  - toggleLumina        全局开关（appState.luminaEnabled）
+ *  - toggleLuminaCaustics 玻璃折射/焦散开关（appState.luminaCaustics）
  *  - addLightSource      在视口中心放置一个点光源椭圆并选中
  *  - addSun              放置一个平行光（sun）光源（M2）
  *  - changeMaterial      修改选中图形的材质（写入 customData.luminaMaterial）
  *  - changeLightProps    修改选中光源的颜色/强度/半径/类型（写 customData.luminaLight，M2）
+ *  - changeLuminaGameRole 标记/清除 M3 游戏角色（M3b 起）
+ *  - changeLuminaGameConstraint 修改 M3 游戏约束（M3c 起）
+ *  - setLuminaGameMode   进入/退出 M3 游戏模式（M3b 起）
+ *  - resetLuminaGame     恢复进入 play 时的关卡几何快照（M3b 起）
  */
 
 import {
+  arrayToMap,
   DEFAULT_ELEMENT_STROKE_COLOR_PALETTE,
   DEFAULT_ELEMENT_STROKE_PICKS,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/common";
 
-import { CaptureUpdateAction, newElement } from "@excalidraw/element";
+import {
+  CaptureUpdateAction,
+  newElement,
+  syncMovedIndices,
+} from "@excalidraw/element";
 import { newElementWith } from "@excalidraw/element";
 import {
   DEFAULT_LUMINA_DIRECTION,
   DEFAULT_LUMINA_LIGHT_COLOR,
   DEFAULT_LUMINA_LIGHT_INTENSITY,
   DEFAULT_LUMINA_SPOT_ANGLE,
+  getLuminaGameData,
   getLuminaLightData,
   getLuminaMaterial,
   isLuminaLightSource,
+  normalizeLuminaGameData,
   normalizeLuminaLightData,
 } from "@excalidraw/element/lumina";
 
 import type {
   LuminaCustomData,
+  LuminaGameMode,
+  LuminaGameRole,
   LuminaLightData,
   LuminaLightType,
   LuminaMaterial,
@@ -44,18 +58,62 @@ import type { Radians } from "@excalidraw/math";
 
 import { t } from "../i18n";
 
-import type { TranslationKeys } from "../i18n";
 import { RadioSelection } from "../components/RadioSelection";
 import { ColorPicker } from "../components/ColorPicker/ColorPicker";
 import { Range } from "../components/Range";
 
+import {
+  applyLuminaGameResetSnapshot,
+  captureLuminaGameResetSnapshot,
+} from "../renderer/lumina/game";
+import { clearLuminaGameSession } from "../renderer/lumina/gameSession";
+
 import { register } from "./register";
 import { changeProperty, getFormValue } from "./actionProperties";
 
-import type { AppState } from "../types";
+import type { TranslationKeys } from "../i18n";
+
+import type { AppClassProperties, AppState } from "../types";
+import type { LuminaGameResetSnapshot } from "../renderer/lumina/game";
 
 /** 光源宿主椭圆的默认像素尺寸。 */
 const LIGHT_SOURCE_SIZE = 48;
+const LUMINA_MAX_BOUNCES_MIN = 1;
+const LUMINA_MAX_BOUNCES_MAX = 32;
+const LUMINA_TARGET_TOLERANCE_MAX = 200;
+const LUMINA_SHADOW_TOLERANCE_MAX = 1;
+
+const appendLuminaElement = (
+  elements: readonly ExcalidrawElement[],
+  element: ExcalidrawElement,
+) => {
+  const nextElements = [...elements, element];
+  return syncMovedIndices(nextElements, arrayToMap([element]));
+};
+
+export interface LuminaGameConstraintPatch {
+  required?: boolean;
+  tolerance?: number;
+  puzzleId?: string;
+  label?: string;
+  maxBounces?: number;
+}
+
+const luminaGameSnapshots = new WeakMap<
+  AppClassProperties,
+  LuminaGameResetSnapshot
+>();
+
+const clearLuminaGameSnapshot = (app: AppClassProperties): void => {
+  luminaGameSnapshots.delete(app);
+};
+
+const setLuminaGameSnapshot = (
+  app: AppClassProperties,
+  elements: readonly ExcalidrawElement[],
+): void => {
+  luminaGameSnapshots.set(app, captureLuminaGameResetSnapshot(elements));
+};
 
 export const actionToggleLumina = register({
   name: "toggleLumina",
@@ -65,16 +123,40 @@ export const actionToggleLumina = register({
     category: "canvas",
     predicate: (appState) => appState.luminaEnabled,
   },
-  perform: (elements, appState) => {
+  perform: (elements, appState, _value, app) => {
+    const nextEnabled = !appState.luminaEnabled;
+    if (!nextEnabled) {
+      clearLuminaGameSnapshot(app);
+    }
     return {
       appState: {
         ...appState,
-        luminaEnabled: !appState.luminaEnabled,
+        luminaEnabled: nextEnabled,
+        luminaGameMode: nextEnabled ? appState.luminaGameMode : null,
       },
       captureUpdate: CaptureUpdateAction.EVENTUALLY,
     };
   },
   checked: (appState: AppState) => appState.luminaEnabled,
+});
+
+export const actionToggleLuminaCaustics = register({
+  name: "toggleLuminaCaustics",
+  label: "labels.lumina.caustics",
+  viewMode: true,
+  trackEvent: {
+    category: "canvas",
+    predicate: (appState) => appState.luminaCaustics,
+  },
+  perform: (_elements, appState) => ({
+    appState: {
+      ...appState,
+      luminaEnabled: true,
+      luminaCaustics: !appState.luminaCaustics,
+    },
+    captureUpdate: CaptureUpdateAction.EVENTUALLY,
+  }),
+  checked: (appState: AppState) => appState.luminaCaustics,
 });
 
 export const actionAddLightSource = register({
@@ -98,6 +180,8 @@ export const actionAddLightSource = register({
       castShadows: true,
     });
 
+    const customData: LuminaCustomData = { luminaLight: lightData };
+
     const light = newElement({
       type: "ellipse",
       x: centerX - LIGHT_SOURCE_SIZE / 2,
@@ -106,12 +190,12 @@ export const actionAddLightSource = register({
       height: LIGHT_SOURCE_SIZE,
       backgroundColor: DEFAULT_LUMINA_LIGHT_COLOR,
       strokeColor: DEFAULT_LUMINA_LIGHT_COLOR,
-      customData: { luminaLight: lightData } satisfies LuminaCustomData,
+      customData,
     });
 
     return {
       // 开启光源时自动打开光照总开关，否则放了光源也看不到效果。
-      elements: [...elements, light],
+      elements: appendLuminaElement(elements, light),
       appState: {
         ...appState,
         luminaEnabled: true,
@@ -216,6 +300,8 @@ export const actionAddSun = register({
       castShadows: true,
     });
 
+    const customData: LuminaCustomData = { luminaLight: lightData };
+
     const sun = newElement({
       type: "ellipse",
       x: centerX - LIGHT_SOURCE_SIZE / 2,
@@ -224,11 +310,11 @@ export const actionAddSun = register({
       height: LIGHT_SOURCE_SIZE,
       backgroundColor: DEFAULT_LUMINA_LIGHT_COLOR,
       strokeColor: DEFAULT_LUMINA_LIGHT_COLOR,
-      customData: { luminaLight: lightData } satisfies LuminaCustomData,
+      customData,
     });
 
     return {
-      elements: [...elements, sun],
+      elements: appendLuminaElement(elements, sun),
       appState: {
         ...appState,
         luminaEnabled: true,
@@ -279,13 +365,14 @@ export const actionChangeLightProps = register<Partial<LuminaLightData>>({
             next.angle = (direction - Math.PI / 2) as Radians;
           }
           if (hasCustomPatch) {
-            next.customData = {
+            const patchedCustomData: LuminaCustomData = {
               ...el.customData,
               luminaLight: normalizeLuminaLightData({
                 ...current,
                 ...customPatch,
               }),
-            } satisfies LuminaCustomData;
+            };
+            next.customData = patchedCustomData;
           }
           return newElementWith(el, next);
         },
@@ -312,8 +399,7 @@ export const actionChangeLightProps = register<Partial<LuminaLightData>>({
       app,
       (element) => getLuminaLightData(element)?.intensity ?? null,
       isLight,
-      (hasSelection) =>
-        hasSelection ? null : DEFAULT_LUMINA_LIGHT_INTENSITY,
+      (hasSelection) => (hasSelection ? null : DEFAULT_LUMINA_LIGHT_INTENSITY),
     );
 
     const lightType = getFormValue<LuminaLightType | null>(
@@ -392,7 +478,9 @@ export const actionChangeLightProps = register<Partial<LuminaLightData>>({
 
         <Range
           label={t("labels.lumina.light.intensity")}
-          value={Math.round(((intensity ?? DEFAULT_LUMINA_LIGHT_INTENSITY) / 3) * 100)}
+          value={Math.round(
+            ((intensity ?? DEFAULT_LUMINA_LIGHT_INTENSITY) / 3) * 100,
+          )}
           hasCommonValue={intensity !== null}
           onChange={(v) => updateData({ intensity: (v / 100) * 3 })}
           min={0}
@@ -456,5 +544,371 @@ export const actionChangeLightProps = register<Partial<LuminaLightData>>({
         )}
       </fieldset>
     );
+  },
+});
+
+const LUMINA_GAME_ROLE_LABEL_KEYS: Record<
+  "none" | "target" | "emitter" | "shadowTarget" | "treasure",
+  TranslationKeys
+> = {
+  none: "labels.lumina.game.role.none",
+  target: "labels.lumina.game.role.target",
+  emitter: "labels.lumina.game.role.emitter",
+  shadowTarget: "labels.lumina.game.role.shadowTarget",
+  treasure: "labels.lumina.game.role.treasure",
+};
+
+const clampTargetTolerance = (value: unknown): number | undefined => {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.min(LUMINA_TARGET_TOLERANCE_MAX, value))
+    : undefined;
+};
+
+const clampMaxBounces = (value: unknown): number | undefined => {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(
+        LUMINA_MAX_BOUNCES_MIN,
+        Math.min(LUMINA_MAX_BOUNCES_MAX, Math.round(value)),
+      )
+    : undefined;
+};
+
+const clampShadowTolerance = (value: unknown): number | undefined => {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.max(0, Math.min(LUMINA_SHADOW_TOLERANCE_MAX, value))
+    : undefined;
+};
+
+export const actionChangeLuminaGameRole = register<LuminaGameRole | null>({
+  name: "changeLuminaGameRole",
+  label: "labels.lumina.game.role.label",
+  trackEvent: false,
+  perform: (elements, appState, value) => {
+    return {
+      elements: changeProperty(elements, appState, (el) => {
+        const nextCustomData = {
+          ...(el.customData ?? {}),
+        } as LuminaCustomData;
+
+        if (value == null) {
+          delete nextCustomData.luminaGame;
+        } else {
+          nextCustomData.luminaGame = normalizeLuminaGameData({
+            ...getLuminaGameData(el),
+            role: value,
+          });
+        }
+
+        return newElementWith(el, { customData: nextCustomData });
+      }),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    };
+  },
+  PanelComponent: ({ elements, updateData, app }) => {
+    const role = getFormValue<LuminaGameRole | null>(
+      elements,
+      app,
+      (element) => getLuminaGameData(element)?.role ?? null,
+      () => true,
+      (hasSelection) => (hasSelection ? null : null),
+    );
+
+    return (
+      <fieldset>
+        <legend>{t("labels.lumina.game.role.label")}</legend>
+        <div className="buttonList lumina-material-buttonList">
+          <RadioSelection
+            type="button"
+            options={[
+              {
+                value: "none",
+                text: t(LUMINA_GAME_ROLE_LABEL_KEYS.none),
+                icon: (
+                  <span className="lumina-material-option">
+                    {t(LUMINA_GAME_ROLE_LABEL_KEYS.none)}
+                  </span>
+                ),
+                testId: "lumina-game-role-none",
+              },
+              {
+                value: "target",
+                text: t(LUMINA_GAME_ROLE_LABEL_KEYS.target),
+                icon: (
+                  <span className="lumina-material-option">
+                    {t(LUMINA_GAME_ROLE_LABEL_KEYS.target)}
+                  </span>
+                ),
+                testId: "lumina-game-role-target",
+              },
+              {
+                value: "emitter",
+                text: t(LUMINA_GAME_ROLE_LABEL_KEYS.emitter),
+                icon: (
+                  <span className="lumina-material-option">
+                    {t(LUMINA_GAME_ROLE_LABEL_KEYS.emitter)}
+                  </span>
+                ),
+                testId: "lumina-game-role-emitter",
+              },
+              {
+                value: "shadowTarget",
+                text: t(LUMINA_GAME_ROLE_LABEL_KEYS.shadowTarget),
+                icon: (
+                  <span className="lumina-material-option">
+                    {t(LUMINA_GAME_ROLE_LABEL_KEYS.shadowTarget)}
+                  </span>
+                ),
+                testId: "lumina-game-role-shadow-target",
+              },
+              {
+                value: "treasure",
+                text: t(LUMINA_GAME_ROLE_LABEL_KEYS.treasure),
+                icon: (
+                  <span className="lumina-material-option">
+                    {t(LUMINA_GAME_ROLE_LABEL_KEYS.treasure)}
+                  </span>
+                ),
+                testId: "lumina-game-role-treasure",
+              },
+            ]}
+            value={
+              role === "target" ||
+              role === "emitter" ||
+              role === "shadowTarget" ||
+              role === "treasure"
+                ? role
+                : "none"
+            }
+            onClick={(value) => updateData(value === "none" ? null : value)}
+          />
+        </div>
+      </fieldset>
+    );
+  },
+});
+
+export const actionChangeLuminaGameConstraint =
+  register<LuminaGameConstraintPatch>({
+    name: "changeLuminaGameConstraint",
+    label: "labels.lumina.game.constraints.label",
+    trackEvent: false,
+    perform: (elements, appState, value) => {
+      return {
+        elements: changeProperty(elements, appState, (el) => {
+          const current = getLuminaGameData(el);
+          if (!current || !value) {
+            return el;
+          }
+
+          const next = normalizeLuminaGameData(current);
+          if ("required" in value) {
+            next.required = value.required;
+          }
+          if ("tolerance" in value) {
+            const tolerance =
+              current.role === "shadowTarget" || current.role === "treasure"
+                ? clampShadowTolerance(value.tolerance)
+                : clampTargetTolerance(value.tolerance);
+            if (tolerance !== undefined) {
+              next.tolerance = tolerance;
+            }
+          }
+          if ("puzzleId" in value) {
+            const puzzleId = value.puzzleId?.trim();
+            next.puzzleId = puzzleId || undefined;
+          }
+          if ("label" in value) {
+            const label = value.label?.trim();
+            next.label = label || undefined;
+          }
+          if ("maxBounces" in value) {
+            const maxBounces = clampMaxBounces(value.maxBounces);
+            if (maxBounces !== undefined) {
+              next.meta = {
+                ...(next.meta ?? {}),
+                maxBounces,
+              };
+            }
+          }
+
+          return newElementWith(el, {
+            customData: {
+              ...el.customData,
+              luminaGame: next,
+            },
+          });
+        }),
+        captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+      };
+    },
+    PanelComponent: ({ elements, updateData, app }) => {
+      const role = getFormValue<LuminaGameRole | null>(
+        elements,
+        app,
+        (element) => getLuminaGameData(element)?.role ?? null,
+        (element) => getLuminaGameData(element) !== null,
+        () => null,
+      );
+      if (!role) {
+        return null;
+      }
+
+      const required = getFormValue<boolean | null>(
+        elements,
+        app,
+        (element) => getLuminaGameData(element)?.required ?? true,
+        (element) => getLuminaGameData(element) !== null,
+        () => true,
+      );
+      const tolerance = getFormValue<number | null>(
+        elements,
+        app,
+        (element) => getLuminaGameData(element)?.tolerance ?? null,
+        (element) => getLuminaGameData(element) !== null,
+        () => null,
+      );
+      const puzzleId = getFormValue<string | null>(
+        elements,
+        app,
+        (element) => getLuminaGameData(element)?.puzzleId ?? null,
+        (element) => getLuminaGameData(element) !== null,
+        () => null,
+      );
+      const label = getFormValue<string | null>(
+        elements,
+        app,
+        (element) => getLuminaGameData(element)?.label ?? null,
+        (element) => getLuminaGameData(element) !== null,
+        () => null,
+      );
+      const maxBounces = getFormValue<number | null>(
+        elements,
+        app,
+        (element) => {
+          const raw = getLuminaGameData(element)?.meta?.maxBounces;
+          return typeof raw === "number" && Number.isFinite(raw) ? raw : null;
+        },
+        (element) => getLuminaGameData(element)?.role === "emitter",
+        () => null,
+      );
+      const toleranceValue =
+        role === "shadowTarget" || role === "treasure"
+          ? Math.round((tolerance ?? (role === "treasure" ? 0.35 : 0.15)) * 100)
+          : Math.round(tolerance ?? 24);
+
+      return (
+        <fieldset className="lumina-game-constraints-panel">
+          <legend>{t("labels.lumina.game.constraints.label")}</legend>
+
+          <label>
+            <input
+              type="checkbox"
+              checked={required ?? true}
+              onChange={(event) =>
+                updateData({ required: event.currentTarget.checked })
+              }
+              data-testid="lumina-game-required"
+            />{" "}
+            {t("labels.lumina.game.constraints.required")}
+          </label>
+
+          <Range
+            label={t("labels.lumina.game.constraints.tolerance")}
+            value={toleranceValue}
+            hasCommonValue={tolerance !== null}
+            onChange={(value) =>
+              updateData({
+                tolerance:
+                  role === "shadowTarget" || role === "treasure"
+                    ? value / 100
+                    : value,
+              })
+            }
+            min={0}
+            max={
+              role === "shadowTarget" || role === "treasure"
+                ? 100
+                : LUMINA_TARGET_TOLERANCE_MAX
+            }
+            step={1}
+            testId="lumina-game-tolerance"
+          />
+
+          {role === "emitter" && (
+            <Range
+              label={t("labels.lumina.game.constraints.maxBounces")}
+              value={Math.round(maxBounces ?? 8)}
+              hasCommonValue={maxBounces !== null}
+              onChange={(value) => updateData({ maxBounces: value })}
+              min={LUMINA_MAX_BOUNCES_MIN}
+              max={LUMINA_MAX_BOUNCES_MAX}
+              step={1}
+              testId="lumina-game-max-bounces"
+            />
+          )}
+
+          <label>
+            {t("labels.lumina.game.constraints.puzzleId")}
+            <input
+              value={puzzleId ?? ""}
+              onChange={(event) =>
+                updateData({ puzzleId: event.currentTarget.value })
+              }
+              data-testid="lumina-game-puzzle-id"
+            />
+          </label>
+
+          <label>
+            {t("labels.lumina.game.constraints.elementLabel")}
+            <input
+              value={label ?? ""}
+              onChange={(event) =>
+                updateData({ label: event.currentTarget.value })
+              }
+              data-testid="lumina-game-label"
+            />
+          </label>
+        </fieldset>
+      );
+    },
+  });
+
+export const actionSetLuminaGameMode = register<LuminaGameMode | null>({
+  name: "setLuminaGameMode",
+  label: "labels.lumina.game.label",
+  trackEvent: { category: "canvas" },
+  perform: (elements, appState, value, app) => {
+    if (value?.phase === "play") {
+      setLuminaGameSnapshot(app, elements);
+    } else {
+      clearLuminaGameSnapshot(app);
+    }
+    return {
+      appState: {
+        ...appState,
+        luminaEnabled: value ? true : appState.luminaEnabled,
+        luminaGameMode: value,
+      },
+      captureUpdate: CaptureUpdateAction.EVENTUALLY,
+    };
+  },
+});
+
+export const actionResetLuminaGame = register({
+  name: "resetLuminaGame",
+  label: "labels.lumina.game.reset",
+  trackEvent: { category: "canvas" },
+  predicate: (_elements, appState) =>
+    appState.luminaEnabled && appState.luminaGameMode?.phase === "play",
+  perform: (elements, appState, _value, app) => {
+    const snapshot = luminaGameSnapshots.get(app);
+    if (!snapshot) {
+      return false;
+    }
+    clearLuminaGameSession(appState.luminaGameMode);
+    return {
+      elements: applyLuminaGameResetSnapshot(elements, snapshot),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    };
   },
 });
