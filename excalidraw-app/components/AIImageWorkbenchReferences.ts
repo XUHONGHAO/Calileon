@@ -8,7 +8,11 @@ import { dataURLToFile } from "../ai/imageCanvas";
 import type { AIImageSourceEnhanced } from "../ai/types";
 
 const MAX_PERSISTED_REFERENCE_IMAGES = 24;
-const MAX_PERSISTED_REFERENCE_STATE_BYTES = 128 * 1024;
+// Reference images now persist their base64 dataURL so they survive a refresh
+// even when their source element is gone (e.g. an exported-selection reference
+// has no scene file to rehydrate from). base64 PNGs are large, so the cap is
+// generous; the trim loop below drops the oldest images if we'd blow the quota.
+const MAX_PERSISTED_REFERENCE_STATE_BYTES = 4 * 1024 * 1024;
 
 export const reindexReferenceImages = (
   sources: readonly AIImageSourceEnhanced[],
@@ -104,12 +108,63 @@ export const markMissingReferenceElements = (
   });
 };
 
+// Shared matcher for reference tokens (`#1`, `图 2`, `image 3`). Kept in one
+// place so validation warnings and the inline highlight layer always agree on
+// what counts as a reference.
+const PROMPT_REFERENCE_PATTERN = /#(\d+)|图\s*(\d+)|image\s+(\d+)/gi;
+
+export type PromptReferenceSegment = {
+  text: string;
+  type: "text" | "reference" | "invalid-reference";
+};
+
+// Splits a prompt into plain-text runs and reference tokens so the editor can
+// paint each token: valid references (1..imageCount) in the brand color,
+// out-of-range references in red. Concatenating every segment's `text` returns
+// the original prompt unchanged, which the mirror highlight layer relies on to
+// stay pixel-aligned with the textarea.
+export const tokenizePromptReferences = (
+  prompt: string,
+  imageCount: number,
+): PromptReferenceSegment[] => {
+  const segments: PromptReferenceSegment[] = [];
+  let lastIndex = 0;
+
+  for (const match of prompt.matchAll(PROMPT_REFERENCE_PATTERN)) {
+    const start = match.index ?? 0;
+    const token = match[0];
+
+    if (start > lastIndex) {
+      segments.push({ text: prompt.slice(lastIndex, start), type: "text" });
+    }
+
+    const value = match[1] || match[2] || match[3];
+    const referenceIndex = Number(value);
+    const isValid =
+      Number.isFinite(referenceIndex) &&
+      referenceIndex >= 1 &&
+      referenceIndex <= imageCount;
+
+    segments.push({
+      text: token,
+      type: isValid ? "reference" : "invalid-reference",
+    });
+    lastIndex = start + token.length;
+  }
+
+  if (lastIndex < prompt.length) {
+    segments.push({ text: prompt.slice(lastIndex), type: "text" });
+  }
+
+  return segments;
+};
+
 export const validatePromptReferences = (
   prompt: string,
   imageCount: number,
 ) => {
   const warnings = new Set<string>();
-  const matches = prompt.matchAll(/#(\d+)|图\s*(\d+)|image\s+(\d+)/gi);
+  const matches = prompt.matchAll(PROMPT_REFERENCE_PATTERN);
 
   for (const match of matches) {
     const value = match[1] || match[2] || match[3];
@@ -155,9 +210,14 @@ export const persistReferenceState = (
         height: source.height,
         fileName: source.file.name,
         mimeType: source.file.type,
+        // Persist the pixel data itself. Restoring previously depended on the
+        // scene still containing files[fileId], which fails for
+        // exported-selection references (no fileId) — so refreshes silently
+        // dropped them. normalizePersistedReferenceImage() reads this back.
+        dataURL: source.dataURL,
       }));
     const payload = {
-      version: 2,
+      version: 3,
       locked: state.locked,
       images: persistedImages,
     };

@@ -78,10 +78,14 @@ import { createAIOpenSettingsEvent } from "../ai/workflowEvents";
 
 import {
   createGeneratedAssetReferenceSource,
+  downloadGeneratedAsset,
+  downloadImageFromURL,
   getGeneratedAssetActionLabels,
   getGeneratedAssetModeLabel,
+  getImageDownloadFileName,
   isLocalImageDataURL,
 } from "./AIImageWorkbenchAssets";
+import { PromptEditor } from "./AIImageWorkbenchPromptEditor";
 import {
   appendSelectedImageSources,
   clearReferenceWeight,
@@ -92,12 +96,18 @@ import {
   validatePromptReferences,
 } from "./AIImageWorkbenchReferences";
 import {
+  getMaskPersistenceKey,
+  loadPersistedMaskState,
+  persistMaskState,
+} from "./AIImageWorkbenchMasks";
+import {
   createAIImageWorkbenchStatus,
   getAIImageWorkbenchConfigurationNotice,
 } from "./AIImageWorkbenchStatus";
 import {
   createCopyPromptActionState,
   createSendPromptToAssistantActionState,
+  isAIImageGenerationMode,
 } from "./AIImageWorkbenchDraft";
 
 import "./AIImageWorkbench.scss";
@@ -123,6 +133,7 @@ import type {
   PromptTemplateCategory,
 } from "../ai/types";
 import type { GeneratedImagePlacement } from "../ai/imageCanvas";
+import type { PromptEditorHandle } from "./AIImageWorkbenchPromptEditor";
 import type { AIImageWorkbenchRunStatus } from "./AIImageWorkbenchStatus";
 import type { GeneratedAsset } from "./AIImageWorkbenchAssets";
 import type { CloudAITaskRun } from "../data/cloud/cloudAITasks";
@@ -173,6 +184,34 @@ const MEDIA_TYPE_OPTIONS: Array<{
 ];
 
 const MAX_IMAGE_COUNT = 10;
+// Most OpenAI-compatible image APIs accept a 32-bit unsigned seed. Keep the
+// random range within that so manually typed and dice-rolled seeds behave the
+// same across providers.
+const MAX_SEED = 2147483647;
+
+const createRandomSeed = () => Math.floor(Math.random() * (MAX_SEED + 1));
+
+const diceIcon = (
+  <svg
+    aria-hidden="true"
+    focusable="false"
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.75"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="3" />
+    <circle cx="8" cy="8" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="8" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="8" cy="16" r="1.2" fill="currentColor" stroke="none" />
+    <circle cx="16" cy="16" r="1.2" fill="currentColor" stroke="none" />
+  </svg>
+);
 
 type AIWorkbenchGenerationDraftState = {
   selectedModelId: string;
@@ -241,6 +280,107 @@ const savePersistedMediaType = (mediaType: AIModelMediaType) => {
   }
 };
 
+// The prompt, negative prompt, selected model and generation params are worth
+// keeping across reloads so a half-written prompt survives an accidental
+// refresh. `masksByImageId` is deliberately dropped: masks are large base64
+// blobs bound to specific canvas images (persisted separately with the
+// reference tray), so they must not bloat this lightweight draft snapshot.
+const stripDraftGeneration = (draft: AIWorkbenchGenerationDraftState) => ({
+  selectedModelId: draft.selectedModelId,
+  prompt: draft.prompt,
+  negativePrompt: draft.negativePrompt,
+  params: draft.params,
+});
+
+const savePersistedWorkbenchDraft = (draft: AIImageWorkbenchDraftState) => {
+  try {
+    const payload = {
+      mediaType: draft.mediaType,
+      mode: draft.mode,
+      imageModes: {
+        "text-to-image": stripDraftGeneration(
+          draft.imageModes["text-to-image"],
+        ),
+        "image-to-image": stripDraftGeneration(
+          draft.imageModes["image-to-image"],
+        ),
+        inpaint: stripDraftGeneration(draft.imageModes.inpaint),
+      },
+      video: stripDraftGeneration(draft.video),
+      audio: stripDraftGeneration(draft.audio),
+    };
+
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_WORKBENCH_DRAFT,
+      JSON.stringify(payload),
+    );
+  } catch {
+    // Ignore storage failures (private mode / quota); the draft just won't persist.
+  }
+};
+
+const loadPersistedWorkbenchDraft = (): {
+  mode?: AIImageGenerationMode;
+  imageModes?: Partial<
+    Record<AIImageGenerationMode, Partial<AIWorkbenchGenerationDraftState>>
+  >;
+  video?: Partial<AIWorkbenchGenerationDraftState>;
+  audio?: Partial<AIWorkbenchGenerationDraftState>;
+} | null => {
+  try {
+    const raw = localStorage.getItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_WORKBENCH_DRAFT,
+    );
+
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+// Restores a persisted per-mode draft onto a freshly built default, keeping the
+// default whenever a field is missing. `selectedModelId` is only honored when
+// the model still exists in the current config, so a deleted/renamed model
+// falls back to the mode's default instead of pointing at a dead id.
+const mergePersistedGenerationDraft = <
+  T extends AIWorkbenchGenerationDraftState,
+>(
+  base: T,
+  persisted: Partial<AIWorkbenchGenerationDraftState> | undefined,
+  config: AIImageProviderConfig,
+): T => {
+  if (!persisted) {
+    return base;
+  }
+
+  const modelExists =
+    typeof persisted.selectedModelId === "string" &&
+    config.models.some((model) => model.id === persisted.selectedModelId);
+
+  return {
+    ...base,
+    selectedModelId: modelExists
+      ? (persisted.selectedModelId as string)
+      : base.selectedModelId,
+    prompt:
+      typeof persisted.prompt === "string" ? persisted.prompt : base.prompt,
+    negativePrompt:
+      typeof persisted.negativePrompt === "string"
+        ? persisted.negativePrompt
+        : base.negativePrompt,
+    params:
+      persisted.params && typeof persisted.params === "object"
+        ? { ...base.params, ...persisted.params }
+        : base.params,
+  };
+};
+
 const loadInitialWorkbenchState = () => {
   const config = loadAIImageConfig();
   const defaultModel = config.models.find(
@@ -283,20 +423,21 @@ const createImageModeDraftState = (
 export const createInitialAIImageWorkbenchDraftState =
   (): AIImageWorkbenchDraftState => {
     const initialState = loadInitialWorkbenchState();
+    const config = initialState.config;
     const imageTextModelId = getDefaultModelIdForImageMode(
-      initialState.config,
+      config,
       "text-to-image",
     );
     const imageReferenceModelId = getDefaultModelIdForImageMode(
-      initialState.config,
+      config,
       "image-to-image",
     );
     const imageInpaintModelId = getDefaultModelIdForImageMode(
-      initialState.config,
+      config,
       "inpaint",
     );
 
-    return {
+    const defaults: AIImageWorkbenchDraftState = {
       mediaType: initialState.mediaType,
       mode: "text-to-image",
       imageModes: {
@@ -305,11 +446,63 @@ export const createInitialAIImageWorkbenchDraftState =
         inpaint: createImageModeDraftState(imageInpaintModelId),
       },
       video: createGenerationDraftState(
-        getDefaultModelIdForMediaType(initialState.config, "video"),
+        getDefaultModelIdForMediaType(config, "video"),
         { ...DEFAULT_VIDEO_PARAMS },
       ),
       audio: createGenerationDraftState(
-        getDefaultModelIdForMediaType(initialState.config, "audio"),
+        getDefaultModelIdForMediaType(config, "audio"),
+      ),
+    };
+
+    const persisted = loadPersistedWorkbenchDraft();
+
+    if (!persisted) {
+      return defaults;
+    }
+
+    return {
+      // mediaType keeps its dedicated persistence (loadPersistedMediaType) so
+      // the two stay consistent; mode falls back to the default when absent.
+      mediaType: defaults.mediaType,
+      mode:
+        persisted.mode && isAIImageGenerationMode(persisted.mode)
+          ? persisted.mode
+          : defaults.mode,
+      imageModes: {
+        "text-to-image": {
+          ...mergePersistedGenerationDraft(
+            defaults.imageModes["text-to-image"],
+            persisted.imageModes?.["text-to-image"],
+            config,
+          ),
+          masksByImageId: {},
+        },
+        "image-to-image": {
+          ...mergePersistedGenerationDraft(
+            defaults.imageModes["image-to-image"],
+            persisted.imageModes?.["image-to-image"],
+            config,
+          ),
+          masksByImageId: {},
+        },
+        inpaint: {
+          ...mergePersistedGenerationDraft(
+            defaults.imageModes.inpaint,
+            persisted.imageModes?.inpaint,
+            config,
+          ),
+          masksByImageId: {},
+        },
+      },
+      video: mergePersistedGenerationDraft(
+        defaults.video,
+        persisted.video,
+        config,
+      ),
+      audio: mergePersistedGenerationDraft(
+        defaults.audio,
+        persisted.audio,
+        config,
       ),
     };
   };
@@ -337,6 +530,18 @@ export const AIImageWorkbench = ({
   const activeDraftState = draftState || internalDraftState;
   const setActiveDraftState = onDraftStateChange || setInternalDraftState;
   const { mediaType, mode } = activeDraftState;
+
+  // Persist the draft (prompt / negative prompt / model / params per mode) so a
+  // refresh keeps a half-written prompt and the chosen model. Debounced so a
+  // burst of keystrokes writes localStorage once. mediaType has its own
+  // dedicated persistence effect below.
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      savePersistedWorkbenchDraft(activeDraftState);
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [activeDraftState]);
   const activeGenerationDraft =
     mediaType === "image"
       ? activeDraftState.imageModes[mode]
@@ -620,12 +825,17 @@ export const AIImageWorkbench = ({
   const mountedRef = useRef(true);
   const draftSignatureRef = useRef<string | null>(null);
   const lastReferenceAddRequestIdRef = useRef<number | null>(null);
-  const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const promptInputRef = useRef<PromptEditorHandle | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const didRestoreReferenceImagesRef = useRef(false);
   const skipNextReferencePersistenceRef = useRef(false);
   const isReferenceLockedRef = useRef(isReferenceLocked);
   const selectionSignatureRef = useRef<string | null>(null);
   const persistReferenceTimeoutRef = useRef<number | null>(null);
+  const didRestoreMasksRef = useRef(false);
+  const skipNextMaskPersistenceRef = useRef(false);
+  const persistMaskTimeoutRef = useRef<number | null>(null);
+  const excalidrawAPIRef = useRef(excalidrawAPI);
   const generationStateRef = useRef({
     config,
     currentSelectedImageSources,
@@ -638,6 +848,7 @@ export const AIImageWorkbench = ({
     selectedModelId,
     selectedSources,
   });
+  excalidrawAPIRef.current = excalidrawAPI;
 
   generationStateRef.current = {
     config,
@@ -748,8 +959,44 @@ export const AIImageWorkbench = ({
     // live during this effect, per react-hooks/exhaustive-deps. The Map persists
     // for the component's lifetime, so this reference stays valid.
     const videoPollControllers = videoPollControllersRef.current;
+    const flushWorkbenchMediaState = () => {
+      const api = excalidrawAPIRef.current;
+
+      if (!api) {
+        return;
+      }
+
+      if (didRestoreReferenceImagesRef.current) {
+        const sources = generationStateRef.current.selectedSources;
+        const key = getReferencePersistenceKey(api);
+
+        if (sources.length) {
+          persistReferenceState(key, {
+            locked: isReferenceLockedRef.current,
+            images: sources,
+          });
+        } else {
+          try {
+            localStorage.removeItem(key);
+          } catch {
+            // Ignore storage failures during page teardown.
+          }
+        }
+      }
+
+      if (didRestoreMasksRef.current) {
+        persistMaskState(
+          getMaskPersistenceKey(api),
+          generationStateRef.current.inpaintDraft.masksByImageId,
+        );
+      }
+    };
+
+    window.addEventListener("pagehide", flushWorkbenchMediaState);
 
     return () => {
+      window.removeEventListener("pagehide", flushWorkbenchMediaState);
+      flushWorkbenchMediaState();
       mountedRef.current = false;
       activeRunIdRef.current += 1;
       abortControllerRef.current?.abort();
@@ -763,6 +1010,11 @@ export const AIImageWorkbench = ({
       if (persistReferenceTimeoutRef.current !== null) {
         window.clearTimeout(persistReferenceTimeoutRef.current);
         persistReferenceTimeoutRef.current = null;
+      }
+
+      if (persistMaskTimeoutRef.current !== null) {
+        window.clearTimeout(persistMaskTimeoutRef.current);
+        persistMaskTimeoutRef.current = null;
       }
 
       // Abort in-flight video poll loops; the tasks stay in localStorage so a
@@ -804,6 +1056,37 @@ export const AIImageWorkbench = ({
     return () => {
       window.removeEventListener(AI_IMAGE_CONFIG_UPDATED_EVENT, reloadConfig);
       window.removeEventListener("storage", reloadConfig);
+    };
+  }, []);
+
+  // The editor registers a native wheel listener on its container that treats
+  // any textarea/input as a canvas surface and zooms/pans instead of scrolling
+  // the field. Stop wheel events over our form controls from bubbling to that
+  // listener so scrolling inside prompt fields never moves the canvas. React's
+  // synthetic stopPropagation cannot cancel the native container listener, so
+  // this must be a native listener too. It runs in the bubble phase so the
+  // field still scrolls normally before propagation is halted.
+  useEffect(() => {
+    const root = rootRef.current;
+
+    if (!root) {
+      return;
+    }
+
+    const stopWheelOnFormControls = (event: WheelEvent) => {
+      const target = event.target as HTMLElement | null;
+
+      if (
+        target?.closest("textarea, input, select, [contenteditable='true']")
+      ) {
+        event.stopPropagation();
+      }
+    };
+
+    root.addEventListener("wheel", stopWheelOnFormControls);
+
+    return () => {
+      root.removeEventListener("wheel", stopWheelOnFormControls);
     };
   }, []);
 
@@ -1013,26 +1296,31 @@ export const AIImageWorkbench = ({
     !selectedModel ||
     supportsAIImageMode(selectedModel, mode);
   const hasSelectedModelEndpoint = !!(selectedModel?.baseURL || config.baseURL);
-  const selectedMaskImageId =
-    currentSelectedImageSources.length === 1
-      ? currentSelectedImageSources[0].elementId
-      : null;
-  const currentMask = selectedMaskImageId
-    ? inpaintDraft.masksByImageId[selectedMaskImageId] || null
-    : null;
   const availableSelectedSources = useMemo(
     () => selectedSources.filter((source) => !source.missingElement),
     [selectedSources],
   );
+  // The canvas selection is transient and normally empty after a refresh. A
+  // restored one-image reference tray remains the active inpaint source.
+  const inpaintSourceCandidates = currentSelectedImageSources.length
+    ? currentSelectedImageSources
+    : availableSelectedSources;
+  const selectedMaskImageId =
+    inpaintSourceCandidates.length === 1
+      ? inpaintSourceCandidates[0].elementId
+      : null;
+  const currentMask = selectedMaskImageId
+    ? inpaintDraft.masksByImageId[selectedMaskImageId] || null
+    : null;
   const editMaskLabel = currentMask
     ? "Re-edit mask on canvas"
     : "Edit mask on canvas";
   const isInpaintMode = mode === "inpaint";
   const maskEditableSource =
     isInpaintMode &&
-    currentSelectedImageSources.length === 1 &&
-    currentSelectedImageSources[0]?.fileId
-      ? currentSelectedImageSources[0]
+    inpaintSourceCandidates.length === 1 &&
+    inpaintSourceCandidates[0]?.fileId
+      ? inpaintSourceCandidates[0]
       : null;
   const { canGenerate, requiresMask, requiresReference, statusStripItems } =
     createAIImageWorkbenchStatus({
@@ -1046,7 +1334,7 @@ export const AIImageWorkbench = ({
       prompt,
       modelSupportsMode,
       referenceCount: availableSelectedSources.length,
-      selectedImageCount: currentSelectedImageSources.length,
+      selectedImageCount: inpaintSourceCandidates.length,
       hasCurrentMask: !!currentMask,
       hasExcalidrawAPI: !!excalidrawAPI,
       isGenerating,
@@ -1067,6 +1355,9 @@ export const AIImageWorkbench = ({
     !!prompt.trim() &&
     !!selectedModelId &&
     hasSelectedModelEndpoint;
+
+  const seedDisabled =
+    !!selectedModel && !supportsAIImageMode(selectedModel, "seed");
 
   const updateParams = useCallback(
     (patch: Partial<AIImageGenerationParams>) => {
@@ -1335,11 +1626,11 @@ export const AIImageWorkbench = ({
       excalidrawAPI.getFiles(),
     );
 
-    if (!savedState?.locked || !savedState.images.length) {
+    if (!savedState?.images.length) {
       return;
     }
 
-    setIsReferenceLocked(true);
+    setIsReferenceLocked(savedState.locked);
     skipNextReferencePersistenceRef.current = true;
     setSelectedSources(reindexReferenceImages(savedState.images));
   }, [excalidrawAPI]);
@@ -1361,8 +1652,12 @@ export const AIImageWorkbench = ({
       persistReferenceTimeoutRef.current = null;
     }
 
-    if (!isReferenceLocked) {
-      localStorage.removeItem(key);
+    if (!selectedSources.length) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // Ignore storage failures (private mode); the tray just won't persist.
+      }
       return;
     }
 
@@ -1374,6 +1669,63 @@ export const AIImageWorkbench = ({
       });
     }, 250);
   }, [excalidrawAPI, isReferenceLocked, selectedSources]);
+
+  // Restore inpaint masks once the API is ready, so a refresh keeps an
+  // in-progress mask instead of forcing the user to redraw it.
+  useEffect(() => {
+    if (!excalidrawAPI || didRestoreMasksRef.current) {
+      return;
+    }
+
+    didRestoreMasksRef.current = true;
+    const restored = loadPersistedMaskState(
+      getMaskPersistenceKey(excalidrawAPI),
+    );
+
+    if (!Object.keys(restored).length) {
+      return;
+    }
+
+    skipNextMaskPersistenceRef.current = true;
+    setActiveDraftState((current) => ({
+      ...current,
+      imageModes: {
+        ...current.imageModes,
+        inpaint: {
+          ...current.imageModes.inpaint,
+          // Restored masks seed only the images that don't already have a mask
+          // in the live draft, so a freshly-drawn mask is never clobbered.
+          masksByImageId: {
+            ...restored,
+            ...current.imageModes.inpaint.masksByImageId,
+          },
+        },
+      },
+    }));
+  }, [excalidrawAPI, setActiveDraftState]);
+
+  // Debounced persist whenever the mask map changes (drawn, updated, cleared).
+  useEffect(() => {
+    if (!excalidrawAPI || !didRestoreMasksRef.current) {
+      return;
+    }
+
+    if (skipNextMaskPersistenceRef.current) {
+      skipNextMaskPersistenceRef.current = false;
+      return;
+    }
+
+    if (persistMaskTimeoutRef.current !== null) {
+      window.clearTimeout(persistMaskTimeoutRef.current);
+      persistMaskTimeoutRef.current = null;
+    }
+
+    const key = getMaskPersistenceKey(excalidrawAPI);
+    persistMaskTimeoutRef.current = window.setTimeout(() => {
+      persistMaskTimeoutRef.current = null;
+      persistMaskState(key, inpaintDraft.masksByImageId);
+    }, 300);
+  }, [excalidrawAPI, inpaintDraft.masksByImageId]);
 
   useEffect(() => {
     if (
@@ -1391,6 +1743,13 @@ export const AIImageWorkbench = ({
     () => validatePromptReferences(prompt, availableSelectedSources.length),
     [availableSelectedSources.length, prompt],
   );
+  // Highlight `#1`/`图2`/`image 3` tokens only while a reference workflow is
+  // active — text-to-image has no reference images, so the tokens carry no
+  // meaning there. The PromptEditor paints valid refs (1..count) in the brand
+  // color and out-of-range refs in red; passing 0 disables highlighting.
+  const promptReferenceCount = requiresReference
+    ? availableSelectedSources.length
+    : 0;
   const copyPromptActionState = useMemo(
     () => createCopyPromptActionState(prompt),
     [prompt],
@@ -1437,12 +1796,17 @@ export const AIImageWorkbench = ({
       const activePrompt = overrides?.prompt ?? prompt;
       const activeNegativePrompt = overrides?.negativePrompt ?? negativePrompt;
       const activeParams = overrides?.params ?? params;
+      const availableSources = selectedSources.filter(
+        (source) => !source.missingElement,
+      );
       const activeSources =
         activeMode === "text-to-image"
           ? []
           : activeMode === "inpaint"
-          ? currentSelectedImageSources
-          : selectedSources.filter((source) => !source.missingElement);
+          ? currentSelectedImageSources.length
+            ? currentSelectedImageSources
+            : availableSources
+          : availableSources;
       const generatedImagePlacement =
         activeMode === "image-to-image"
           ? getGeneratedImageReferencePlacement(activeSources)
@@ -2316,6 +2680,19 @@ export const AIImageWorkbench = ({
     excalidrawAPI?.setToast({ message: t("ai.common.promptCopied") });
   }, [excalidrawAPI, selectedAIMetadata]);
 
+  const downloadSelectedImage = useCallback(() => {
+    const source = currentSelectedImageSources[0];
+
+    if (!source) {
+      return;
+    }
+
+    downloadImageFromURL(
+      source.dataURL,
+      getImageDownloadFileName(source.file?.type, Date.now()),
+    );
+  }, [currentSelectedImageSources]);
+
   const copyCurrentPrompt = useCallback(async () => {
     if (!copyPromptActionState.canCopy) {
       return;
@@ -2480,7 +2857,7 @@ export const AIImageWorkbench = ({
   );
 
   const updateReferencePicker = useCallback(
-    (input: HTMLTextAreaElement) => {
+    (input: PromptEditorHandle) => {
       if (!selectedSources.length) {
         setReferencePickerState((current) => ({ ...current, isOpen: false }));
         return;
@@ -2529,7 +2906,7 @@ export const AIImageWorkbench = ({
   }, [insertPromptText, referencePickerState, selectedSources]);
 
   const jumpToNextPromptPlaceholder = useCallback(
-    (input: HTMLTextAreaElement) => {
+    (input: PromptEditorHandle) => {
       const startIndex = Math.max(input.selectionEnd, 0);
       const afterCaret = prompt.slice(startIndex);
       const match = afterCaret.match(/\[[^\]]+]/);
@@ -2546,7 +2923,7 @@ export const AIImageWorkbench = ({
   );
 
   const handlePromptKeyDown = useCallback(
-    (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
       if (referencePickerState.isOpen) {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
           event.preventDefault();
@@ -2578,9 +2955,9 @@ export const AIImageWorkbench = ({
       }
 
       if (event.key === "Tab") {
-        const input = event.currentTarget;
+        const input = promptInputRef.current;
 
-        if (jumpToNextPromptPlaceholder(input)) {
+        if (input && jumpToNextPromptPlaceholder(input)) {
           event.preventDefault();
         }
       }
@@ -2641,23 +3018,36 @@ export const AIImageWorkbench = ({
     <div className="AIImageWorkbench__promptBlock">
       <label className="AIImageWorkbench__field">
         <span>{t("ai.common.prompt")}</span>
-        <textarea
-          ref={promptInputRef}
+        <div
           className={
             promptReferenceWarnings.length
-              ? "AIImageWorkbench__promptInput has-warning"
-              : "AIImageWorkbench__promptInput"
+              ? "AIImageWorkbench__promptShell has-warning"
+              : "AIImageWorkbench__promptShell"
           }
-          value={prompt}
-          rows={4}
-          onChange={(event) => {
-            setPrompt(event.target.value);
-            updateReferencePicker(event.currentTarget);
-          }}
-          onClick={(event) => updateReferencePicker(event.currentTarget)}
-          onKeyDown={handlePromptKeyDown}
-          placeholder={t("ai.workbench.describeImage")}
-        />
+        >
+          <PromptEditor
+            ref={promptInputRef}
+            className="AIImageWorkbench__promptInput"
+            value={prompt}
+            referenceCount={promptReferenceCount}
+            ariaLabel={t("ai.common.prompt")}
+            placeholder={t("ai.workbench.describeImage")}
+            onChange={setPrompt}
+            onCaretChange={() => {
+              const input = promptInputRef.current;
+              if (input) {
+                updateReferencePicker(input);
+              }
+            }}
+            onClick={() => {
+              const input = promptInputRef.current;
+              if (input) {
+                updateReferencePicker(input);
+              }
+            }}
+            onKeyDown={handlePromptKeyDown}
+          />
+        </div>
       </label>
 
       <div className="AIImageWorkbench__templateRow">
@@ -2848,6 +3238,18 @@ export const AIImageWorkbench = ({
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
                   highlightReferenceSource(source);
+                  return;
+                }
+                // Clicking a card selects the original element on the canvas
+                // (to highlight it), so a bare Backspace/Delete would otherwise
+                // bubble to Excalidraw's document keydown listener and delete
+                // that canvas element. Treat these keys as "remove this
+                // reference from the list" (local + reversible) and stop them
+                // from reaching the canvas.
+                if (event.key === "Backspace" || event.key === "Delete") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  removeReferenceImage(source.createdAt);
                 }
               }}
               onDragStart={(event) => {
@@ -3210,6 +3612,14 @@ export const AIImageWorkbench = ({
                   </button>
                   <button
                     type="button"
+                    aria-label={actionLabels.download}
+                    title={actionLabels.download}
+                    onClick={() => downloadGeneratedAsset(asset)}
+                  >
+                    {t("ai.workbench.download")}
+                  </button>
+                  <button
+                    type="button"
                     aria-label={actionLabels.useAsReference}
                     disabled={!canUseAsReference}
                     title={
@@ -3347,7 +3757,7 @@ export const AIImageWorkbench = ({
 
       {renderModelSelect()}
 
-      <div className="AIImageWorkbench__grid">
+      <div className="AIImageWorkbench__grid AIImageWorkbench__grid--three">
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.aspectRatio")}</span>
           <select
@@ -3379,9 +3789,7 @@ export const AIImageWorkbench = ({
             ))}
           </select>
         </label>
-      </div>
 
-      <div className="AIImageWorkbench__grid">
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.count")}</span>
           <input
@@ -3396,25 +3804,9 @@ export const AIImageWorkbench = ({
             }
           />
         </label>
-
-        <label className="AIImageWorkbench__field">
-          <span>{t("ai.workbench.seed")}</span>
-          <input
-            type="number"
-            disabled={
-              !!selectedModel && !supportsAIImageMode(selectedModel, "seed")
-            }
-            value={params.seed ?? ""}
-            onChange={(event) =>
-              updateParams({
-                seed: event.target.value ? Number(event.target.value) : null,
-              })
-            }
-          />
-        </label>
       </div>
 
-      <div className="AIImageWorkbench__grid">
+      <div className="AIImageWorkbench__grid AIImageWorkbench__grid--three">
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.quality")}</span>
           <select
@@ -3444,6 +3836,33 @@ export const AIImageWorkbench = ({
             onChange={(event) => updateParams({ style: event.target.value })}
           />
         </label>
+
+        <label className="AIImageWorkbench__field">
+          <span>{t("ai.workbench.seed")}</span>
+          <div className="AIImageWorkbench__seedField">
+            <input
+              type="number"
+              disabled={seedDisabled}
+              value={params.seed ?? ""}
+              placeholder={t("ai.workbench.seedRandom")}
+              onChange={(event) =>
+                updateParams({
+                  seed: event.target.value ? Number(event.target.value) : null,
+                })
+              }
+            />
+            <button
+              type="button"
+              className="AIImageWorkbench__seedDice"
+              disabled={seedDisabled}
+              aria-label={t("ai.workbench.randomizeSeed")}
+              title={t("ai.workbench.randomizeSeed")}
+              onClick={() => updateParams({ seed: createRandomSeed() })}
+            >
+              {diceIcon}
+            </button>
+          </div>
+        </label>
       </div>
 
       {requiresReference && referenceImagesPanel}
@@ -3453,7 +3872,7 @@ export const AIImageWorkbench = ({
         renderNotice(t("ai.workbench.addReferenceImage"))}
 
       {requiresMask &&
-        currentSelectedImageSources.length > 1 &&
+        inpaintSourceCandidates.length > 1 &&
         renderNotice(t("ai.workbench.selectOneImageBeforeMask"))}
 
       {requiresMask && (
@@ -3738,7 +4157,7 @@ export const AIImageWorkbench = ({
   );
 
   return (
-    <div className="AIImageWorkbench">
+    <div className="AIImageWorkbench" ref={rootRef}>
       <div className="AIImageWorkbench__section">
         {isGenerating && (
           <div className="AIImageWorkbench__sectionHeader">
@@ -3809,6 +4228,13 @@ export const AIImageWorkbench = ({
           <div className="AIImageWorkbench__actions">
             <button type="button" onClick={copySelectedPrompt}>
               {t("ai.common.copyPrompt")}
+            </button>
+            <button
+              type="button"
+              onClick={downloadSelectedImage}
+              disabled={!currentSelectedImageSources.length}
+            >
+              {t("ai.workbench.download")}
             </button>
             <button type="button" onClick={loadSelectedMetadata}>
               {t("ai.workbench.loadParams")}
@@ -4036,13 +4462,12 @@ const groupPromptTemplates = (
 };
 
 const getReferencePersistenceKey = (excalidrawAPI: ExcalidrawImperativeAPI) => {
-  const sceneName =
-    typeof excalidrawAPI.getName === "function"
-      ? excalidrawAPI.getName()
-      : "default";
+  // getName() fabricates a timestamped Untitled name when appState.name is
+  // null, which made every persistence read/write use a different key.
+  const sceneName = excalidrawAPI.getAppState().name?.trim() || "default";
 
   return `ai-reference-images-${encodeURIComponent(
-    `${window.location.pathname}:${sceneName}`,
+    `${window.location.pathname}${window.location.search}:${sceneName}`,
   )}`;
 };
 

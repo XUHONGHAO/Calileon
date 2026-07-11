@@ -854,6 +854,8 @@
       "empty": "暂无生成日志。",
       "reuseSettings": "复用设置",
       "settingsSent": "生成设置已发送到创意生成。",
+      "copyPrompt": "复制提示词",
+      "promptCopied": "提示词已复制。",
       "status": {
         "success": "成功",
         "canceled": "已取消",
@@ -931,6 +933,7 @@
       "clearGeneratedAssets": "清空生成结果",
       "revised": "修订提示词：",
       "insert": "插入",
+      "download": "下载",
       "useRef": "设为参考",
       "reuseSettings": "复用设置",
       "details": "详情",
@@ -940,6 +943,8 @@
       "resolution": "分辨率",
       "count": "数量",
       "seed": "种子",
+      "seedRandom": "随机",
+      "randomizeSeed": "随机种子",
       "quality": "质量",
       "standard": "标准",
       "low": "低",
@@ -1026,7 +1031,8 @@
         "insert": "将{{asset}}插入画布",
         "useAsReference": "将{{asset}}设为参考图",
         "reuseSettings": "复用{{asset}}的生成设置",
-        "copyPrompt": "复制{{asset}}的提示词"
+        "copyPrompt": "复制{{asset}}的提示词",
+        "download": "下载{{asset}}"
       }
     },
     "settings": {

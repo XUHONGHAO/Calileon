@@ -122,6 +122,18 @@ const dataURLToBase64Payload = (dataURL: DataURL) => {
   return base64Payload || dataURL;
 };
 
+// OpenAI's gpt-image-* models (and the many relays that proxy them) always
+// return base64 and reject an explicit `response_format` parameter with a 400
+// "Unknown parameter: 'response_format'". Omit it for those models on the
+// standard OpenAI-compatible path. The lconai flavor keeps its existing,
+// separately verified behavior untouched.
+const shouldOmitResponseFormat = (
+  model: string | undefined,
+  providerFlavor: AIImageProviderFlavor,
+) =>
+  providerFlavor === "openai-compatible" &&
+  /^gpt-image(-|$)/i.test((model || "").trim());
+
 const assertImageModeInputs = (request: AIImageGenerationRequest) => {
   if (request.mode === "text-to-image") {
     return;
@@ -156,7 +168,9 @@ export const buildJSONRequestBody = (
       includeAdvancedParameters && negativePrompt ? negativePrompt : undefined,
     [getMappedFieldName(fieldMapping, "n", "n")]: params.n,
     [getMappedFieldName(fieldMapping, "size", "size")]: params.size,
-    response_format: "b64_json",
+    response_format: shouldOmitResponseFormat(model, providerFlavor)
+      ? undefined
+      : "b64_json",
     seed: includeAdvancedParameters ? params.seed ?? undefined : undefined,
     quality: includeAdvancedParameters
       ? params.quality || undefined
@@ -258,7 +272,9 @@ export const buildFormDataRequestBody = (
     getMappedFieldName(fieldMapping, "size", "size"),
     params.size,
   );
-  formData.append("response_format", "b64_json");
+  if (!shouldOmitResponseFormat(model, providerFlavor)) {
+    formData.append("response_format", "b64_json");
+  }
 
   if (includeAdvancedParameters && negativePrompt) {
     formData.append(

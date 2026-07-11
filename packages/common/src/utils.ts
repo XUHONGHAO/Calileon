@@ -83,6 +83,9 @@ export const isWritableElement = (
   | HTMLDivElement =>
   (target instanceof HTMLElement && target.dataset.type === "wysiwyg") ||
   target instanceof HTMLBRElement || // newline in wysiwyg
+  // any contenteditable region (e.g. the AI prompt editor) is a text field:
+  // isContentEditable is true for the editable host and its descendants
+  (target instanceof HTMLElement && target.isContentEditable) ||
   target instanceof HTMLTextAreaElement ||
   (target instanceof HTMLInputElement &&
     (target.type === "text" ||

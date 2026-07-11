@@ -14,6 +14,12 @@
     height: 100%;
     overflow-y: auto;
     overflow-x: hidden;
+    // Reserve a stable gutter for the scrollbar so it never overlays content.
+    // Without this, the classic (overlay-less) scrollbar that appears once the
+    // reference panel makes the sidebar scroll would cover the right edge of
+    // the prompt textarea — clipping its bottom-right resize grip so it looks
+    // smaller in reference mode than in text-to-image mode.
+    scrollbar-gutter: stable;
     overscroll-behavior: contain;
     padding: var(--app-sidebar-padding, 0.75rem);
     padding-bottom: 1rem;
@@ -204,6 +210,9 @@
 
     textarea {
       resize: vertical;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: pre-wrap;
     }
   }
 
@@ -213,6 +222,70 @@
     flex-direction: column;
     gap: 0.45rem;
     min-width: 0;
+  }
+
+  .AIImageWorkbench__promptShell {
+    position: relative;
+    min-width: 0;
+
+    &.has-warning .AIImageWorkbench__promptInput {
+      border-color: #d99a00;
+      box-shadow: 0 0 0 1px rgba(217, 154, 0, 0.2);
+    }
+  }
+
+  // The prompt editor is a single contenteditable <div>: the colored reference
+  // tokens ARE the real text, so the caret can never drift from them (this is
+  // the root fix for the mirror-layer drift). It's not a form control, so it
+  // needs its own full box styling rather than inheriting the field textarea
+  // rules above.
+  .AIImageWorkbench__promptInput {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 5.5rem;
+    padding: 0.5rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    background: var(--app-sidebar-control-bg, var(--island-bg-color));
+    color: var(--text-primary-color);
+    font: inherit;
+    line-height: 1.4;
+    // Vertical resize like the old textarea; contenteditable also grows with
+    // content up to wherever the user drags.
+    resize: vertical;
+    overflow-y: auto;
+    // Preserve newlines/spaces so char offsets map 1:1 to the value string.
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    tab-size: 4;
+    cursor: text;
+
+    &:hover {
+      border-color: var(--color-border-outline-variant);
+    }
+
+    // Placeholder for the empty editor (a contenteditable has no native one).
+    &[data-empty]::before {
+      content: attr(data-placeholder);
+      color: var(--text-secondary-color);
+      pointer-events: none;
+    }
+  }
+
+  // Scoped under __promptInput so this (0,2,0) beats `.AIImageWorkbench__field
+  // span` (0,1,1), which would otherwise recolor the token to the plain text
+  // color and shrink it to the label font-size. font: inherit undoes that
+  // label-span sizing so tokens sit flush with the surrounding prompt text.
+  .AIImageWorkbench__promptInput .AIImageWorkbench__promptRef {
+    color: var(--color-primary);
+    font: inherit;
+    font-weight: 700;
+
+    &.is-invalid {
+      color: var(--color-danger, #e03131);
+    }
   }
 
   .AIImageWorkbench__promptInput.has-warning {
@@ -345,6 +418,50 @@
     min-width: 0;
   }
 
+  .AIImageWorkbench__grid--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .AIImageWorkbench__seedField {
+    display: flex;
+    gap: 0.35rem;
+    min-width: 0;
+
+    input {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  .AIImageWorkbench__seedDice {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    padding: 0;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.45rem;
+    background: var(--app-sidebar-control-bg, var(--island-bg-color));
+    color: var(--text-primary-color);
+    cursor: pointer;
+
+    svg {
+      width: 1rem;
+      height: 1rem;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      border-color: var(--color-border-outline-variant);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+  }
+
   .AIImageWorkbench__primaryButton {
     position: sticky;
     bottom: 0;
@@ -362,7 +479,6 @@
     --button-hover-color: var(--color-icon-white);
     --button-active-bg: var(--color-primary-darker);
     --button-active-border: var(--color-primary-darker);
-    background: var(--sidebar-bg-color);
     justify-content: center;
     box-shadow: 0 -0.25rem 0.75rem var(--sidebar-bg-color);
 

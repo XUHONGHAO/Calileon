@@ -45,6 +45,20 @@ const SECOND_TEST_FILE_ID = "mask-test-file-2" as FileId;
 const TEST_IMAGE_DATA_URL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lw9H8wAAAABJRU5ErkJggg==" as DataURL;
 
+// The prompt input is a contenteditable <div> (aria-label "Prompt"), not a
+// <textarea>: it has no placeholder attr and isn't a form control, so
+// getByPlaceholderText / fireEvent.change / toHaveValue don't apply. Set its
+// text and dispatch the `input` event the editor listens for; read textContent.
+const getPromptEditor = () => screen.getByLabelText("Prompt");
+const typePrompt = (value: string) => {
+  const editor = getPromptEditor();
+  editor.textContent = value;
+  fireEvent.input(editor);
+};
+const expectPromptValue = (value: string) => {
+  expect(getPromptEditor().textContent).toBe(value);
+};
+
 const targetImage = API.createElement({
   type: "image",
   id: "target-image",
@@ -261,9 +275,7 @@ describe("AI mask editing", () => {
     rtlRender(<PersistentWorkbenchHarness />);
 
     fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
-    fireEvent.change(screen.getByPlaceholderText("Describe the image"), {
-      target: { value: "blue circle" },
-    });
+    typePrompt("blue circle");
 
     fireEvent.click(screen.getByRole("button", { name: "Hide workbench" }));
     expect(screen.queryByPlaceholderText("Describe the image")).toBeNull();
@@ -273,9 +285,7 @@ describe("AI mask editing", () => {
     expect(screen.getByRole("button", { name: "Inpaint" })).toHaveClass(
       "is-selected",
     );
-    expect(screen.getByPlaceholderText("Describe the image")).toHaveValue(
-      "blue circle",
-    );
+    expectPromptValue("blue circle");
     expect(document.querySelector('input[type="file"]')).toBeNull();
   });
 
@@ -304,34 +314,26 @@ describe("AI mask editing", () => {
     fireEvent.change(screen.getByLabelText("Model ID"), {
       target: { value: "text-only-model" },
     });
-    fireEvent.change(screen.getByPlaceholderText("Describe the image"), {
-      target: { value: "text prompt" },
-    });
+    typePrompt("text prompt");
 
     fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
 
     expect(screen.getByLabelText("Model ID")).toHaveValue("inpaint-model");
-    expect(screen.getByPlaceholderText("Describe the image")).toHaveValue("");
+    expectPromptValue("");
 
-    fireEvent.change(screen.getByPlaceholderText("Describe the image"), {
-      target: { value: "inpaint prompt" },
-    });
+    typePrompt("inpaint prompt");
     fireEvent.click(screen.getByRole("button", { name: "Reference" }));
 
-    expect(screen.getByPlaceholderText("Describe the image")).toHaveValue("");
+    expectPromptValue("");
 
     fireEvent.click(screen.getByRole("button", { name: "Text" }));
 
     expect(screen.getByLabelText("Model ID")).toHaveValue("text-only-model");
-    expect(screen.getByPlaceholderText("Describe the image")).toHaveValue(
-      "text prompt",
-    );
+    expectPromptValue("text prompt");
 
     fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
 
-    expect(screen.getByPlaceholderText("Describe the image")).toHaveValue(
-      "inpaint prompt",
-    );
+    expectPromptValue("inpaint prompt");
   });
 
   it("binds saved masks to the selected image and passes strokes for re-editing", () => {

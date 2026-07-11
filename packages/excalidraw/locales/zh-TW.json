@@ -846,6 +846,8 @@
       "empty": "尚無生成記錄。",
       "reuseSettings": "重用設定",
       "settingsSent": "生成設定已傳送到創意生成。",
+      "copyPrompt": "複製提示詞",
+      "promptCopied": "提示詞已複製。",
       "status": {
         "success": "成功",
         "canceled": "已取消",
@@ -924,6 +926,7 @@
       "revised": "修訂提示詞：",
       "insert": "插入",
       "useRef": "設為參考",
+      "download": "下載",
       "reuseSettings": "重用設定",
       "details": "詳細資料",
       "size": "尺寸",
@@ -932,6 +935,8 @@
       "resolution": "解析度",
       "count": "數量",
       "seed": "種子",
+      "seedRandom": "隨機",
+      "randomizeSeed": "隨機種子",
       "quality": "品質",
       "standard": "標準",
       "low": "低",
@@ -1008,7 +1013,8 @@
         "insert": "將{{asset}}插入畫布",
         "useAsReference": "將{{asset}}設為參考圖",
         "reuseSettings": "重用{{asset}}的生成設定",
-        "copyPrompt": "複製{{asset}}的提示詞"
+        "copyPrompt": "複製{{asset}}的提示詞",
+        "download": "下載{{asset}}"
       }
     },
     "settings": {

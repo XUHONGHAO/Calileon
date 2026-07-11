@@ -6,6 +6,7 @@ import {
   clearReferenceWeight,
   markMissingReferenceElements,
   reindexReferenceImages,
+  tokenizePromptReferences,
   validatePromptReferences,
 } from "./AIImageWorkbenchReferences";
 
@@ -136,6 +137,42 @@ describe("AIImageWorkbenchReferences", () => {
     ]);
     expect(validatePromptReferences("use 图 3", 2)).toEqual([
       "Warning: #3 not found (2 references).",
+    ]);
+  });
+
+  it("tokenizes a prompt into text, valid, and out-of-range reference runs", () => {
+    const segments = tokenizePromptReferences("blend #1 with #3 here", 2);
+
+    expect(segments).toEqual([
+      { text: "blend ", type: "text" },
+      { text: "#1", type: "reference" },
+      { text: " with ", type: "text" },
+      { text: "#3", type: "invalid-reference" },
+      { text: " here", type: "text" },
+    ]);
+  });
+
+  it("recognizes the 图 and image reference spellings", () => {
+    expect(tokenizePromptReferences("参考 图 1 和 image 2", 2)).toEqual([
+      { text: "参考 ", type: "text" },
+      { text: "图 1", type: "reference" },
+      { text: " 和 ", type: "text" },
+      { text: "image 2", type: "reference" },
+    ]);
+  });
+
+  it("preserves the original prompt when segments are concatenated", () => {
+    const prompt = "#1 leading, #9 trailing #2";
+    const rebuilt = tokenizePromptReferences(prompt, 3)
+      .map((segment) => segment.text)
+      .join("");
+
+    expect(rebuilt).toBe(prompt);
+  });
+
+  it("returns a single text segment when there are no references", () => {
+    expect(tokenizePromptReferences("just a plain prompt", 3)).toEqual([
+      { text: "just a plain prompt", type: "text" },
     ]);
   });
 });

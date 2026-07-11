@@ -1,3 +1,5 @@
+import { STORAGE_KEYS } from "../app_constants";
+
 import {
   clearPendingVideoTasks,
   loadPendingVideoTasks,
@@ -5,8 +7,6 @@ import {
   updateVideoTaskStatus,
   upsertVideoTask,
 } from "./videoTaskStore";
-
-import { STORAGE_KEYS } from "../app_constants";
 
 import type { PendingVideoTask } from "./types";
 

@@ -4,6 +4,7 @@ import type { DataURL } from "@excalidraw/excalidraw/types";
 import {
   createGeneratedAssetReferenceSource,
   getGeneratedAssetActionLabels,
+  getGeneratedAssetDownloadFileName,
   getGeneratedAssetModeLabel,
   getGeneratedAssetReferenceFileName,
   isLocalImageDataURL,
@@ -125,6 +126,24 @@ describe("AIImageWorkbenchAssets", () => {
       useAsReference: "Use generated asset #1 as reference",
       reuseSettings: "Reuse generation settings from generated asset #1",
       copyPrompt: "Copy prompt from generated asset #1",
+      download: "Download generated asset #1",
     });
+  });
+
+  it("builds download file names from the asset index and mime type", () => {
+    expect(getGeneratedAssetDownloadFileName(createGeneratedAsset())).toBe(
+      "ai-generated-1.png",
+    );
+    expect(
+      getGeneratedAssetDownloadFileName(
+        createGeneratedAsset({
+          output: {
+            dataURL: "data:image/webp;base64,ZmFrZQ==" as DataURL,
+            mimeType: "image/webp",
+          },
+          index: 2,
+        }),
+      ),
+    ).toBe("ai-generated-3.webp");
   });
 });

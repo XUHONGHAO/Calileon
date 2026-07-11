@@ -61,7 +61,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  width: min(44rem, calc(100vw - 1.5rem));
+  // Hug the content instead of a fixed 44rem so the short status line doesn't
+  // stretch a wide bar across the canvas. Cap it so a long localized string
+  // still wraps rather than running off-screen.
+  width: max-content;
+  max-width: calc(100vw - 1.5rem);
   min-height: 3rem;
   padding: 0.5rem 0.625rem 0.5rem 0.875rem;
   border: 1px solid var(--default-border-color, #d6d6d6);
@@ -131,8 +135,10 @@
 .AIMaskEditingOverlay__preview {
   position: fixed;
   z-index: 3;
-  top: 5rem;
-  right: max(1rem, env(safe-area-inset-right));
+  // Sits just under the (now content-hugging) status bar and aligns to the
+  // left edge, instead of floating in the top-right corner.
+  top: 4.25rem;
+  left: max(0.75rem, env(safe-area-inset-left));
   box-sizing: border-box;
   width: min(14rem, calc(100vw - 2rem));
   padding: 0.625rem;
@@ -172,7 +178,7 @@
 
   .AIMaskEditingOverlay__preview {
     top: auto;
-    right: 0.75rem;
+    left: 0.75rem;
     bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem);
     width: min(10rem, calc(100vw - 1.5rem));
   }

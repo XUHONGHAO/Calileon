@@ -156,6 +156,7 @@ vi.mock("@excalidraw/excalidraw/index", () => {
     ClearCanvas: () => <button type="button">Clear canvas</button>,
     CommandPalette: () => <button type="button">Command palette</button>,
     Export: () => <button type="button">Export</button>,
+    ExperimentalFeatures: () => <div>Experimental features</div>,
     Help: () => <button type="button">Help</button>,
     LiveCollaborationTrigger: ({ onSelect }: { onSelect: () => void }) => (
       <button type="button" onClick={onSelect}>

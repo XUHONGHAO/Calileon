@@ -115,10 +115,13 @@ describe("OpenAI-compatible image adapter", () => {
   });
 
   it("builds text-to-image JSON without copying provider secrets", () => {
-    const body = buildTextToImageBody(baseRequest);
+    const body = buildTextToImageBody({
+      ...baseRequest,
+      model: "sd3-medium",
+    });
 
     expect(body).toMatchObject({
-      model: "gpt-image-1",
+      model: "sd3-medium",
       prompt: "a small library",
       negative_prompt: "blur",
       n: 1,
@@ -129,6 +132,38 @@ describe("OpenAI-compatible image adapter", () => {
       style: "natural",
     });
     expect(JSON.stringify(body)).not.toContain("sk-local-only");
+  });
+
+  it("omits response_format for gpt-image models on the openai-compatible path", () => {
+    const body = buildTextToImageBody({
+      ...baseRequest,
+      model: "gpt-image-2",
+    });
+
+    expect(body.response_format).toBeUndefined();
+    expect(body).toMatchObject({
+      model: "gpt-image-2",
+      prompt: "a small library",
+      n: 1,
+      size: "1024x1024",
+    });
+
+    const formData = buildImageEditBody({
+      ...baseRequest,
+      mode: "image-to-image",
+      model: "gpt-image-2",
+      sources: [
+        {
+          elementId: "element-a",
+          fileId: "file-a" as FileId,
+          dataURL: "data:image/png;base64,AAA" as DataURL,
+          file: new File(["image"], "reference.png", { type: "image/png" }),
+        },
+      ],
+    });
+
+    expect(formData.get("response_format")).toBeNull();
+    expect(formData.get("model")).toBe("gpt-image-2");
   });
 
   it("builds JSON request bodies with field mapping and base64 images", () => {

@@ -886,6 +886,8 @@
       "empty": "No generation logs.",
       "reuseSettings": "Reuse settings",
       "settingsSent": "Generation settings sent to Generate.",
+      "copyPrompt": "Copy prompt",
+      "promptCopied": "Prompt copied.",
       "status": {
         "success": "Success",
         "canceled": "Canceled",
@@ -963,6 +965,7 @@
       "clearGeneratedAssets": "Clear generated assets",
       "revised": "Revised:",
       "insert": "Insert",
+      "download": "Download",
       "useRef": "Use ref",
       "reuseSettings": "Reuse settings",
       "details": "Details",
@@ -972,6 +975,8 @@
       "resolution": "Resolution",
       "count": "Count",
       "seed": "Seed",
+      "seedRandom": "Random",
+      "randomizeSeed": "Randomize seed",
       "quality": "Quality",
       "standard": "Standard",
       "low": "Low",
@@ -1056,6 +1061,7 @@
       "assetActions": {
         "assetLabel": "generated asset #{{index}}",
         "insert": "Insert {{asset}} into canvas",
+        "download": "Download {{asset}}",
         "useAsReference": "Use {{asset}} as reference",
         "reuseSettings": "Reuse generation settings from {{asset}}",
         "copyPrompt": "Copy prompt from {{asset}}"

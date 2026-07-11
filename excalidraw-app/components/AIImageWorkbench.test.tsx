@@ -18,6 +18,7 @@ import { AIImageWorkbench } from "./AIImageWorkbench";
 import type {
   AIImageGenerationOutput,
   AIImageProviderConfig,
+  AIMaskReadyPayload,
 } from "../ai/types";
 
 vi.mock("../ai/openAIImageAdapter", async (importOriginal) => {
@@ -79,17 +80,23 @@ const createExcalidrawAPI = ({
   selectedElementIds = {},
   elements = [],
   files = {},
+  name = null,
+  getName,
   onChange,
 }: {
   selectedElementIds?: Record<string, true>;
   elements?: any[];
   files?: Record<string, any>;
+  name?: string | null;
+  getName?: () => string;
   onChange?: ExcalidrawImperativeAPI["onChange"];
 } = {}): ExcalidrawImperativeAPI =>
   ({
     getAppState: () => ({
       selectedElementIds,
+      name,
     }),
+    getName: getName || (() => name || "Untitled"),
     getSceneElements: () => elements,
     getFiles: () => files,
     onChange: onChange || (() => () => {}),
@@ -100,6 +107,15 @@ const generatedOutput: AIImageGenerationOutput = {
   dataURL:
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=" as AIImageGenerationOutput["dataURL"],
   mimeType: "image/png",
+};
+
+// The prompt input is a contenteditable <div>, not a form control, so
+// fireEvent.change doesn't apply. Set its text and dispatch the same `input`
+// event the component listens for.
+const typePrompt = (value: string) => {
+  const editor = screen.getByLabelText("Prompt");
+  editor.textContent = value;
+  fireEvent.input(editor);
 };
 
 describe("AIImageWorkbench", () => {
@@ -136,9 +152,7 @@ describe("AIImageWorkbench", () => {
 
     render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
 
-    fireEvent.change(screen.getByLabelText("Prompt"), {
-      target: { value: "A calm whiteboard concept" },
-    });
+    typePrompt("A calm whiteboard concept");
 
     const generateButton = screen.getByRole("button", {
       name: "Generate image",
@@ -173,9 +187,7 @@ describe("AIImageWorkbench", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Prompt"), {
-      target: { value: "A calm whiteboard concept" },
-    });
+    typePrompt("A calm whiteboard concept");
     fireEvent.click(
       screen.getByRole("button", {
         name: "Generate image",
@@ -220,9 +232,7 @@ describe("AIImageWorkbench", () => {
       <AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />,
     );
 
-    fireEvent.change(screen.getByLabelText("Prompt"), {
-      target: { value: "A calm whiteboard concept" },
-    });
+    typePrompt("A calm whiteboard concept");
     fireEvent.click(
       screen.getByRole("button", {
         name: "Generate image",
@@ -364,9 +374,7 @@ describe("AIImageWorkbench", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Reference" }));
-    fireEvent.change(screen.getByLabelText("Prompt"), {
-      target: { value: "Use the selected reference" },
-    });
+    typePrompt("Use the selected reference");
     fireEvent.click(screen.getByRole("button", { name: "Generate image" }));
 
     await waitFor(() => {
@@ -382,7 +390,7 @@ describe("AIImageWorkbench", () => {
     );
   });
 
-  it("debounces persisted reference state and omits data URLs", async () => {
+  it("debounces persisted reference state and stores data URLs", async () => {
     vi.useFakeTimers();
 
     const setItemSpy = vi.spyOn(window.localStorage, "setItem");
@@ -431,10 +439,101 @@ describe("AIImageWorkbench", () => {
 
     expect(setItemSpy).toHaveBeenCalledTimes(1);
     const persisted = JSON.parse(String(setItemSpy.mock.calls[0][1]));
-    expect(persisted.images[0].dataURL).toBeUndefined();
-    expect(JSON.stringify(persisted)).not.toContain("base64");
+    // Reference images now persist their dataURL so they survive a refresh even
+    // when the source element/file is gone (e.g. an exported-selection ref).
+    expect(persisted.version).toBe(3);
+    expect(typeof persisted.images[0].dataURL).toBe("string");
+    expect(persisted.images[0].dataURL).toContain("base64");
 
     vi.useRealTimers();
+  });
+
+  it("restores reference and inpaint mask state after a page refresh", async () => {
+    let maskReadyHandler: ((payload: AIMaskReadyPayload) => void) | null = null;
+    let dynamicNameCounter = 0;
+    const getDynamicName = vi.fn(() => `Untitled-${++dynamicNameCounter}`);
+    const imageElement = {
+      id: "image-1",
+      type: "image",
+      fileId: "file-1",
+      width: 100,
+      height: 80,
+      isDeleted: false,
+    };
+    const files = {
+      "file-1": {
+        dataURL: generatedOutput.dataURL,
+        mimeType: "image/png",
+      },
+    };
+    const firstRender = render(
+      <AIImageWorkbench
+        excalidrawAPI={createExcalidrawAPI({
+          selectedElementIds: { "image-1": true },
+          elements: [imageElement],
+          files,
+          getName: getDynamicName,
+        })}
+        onMaskReady={(handler) => {
+          maskReadyHandler = handler;
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
+
+    await waitFor(() => {
+      expect(maskReadyHandler).not.toBeNull();
+      expect(screen.getByAltText("Reference #1")).toBeInTheDocument();
+    });
+
+    act(() => {
+      maskReadyHandler?.({
+        imageId: "image-1",
+        maskFile: new File(["mask"], "mask-image-1.png", {
+          type: "image/png",
+        }),
+        maskElements: [],
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Mask: mask-image-1.png")).toBeInTheDocument();
+      const persistenceScope = encodeURIComponent(
+        `${window.location.pathname}${window.location.search}:default`,
+      );
+      expect(
+        localStorage.getItem(`ai-reference-images-${persistenceScope}`),
+      ).not.toBeNull();
+      expect(
+        localStorage.getItem(`ai-inpaint-masks-${persistenceScope}`),
+      ).not.toBeNull();
+    });
+
+    firstRender.unmount();
+    maskReadyHandler = null;
+
+    render(
+      <AIImageWorkbench
+        excalidrawAPI={createExcalidrawAPI({
+          elements: [imageElement],
+          files,
+          getName: getDynamicName,
+        })}
+        onMaskReady={(handler) => {
+          maskReadyHandler = handler;
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
+
+    await waitFor(() => {
+      expect(screen.getByAltText("Reference #1")).toBeInTheDocument();
+      expect(screen.getByText("Mask: mask-image-1.png")).toBeInTheDocument();
+    });
+
+    expect(getDynamicName).not.toHaveBeenCalled();
   });
 
   it("does not allow missing references to generate", async () => {
@@ -474,9 +573,7 @@ describe("AIImageWorkbench", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Reference" }));
-    fireEvent.change(screen.getByLabelText("Prompt"), {
-      target: { value: "Use the selected reference" },
-    });
+    typePrompt("Use the selected reference");
 
     delete selectedElementIds["image-1"];
     imageElement.isDeleted = true;
@@ -492,15 +589,17 @@ describe("AIImageWorkbench", () => {
     expect(generateImagesWithOpenAIAdapter).not.toHaveBeenCalled();
   });
 
-  it("marks video and audio controls as preview-only", () => {
+  it("enables video generation controls while audio stays preview-only", () => {
     render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Video" }));
 
-    expect(screen.getByPlaceholderText("Video preview only")).toBeDisabled();
     expect(
-      screen.getByRole("button", { name: "Video preview only" }),
-    ).toBeDisabled();
+      screen.getByPlaceholderText("Describe the video to generate..."),
+    ).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Generate video" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Audio" }));
 
@@ -517,9 +616,7 @@ describe("AIImageWorkbench", () => {
 
     render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
 
-    fireEvent.change(screen.getByLabelText("Prompt"), {
-      target: { value: "A malformed provider response" },
-    });
+    typePrompt("A malformed provider response");
     fireEvent.click(screen.getByRole("button", { name: "Generate image" }));
 
     await waitFor(() => {

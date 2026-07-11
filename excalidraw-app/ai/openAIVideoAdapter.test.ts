@@ -138,7 +138,10 @@ describe("OpenAI-compatible video adapter", () => {
       expect.objectContaining({ method: "POST" }),
     );
 
-    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    const [, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
     expect((init.headers as Headers).get("Authorization")).toBe(
       "Bearer sk-local-only",
     );
@@ -180,10 +183,10 @@ describe("OpenAI-compatible video adapter", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () => {
-        return new Response(
-          JSON.stringify({ error: { message: "bad key" } }),
-          { status: 401, headers: { "Content-Type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ error: { message: "bad key" } }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
       }),
     );
 

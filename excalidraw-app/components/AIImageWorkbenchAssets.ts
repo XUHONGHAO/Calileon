@@ -72,6 +72,44 @@ export const getGeneratedAssetReferenceFileName = (
   }.${getExtensionFromMimeType(asset.output.mimeType)}`;
 };
 
+export const getGeneratedAssetDownloadFileName = (asset: GeneratedAsset) => {
+  return `ai-generated-${asset.index + 1}.${getExtensionFromMimeType(
+    asset.output.mimeType,
+  )}`;
+};
+
+export const downloadImageFromURL = (url: string, fileName: string) => {
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.rel = "noopener";
+  // Remote provider URLs may not honor the download attribute cross-origin, so
+  // fall back to opening them in a new tab where the user can save manually.
+  if (!isLocalImageDataURL(url)) {
+    anchor.target = "_blank";
+  }
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+};
+
+export const downloadGeneratedAsset = (asset: GeneratedAsset) => {
+  downloadImageFromURL(
+    asset.output.dataURL,
+    getGeneratedAssetDownloadFileName(asset),
+  );
+};
+
+export const getImageDownloadFileName = (
+  mimeType: string | undefined,
+  createdAt: number,
+) => {
+  return `ai-generated-${createdAt}.${getExtensionFromMimeType(
+    mimeType || "image/png",
+  )}`;
+};
+
 export const getGeneratedAssetActionLabels = (
   asset: Pick<GeneratedAsset, "index">,
 ) => {
@@ -88,6 +126,9 @@ export const getGeneratedAssetActionLabels = (
       asset: assetLabel,
     }),
     copyPrompt: t("ai.workbench.assetActions.copyPrompt", {
+      asset: assetLabel,
+    }),
+    download: t("ai.workbench.assetActions.download", {
       asset: assetLabel,
     }),
   };
