@@ -1,4 +1,3 @@
-import { randomId } from "@excalidraw/common";
 import {
   CaptureUpdateAction,
   clearEchoData,
@@ -66,11 +65,7 @@ export const actionBindEchoSelection = register({
         selected.some((s) => s.id === e.id)
           ? newElementWith(e, {
               backgroundColor: source.backgroundColor,
-              customData: setEchoData(e, {
-                ...echo,
-                mutationId: randomId(),
-                updatedByElementId: source.id,
-              }).customData,
+              customData: setEchoData(e, echo).customData,
             })
           : e,
       ),

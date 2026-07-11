@@ -137,6 +137,7 @@ import {
   duplicateElements,
   remapEchoAnchorIds,
   syncEchoChanges,
+  drainEchoConflicts,
   hasBoundTextElement,
   isArrowElement,
   isBindingElement,
@@ -680,6 +681,37 @@ class App extends React.Component<AppProps, AppState> {
 
   // C1 Lumina：「高级材质需 WebGL」轻提示只弹一次，避免每帧刷屏。
   private luminaFallbackToastShown = false;
+  private readonly echoConflictToastKeys = new Set<string>();
+
+  private notifyEchoConflicts = () => {
+    const conflicts = drainEchoConflicts().filter((conflict) => {
+      const key = `${conflict.anchorId}:${conflict.field}:${[
+        conflict.localMutationId,
+        conflict.remoteMutationId,
+      ]
+        .sort()
+        .join(":")}`;
+      if (this.echoConflictToastKeys.has(key)) {
+        return false;
+      }
+      this.echoConflictToastKeys.add(key);
+      if (this.echoConflictToastKeys.size > 128) {
+        this.echoConflictToastKeys.delete(
+          this.echoConflictToastKeys.values().next().value!,
+        );
+      }
+      return true;
+    });
+    if (conflicts.length) {
+      const fields = [...new Set(conflicts.map((conflict) => conflict.field))]
+        .map((field) => t(`labels.echo.fields.${field}`))
+        .join(", ");
+      this.setToast({
+        message: t("toast.echoConflict", { field: fields }),
+        closable: true,
+      });
+    }
+  };
 
   private readonly editorLifecycleEvents = new AppEventBus<
     ExcalidrawImperativeAPIEventMap,
@@ -4848,6 +4880,9 @@ class App extends React.Component<AppProps, AppState> {
 
       if (elements) {
         this.scene.replaceAllElements(elements);
+        if (captureUpdate === CaptureUpdateAction.NEVER) {
+          this.notifyEchoConflicts();
+        }
       }
 
       if (collaborators) {

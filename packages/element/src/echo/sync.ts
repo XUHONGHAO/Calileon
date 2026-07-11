@@ -4,84 +4,116 @@ import { newElementWith } from "../mutateElement";
 import { getBoundTextElement } from "../textElement";
 import { isTextElement } from "../typeChecks";
 
-import { getEchoData, setEchoData } from "./helpers";
+import { bumpEchoField, getEchoData } from "./helpers";
 
 import type { ExcalidrawElement } from "../types";
-import type { EchoStatus } from "./types";
+import type { EchoData, EchoField, EchoStatus } from "./types";
 
-/* eslint-disable no-loop-func */
+const getText = (
+  element: ExcalidrawElement,
+  elementsMap: Map<string, ExcalidrawElement>,
+) =>
+  isTextElement(element)
+    ? element
+    : getBoundTextElement(element, elementsMap as any);
+
+const updateEchoFields = (
+  echo: EchoData,
+  fields: readonly EchoField[],
+  sourceId: string,
+) => {
+  const mutationId = randomId();
+  return fields.reduce(
+    (next, field) => bumpEchoField(next, field, sourceId, mutationId),
+    echo,
+  );
+};
 
 export const syncEchoChanges = (
   previous: readonly ExcalidrawElement[],
   next: readonly ExcalidrawElement[],
 ): readonly ExcalidrawElement[] => {
-  const prev = new Map(previous.map((e) => [e.id, e]));
-  const nextMap = new Map(next.map((e) => [e.id, e]));
-  let result = next.slice();
-  for (const source of next) {
-    const echo = getEchoData(source);
-    const old = prev.get(source.id);
-    if (!echo || !old || source.isDeleted) {
-      continue;
+  const previousMap = new Map(previous.map((element) => [element.id, element]));
+  const nextMap = new Map(next.map((element) => [element.id, element]));
+  const source = next.find((element) => {
+    const old = previousMap.get(element.id);
+    const echo = getEchoData(element);
+    if (!old || !echo || element.isDeleted) {
+      return false;
     }
-    const oldEcho = getEchoData(old);
-    const bgChanged = old.backgroundColor !== source.backgroundColor;
-    const statusChanged = oldEcho?.status !== echo.status;
-    const sourceText = isTextElement(source)
-      ? source
-      : getBoundTextElement(source, nextMap as any);
-    const oldText = isTextElement(old)
-      ? old
-      : getBoundTextElement(old, prev as any);
-    const textChanged = sourceText?.originalText !== oldText?.originalText;
-    if (!bgChanged && !statusChanged && !textChanged) {
-      continue;
+    return (
+      old.backgroundColor !== element.backgroundColor ||
+      getEchoData(old)?.status !== echo.status ||
+      getText(old, previousMap)?.originalText !==
+        getText(element, nextMap)?.originalText
+    );
+  });
+  if (!source) {
+    return next;
+  }
+  const sourceEcho = getEchoData(source)!;
+  const oldSource = previousMap.get(source.id)!;
+  const sourceText = getText(source, nextMap);
+  const changedFields: EchoField[] = [];
+  if (oldSource.backgroundColor !== source.backgroundColor) {
+    changedFields.push("backgroundColor");
+  }
+  if (getEchoData(oldSource)?.status !== sourceEcho.status) {
+    changedFields.push("status");
+  }
+  if (
+    getText(oldSource, previousMap)?.originalText !== sourceText?.originalText
+  ) {
+    changedFields.push("text");
+  }
+  const updatedEcho = updateEchoFields(sourceEcho, changedFields, source.id);
+  let result = next.map((element) => {
+    const echo = getEchoData(element);
+    if (!echo || echo.anchorId !== sourceEcho.anchorId || element.isDeleted) {
+      return element;
     }
-    const mutationId = randomId();
-    const revision = Math.max(echo.revision, oldEcho?.revision ?? 0) + 1;
-    result = result.map((target) => {
-      const targetEcho = getEchoData(target);
-      if (
-        !targetEcho ||
-        targetEcho.anchorId !== echo.anchorId ||
-        target.isDeleted
-      ) {
-        return target;
-      }
-      const updated = newElementWith(target, {
-        ...(bgChanged ? { backgroundColor: source.backgroundColor } : {}),
-        customData: {
-          ...target.customData,
-          echo: {
-            ...targetEcho,
-            status: statusChanged ? echo.status : targetEcho.status,
-            revision,
-            mutationId,
-            updatedByElementId: source.id,
-          },
+    return newElementWith(element, {
+      ...(changedFields.includes("backgroundColor")
+        ? { backgroundColor: source.backgroundColor }
+        : {}),
+      customData: {
+        ...element.customData,
+        echo: {
+          ...echo,
+          status: changedFields.includes("status")
+            ? sourceEcho.status
+            : echo.status,
+          fields: changedFields.reduce(
+            (fields, field) => ({
+              ...fields,
+              [field]: updatedEcho.fields[field],
+            }),
+            echo.fields,
+          ),
         },
-      });
-      if (textChanged) {
-        const targetText = isTextElement(updated)
-          ? updated
-          : getBoundTextElement(
-              updated,
-              new Map(result.map((e) => [e.id, e])) as any,
-            );
-        if (targetText && sourceText && targetText.id !== sourceText.id) {
-          result = result.map((e) =>
-            e.id === targetText.id
-              ? newElementWith(targetText, {
-                  originalText: sourceText.originalText,
-                  text: sourceText.text,
-                })
-              : e,
-          );
-        }
-      }
-      return updated;
+      },
     });
-    break;
+  });
+  if (changedFields.includes("text") && sourceText) {
+    const resultMap = new Map(result.map((element) => [element.id, element]));
+    const textIds = new Set(
+      result
+        .filter(
+          (element) => getEchoData(element)?.anchorId === sourceEcho.anchorId,
+        )
+        .map((element) => getText(element, resultMap)?.id)
+        .filter(Boolean),
+    );
+    result = result.map((element) =>
+      textIds.has(element.id) &&
+      element.id !== sourceText.id &&
+      isTextElement(element)
+        ? newElementWith(element, {
+            originalText: sourceText.originalText,
+            text: sourceText.text,
+          })
+        : element,
+    );
   }
   return result;
 };
@@ -92,26 +124,26 @@ export const setEchoStatus = (
   status: EchoStatus,
   sourceId: string,
 ) => {
-  const mutationId = randomId();
-  const revision =
-    Math.max(
-      0,
-      ...elements.map((e) =>
-        getEchoData(e)?.anchorId === anchorId ? getEchoData(e)!.revision : 0,
-      ),
-    ) + 1;
-  return elements.map((e) => {
-    const echo = getEchoData(e);
+  const sourceEcho = elements
+    .map(getEchoData)
+    .find((echo) => echo?.anchorId === anchorId);
+  if (!sourceEcho) {
+    return elements;
+  }
+  const updated = bumpEchoField(sourceEcho, "status", sourceId);
+  return elements.map((element) => {
+    const echo = getEchoData(element);
     return echo?.anchorId === anchorId
-      ? newElementWith(e, {
-          customData: setEchoData(e, {
-            ...echo,
-            status,
-            revision,
-            mutationId,
-            updatedByElementId: sourceId,
-          }).customData,
+      ? newElementWith(element, {
+          customData: {
+            ...element.customData,
+            echo: {
+              ...echo,
+              status,
+              fields: { ...echo.fields, status: updated.fields.status },
+            },
+          },
         })
-      : e;
+      : element;
   });
 };

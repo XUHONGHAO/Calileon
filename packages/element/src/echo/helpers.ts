@@ -1,7 +1,14 @@
 import { randomId } from "@excalidraw/common";
 
 import type { ExcalidrawElement } from "../types";
-import type { EchoDataV1, EchoStatus } from "./types";
+import type {
+  EchoData,
+  EchoDataV1,
+  EchoDataV2,
+  EchoField,
+  EchoFieldRevision,
+  EchoStatus,
+} from "./types";
 
 const statuses = new Set<EchoStatus>([
   null,
@@ -10,35 +17,89 @@ const statuses = new Set<EchoStatus>([
   "blocked",
   "done",
 ]);
+export const ECHO_FIELDS: readonly EchoField[] = [
+  "text",
+  "status",
+  "backgroundColor",
+];
 
-export const getEchoData = (element: ExcalidrawElement): EchoDataV1 | null => {
-  const value = element.customData?.echo;
+const normalizeRevision = (value: unknown) =>
+  Number.isFinite(value) && Number(value) >= 0 ? Math.floor(Number(value)) : 0;
+
+const normalizeFieldRevision = (
+  value: unknown,
+  fallback: EchoFieldRevision,
+): EchoFieldRevision => {
+  if (!value || typeof value !== "object") {
+    return fallback;
+  }
+  const field = value as Partial<EchoFieldRevision>;
+  return {
+    revision: normalizeRevision(field.revision),
+    mutationId:
+      typeof field.mutationId === "string"
+        ? field.mutationId
+        : fallback.mutationId,
+    updatedByElementId:
+      typeof field.updatedByElementId === "string"
+        ? field.updatedByElementId
+        : fallback.updatedByElementId,
+  };
+};
+
+export const normalizeEchoData = (value: unknown): EchoData | null => {
   if (
     !value ||
     typeof value !== "object" ||
-    value.version !== 1 ||
-    typeof value.anchorId !== "string" ||
-    !value.anchorId
+    typeof (value as any).anchorId !== "string" ||
+    !(value as any).anchorId
   ) {
     return null;
   }
+  const raw = value as EchoDataV1 | EchoDataV2;
+  const name = typeof raw.name === "string" ? raw.name : "";
+  const status = statuses.has(raw.status) ? raw.status : null;
+  if (raw.version === 1) {
+    const revision = normalizeRevision(raw.revision);
+    const fallback = {
+      revision,
+      mutationId: raw.mutationId ?? `v1-${raw.anchorId}-${revision}`,
+      updatedByElementId: raw.updatedByElementId ?? "",
+    };
+    return {
+      version: 2,
+      anchorId: raw.anchorId,
+      name,
+      status,
+      fields: {
+        text: fallback,
+        status: fallback,
+        backgroundColor: fallback,
+      },
+    };
+  }
+  if (raw.version !== 2) {
+    return null;
+  }
+  const fallback = { revision: 0, mutationId: "", updatedByElementId: "" };
   return {
-    version: 1,
-    anchorId: value.anchorId,
-    name: typeof value.name === "string" ? value.name : "",
-    status: statuses.has(value.status) ? value.status : null,
-    revision:
-      Number.isFinite(value.revision) && value.revision >= 0
-        ? Math.floor(value.revision)
-        : 0,
-    ...(typeof value.mutationId === "string"
-      ? { mutationId: value.mutationId }
-      : {}),
-    ...(typeof value.updatedByElementId === "string"
-      ? { updatedByElementId: value.updatedByElementId }
-      : {}),
+    version: 2,
+    anchorId: raw.anchorId,
+    name,
+    status,
+    fields: {
+      text: normalizeFieldRevision(raw.fields?.text, fallback),
+      status: normalizeFieldRevision(raw.fields?.status, fallback),
+      backgroundColor: normalizeFieldRevision(
+        raw.fields?.backgroundColor,
+        fallback,
+      ),
+    },
   };
 };
+
+export const getEchoData = (element: ExcalidrawElement): EchoData | null =>
+  normalizeEchoData(element.customData?.echo);
 
 export const isEchoSupportedElement = (element: ExcalidrawElement) =>
   element.type === "text" ||
@@ -46,7 +107,7 @@ export const isEchoSupportedElement = (element: ExcalidrawElement) =>
   element.type === "diamond" ||
   element.type === "ellipse";
 
-export const setEchoData = (element: ExcalidrawElement, echo: EchoDataV1) => ({
+export const setEchoData = (element: ExcalidrawElement, echo: EchoData) => ({
   ...element,
   customData: { ...element.customData, echo },
 });
@@ -62,17 +123,33 @@ export const clearEchoData = (element: ExcalidrawElement) => {
   };
 };
 
-export const createEchoData = (
-  name: string,
-  elementId: string,
-): EchoDataV1 => ({
-  version: 1,
-  anchorId: randomId(),
-  name,
-  status: null,
-  revision: 0,
-  mutationId: randomId(),
-  updatedByElementId: elementId,
+export const createEchoData = (name: string, elementId: string): EchoData => {
+  const mutationId = randomId();
+  const field = { revision: 0, mutationId, updatedByElementId: elementId };
+  return {
+    version: 2,
+    anchorId: randomId(),
+    name,
+    status: null,
+    fields: { text: field, status: field, backgroundColor: field },
+  };
+};
+
+export const bumpEchoField = (
+  echo: EchoData,
+  field: EchoField,
+  sourceId: string,
+  mutationId = randomId(),
+): EchoData => ({
+  ...echo,
+  fields: {
+    ...echo.fields,
+    [field]: {
+      revision: echo.fields[field].revision + 1,
+      mutationId,
+      updatedByElementId: sourceId,
+    },
+  },
 });
 
 export const remapEchoAnchorIds = (elements: readonly ExcalidrawElement[]) => {
@@ -84,6 +161,6 @@ export const remapEchoAnchorIds = (elements: readonly ExcalidrawElement[]) => {
     }
     const anchorId = ids.get(echo.anchorId) ?? randomId();
     ids.set(echo.anchorId, anchorId);
-    return setEchoData(element, { ...echo, anchorId, mutationId: randomId() });
+    return setEchoData(element, { ...echo, anchorId });
   });
 };

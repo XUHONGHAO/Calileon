@@ -111,7 +111,8 @@
       "unbind": "解除所選元素聯動",
       "namePrompt": "Echo 錨點名稱",
       "defaultName": "Echo 錨點",
-      "status": { "label": "狀態", "none": "無狀態", "todo": "待辦", "in-progress": "進行中", "blocked": "阻塞", "done": "完成" }
+      "status": { "label": "狀態", "none": "無狀態", "todo": "待辦", "in-progress": "進行中", "blocked": "阻塞", "done": "完成" },
+      "fields": { "text": "文字", "status": "狀態", "backgroundColor": "背景色" }
     },
     "experimental": {
       "label": "實驗性",
@@ -619,6 +620,7 @@
     "width": "寬度"
   },
   "toast": {
+    "echoConflict": "Echo 的{{field}}發生並行修改，已保留依穩定規則選出的最新版本。",
     "addedToLibrary": "加入資料庫",
     "copyStyles": "已複製樣式",
     "copyToClipboard": "複製至剪貼簿。",
