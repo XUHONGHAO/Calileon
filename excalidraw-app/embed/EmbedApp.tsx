@@ -58,10 +58,13 @@ const initialPreset: EmbedUIPreset =
   query.get("preset") === "compact" || query.get("preset") === "presentation"
     ? (query.get("preset") as EmbedUIPreset)
     : "full";
+const initialLangCode = query.get("lang") ?? undefined;
 
 export const EmbedApp = () => {
   const instanceId = query.get("instanceId") ?? "embed";
   const parentOrigin = query.get("parentOrigin") ?? "";
+  const messageTarget =
+    window.parent !== window ? window.parent : window.opener ?? null;
   const [api, setApi] = useState<ExcalidrawImperativeAPI | null>(null);
   const maximumMode: EmbedMode =
     initialPreset === "presentation" ? "view" : initialMode;
@@ -83,10 +86,10 @@ export const EmbedApp = () => {
         parentOrigin &&
         getEmbedMessageByteSize(message) <= EMBED_MAX_RESPONSE_BYTES
       ) {
-        window.parent.postMessage(message, parentOrigin);
+        messageTarget?.postMessage(message, parentOrigin);
       }
     },
-    [parentOrigin],
+    [messageTarget, parentOrigin],
   );
 
   const emit = useCallback(
@@ -261,7 +264,7 @@ export const EmbedApp = () => {
     if (!api || !parentOrigin) return;
     const onMessage = (event: MessageEvent) => {
       if (
-        event.source !== window.parent ||
+        event.source !== messageTarget ||
         event.origin !== parentOrigin ||
         !isEmbedProtocolMessage(event.data) ||
         event.data.kind !== "command" ||
@@ -365,6 +368,7 @@ export const EmbedApp = () => {
     >
       <Excalidraw
         onExcalidrawAPI={setApi}
+        langCode={initialLangCode}
         onChange={onChange}
         viewModeEnabled={mode === "view"}
         zenModeEnabled={initialPreset !== "full"}

@@ -32,6 +32,7 @@ export interface ExcalidrawEmbedHostOptions {
   instanceId?: string;
   mode?: EmbedMode;
   preset?: EmbedUIPreset;
+  langCode?: string;
   title?: string;
   className?: string;
   requestTimeoutMs?: number;
@@ -310,6 +311,9 @@ export const createExcalidrawEmbed = (
   url.searchParams.set("parentOrigin", window.location.origin);
   url.searchParams.set("mode", options.mode ?? "view");
   url.searchParams.set("preset", options.preset ?? "full");
+  if (options.langCode) {
+    url.searchParams.set("lang", options.langCode);
+  }
 
   const iframe = document.createElement("iframe");
   iframe.src = url.toString();

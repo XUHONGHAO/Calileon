@@ -54,6 +54,7 @@ describe("ExcalidrawEmbedHost", () => {
       container: document.body,
       src: `${TARGET_ORIGIN}/embed#share=secret`,
       instanceId: "board-1",
+      langCode: "zh-CN",
     });
     const url = new URL(host.iframe.src);
 
@@ -61,6 +62,7 @@ describe("ExcalidrawEmbedHost", () => {
     expect(url.searchParams.get("instanceId")).toBe("board-1");
     expect(url.searchParams.get("parentOrigin")).toBe(window.location.origin);
     expect(url.searchParams.get("mode")).toBe("view");
+    expect(url.searchParams.get("lang")).toBe("zh-CN");
     expect(url.hash).toBe("#share=secret");
     expect(host.iframe.getAttribute("sandbox")).not.toContain(
       "allow-top-navigation",

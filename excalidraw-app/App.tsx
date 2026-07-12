@@ -3943,9 +3943,58 @@ const ExcalidrawWrapper = () => {
           refresh={refreshApp}
           onCloudAccountOpen={() => setIsCloudAccountOpen(true)}
           onSingleFileDialogOpen={() => setIsSingleFileDialogOpen(true)}
-          onEmbedOpen={() =>
-            window.open("/embed", "_blank", "noopener,noreferrer")
-          }
+          onEmbedOpen={() => {
+            if (!excalidrawAPI) {
+              return;
+            }
+            const instanceId = `menu-${Date.now()}`;
+            const embedWindow = window.open(
+              `/embed?instanceId=${encodeURIComponent(
+                instanceId,
+              )}&parentOrigin=${encodeURIComponent(
+                window.location.origin,
+              )}&mode=edit&preset=full&lang=${encodeURIComponent(langCode)}`,
+              "_blank",
+            );
+            if (!embedWindow) {
+              return;
+            }
+            const handleReady = (event: MessageEvent) => {
+              if (
+                event.source !== embedWindow ||
+                event.origin !== window.location.origin ||
+                event.data?.channel !== "excalidraw-embed" ||
+                event.data?.kind !== "event" ||
+                event.data?.name !== "ready" ||
+                event.data?.instanceId !== instanceId
+              ) {
+                return;
+              }
+              window.removeEventListener("message", handleReady);
+              embedWindow.postMessage(
+                {
+                  channel: "excalidraw-embed",
+                  protocolVersion: 1,
+                  instanceId,
+                  requestId: `menu-load-${Date.now()}`,
+                  kind: "command",
+                  name: "loadScene",
+                  payload: {
+                    source: {
+                      type: "scene",
+                      scene: {
+                        elements: excalidrawAPI.getSceneElements(),
+                        appState: excalidrawAPI.getAppState(),
+                        files: excalidrawAPI.getFiles(),
+                      },
+                    },
+                  },
+                },
+                window.location.origin,
+              );
+            };
+            window.addEventListener("message", handleReady);
+          }}
           excalidrawAPI={excalidrawAPI}
           activeCloudScene={activeCloudScene}
           langCode={langCode}
