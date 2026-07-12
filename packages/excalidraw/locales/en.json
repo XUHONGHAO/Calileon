@@ -122,6 +122,7 @@
       "label": "Experimental",
       "lumina": "Lighting (Lumina)",
       "singleFileBoard": "Single-file board",
+      "embedWhiteboard": "Embed whiteboard",
       "cast": "Cast / Record drawing",
       "echo": "Echo anchors"
     },

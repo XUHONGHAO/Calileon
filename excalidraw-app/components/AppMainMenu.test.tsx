@@ -51,6 +51,7 @@ vi.mock("@excalidraw/excalidraw/components/icons", () => ({
   ExcalLogo: null,
   eyeIcon: null,
   MagicIcon: null,
+  P3EmbedIcon: <svg data-testid="p3-embed-icon" />,
   SingleFileBoardIcon: <svg data-testid="single-file-board-icon" />,
   LoadIcon: null,
   save: null,
@@ -89,6 +90,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
         "cloud.auth.signingOut": "Signing out...",
         "cloud.scenes.menu": "Cloud whiteboards",
         "cloud.scenes.saveToCloud": "Save to cloud",
+        "labels.experimental.embedWhiteboard": "Embed whiteboard",
         "labels.experimental.singleFileBoard": "Single-file board",
       }[key] ?? key;
 
@@ -219,6 +221,7 @@ vi.mock("./DebugCanvas", () => ({
 const renderMenu = (
   props: {
     onCloudAccountOpen?: () => void;
+    onEmbedOpen?: () => void;
     onSingleFileDialogOpen?: () => void;
   } = {},
 ) =>
@@ -228,6 +231,7 @@ const renderMenu = (
       isCollaborating={false}
       onCollabDialogOpen={vi.fn()}
       onCloudAccountOpen={props.onCloudAccountOpen}
+      onEmbedOpen={props.onEmbedOpen ?? vi.fn()}
       onSingleFileDialogOpen={props.onSingleFileDialogOpen ?? vi.fn()}
       refresh={vi.fn()}
       theme="light"
@@ -250,6 +254,15 @@ describe("AppMainMenu experimental features", () => {
     fireEvent.click(screen.getByRole("button", { name: "Single-file board" }));
 
     expect(onSingleFileDialogOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the iframe embed example from its dedicated menu entry", () => {
+    const onEmbedOpen = vi.fn();
+    renderMenu({ onEmbedOpen });
+
+    expect(screen.getByTestId("p3-embed-icon")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Embed whiteboard" }));
+    expect(onEmbedOpen).toHaveBeenCalledTimes(1);
   });
 });
 

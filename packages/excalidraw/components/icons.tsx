@@ -2147,6 +2147,19 @@ export const SingleFileBoardIcon = createIcon(
   tablerIconProps,
 );
 
+// custom: isolated browser canvas — used for the iframe embed MVP entry
+export const P3EmbedIcon = createIcon(
+  <g strokeWidth={1.5}>
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 8h18" />
+    <path d="m8 12-2 2 2 2" />
+    <path d="m16 12 2 2-2 2" />
+    <path d="m13 11-2 6" />
+  </g>,
+  tablerIconProps,
+);
+
 // tabler-icons: presentation analytics — used for semantic Cast recording.
 export const CastIcon = createIcon(
   <g strokeWidth={1.5}>

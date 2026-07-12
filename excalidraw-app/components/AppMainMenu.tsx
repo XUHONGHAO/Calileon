@@ -4,6 +4,7 @@ import {
   ExcalLogo,
   eyeIcon,
   MagicIcon,
+  P3EmbedIcon,
   SingleFileBoardIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
@@ -39,6 +40,7 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   onCloudAccountOpen?: () => void;
   onSingleFileDialogOpen: () => void;
+  onEmbedOpen: () => void;
   excalidrawAPI?: ExcalidrawImperativeAPI | null;
   activeCloudScene?: ActiveCloudSceneInfo | null;
   langCode?: ExcalidrawProps["langCode"];
@@ -151,6 +153,14 @@ export const AppMainMenu: React.FC<{
             onSelect={props.onSingleFileDialogOpen}
           >
             {t("labels.experimental.singleFileBoard")}
+          </MainMenu.Item>
+          <MainMenu.Item
+            icon={P3EmbedIcon}
+            onSelect={props.onEmbedOpen}
+            data-testid="embed-menu-item"
+            aria-label={t("labels.experimental.embedWhiteboard")}
+          >
+            {t("labels.experimental.embedWhiteboard")}
           </MainMenu.Item>
           <MainMenu.Item
             icon={CastIcon}

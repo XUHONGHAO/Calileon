@@ -34,7 +34,15 @@ import {
   isDevEnv,
 } from "@excalidraw/common";
 import polyfill from "@excalidraw/excalidraw/polyfill";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
 import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
 import { t } from "@excalidraw/excalidraw/i18n";
@@ -3935,6 +3943,9 @@ const ExcalidrawWrapper = () => {
           refresh={refreshApp}
           onCloudAccountOpen={() => setIsCloudAccountOpen(true)}
           onSingleFileDialogOpen={() => setIsSingleFileDialogOpen(true)}
+          onEmbedOpen={() =>
+            window.open("/embed", "_blank", "noopener,noreferrer")
+          }
           excalidrawAPI={excalidrawAPI}
           activeCloudScene={activeCloudScene}
           langCode={langCode}
@@ -4324,7 +4335,21 @@ const ExcalidrawWrapper = () => {
   );
 };
 
+const LazyEmbedApp = lazy(() => import("./embed/EmbedApp"));
+
 const ExcalidrawApp = () => {
+  if (window.location.pathname === "/embed") {
+    return (
+      <TopErrorBoundary>
+        <Provider store={appJotaiStore}>
+          <Suspense fallback={null}>
+            <LazyEmbedApp />
+          </Suspense>
+        </Provider>
+      </TopErrorBoundary>
+    );
+  }
+
   const isCloudExportWindow =
     window.location.pathname === "/excalidraw-plus-export";
   if (isCloudExportWindow) {
