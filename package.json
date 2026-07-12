@@ -59,6 +59,7 @@
     "build:fractional-indexing": "yarn --cwd ./packages/fractional-indexing build:esm",
     "build:packages": "yarn build:common && yarn build:fractional-indexing && yarn build:math && yarn build:element && yarn build:excalidraw",
     "build:version": "yarn --cwd ./excalidraw-app build:version",
+    "build:single-file-runtime": "yarn --cwd ./excalidraw-app build:single-file-runtime",
     "build": "yarn --cwd ./excalidraw-app build",
     "build:preview": "yarn --cwd ./excalidraw-app build:preview",
     "start": "yarn --cwd ./excalidraw-app start",

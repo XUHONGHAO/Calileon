@@ -106,7 +106,8 @@
     },
     "experimental": {
       "label": "实验性",
-      "lumina": "光照 Lumina"
+      "lumina": "光照 Lumina",
+      "singleFileBoard": "单文件白板"
     },
     "textAlign": "文本对齐",
     "edges": "边角",
@@ -248,6 +249,40 @@
     "wrapSelectionInFrame": "用选中的元素创建画框",
     "tab": "Tab",
     "shapeSwitch": "切换形状"
+  },
+  "singleFile": {
+    "title": "单文件白板",
+    "description": "将当前白板导出为一个可离线运行、可继续编辑的自包含 HTML 文件。",
+    "export": "导出单文件",
+    "exporting": "正在导出...",
+    "save": "保存",
+    "saveAs": "另存为",
+    "saving": "正在保存...",
+    "support": "文件包含离线编辑、本地图片和当前 Lumina 数据。单文件运行时不提供 AI、云端、登录和实时协作。",
+    "overwriteSupported": "此浏览器可通过 File System Access API 覆盖已授权的 HTML 文件。",
+    "overwriteUnsupported": "此浏览器不支持直接覆盖本地文件。“保存”会自动改为下载一个新副本。",
+    "saveFallback": "无法覆盖当前文件，已自动转为“另存为”，你的编辑内容不会丢失。",
+    "firstSaveTitle": "授权覆盖保存",
+    "firstSaveDescription": "首次覆盖需要你明确选择并授权一个 HTML 文件。你可随时使用“另存为”，系统不会静默覆盖任何文件。",
+    "firstSaveContinue": "选择文件",
+    "firstOverwritePrompt": "覆盖单文件白板前，需要你明确选择并授权 HTML 文件。如果浏览器不支持、授权被拒绝或写入失败，保存会自动转为另存为。是否继续？",
+    "sizeWarningTitle": "单文件体积较大",
+    "sizeWarning": "生成的 HTML 约为 {{size}}。大文件打开和保存可能较慢，但系统不会静默丢弃资源。",
+    "browserSupportTitle": "浏览器支持",
+    "browserSupport": "当前 Chromium、Firefox 和 Safari 支持打开、编辑和另存。直接覆盖保存主要支持 Chrome 和 Edge，并且始终需要用户授权。",
+    "fileBoundaryTitle": "文件内容与边界",
+    "fileBoundary": "HTML 包含当前场景、已引用的本地图片、样式、字体和运行时代码。远程嵌入内容可能仍需联网。API Key、Token、账号凭据和文件句柄不会写入文件。",
+    "errors": {
+      "exportFailed": "无法导出单文件白板，当前白板未被修改。",
+      "saveFailed": "无法保存单文件白板，你的编辑仍保留在当前页面中。",
+      "saveAsFailed": "无法另存新副本，你的编辑仍保留在当前页面中。",
+      "invalidFile": "所选文件不是兼容的单文件白板。"
+    },
+    "success": {
+      "exported": "单文件白板已导出。",
+      "saved": "单文件白板已保存。",
+      "savedAs": "新的单文件白板已保存。"
+    }
   },
   "elementLink": {
     "title": "链接到对象",

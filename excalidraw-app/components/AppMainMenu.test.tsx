@@ -50,6 +50,7 @@ vi.mock("@excalidraw/excalidraw/components/icons", () => ({
   ExcalLogo: null,
   eyeIcon: null,
   MagicIcon: null,
+  SingleFileBoardIcon: <svg data-testid="single-file-board-icon" />,
   LoadIcon: null,
   save: null,
 }));
@@ -87,6 +88,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
         "cloud.auth.signingOut": "Signing out...",
         "cloud.scenes.menu": "Cloud whiteboards",
         "cloud.scenes.saveToCloud": "Save to cloud",
+        "labels.experimental.singleFileBoard": "Single-file board",
       }[key] ?? key;
 
     return value.replace(/\{\{(\w+)\}\}/g, (_, name) =>
@@ -119,12 +121,15 @@ vi.mock("@excalidraw/excalidraw/index", () => {
     children,
     className,
     onSelect,
+    icon,
   }: {
     children: React.ReactNode;
     className?: string;
     onSelect: () => void;
+    icon?: React.ReactNode;
   }) => (
     <button className={className} type="button" onClick={onSelect}>
+      {icon}
       {children}
     </button>
   );
@@ -149,6 +154,18 @@ vi.mock("@excalidraw/excalidraw/index", () => {
 
   MainMenu.Separator = () => <hr />;
 
+  const ExperimentalFeatures = ({
+    children,
+  }: {
+    children?: React.ReactNode;
+  }) => (
+    <div>
+      Experimental features
+      {children}
+    </div>
+  );
+  ExperimentalFeatures.Lumina = () => <div>Lumina submenu</div>;
+
   MainMenu.DefaultItems = {
     ChangeCanvasBackground: () => (
       <button type="button">Canvas background</button>
@@ -156,7 +173,7 @@ vi.mock("@excalidraw/excalidraw/index", () => {
     ClearCanvas: () => <button type="button">Clear canvas</button>,
     CommandPalette: () => <button type="button">Command palette</button>,
     Export: () => <button type="button">Export</button>,
-    ExperimentalFeatures: () => <div>Experimental features</div>,
+    ExperimentalFeatures,
     Help: () => <button type="button">Help</button>,
     LiveCollaborationTrigger: ({ onSelect }: { onSelect: () => void }) => (
       <button type="button" onClick={onSelect}>
@@ -195,6 +212,7 @@ vi.mock("./DebugCanvas", () => ({
 const renderMenu = (
   props: {
     onCloudAccountOpen?: () => void;
+    onSingleFileDialogOpen?: () => void;
   } = {},
 ) =>
   render(
@@ -203,10 +221,29 @@ const renderMenu = (
       isCollaborating={false}
       onCollabDialogOpen={vi.fn()}
       onCloudAccountOpen={props.onCloudAccountOpen}
+      onSingleFileDialogOpen={props.onSingleFileDialogOpen ?? vi.fn()}
       refresh={vi.fn()}
       theme="light"
     />,
   );
+
+describe("AppMainMenu experimental features", () => {
+  beforeEach(() => {
+    authMock.state = makeAuthState();
+  });
+
+  it("keeps Lumina and opens the single-file board dialog", () => {
+    const onSingleFileDialogOpen = vi.fn();
+    renderMenu({ onSingleFileDialogOpen });
+
+    expect(screen.getByText("Lumina submenu")).toBeInTheDocument();
+    expect(screen.getByTestId("single-file-board-icon")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Single-file board" }));
+
+    expect(onSingleFileDialogOpen).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe("AppMainMenu cloud auth account entry", () => {
   beforeEach(() => {

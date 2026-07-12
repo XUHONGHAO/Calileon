@@ -27,6 +27,8 @@ coverage
 dev-dist
 html
 meta*.json
+public/single-file-runtime-template.txt
+excalidraw-app/single-file/.runtime-build/
 .claude
 .git_disabled/
 .git_empty_backup_*/
