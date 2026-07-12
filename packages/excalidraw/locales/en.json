@@ -122,6 +122,13 @@
       "label": "Experimental",
       "lumina": "Lighting (Lumina)",
       "singleFileBoard": "Single-file board",
+      "embedWhiteboard": "Embed whiteboard",
+      "embedPresets": {
+        "view": "Read-only preview",
+        "edit": "Editable embed",
+        "compact": "Compact embed",
+        "presentation": "Presentation mode"
+      },
       "cast": "Cast / Record drawing",
       "echo": "Echo anchors"
     },
