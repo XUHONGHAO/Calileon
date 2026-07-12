@@ -1,4 +1,5 @@
 import {
+  CastIcon,
   loginIcon,
   ExcalLogo,
   eyeIcon,
@@ -13,6 +14,10 @@ import React from "react";
 import { isDevEnv } from "@excalidraw/common";
 
 import type { Theme } from "@excalidraw/element/types";
+import type {
+  ExcalidrawImperativeAPI,
+  ExcalidrawProps,
+} from "@excalidraw/excalidraw/types";
 
 import { LanguageList } from "../app-language/LanguageList";
 import { AI_OPEN_SETTINGS_EVENT } from "../ai/workflowEvents";
@@ -20,7 +25,11 @@ import { useCloudAuth } from "../auth/useCloudAuth";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 import { AISettings } from "./AISettings";
+
+import { CastDialog } from "./CastDialog";
 import { saveDebugState } from "./DebugCanvas";
+
+import type { ActiveCloudSceneInfo } from "./AuthDialog";
 
 export const AppMainMenu: React.FC<{
   onCollabDialogOpen: () => any;
@@ -30,8 +39,12 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   onCloudAccountOpen?: () => void;
   onSingleFileDialogOpen: () => void;
+  excalidrawAPI?: ExcalidrawImperativeAPI | null;
+  activeCloudScene?: ActiveCloudSceneInfo | null;
+  langCode?: ExcalidrawProps["langCode"];
 }> = React.memo((props) => {
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
+  const [isCastDialogOpen, setIsCastDialogOpen] = React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
     "models" | "agents" | "templates"
   >("models");
@@ -138,6 +151,14 @@ export const AppMainMenu: React.FC<{
           >
             {t("labels.experimental.singleFileBoard")}
           </MainMenu.Item>
+          <MainMenu.Item
+            icon={CastIcon}
+            onSelect={() => setIsCastDialogOpen(true)}
+            data-testid="cast-menu-item"
+            aria-label={t("labels.experimental.cast")}
+          >
+            {t("labels.experimental.cast")}
+          </MainMenu.Item>
         </MainMenu.DefaultItems.ExperimentalFeatures>
         <MainMenu.DefaultItems.Preferences
           additionalItems={
@@ -176,6 +197,13 @@ export const AppMainMenu: React.FC<{
           />
         </Dialog>
       )}
+      <CastDialog
+        open={isCastDialogOpen}
+        onClose={() => setIsCastDialogOpen(false)}
+        excalidrawAPI={props.excalidrawAPI ?? null}
+        activeCloudScene={props.activeCloudScene}
+        langCode={props.langCode}
+      />
     </>
   );
 });

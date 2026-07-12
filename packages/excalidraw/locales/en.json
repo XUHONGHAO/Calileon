@@ -111,7 +111,39 @@
     "experimental": {
       "label": "Experimental",
       "lumina": "Lighting (Lumina)",
-      "singleFileBoard": "Single-file board"
+      "singleFileBoard": "Single-file board",
+      "cast": "Cast / Record drawing"
+    },
+    "cast": {
+      "title": "Cast / Record drawing",
+      "description": "Record semantic scene changes, viewport movement, and pointer motion for an interactive replay.",
+      "start": "Start recording",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop recording",
+      "play": "Play",
+      "restart": "Restart",
+      "preview": "Interactive replay",
+      "export": "Export CastScript",
+      "import": "Import CastScript",
+      "saveCloud": "Save to cloud",
+      "savingCloud": "Saving…",
+      "savedCloud": "Saved to cloud",
+      "discard": "Discard recording",
+      "status": {
+        "idle": "Ready to record",
+        "recording": "Recording",
+        "paused": "Recording paused",
+        "stopped": "Recording ready"
+      },
+      "timeline": "Timeline",
+      "speed": "Playback speed",
+      "pointer": "Recorded pointer",
+      "empty": "Record or import a CastScript to preview it.",
+      "cloudUnavailable": "Bind this whiteboard to your signed-in cloud account to save the recording.",
+      "unsupportedVersion": "This CastScript version is not supported.",
+      "invalidScript": "The selected file is not a valid CastScript.",
+      "cloudError": "The recording could not be saved to the cloud."
     },
     "textAlign": "Text align",
     "edges": "Edges",

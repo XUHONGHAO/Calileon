@@ -107,7 +107,39 @@
     "experimental": {
       "label": "實驗性",
       "lumina": "光照 Lumina",
-      "singleFileBoard": "單檔案白板"
+      "singleFileBoard": "單檔案白板",
+      "cast": "邊畫邊錄"
+    },
+    "cast": {
+      "title": "邊畫邊錄",
+      "description": "記錄場景、視口和指標的語意變化，並產生可互動回放。",
+      "start": "開始錄製",
+      "pause": "暫停",
+      "resume": "繼續",
+      "stop": "停止錄製",
+      "play": "播放",
+      "restart": "重新播放",
+      "preview": "互動回放",
+      "export": "匯出 CastScript",
+      "import": "匯入 CastScript",
+      "saveCloud": "儲存到雲端",
+      "savingCloud": "正在儲存…",
+      "savedCloud": "已儲存到雲端",
+      "discard": "捨棄錄製",
+      "status": {
+        "idle": "可以開始錄製",
+        "recording": "正在錄製",
+        "paused": "錄製已暫停",
+        "stopped": "錄製已就緒"
+      },
+      "timeline": "時間軸",
+      "speed": "播放速度",
+      "pointer": "錄製指標",
+      "empty": "請先錄製或匯入 CastScript。",
+      "cloudUnavailable": "請先登入並將目前白板綁定到雲端，再儲存錄製。",
+      "unsupportedVersion": "不支援此 CastScript 版本。",
+      "invalidScript": "所選檔案不是有效的 CastScript。",
+      "cloudError": "無法將錄製儲存到雲端。"
     },
     "textAlign": "文字對齊",
     "edges": "邊緣",

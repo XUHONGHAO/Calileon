@@ -107,7 +107,39 @@
     "experimental": {
       "label": "实验性",
       "lumina": "光照 Lumina",
-      "singleFileBoard": "单文件白板"
+      "singleFileBoard": "单文件白板",
+      "cast": "边画边录"
+    },
+    "cast": {
+      "title": "边画边录",
+      "description": "记录场景、视口和指针的语义变化，并生成可交互回放。",
+      "start": "开始录制",
+      "pause": "暂停",
+      "resume": "继续",
+      "stop": "停止录制",
+      "play": "播放",
+      "restart": "重新播放",
+      "preview": "交互回放",
+      "export": "导出 CastScript",
+      "import": "导入 CastScript",
+      "saveCloud": "保存到云端",
+      "savingCloud": "正在保存…",
+      "savedCloud": "已保存到云端",
+      "discard": "丢弃录制",
+      "status": {
+        "idle": "可以开始录制",
+        "recording": "正在录制",
+        "paused": "录制已暂停",
+        "stopped": "录制已就绪"
+      },
+      "timeline": "时间轴",
+      "speed": "播放速度",
+      "pointer": "录制指针",
+      "empty": "请先录制或导入 CastScript。",
+      "cloudUnavailable": "请先登录并将当前白板绑定到云端，再保存录制。",
+      "unsupportedVersion": "不支持此 CastScript 版本。",
+      "invalidScript": "所选文件不是有效的 CastScript。",
+      "cloudError": "无法将录制保存到云端。"
     },
     "textAlign": "文本对齐",
     "edges": "边角",

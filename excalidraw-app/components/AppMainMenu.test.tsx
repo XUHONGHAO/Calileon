@@ -45,6 +45,7 @@ vi.mock("@excalidraw/common", async (importOriginal) => ({
 }));
 
 vi.mock("@excalidraw/excalidraw/components/icons", () => ({
+  CastIcon: null,
   CloseIcon: null,
   loginIcon: null,
   ExcalLogo: null,
@@ -205,6 +206,11 @@ vi.mock("./AISettings", () => ({
   AISettings: () => <div>AI settings panel</div>,
 }));
 
+vi.mock("./CastDialog", () => ({
+  CastDialog: ({ open }: { open: boolean }) =>
+    open ? <div role="dialog">Cast dialog</div> : null,
+}));
+
 vi.mock("./DebugCanvas", () => ({
   saveDebugState: vi.fn(),
 }));
@@ -313,5 +319,17 @@ describe("AppMainMenu cloud auth account entry", () => {
     fireEvent.click(accountButton);
 
     expect(onCloudAccountOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("AppMainMenu Cast entry", () => {
+  it("opens Cast from the Experimental menu", () => {
+    renderMenu();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "labels.experimental.cast" }),
+    );
+
+    expect(screen.getByRole("dialog")).toHaveTextContent("Cast dialog");
   });
 });

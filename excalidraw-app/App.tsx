@@ -150,6 +150,7 @@ import {
   uploadSharedSceneAssets,
 } from "./data/cloud/cloudAssets";
 import { recordCloudAITask } from "./data/cloud/cloudAITasks";
+import { forwardCastEditorPointerUpdate } from "./cast";
 import { getCloudEmbedAccessFromUrl } from "./data/cloud/cloudEmbedLinks";
 import { getCloudShareAccessFromUrl } from "./data/cloud/cloudShareLinks";
 import {
@@ -3197,7 +3198,10 @@ const ExcalidrawWrapper = () => {
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
         isCollaborating={isCollaborating}
-        onPointerUpdate={collabAPI?.onPointerUpdate}
+        onPointerUpdate={(payload) => {
+          collabAPI?.onPointerUpdate(payload);
+          forwardCastEditorPointerUpdate(payload);
+        }}
         validateEmbeddable={validateEmbeddable}
         renderEmbeddable={renderEmbeddable}
         UIOptions={{
@@ -3279,6 +3283,9 @@ const ExcalidrawWrapper = () => {
           refresh={refreshApp}
           onCloudAccountOpen={() => setIsCloudAccountOpen(true)}
           onSingleFileDialogOpen={() => setIsSingleFileDialogOpen(true)}
+          excalidrawAPI={excalidrawAPI}
+          activeCloudScene={activeCloudScene}
+          langCode={langCode}
         />
         <SingleFileDialog
           open={isSingleFileDialogOpen}
