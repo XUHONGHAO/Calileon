@@ -36,6 +36,7 @@ import {
   isEmbedProtocolMessage,
   type EmbedCommandMessage,
   type EmbedCommandPayloadMap,
+  type EmbedErrorCode,
   type EmbedEventName,
   type EmbedEventPayloadMap,
   type EmbedMode,
@@ -43,6 +44,23 @@ import {
   type EmbedUIPreset,
 } from "./protocol";
 import { loadEmbedSource, type EmbedRoomLinkData } from "./sceneLoader";
+
+class EmbedCommandError extends Error {
+  constructor(public readonly code: EmbedErrorCode, message: string) {
+    super(message);
+    this.name = "EmbedCommandError";
+  }
+}
+
+const toProtocolError = (error: unknown): EmbedProtocolError => {
+  if (error instanceof EmbedCommandError) {
+    return { code: error.code, message: error.message };
+  }
+  if (error instanceof Error) {
+    return { code: "INTERNAL_ERROR", message: error.message };
+  }
+  return { code: "INTERNAL_ERROR", message: "Unknown embed error" };
+};
 
 const toDataURL = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -124,19 +142,19 @@ export const EmbedApp = () => {
   const execute = useCallback(
     async (message: EmbedCommandMessage) => {
       if (!api) {
-        throw {
-          code: "INTERNAL_ERROR",
-          message: "Editor is not ready",
-        } as EmbedProtocolError;
+        throw new EmbedCommandError("INTERNAL_ERROR", "Editor is not ready");
       }
       switch (message.name) {
         case "loadScene": {
           const payload =
             message.payload as EmbedCommandPayloadMap["loadScene"];
           const loaded = await loadEmbedSource(payload.source);
-          if (collabAPI?.isCollaborating()) collabAPI.stopCollaboration(false);
-          if (loaded.room) setPendingRoom(loaded.room);
-          else {
+          if (collabAPI?.isCollaborating()) {
+            collabAPI.stopCollaboration(false);
+          }
+          if (loaded.room) {
+            setPendingRoom(loaded.room);
+          } else {
             api.updateScene({
               elements: loaded.scene.elements,
               appState: loaded.scene.appState
@@ -159,10 +177,10 @@ export const EmbedApp = () => {
               "edit" &&
             maximumMode !== "edit"
           ) {
-            throw {
-              code: "READ_ONLY",
-              message: "This embed instance is read-only",
-            } as EmbedProtocolError;
+            throw new EmbedCommandError(
+              "READ_ONLY",
+              "This embed instance is read-only",
+            );
           }
           setMode((message.payload as EmbedCommandPayloadMap["setMode"]).mode);
           return {
@@ -181,10 +199,7 @@ export const EmbedApp = () => {
             .getSceneElements()
             .some((element) => element.id === payload.elementId);
           if (!exists) {
-            throw {
-              code: "NOT_FOUND",
-              message: "Element not found",
-            } as EmbedProtocolError;
+            throw new EmbedCommandError("NOT_FOUND", "Element not found");
           }
           api.scrollToContent(payload.elementId, payload);
           return { scrolled: true };
@@ -251,17 +266,19 @@ export const EmbedApp = () => {
           ).events.forEach((event) => subscriptions.current.delete(event));
           return { events: [...subscriptions.current] };
         default:
-          throw {
-            code: "UNSUPPORTED_COMMAND",
-            message: "Unsupported command",
-          } as EmbedProtocolError;
+          throw new EmbedCommandError(
+            "UNSUPPORTED_COMMAND",
+            "Unsupported command",
+          );
       }
     },
     [api, collabAPI, maximumMode],
   );
 
   useEffect(() => {
-    if (!api || !parentOrigin) return;
+    if (!api || !parentOrigin) {
+      return;
+    }
     const onMessage = (event: MessageEvent) => {
       if (
         event.source !== messageTarget ||
@@ -269,10 +286,13 @@ export const EmbedApp = () => {
         !isEmbedProtocolMessage(event.data) ||
         event.data.kind !== "command" ||
         event.data.instanceId !== instanceId
-      )
+      ) {
         return;
+      }
       const message = event.data;
-      if (getEmbedMessageByteSize(message) > EMBED_MAX_COMMAND_BYTES) return;
+      if (getEmbedMessageByteSize(message) > EMBED_MAX_COMMAND_BYTES) {
+        return;
+      }
       void execute(message)
         .then((payload) =>
           post(
@@ -284,16 +304,13 @@ export const EmbedApp = () => {
             }),
           ),
         )
-        .catch((error: EmbedProtocolError | Error) =>
+        .catch((error: unknown) =>
           post(
             createEmbedErrorResponse({
               instanceId,
               requestId: message.requestId,
               name: message.name,
-              error:
-                "code" in error
-                  ? (error as EmbedProtocolError)
-                  : { code: "INTERNAL_ERROR", message: error.message },
+              error: toProtocolError(error),
             }),
           ),
         );
@@ -305,7 +322,7 @@ export const EmbedApp = () => {
       true,
     );
     return () => window.removeEventListener("message", onMessage);
-  }, [api, emit, execute, instanceId, mode, parentOrigin, post]);
+  }, [api, emit, execute, instanceId, messageTarget, mode, parentOrigin, post]);
 
   useEffect(
     () => () => {
