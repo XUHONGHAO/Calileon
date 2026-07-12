@@ -35,6 +35,14 @@ import { getCornerRadius, isPathALoop } from "@excalidraw/element";
 import { ShapeCache } from "@excalidraw/element";
 
 import { getElementAbsoluteCoords } from "@excalidraw/element";
+import {
+  getLineTone,
+  getLineToneMarkerGeometry,
+  getLineTonePathAnchor,
+  getLineToneRenderElement,
+  LINE_TONE_MARKER_CLEARANCE,
+  LINE_TONE_MARKER_OFFSET,
+} from "@excalidraw/element";
 
 import type {
   ExcalidrawElement,
@@ -339,7 +347,11 @@ const renderElementToSvg = (
       }
       group.setAttribute("stroke-linecap", "round");
 
-      const shapes = ShapeCache.generateElementShape(element, renderConfig);
+      const renderingElement = getLineToneRenderElement(element);
+      const shapes = ShapeCache.generateElementShape(
+        renderingElement,
+        renderConfig,
+      );
       shapes.forEach((shape) => {
         const node = roughSVGDrawWithPrecision(
           rsvg,
@@ -365,6 +377,87 @@ const renderElementToSvg = (
         }
         group.appendChild(node);
       });
+
+      const tone = getLineTone(element);
+      const anchor = tone && getLineTonePathAnchor(element, elementsMap);
+      if (tone && anchor) {
+        const marker = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+        const markerOffset = boundText ? LINE_TONE_MARKER_OFFSET : 0;
+        const markerX =
+          anchor.point[0] +
+          (offsetX - element.x) +
+          anchor.normal[0] * markerOffset;
+        const markerY =
+          anchor.point[1] +
+          (offsetY - element.y) +
+          anchor.normal[1] * markerOffset;
+        marker.setAttribute("data-line-tone", tone);
+        marker.setAttribute("transform", `translate(${markerX} ${markerY})`);
+        marker.setAttribute("fill", "none");
+        marker.setAttribute(
+          "stroke",
+          applyDarkModeFilter(
+            element.strokeColor,
+            renderConfig.theme === THEME.DARK,
+          ),
+        );
+        marker.setAttribute("stroke-width", "2");
+        marker.setAttribute("stroke-linecap", "round");
+        marker.setAttribute("stroke-linejoin", "round");
+        if (opacity !== 1) {
+          marker.setAttribute("opacity", `${opacity}`);
+        }
+
+        if (!boundText) {
+          const clearance = svgRoot.ownerDocument.createElementNS(
+            SVG_NS,
+            "circle",
+          );
+          clearance.setAttribute("data-line-tone-clearance", "true");
+          clearance.setAttribute("cx", "0");
+          clearance.setAttribute("cy", "0");
+          clearance.setAttribute("r", `${LINE_TONE_MARKER_CLEARANCE}`);
+          clearance.setAttribute("fill", renderConfig.canvasBackgroundColor);
+          clearance.setAttribute("stroke", "none");
+          marker.appendChild(clearance);
+        }
+
+        const geometry = getLineToneMarkerGeometry(tone);
+        geometry.paths.forEach((points) => {
+          const [first, ...rest] = points;
+          if (!first) {
+            return;
+          }
+          const path = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+          path.setAttribute(
+            "d",
+            `M ${first[0]} ${first[1]} ${rest
+              .map((point) => `L ${point[0]} ${point[1]}`)
+              .join(" ")}`,
+          );
+          marker.appendChild(path);
+        });
+        geometry.circles?.forEach(({ center, radius }) => {
+          const circle = svgRoot.ownerDocument.createElementNS(
+            SVG_NS,
+            "circle",
+          );
+          circle.setAttribute("cx", `${center[0]}`);
+          circle.setAttribute("cy", `${center[1]}`);
+          circle.setAttribute("r", `${radius}`);
+          circle.setAttribute("fill", "currentColor");
+          circle.setAttribute("stroke", "none");
+          circle.setAttribute(
+            "color",
+            applyDarkModeFilter(
+              element.strokeColor,
+              renderConfig.theme === THEME.DARK,
+            ),
+          );
+          marker.appendChild(circle);
+        });
+        group.appendChild(marker);
+      }
 
       const g = maybeWrapNodesInFrameClipPath(
         element,

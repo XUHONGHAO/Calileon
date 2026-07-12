@@ -151,6 +151,7 @@ export const AppMainMenu: React.FC<{
         <MainMenu.DefaultItems.ExperimentalFeatures>
           <MainMenu.DefaultItems.ExperimentalFeatures.Lumina />
           <MainMenu.DefaultItems.ExperimentalFeatures.Echo />
+          <MainMenu.DefaultItems.ExperimentalFeatures.LineTone />
           <MainMenu.Item
             icon={SingleFileBoardIcon}
             onSelect={props.onSingleFileDialogOpen}

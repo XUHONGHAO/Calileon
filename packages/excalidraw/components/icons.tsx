@@ -375,6 +375,62 @@ export const LineIcon = createIcon(
   modifiedTablerIconProps,
 );
 
+const lineToneIconProps: Opts = {
+  width: 24,
+  height: 24,
+  fill: "none",
+  strokeWidth: 1.8,
+  stroke: "currentColor",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+};
+
+export const LineToneIcon = createIcon(
+  <>
+    <path d="M3 12h18" />
+    <path d="m9 8 3 4 3-4" />
+  </>,
+  lineToneIconProps,
+);
+
+export const NormalLineToneIcon = createIcon(
+  <path d="M3 12h18" />,
+  lineToneIconProps,
+);
+
+export const CertainLineToneIcon = createIcon(
+  <>
+    <path d="M3 12h18" />
+    <path d="m9 8 2.2 2.2L15 6.5" />
+  </>,
+  lineToneIconProps,
+);
+
+export const PossibleLineToneIcon = createIcon(
+  <>
+    <path strokeDasharray="4 3" d="M3 12h18" />
+    <path d="M9 8c1.2-2 2.4-2 3.6 0s2.4 2 3.6 0" />
+  </>,
+  lineToneIconProps,
+);
+
+export const BlockedLineToneIcon = createIcon(
+  <>
+    <path d="M3 12h18" />
+    <path d="M9 7v10M15 7v10" />
+  </>,
+  lineToneIconProps,
+);
+
+export const QuestionedLineToneIcon = createIcon(
+  <>
+    <path strokeDasharray="1 3" d="M3 12h18" />
+    <path d="M10 7a2 2 0 1 1 2.2 2c-.8.2-1.2.8-1.2 1.5" />
+    <path d="M11 14h.01" />
+  </>,
+  lineToneIconProps,
+);
+
 export const PenModeIcon = createIcon(
   <g strokeWidth="1.25">
     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>

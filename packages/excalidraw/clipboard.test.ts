@@ -57,6 +57,25 @@ describe("parseClipboard()", () => {
     expect(clipboardData.elements).toEqual([rect]);
   });
 
+  it("preserves line tone semantics through clipboard JSON", async () => {
+    const arrow = API.createElement({
+      type: "arrow",
+      customData: {
+        lineTone: { version: 1, tone: "questioned" },
+        preserved: { source: "clipboard" },
+      },
+    });
+
+    const json = serializeAsClipboardJSON({ elements: [arrow], files: null });
+    const clipboardData = await parseClipboard(
+      await parseDataTransferEvent(
+        createPasteEvent({ types: { "text/plain": json } }),
+      ),
+    );
+
+    expect(clipboardData.elements?.[0].customData).toEqual(arrow.customData);
+  });
+
   it("should parse valid excalidraw JSON if inside text/html", async () => {
     const rect = API.createElement({ type: "rectangle" });
 

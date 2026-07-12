@@ -114,6 +114,14 @@
       "status": { "label": "狀態", "none": "無狀態", "todo": "待辦", "in-progress": "進行中", "blocked": "阻塞", "done": "完成" },
       "fields": { "text": "文字", "status": "狀態", "backgroundColor": "背景色" }
     },
+    "lineTone": {
+      "label": "連線語氣",
+      "normal": "一般",
+      "certain": "確定",
+      "possible": "可能",
+      "blocked": "阻塞",
+      "questioned": "存疑"
+    },
     "experimental": {
       "label": "實驗性",
       "lumina": "光照 Lumina",
@@ -126,7 +134,8 @@
         "presentation": "簡報模式"
       },
       "cast": "邊畫邊錄",
-      "echo": "Echo 錨點分身"
+      "echo": "Echo 錨點分身",
+      "lineTone": "連線語氣"
     },
     "cast": {
       "title": "邊畫邊錄",

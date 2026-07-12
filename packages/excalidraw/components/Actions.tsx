@@ -20,6 +20,7 @@ import {
   isArrowElement,
   hasStrokeColor,
   toolIsArrow,
+  isLineToneSupportedElement,
 } from "@excalidraw/element";
 
 import { isLuminaLightSource } from "@excalidraw/element/lumina";
@@ -247,6 +248,9 @@ export const SelectedShapeActions = ({
         targetElements.some((element) => canHaveArrowheads(element.type))) && (
         <>{renderAction("changeArrowhead")}</>
       )}
+
+      {targetElements.some(isLineToneSupportedElement) &&
+        renderAction("changeLineTone")}
 
       {renderAction("changeOpacity")}
 
