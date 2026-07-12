@@ -4,6 +4,7 @@ import { arrayToMap, isDevEnv, isTestEnv } from "@excalidraw/common";
 
 import {
   orderByFractionalIndex,
+  reconcileEchoElements,
   syncInvalidIndices,
   validateFractionalIndices,
 } from "@excalidraw/element";
@@ -107,7 +108,12 @@ export const reconcileElements = (
     }
   }
 
-  const orderedElements = orderByFractionalIndex(reconciledElements);
+  const echoReconciledElements = reconcileEchoElements(
+    localElements,
+    remoteElements,
+    reconciledElements,
+  ) as OrderedExcalidrawElement[];
+  const orderedElements = orderByFractionalIndex(echoReconciledElements);
 
   validateIndicesThrottled(orderedElements, localElements, remoteElements);
 

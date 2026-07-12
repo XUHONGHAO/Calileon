@@ -18,6 +18,11 @@ import {
   actionToggleGridMode,
   actionToggleLumina,
   actionToggleLuminaCaustics,
+  actionCreateEchoAnchor,
+  actionBindEchoSelection,
+  actionUnbindEchoSelection,
+  actionDuplicateEchoIndependent,
+  actionSetEchoStatus,
   actionToggleMidpointSnapping,
   actionToggleObjectsSnapMode,
   actionToggleSearchMenu,
@@ -74,6 +79,8 @@ import {
   pencilIcon,
   playerPlayIcon,
   RetryIcon,
+  DuplicateIcon,
+  elementLinkIcon,
   save,
   searchIcon,
   SunIcon,
@@ -1046,13 +1053,91 @@ export const ExperimentalFeatures = ({
         {t("labels.experimental.label")}
       </DropdownMenuSub.Trigger>
       <DropdownMenuSub.Content>
-        {children || <LuminaFeatureSubmenu />}
+        {children || (
+          <>
+            <LuminaFeatureSubmenu />
+            <EchoFeatureSubmenu />
+          </>
+        )}
+      </DropdownMenuSub.Content>
+    </DropdownMenuSub>
+  );
+};
+
+export const EchoFeatureSubmenu = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const runCreate = () =>
+    actionManager.executeAction(
+      actionCreateEchoAnchor as any,
+      "ui",
+      t("labels.echo.defaultName"),
+    );
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSub.Trigger icon={elementLinkIcon}>
+        {t("labels.experimental.echo")}
+      </DropdownMenuSub.Trigger>
+      <DropdownMenuSub.Content>
+        <DropdownMenuItem
+          icon={elementLinkIcon}
+          data-testid="echo-create-menu-item"
+          onSelect={runCreate}
+        >
+          {t("labels.echo.createAnchor")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          icon={elementLinkIcon}
+          data-testid="echo-bind-menu-item"
+          onSelect={() => actionManager.executeAction(actionBindEchoSelection)}
+        >
+          {t("labels.echo.bindSelection")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          icon={DuplicateIcon}
+          data-testid="echo-duplicate-independent-menu-item"
+          onSelect={() =>
+            actionManager.executeAction(actionDuplicateEchoIndependent)
+          }
+        >
+          {t("labels.echo.duplicateIndependent")}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          icon={CloseIcon}
+          data-testid="echo-unbind-menu-item"
+          onSelect={() =>
+            actionManager.executeAction(actionUnbindEchoSelection)
+          }
+        >
+          {t("labels.echo.unbind")}
+        </DropdownMenuItem>
+        <div className="dropdown-menu-section-title">
+          {t("labels.echo.status.label")}
+        </div>
+        {([null, "todo", "in-progress", "blocked", "done"] as const).map(
+          (status) => (
+            <DropdownMenuItem
+              key={status ?? "none"}
+              icon={adjustmentsIcon}
+              onSelect={() =>
+                actionManager.executeAction(
+                  actionSetEchoStatus as any,
+                  "ui",
+                  status,
+                )
+              }
+            >
+              {t(`labels.echo.status.${status ?? "none"}`)}
+            </DropdownMenuItem>
+          ),
+        )}
       </DropdownMenuSub.Content>
     </DropdownMenuSub>
   );
 };
 
 ExperimentalFeatures.Lumina = LuminaFeatureSubmenu;
+ExperimentalFeatures.Echo = EchoFeatureSubmenu;
 ExperimentalFeatures.ToggleLumina = ExperimentalToggleLuminaItem;
 ExperimentalFeatures.ToggleLuminaCaustics =
   ExperimentalToggleLuminaCausticsItem;
