@@ -16,6 +16,7 @@ import type { LineTone } from "./types";
 
 export const LINE_TONE_MARKER_MIN_ZOOM = 0.4;
 export const LINE_TONE_MARKER_OFFSET = 12;
+export const LINE_TONE_MARKER_CLEARANCE = 9;
 
 /**
  * Returns an ephemeral rendering-only element. Persisted element style is
@@ -69,6 +70,21 @@ const parameterAtLength = (curve: Curve<GlobalPoint>, target: number) => {
   return (min + max) / 2;
 };
 
+/**
+ * Chooses a stable, reading-friendly side independent of drawing direction:
+ * above predominantly horizontal/diagonal paths, and left of predominantly
+ * vertical paths.
+ */
+const orientMarkerNormal = (
+  normal: readonly [number, number],
+): readonly [number, number] => {
+  const [x, y] = normal;
+  if (Math.abs(y) >= Math.abs(x)) {
+    return y <= 0 ? normal : [-x, -y];
+  }
+  return x <= 0 ? normal : [-x, -y];
+};
+
 /** Finds the arc-length midpoint of the actual rendered linear path. */
 export const getLineTonePathAnchor = (
   element: ExcalidrawLinearElement,
@@ -103,6 +119,7 @@ export const getLineTonePathAnchor = (
     tangentVector[0] / magnitude,
     tangentVector[1] / magnitude,
   ] as const;
+  const normal = orientMarkerNormal([-tangent[1], tangent[0]]);
 
   return {
     point: pointFrom<GlobalPoint>(
@@ -118,7 +135,7 @@ export const getLineTonePathAnchor = (
         t ** 3 * curve[3][1],
     ),
     tangent,
-    normal: [-tangent[1], tangent[0]],
+    normal,
   };
 };
 

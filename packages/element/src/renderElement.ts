@@ -72,6 +72,7 @@ import {
   getLineToneMarkerGeometry,
   getLineTonePathAnchor,
   getLineToneRenderElement,
+  LINE_TONE_MARKER_CLEARANCE,
   LINE_TONE_MARKER_MIN_ZOOM,
   LINE_TONE_MARKER_OFFSET,
 } from "./lineTone";
@@ -632,14 +633,16 @@ export const renderLineToneMarker = (
   }
 
   const markerScale = renderConfig.isExporting ? 1 : 1 / appState.zoom.value;
+  const hasBoundText = !!getBoundTextElement(element, elementsMap);
+  const markerOffset = hasBoundText ? LINE_TONE_MARKER_OFFSET : 0;
   const markerX =
     anchor.point[0] +
     appState.scrollX +
-    anchor.normal[0] * LINE_TONE_MARKER_OFFSET * markerScale;
+    anchor.normal[0] * markerOffset * markerScale;
   const markerY =
     anchor.point[1] +
     appState.scrollY +
-    anchor.normal[1] * LINE_TONE_MARKER_OFFSET * markerScale;
+    anchor.normal[1] * markerOffset * markerScale;
   const geometry = getLineToneMarkerGeometry(tone);
 
   context.save();
@@ -653,6 +656,14 @@ export const renderLineToneMarker = (
     renderConfig.theme === THEME.DARK,
   );
   context.fillStyle = context.strokeStyle;
+
+  if (!hasBoundText) {
+    context.beginPath();
+    context.arc(0, 0, LINE_TONE_MARKER_CLEARANCE, 0, Math.PI * 2);
+    context.fillStyle = renderConfig.canvasBackgroundColor;
+    context.fill();
+    context.fillStyle = context.strokeStyle;
+  }
 
   geometry.paths.forEach((path) => {
     const first = path[0];

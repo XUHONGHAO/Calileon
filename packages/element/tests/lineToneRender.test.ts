@@ -63,4 +63,46 @@ describe("line tone rendering helpers", () => {
     expect(anchor!.point[1]).toBeLessThan(20);
     expect(anchor!.point).not.toEqual([50, 50]);
   });
+
+  it.each([
+    {
+      name: "left-to-right horizontal line",
+      points: [pointFrom<LocalPoint>(0, 0), pointFrom<LocalPoint>(100, 0)],
+      expectedSide: "above",
+    },
+    {
+      name: "right-to-left horizontal line",
+      points: [pointFrom<LocalPoint>(0, 0), pointFrom<LocalPoint>(-100, 0)],
+      expectedSide: "above",
+    },
+    {
+      name: "top-to-bottom vertical line",
+      points: [pointFrom<LocalPoint>(0, 0), pointFrom<LocalPoint>(0, 100)],
+      expectedSide: "left",
+    },
+    {
+      name: "bottom-to-top vertical line",
+      points: [pointFrom<LocalPoint>(0, 0), pointFrom<LocalPoint>(0, -100)],
+      expectedSide: "left",
+    },
+  ])(
+    "places the marker on the preferred side for $name",
+    ({ points, expectedSide }) => {
+      const element = API.createElement({
+        type: "line",
+        points,
+        customData: { lineTone: { version: 1, tone: "certain" } },
+      }) as ExcalidrawLinearElement;
+      const elementsMap = new Map([[element.id, element]]) as ElementsMap;
+
+      const anchor = getLineTonePathAnchor(element, elementsMap);
+
+      expect(anchor).not.toBeNull();
+      if (expectedSide === "above") {
+        expect(anchor!.normal[1]).toBeLessThan(0);
+      } else {
+        expect(anchor!.normal[0]).toBeLessThan(0);
+      }
+    },
+  );
 });

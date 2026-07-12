@@ -40,6 +40,7 @@ import {
   getLineToneMarkerGeometry,
   getLineTonePathAnchor,
   getLineToneRenderElement,
+  LINE_TONE_MARKER_CLEARANCE,
   LINE_TONE_MARKER_OFFSET,
 } from "@excalidraw/element";
 
@@ -381,14 +382,15 @@ const renderElementToSvg = (
       const anchor = tone && getLineTonePathAnchor(element, elementsMap);
       if (tone && anchor) {
         const marker = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+        const markerOffset = boundText ? LINE_TONE_MARKER_OFFSET : 0;
         const markerX =
           anchor.point[0] +
           (offsetX - element.x) +
-          anchor.normal[0] * LINE_TONE_MARKER_OFFSET;
+          anchor.normal[0] * markerOffset;
         const markerY =
           anchor.point[1] +
           (offsetY - element.y) +
-          anchor.normal[1] * LINE_TONE_MARKER_OFFSET;
+          anchor.normal[1] * markerOffset;
         marker.setAttribute("data-line-tone", tone);
         marker.setAttribute("transform", `translate(${markerX} ${markerY})`);
         marker.setAttribute("fill", "none");
@@ -404,6 +406,20 @@ const renderElementToSvg = (
         marker.setAttribute("stroke-linejoin", "round");
         if (opacity !== 1) {
           marker.setAttribute("opacity", `${opacity}`);
+        }
+
+        if (!boundText) {
+          const clearance = svgRoot.ownerDocument.createElementNS(
+            SVG_NS,
+            "circle",
+          );
+          clearance.setAttribute("data-line-tone-clearance", "true");
+          clearance.setAttribute("cx", "0");
+          clearance.setAttribute("cy", "0");
+          clearance.setAttribute("r", `${LINE_TONE_MARKER_CLEARANCE}`);
+          clearance.setAttribute("fill", renderConfig.canvasBackgroundColor);
+          clearance.setAttribute("stroke", "none");
+          marker.appendChild(clearance);
         }
 
         const geometry = getLineToneMarkerGeometry(tone);

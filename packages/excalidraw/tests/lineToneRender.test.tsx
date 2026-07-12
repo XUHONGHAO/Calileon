@@ -1,9 +1,16 @@
 import { exportToCanvas, exportToSvg } from "@excalidraw/utils";
 import { pointFrom, type LocalPoint } from "@excalidraw/math";
 
-import { renderLineToneMarker } from "@excalidraw/element";
+import {
+  getLineTonePathAnchor,
+  LINE_TONE_MARKER_OFFSET,
+  renderLineToneMarker,
+} from "@excalidraw/element";
 
-import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
+import type {
+  ExcalidrawElement,
+  NonDeletedExcalidrawElement,
+} from "@excalidraw/element/types";
 
 import { API } from "./helpers/api";
 
@@ -88,6 +95,82 @@ describe("line tone SVG rendering", () => {
       scrollY: 0,
     } as any);
     expect(translate).toHaveBeenCalledTimes(1);
+  });
+
+  it("places an unlabeled marker directly at the visible path midpoint", () => {
+    const element = API.createElement({
+      type: "line",
+      width: 160,
+      height: 0,
+      points: [pointFrom<LocalPoint>(0, 0), pointFrom<LocalPoint>(160, 0)],
+      customData: { lineTone: { version: 1, tone: "certain" } },
+    });
+    const elementsMap = new Map([[element.id, element]]);
+    const anchor = getLineTonePathAnchor(element, elementsMap)!;
+    const context = document.createElement("canvas").getContext("2d")!;
+    const translate = vi.spyOn(context, "translate");
+    const arc = vi.spyOn(context, "arc");
+
+    renderLineToneMarker(
+      element,
+      elementsMap,
+      context,
+      {
+        isExporting: false,
+        theme: "light",
+        canvasBackgroundColor: "#ffffff",
+      } as any,
+      { zoom: { value: 1 }, scrollX: 0, scrollY: 0 } as any,
+    );
+
+    expect(translate.mock.calls[0][0]).toBeCloseTo(anchor.point[0]);
+    expect(translate.mock.calls[0][1]).toBeCloseTo(anchor.point[1]);
+    expect(arc).toHaveBeenCalledWith(0, 0, 9, 0, Math.PI * 2);
+  });
+
+  it("moves the marker to the preferred side when the midpoint has a label", () => {
+    const element = API.createElement({
+      type: "arrow",
+      id: "labeled-arrow",
+      width: 160,
+      height: 0,
+      points: [pointFrom<LocalPoint>(0, 0), pointFrom<LocalPoint>(160, 0)],
+      boundElements: [{ type: "text", id: "line-label" }],
+      customData: { lineTone: { version: 1, tone: "questioned" } },
+    });
+    const label = API.createElement({
+      type: "text",
+      id: "line-label",
+      containerId: element.id,
+      text: "Why?",
+    });
+    const elementsMap = new Map<string, ExcalidrawElement>([
+      [element.id, element],
+      [label.id, label],
+    ]);
+    const anchor = getLineTonePathAnchor(element, elementsMap)!;
+    const context = document.createElement("canvas").getContext("2d")!;
+    const translate = vi.spyOn(context, "translate");
+
+    renderLineToneMarker(
+      element,
+      elementsMap,
+      context,
+      {
+        isExporting: false,
+        theme: "light",
+        canvasBackgroundColor: "#ffffff",
+      } as any,
+      { zoom: { value: 1 }, scrollX: 0, scrollY: 0 } as any,
+    );
+
+    expect(translate.mock.calls[0][0]).toBeCloseTo(
+      anchor.point[0] + anchor.normal[0] * LINE_TONE_MARKER_OFFSET,
+    );
+    expect(translate.mock.calls[0][1]).toBeCloseTo(
+      anchor.point[1] + anchor.normal[1] * LINE_TONE_MARKER_OFFSET,
+    );
+    expect(anchor.normal[1]).toBeLessThan(0);
   });
 
   it("includes the marker in canvas/PNG export while an ordinary line does not", async () => {
