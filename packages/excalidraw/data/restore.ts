@@ -26,6 +26,8 @@ import {
   isPointInElement,
   isValidPolygon,
   projectFixedPointOntoDiagonal,
+  getLineTone,
+  updateLineToneCustomData,
 } from "@excalidraw/element";
 import { normalizeFixedPoint } from "@excalidraw/element";
 import {
@@ -390,11 +392,6 @@ const restoreElementWithProperties = <
     locked: element.locked ?? false,
   };
 
-  if ("customData" in element || "customData" in extra) {
-    base.customData =
-      "customData" in extra ? extra.customData : element.customData;
-  }
-
   const ret = {
     // spread the original element properties to not lose unknown ones
     // for forward-compatibility
@@ -404,6 +401,13 @@ const restoreElementWithProperties = <
     ...getNormalizedDimensions(base),
     ...extra,
   } as unknown as T;
+
+  if ("customData" in ret) {
+    ret.customData = updateLineToneCustomData(
+      ret.customData,
+      getLineTone(ret as unknown as ExcalidrawElement),
+    );
+  }
 
   // strip legacy props (migrated in previous steps)
   delete ret.strokeSharpness;

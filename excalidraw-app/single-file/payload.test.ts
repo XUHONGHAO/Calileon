@@ -18,7 +18,11 @@ describe("single-file payload", () => {
     const referencedId = "referenced" as FileId;
     const deletedId = "deleted" as FileId;
     const unusedId = "unused" as FileId;
-    const luminaCustomData = {
+    const semanticCustomData = {
+      lineTone: {
+        version: 1,
+        tone: "possible",
+      },
       luminaMaterial: {
         roughness: 0.35,
         metallic: 0.7,
@@ -33,9 +37,9 @@ describe("single-file payload", () => {
     };
     const elements = [
       API.createElement({
-        type: "rectangle",
-        id: "lumina-element",
-        customData: luminaCustomData,
+        type: "arrow",
+        id: "semantic-line",
+        customData: semanticCustomData,
       }),
       API.createElement({
         type: "image",
@@ -79,7 +83,7 @@ describe("single-file payload", () => {
       updatedAt: 200,
     });
 
-    expect(payload.scene.elements[0].customData).toEqual(luminaCustomData);
+    expect(payload.scene.elements[0].customData).toEqual(semanticCustomData);
     expect(payload.scene.appState).toMatchObject({
       name: "Offline board",
       theme: "dark",

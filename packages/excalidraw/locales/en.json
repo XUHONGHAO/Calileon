@@ -118,12 +118,21 @@
       "status": { "label": "Status", "none": "No status", "todo": "To do", "in-progress": "In progress", "blocked": "Blocked", "done": "Done" },
       "fields": { "text": "text", "status": "status", "backgroundColor": "background color" }
     },
+    "lineTone": {
+      "label": "Line tone",
+      "normal": "Normal",
+      "certain": "Certain",
+      "possible": "Possible",
+      "blocked": "Blocked",
+      "questioned": "Questioned"
+    },
     "experimental": {
       "label": "Experimental",
       "lumina": "Lighting (Lumina)",
       "singleFileBoard": "Single-file board",
       "cast": "Cast / Record drawing",
-      "echo": "Echo anchors"
+      "echo": "Echo anchors",
+      "lineTone": "Line tone"
     },
     "cast": {
       "title": "Cast / Record drawing",

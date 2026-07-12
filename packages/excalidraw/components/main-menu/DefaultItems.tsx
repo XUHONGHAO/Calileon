@@ -3,6 +3,9 @@ import { useSyncExternalStore } from "react";
 
 import { THEME, arrayToMap } from "@excalidraw/common";
 
+import { getLineTone, isLineToneSupportedElement } from "@excalidraw/element";
+
+import type { LineTone } from "@excalidraw/element";
 import type { Theme } from "@excalidraw/element/types";
 
 import {
@@ -29,6 +32,7 @@ import {
   actionToggleStats,
   actionToggleTheme,
   actionToggleZenMode,
+  actionChangeLineTone,
 } from "../../actions";
 import { actionToggleViewMode } from "../../actions/actionToggleViewMode";
 import { getShortcutFromShortcutName } from "../../actions/shortcuts";
@@ -64,6 +68,12 @@ import {
   emptyIcon,
   ExperimentIcon,
   CloseIcon,
+  LineToneIcon,
+  NormalLineToneIcon,
+  CertainLineToneIcon,
+  PossibleLineToneIcon,
+  BlockedLineToneIcon,
+  QuestionedLineToneIcon,
 } from "../icons";
 import {
   adjustmentsIcon,
@@ -1057,8 +1067,61 @@ export const ExperimentalFeatures = ({
           <>
             <LuminaFeatureSubmenu />
             <EchoFeatureSubmenu />
+            <LineToneFeatureSubmenu />
           </>
         )}
+      </DropdownMenuSub.Content>
+    </DropdownMenuSub>
+  );
+};
+
+const LINE_TONE_MENU_VALUES = [
+  [null, "normal", NormalLineToneIcon],
+  ["certain", "certain", CertainLineToneIcon],
+  ["possible", "possible", PossibleLineToneIcon],
+  ["blocked", "blocked", BlockedLineToneIcon],
+  ["questioned", "questioned", QuestionedLineToneIcon],
+] as const;
+
+export const LineToneFeatureSubmenu = () => {
+  const { t } = useI18n();
+  const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+  const elements = useExcalidrawElements();
+  const selectedLines = elements.filter(
+    (element) =>
+      appState.selectedElementIds[element.id] &&
+      isLineToneSupportedElement(element),
+  );
+  const selectedTone = selectedLines.length
+    ? selectedLines.reduce<LineTone | null | "mixed">((common, element) => {
+        const tone = getLineTone(element);
+        return common === "mixed" || common !== tone ? "mixed" : common;
+      }, getLineTone(selectedLines[0]))
+    : "mixed";
+
+  return (
+    <DropdownMenuSub>
+      <DropdownMenuSub.Trigger icon={LineToneIcon}>
+        {t("labels.experimental.lineTone")}
+      </DropdownMenuSub.Trigger>
+      <DropdownMenuSub.Content>
+        {LINE_TONE_MENU_VALUES.map(([tone, label, icon]) => (
+          <DropdownMenuItem
+            key={label}
+            icon={icon}
+            disabled={!selectedLines.length}
+            selected={selectedTone !== "mixed" && selectedTone === tone}
+            aria-pressed={selectedTone !== "mixed" && selectedTone === tone}
+            data-testid={`line-tone-menu-${label}`}
+            onSelect={(event) => {
+              actionManager.executeAction(actionChangeLineTone, "ui", tone);
+              event.preventDefault();
+            }}
+          >
+            {t(`labels.lineTone.${label}`)}
+          </DropdownMenuItem>
+        ))}
       </DropdownMenuSub.Content>
     </DropdownMenuSub>
   );
@@ -1138,6 +1201,7 @@ export const EchoFeatureSubmenu = () => {
 
 ExperimentalFeatures.Lumina = LuminaFeatureSubmenu;
 ExperimentalFeatures.Echo = EchoFeatureSubmenu;
+ExperimentalFeatures.LineTone = LineToneFeatureSubmenu;
 ExperimentalFeatures.ToggleLumina = ExperimentalToggleLuminaItem;
 ExperimentalFeatures.ToggleLuminaCaustics =
   ExperimentalToggleLuminaCausticsItem;

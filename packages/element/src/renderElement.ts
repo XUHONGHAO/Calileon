@@ -67,6 +67,14 @@ import { getContainingFrame } from "./frame";
 import { getCornerRadius } from "./utils";
 
 import { ShapeCache } from "./shape";
+import {
+  getLineTone,
+  getLineToneMarkerGeometry,
+  getLineTonePathAnchor,
+  getLineToneRenderElement,
+  LINE_TONE_MARKER_MIN_ZOOM,
+  LINE_TONE_MARKER_OFFSET,
+} from "./lineTone";
 
 import type {
   ExcalidrawElement,
@@ -407,7 +415,8 @@ const drawElementOnCanvas = (
       context.lineJoin = "round";
       context.lineCap = "round";
 
-      ShapeCache.generateElementShape(element, renderConfig).forEach(
+      const renderElement = getLineToneRenderElement(element);
+      ShapeCache.generateElementShape(renderElement, renderConfig).forEach(
         (shape) => {
           rc.draw(shape);
         },
@@ -598,6 +607,69 @@ const drawElementOnCanvas = (
       }
     }
   }
+};
+
+export const renderLineToneMarker = (
+  element: ExcalidrawElement,
+  elementsMap: ElementsMap,
+  context: CanvasRenderingContext2D,
+  renderConfig: StaticCanvasRenderConfig,
+  appState: StaticCanvasAppState | InteractiveCanvasAppState,
+) => {
+  const tone = getLineTone(element);
+  if (
+    !tone ||
+    !isLinearElement(element) ||
+    (!renderConfig.isExporting &&
+      appState.zoom.value < LINE_TONE_MARKER_MIN_ZOOM)
+  ) {
+    return;
+  }
+
+  const anchor = getLineTonePathAnchor(element, elementsMap);
+  if (!anchor) {
+    return;
+  }
+
+  const markerScale = renderConfig.isExporting ? 1 : 1 / appState.zoom.value;
+  const markerX =
+    anchor.point[0] +
+    appState.scrollX +
+    anchor.normal[0] * LINE_TONE_MARKER_OFFSET * markerScale;
+  const markerY =
+    anchor.point[1] +
+    appState.scrollY +
+    anchor.normal[1] * LINE_TONE_MARKER_OFFSET * markerScale;
+  const geometry = getLineToneMarkerGeometry(tone);
+
+  context.save();
+  context.translate(markerX, markerY);
+  context.scale(markerScale, markerScale);
+  context.lineCap = "round";
+  context.lineJoin = "round";
+  context.lineWidth = 2;
+  context.strokeStyle = applyDarkModeFilter(
+    element.strokeColor,
+    renderConfig.theme === THEME.DARK,
+  );
+  context.fillStyle = context.strokeStyle;
+
+  geometry.paths.forEach((path) => {
+    const first = path[0];
+    if (!first) {
+      return;
+    }
+    context.beginPath();
+    context.moveTo(first[0], first[1]);
+    path.slice(1).forEach((point) => context.lineTo(point[0], point[1]));
+    context.stroke();
+  });
+  geometry.circles?.forEach(({ center, radius }) => {
+    context.beginPath();
+    context.arc(center[0], center[1], radius, 0, Math.PI * 2);
+    context.fill();
+  });
+  context.restore();
 };
 
 export const elementWithCanvasCache = new WeakMap<
@@ -1066,6 +1138,10 @@ export const renderElement = (
       // @ts-ignore
       throw new Error(`Unimplemented type ${element.type}`);
     }
+  }
+
+  if (isLinearElement(element)) {
+    renderLineToneMarker(element, elementsMap, context, renderConfig, appState);
   }
 
   context.globalAlpha = 1;

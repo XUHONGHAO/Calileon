@@ -102,6 +102,8 @@ export { actionToggleSearchMenu } from "./actionToggleSearchMenu";
 
 export { actionToggleCropEditor } from "./actionCropEditor";
 
+export { actionChangeLineTone } from "./actionLineTone";
+
 export {
   actionToggleLumina,
   actionToggleLuminaCaustics,
