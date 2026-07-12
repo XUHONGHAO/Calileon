@@ -2,18 +2,54 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { DataURL } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawFreeDrawElement } from "@excalidraw/element/types";
 
-import { dataURLToFile } from "../ai/imageCanvas";
+import { dataURLToFile, fileToDataURL } from "../ai/imageCanvas";
+import { getAIWorkbenchMaskManifestKey } from "../ai/workbenchPersistenceScope";
+import { AIWorkbenchIndexedDBAdapter } from "../data/AIWorkbenchIndexedDB";
 
 import type { AIImageEditableMask } from "../ai/types";
 
-// Inpaint masks are drawn per canvas image and, until now, lived only in the
-// in-memory workbench draft — a refresh dropped them. We persist the mask's
-// base64 dataURL (the source of truth for both the preview and the rebuilt
-// File) plus its freedraw strokes so an in-progress inpaint survives a reload.
+// Inpaint masks are drawn per canvas image. V2 persists the mask File/Blob
+// plus its freedraw strokes, so persistence does not wait for the preview
+// dataURL to be generated asynchronously.
 
+// Legacy v1 stored base64 PNGs in localStorage, so its migration-only writer
+// retains the historical quota. V2 stores Blob payloads in IndexedDB and must
+// not silently drop masks by count or encoded localStorage size.
 const MAX_PERSISTED_MASKS = 12;
-// base64 PNGs are large; keep a generous budget and trim oldest masks first.
 const MAX_PERSISTED_MASK_STATE_BYTES = 4 * 1024 * 1024;
+
+type PersistedMaskManifestV2 = {
+  version: 2;
+  revision: string;
+  masks: Array<{
+    imageId: string;
+    updatedAt: number;
+    fileName: string;
+    mimeType: string;
+    payloadKey: string;
+  }>;
+};
+
+const createRevision = () =>
+  typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const readMaskManifest = (key: string): PersistedMaskManifestV2 | null => {
+  const rawValue = localStorage.getItem(key);
+  if (!rawValue) {
+    return null;
+  }
+  const parsed = JSON.parse(rawValue);
+  return parsed?.version === 2 && Array.isArray(parsed.masks)
+    ? (parsed as PersistedMaskManifestV2)
+    : null;
+};
+
+const maskWriteStates = new Map<
+  string,
+  { latestGeneration: number; chain: Promise<void> }
+>();
 
 type PersistedMask = {
   imageId: string;
@@ -36,7 +72,7 @@ export const getMaskPersistenceKey = (
   )}`;
 };
 
-export const persistMaskState = (
+export const persistMaskStateV1ForMigrationTests = (
   key: string,
   masksByImageId: Record<string, AIImageEditableMask>,
 ) => {
@@ -81,7 +117,7 @@ export const persistMaskState = (
   }
 };
 
-export const loadPersistedMaskState = (
+const loadPersistedMaskStateLegacy = (
   key: string,
 ): Record<string, AIImageEditableMask> => {
   try {
@@ -107,6 +143,193 @@ export const loadPersistedMaskState = (
     console.error("Could not restore AI inpaint masks", error);
     return {};
   }
+};
+
+const persistMaskStateRevision = async (
+  scopeId: string,
+  masksByImageId: Record<string, AIImageEditableMask>,
+  legacyKey?: string,
+  isLatest: () => boolean = () => true,
+) => {
+  const manifestKey = getAIWorkbenchMaskManifestKey(scopeId);
+  const previousManifest = readMaskManifest(manifestKey);
+  const entries = Object.entries(masksByImageId).sort(
+    (a, b) => b[1].updatedAt - a[1].updatedAt,
+  );
+
+  if (!entries.length) {
+    localStorage.removeItem(manifestKey);
+    if (legacyKey) {
+      localStorage.removeItem(legacyKey);
+    }
+    if (previousManifest) {
+      await AIWorkbenchIndexedDBAdapter.deleteMany(
+        previousManifest.masks.map((mask) => mask.payloadKey),
+      );
+    }
+    return;
+  }
+
+  const revision = createRevision();
+  const payloadKeys = await AIWorkbenchIndexedDBAdapter.setRevisionPayloads(
+    { scopeId, revision, kind: "mask" },
+    entries.map(([imageId, mask]) => ({
+      id: `${imageId}:${mask.updatedAt}`,
+      value: { blob: mask.file, elements: mask.elements },
+    })),
+  );
+  let verified: Array<
+    | {
+        blob: Blob;
+        elements: readonly ExcalidrawFreeDrawElement[];
+      }
+    | undefined
+  >;
+  try {
+    verified = await AIWorkbenchIndexedDBAdapter.getMany<{
+      blob: Blob;
+      elements: readonly ExcalidrawFreeDrawElement[];
+    }>(payloadKeys);
+  } catch (error) {
+    await AIWorkbenchIndexedDBAdapter.deleteMany(payloadKeys);
+    throw error;
+  }
+  if (verified.some((payload) => !(payload?.blob instanceof Blob))) {
+    await AIWorkbenchIndexedDBAdapter.deleteMany(payloadKeys);
+    throw new Error("Could not verify AI mask payloads.");
+  }
+  if (!isLatest()) {
+    await AIWorkbenchIndexedDBAdapter.deleteMany(payloadKeys);
+    return;
+  }
+
+  const manifest: PersistedMaskManifestV2 = {
+    version: 2,
+    revision,
+    masks: entries.map(([imageId, mask], index) => ({
+      imageId,
+      updatedAt: mask.updatedAt,
+      fileName: mask.file.name,
+      mimeType: mask.file.type || "image/png",
+      payloadKey: payloadKeys[index],
+    })),
+  };
+  try {
+    localStorage.setItem(manifestKey, JSON.stringify(manifest));
+  } catch (error) {
+    await AIWorkbenchIndexedDBAdapter.deleteMany(payloadKeys);
+    throw error;
+  }
+  if (legacyKey && legacyKey !== manifestKey) {
+    localStorage.removeItem(legacyKey);
+  }
+  if (previousManifest) {
+    void AIWorkbenchIndexedDBAdapter.deleteMany(
+      previousManifest.masks.map((mask) => mask.payloadKey),
+    ).catch((error) => console.warn(error));
+  }
+};
+
+export const persistMaskState = (
+  scopeId: string,
+  masksByImageId: Record<string, AIImageEditableMask>,
+  legacyKey?: string,
+) => {
+  const writeState = maskWriteStates.get(scopeId) || {
+    latestGeneration: 0,
+    chain: Promise.resolve(),
+  };
+  writeState.latestGeneration += 1;
+  const generation = writeState.latestGeneration;
+  const run = writeState.chain
+    .catch(() => undefined)
+    .then(async () => {
+      if (generation !== writeState.latestGeneration) {
+        return;
+      }
+      await persistMaskStateRevision(
+        scopeId,
+        masksByImageId,
+        legacyKey,
+        () => generation === writeState.latestGeneration,
+      );
+    });
+  writeState.chain = run;
+  maskWriteStates.set(scopeId, writeState);
+  return run;
+};
+
+export const loadPersistedMaskState = async (
+  scopeId: string,
+  legacyKey?: string,
+  getCurrentSceneImageIds?: () => ReadonlySet<string>,
+): Promise<Record<string, AIImageEditableMask>> => {
+  try {
+    const manifest = readMaskManifest(getAIWorkbenchMaskManifestKey(scopeId));
+    if (manifest) {
+      const payloads = await AIWorkbenchIndexedDBAdapter.getMany<{
+        blob: Blob;
+        elements: readonly ExcalidrawFreeDrawElement[];
+      }>(manifest.masks.map((mask) => mask.payloadKey));
+      if (payloads.some((payload) => !(payload?.blob instanceof Blob))) {
+        throw new Error("AI mask payloads are incomplete.");
+      }
+      const restored: Record<string, AIImageEditableMask> = {};
+      await Promise.all(
+        manifest.masks.map(async (mask, index) => {
+          const payload = payloads[index];
+          if (!(payload?.blob instanceof Blob)) {
+            return;
+          }
+          const file =
+            payload.blob instanceof File
+              ? payload.blob
+              : new File([payload.blob], mask.fileName, {
+                  type: mask.mimeType,
+                });
+          restored[mask.imageId] = {
+            file,
+            dataURL: await fileToDataURL(file),
+            elements: payload.elements,
+            updatedAt: mask.updatedAt,
+          };
+        }),
+      );
+      return filterMasksForCurrentScene(restored, getCurrentSceneImageIds);
+    }
+
+    if (!legacyKey) {
+      return {};
+    }
+    const restored = loadPersistedMaskStateLegacy(legacyKey);
+    if (Object.keys(restored).length) {
+      try {
+        await persistMaskState(scopeId, restored, legacyKey);
+      } catch (error) {
+        console.error("Could not migrate AI inpaint masks", error);
+      }
+    }
+    return filterMasksForCurrentScene(restored, getCurrentSceneImageIds);
+  } catch (error) {
+    console.error("Could not restore AI inpaint masks", error);
+    throw error;
+  }
+};
+
+const filterMasksForCurrentScene = (
+  masksByImageId: Record<string, AIImageEditableMask>,
+  getCurrentSceneImageIds?: () => ReadonlySet<string>,
+) => {
+  if (!getCurrentSceneImageIds) {
+    return masksByImageId;
+  }
+
+  const currentSceneImageIds = getCurrentSceneImageIds();
+  return Object.fromEntries(
+    Object.entries(masksByImageId).filter(([imageId]) =>
+      currentSceneImageIds.has(imageId),
+    ),
+  );
 };
 
 const normalizePersistedMask = (

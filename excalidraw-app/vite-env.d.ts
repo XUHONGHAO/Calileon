@@ -19,6 +19,7 @@ interface ImportMetaEnv {
   // Supabase backend (Phase 1: account + cloud scenes). Blank = pure-local.
   VITE_APP_SUPABASE_URL: string;
   VITE_APP_SUPABASE_ANON_KEY: string;
+  VITE_APP_REMOTE_VIDEO_ASSETS: string;
 
   // whether to disable live reload / HMR. Usuaully what you want to do when
   // debugging Service Workers.

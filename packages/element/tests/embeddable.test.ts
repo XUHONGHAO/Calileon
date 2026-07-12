@@ -1,5 +1,6 @@
 import {
   embeddableURLValidator,
+  getEmbeddableValidationKey,
   getEmbedLink,
   maybeParseEmbedSrc,
 } from "../src/embeddable";
@@ -267,5 +268,33 @@ describe("Bilibili video embedding", () => {
         undefined,
       ),
     ).toBe(false);
+    expect(
+      embeddableURLValidator(
+        "https://player.bilibili.com/not-a-player",
+        undefined,
+      ),
+    ).toBe(false);
+  });
+});
+
+describe("embeddable validation cache keys", () => {
+  it("changes when the link or custom metadata changes", () => {
+    const base = {
+      link: "https://cdn.example.com/video",
+      customData: { aiVideoGeneration: { version: 1 } },
+    };
+
+    expect(getEmbeddableValidationKey(base)).not.toBe(
+      getEmbeddableValidationKey({
+        ...base,
+        link: "https://cdn.example.com/other",
+      }),
+    );
+    expect(getEmbeddableValidationKey(base)).not.toBe(
+      getEmbeddableValidationKey({
+        ...base,
+        customData: { aiVideoGeneration: { version: 2 } },
+      }),
+    );
   });
 });

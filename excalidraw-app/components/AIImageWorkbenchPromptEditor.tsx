@@ -45,39 +45,135 @@ interface PromptEditorProps {
 }
 
 // --- caret <-> character-offset bridge --------------------------------------
-// We only ever build text nodes (bare or inside a single-level span) and rely
-// on `white-space: pre-wrap` to render "\n". So a character offset is just the
-// cumulative length of textContent walked in document order — no <br> to
-// special-case, which keeps the offset math exact and drift-free.
+// Repainted content uses text nodes, but native editing may temporarily create
+// <br>, <div>, or <p> line structure. Extraction and selection restoration use
+// the same index so structural newlines cannot make the caret drift.
 
-const getCharOffsetOfPoint = (
+const BLOCK_TAGS = new Set([
+  "ADDRESS",
+  "BLOCKQUOTE",
+  "DIV",
+  "H1",
+  "H2",
+  "H3",
+  "H4",
+  "H5",
+  "H6",
+  "LI",
+  "OL",
+  "P",
+  "PRE",
+  "UL",
+]);
+
+type PromptTextIndex = {
+  text: string;
+  boundaries: Map<Node, number[]>;
+  points: Map<number, { node: Node; offset: number }>;
+};
+
+const isBlockNode = (node: Node): node is HTMLElement =>
+  node.nodeType === Node.ELEMENT_NODE &&
+  BLOCK_TAGS.has((node as HTMLElement).tagName);
+
+const isPlaceholderBreak = (node: Node) => {
+  if (!isBlockNode(node)) {
+    return false;
+  }
+  const meaningfulChildren = Array.from(node.childNodes).filter(
+    (child) =>
+      child.nodeType !== Node.COMMENT_NODE &&
+      !(child.nodeType === Node.TEXT_NODE && !child.textContent),
+  );
+  return (
+    meaningfulChildren.length === 1 &&
+    meaningfulChildren[0].nodeType === Node.ELEMENT_NODE &&
+    (meaningfulChildren[0] as HTMLElement).tagName === "BR"
+  );
+};
+
+export const buildPromptTextIndex = (root: HTMLElement): PromptTextIndex => {
+  let text = "";
+  const boundaries = new Map<Node, number[]>();
+  const points = new Map<number, { node: Node; offset: number }>();
+
+  const recordPoint = (node: Node, offset: number) => {
+    points.set(text.length, { node, offset });
+  };
+
+  const visit = (node: Node, suppressBreak = false) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const value = node.textContent ?? "";
+      const offsets: number[] = [];
+      for (let index = 0; index <= value.length; index++) {
+        offsets[index] = text.length;
+        recordPoint(node, index);
+        if (index < value.length) {
+          text += value[index];
+        }
+      }
+      boundaries.set(node, offsets);
+      return;
+    }
+
+    if (
+      node.nodeType === Node.ELEMENT_NODE &&
+      (node as Element).tagName === "BR"
+    ) {
+      boundaries.set(node, [
+        text.length,
+        text.length + (suppressBreak ? 0 : 1),
+      ]);
+      if (!suppressBreak) {
+        text += "\n";
+      }
+      return;
+    }
+
+    const children = Array.from(node.childNodes);
+    const offsets: number[] = [text.length];
+    boundaries.set(node, offsets);
+    recordPoint(node, 0);
+    const placeholderBreak = isPlaceholderBreak(node);
+
+    let previousChildWasBlock = false;
+    let previousChildWasPlaceholderBlock = false;
+    children.forEach((child, index) => {
+      const childIsBlock = isBlockNode(child);
+      const childIsPlaceholderBlock = isPlaceholderBreak(child);
+      if (
+        index > 0 &&
+        (childIsBlock || previousChildWasBlock) &&
+        (!text.endsWith("\n") || previousChildWasPlaceholderBlock)
+      ) {
+        text += "\n";
+      }
+      visit(child, placeholderBreak);
+      offsets[index + 1] = text.length;
+      recordPoint(node, index + 1);
+      previousChildWasBlock = childIsBlock;
+      previousChildWasPlaceholderBlock = childIsPlaceholderBlock;
+    });
+  };
+
+  visit(root);
+  return { text, boundaries, points };
+};
+
+export const getPromptPlainText = (root: HTMLElement) =>
+  buildPromptTextIndex(root).text;
+
+export const getPromptTextOffset = (
   root: HTMLElement,
   node: Node,
   nodeOffset: number,
-): number => {
-  let offset = 0;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-
-  let current = walker.nextNode();
-  while (current) {
-    if (current === node) {
-      return offset + nodeOffset;
-    }
-    offset += current.textContent?.length ?? 0;
-    current = walker.nextNode();
+) => {
+  const index = buildPromptTextIndex(root);
+  const offsets = index.boundaries.get(node);
+  if (!offsets) {
+    return index.text.length;
   }
-
-  // If the point is on an element node (e.g. the root itself), fall back to the
-  // total length up to that element's text.
-  if (node === root) {
-    let elementOffset = 0;
-    for (let i = 0; i < nodeOffset && i < node.childNodes.length; i++) {
-      elementOffset += node.childNodes[i].textContent?.length ?? 0;
-    }
-    return elementOffset;
-  }
-
-  return offset;
+  return offsets[Math.max(0, Math.min(nodeOffset, offsets.length - 1))];
 };
 
 const getSelectionOffsets = (
@@ -85,49 +181,33 @@ const getSelectionOffsets = (
 ): { start: number; end: number } => {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) {
-    const length = root.textContent?.length ?? 0;
+    const length = getPromptPlainText(root).length;
     return { start: length, end: length };
   }
 
   const range = selection.getRangeAt(0);
   if (!root.contains(range.startContainer)) {
-    const length = root.textContent?.length ?? 0;
+    const length = getPromptPlainText(root).length;
     return { start: length, end: length };
   }
 
-  const start = getCharOffsetOfPoint(
+  const start = getPromptTextOffset(
     root,
     range.startContainer,
     range.startOffset,
   );
-  const end = getCharOffsetOfPoint(root, range.endContainer, range.endOffset);
+  const end = getPromptTextOffset(root, range.endContainer, range.endOffset);
   return { start, end };
 };
 
-// Locates the text node + local offset for an absolute character offset.
-const locateOffset = (
+// Locates the DOM point for an absolute plain-text offset.
+export const locatePromptTextOffset = (
   root: HTMLElement,
   target: number,
 ): { node: Node; offset: number } => {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  let remaining = target;
-  let lastText: Text | null = null;
-
-  let current = walker.nextNode() as Text | null;
-  while (current) {
-    const length = current.textContent?.length ?? 0;
-    if (remaining <= length) {
-      return { node: current, offset: remaining };
-    }
-    remaining -= length;
-    lastText = current;
-    current = walker.nextNode() as Text | null;
-  }
-
-  if (lastText) {
-    return { node: lastText, offset: lastText.textContent?.length ?? 0 };
-  }
-  return { node: root, offset: 0 };
+  const index = buildPromptTextIndex(root);
+  const clamped = Math.max(0, Math.min(target, index.text.length));
+  return index.points.get(clamped) || { node: root, offset: 0 };
 };
 
 const setSelectionOffsets = (root: HTMLElement, start: number, end: number) => {
@@ -139,8 +219,8 @@ const setSelectionOffsets = (root: HTMLElement, start: number, end: number) => {
   const clampedStart = Math.max(0, start);
   const clampedEnd = Math.max(clampedStart, end);
 
-  const startPoint = locateOffset(root, clampedStart);
-  const endPoint = locateOffset(root, clampedEnd);
+  const startPoint = locatePromptTextOffset(root, clampedStart);
+  const endPoint = locatePromptTextOffset(root, clampedEnd);
 
   const range = document.createRange();
   range.setStart(startPoint.node, startPoint.offset);
@@ -202,8 +282,11 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
     const rootRef = useRef<HTMLDivElement | null>(null);
     const valueRef = useRef(value);
     const isComposingRef = useRef(false);
-    // Char offset to restore after a React-driven value change repaints the DOM.
-    const pendingCaretRef = useRef<number | null>(null);
+    // Plain-text selection to restore after a controlled repaint.
+    const pendingSelectionRef = useRef<{
+      start: number;
+      end: number;
+    } | null>(null);
     // The (value, referenceCount) the DOM was last painted for. Comparing plain
     // textContent isn't enough: when referenceCount flips (e.g. a reference
     // image is added after text is typed) the text is identical but the span
@@ -258,15 +341,13 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
       if (
         paintedValueRef.current === value &&
         paintedRefCountRef.current === referenceCount &&
-        pendingCaretRef.current == null
+        pendingSelectionRef.current == null
       ) {
         return;
       }
 
-      const caret =
-        pendingCaretRef.current != null
-          ? pendingCaretRef.current
-          : getSelectionOffsets(root).start;
+      const selection =
+        pendingSelectionRef.current || getSelectionOffsets(root);
 
       paintHighlights(root, value, referenceCount);
       paintedValueRef.current = value;
@@ -275,9 +356,9 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
       // Only restore the caret when the editor is focused; otherwise leave the
       // selection alone (e.g. value changed while another field has focus).
       if (document.activeElement === root) {
-        setSelectionOffsets(root, caret, caret);
+        setSelectionOffsets(root, selection.start, selection.end);
       }
-      pendingCaretRef.current = null;
+      pendingSelectionRef.current = null;
     }, [value, referenceCount]);
 
     const commitFromDom = useCallback(() => {
@@ -285,16 +366,15 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
       if (!root) {
         return;
       }
-      // innerText normalizes browser-inserted <div>/<br> line breaks back to
-      // "\n", giving us a clean canonical string to re-tokenize from. jsdom
-      // doesn't implement innerText, so fall back to textContent there (our DOM
-      // never contains <br>/<div>, so the two agree in that environment).
-      const text =
-        typeof root.innerText === "string"
-          ? root.innerText
-          : root.textContent ?? "";
+      // Normalize browser-created line structure with the same model used by
+      // the caret bridge before repainting highlighted tokens.
+      const text = getPromptPlainText(root);
+      if (text === valueRef.current) {
+        onCaretChange();
+        return;
+      }
       // Remember where the caret is now so the repaint can put it back.
-      pendingCaretRef.current = getSelectionOffsets(root).start;
+      pendingSelectionRef.current = getSelectionOffsets(root);
       valueRef.current = text;
       onChange(text);
       onCaretChange();

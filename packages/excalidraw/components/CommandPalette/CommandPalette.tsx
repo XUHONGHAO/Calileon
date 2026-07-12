@@ -3,7 +3,6 @@ import fuzzy from "fuzzy";
 import { useEffect, useRef, useMemo, useState } from "react";
 
 import {
-  DEFAULT_SIDEBAR,
   EVENT,
   KEYS,
   capitalizeString,
@@ -73,6 +72,7 @@ import {
 } from "../../hooks/useLibraryItemSvg";
 
 import * as defaultItems from "./defaultCommandPaletteItems";
+import { getLibraryCommandOpenSidebar } from "./libraryCommand";
 import "./CommandPalette.scss";
 
 import type { CommandPaletteItem } from "./types";
@@ -446,18 +446,9 @@ function CommandPaletteInner({
           keywords: ["library", "assets", "items"],
           viewMode: false,
           perform: () => {
-            if (uiAppState.openSidebar) {
-              setAppState({
-                openSidebar: null,
-              });
-            } else {
-              setAppState({
-                openSidebar: {
-                  name: DEFAULT_SIDEBAR.name,
-                  tab: DEFAULT_SIDEBAR.defaultTab,
-                },
-              });
-            }
+            setAppState({
+              openSidebar: getLibraryCommandOpenSidebar(uiAppState.openSidebar),
+            });
           },
         },
         {

@@ -14,8 +14,10 @@ import { isIframeElement } from "./typeChecks";
 
 import type {
   ExcalidrawElement,
+  ExcalidrawEmbeddableElement,
   ExcalidrawIframeLikeElement,
   IframeData,
+  NonDeleted,
 } from "./types";
 
 type IframeDataWithSandbox = MarkRequired<IframeData, "sandbox">;
@@ -137,7 +139,6 @@ const ALLOWED_DOMAINS = new Set([
   "youtu.be",
   "vimeo.com",
   "player.vimeo.com",
-  "player.bilibili.com",
   "drive.google.com",
   "figma.com",
   "link.excalidraw.com",
@@ -533,13 +534,20 @@ export const maybeParseEmbedSrc = (str: string): string => {
 export const embeddableURLValidator = (
   url: string | null | undefined,
   validateEmbeddable: ExcalidrawProps["validateEmbeddable"],
+  element?: Pick<
+    NonDeleted<ExcalidrawEmbeddableElement>,
+    "type" | "link" | "customData"
+  >,
 ): boolean => {
   if (!url) {
     return false;
   }
   if (validateEmbeddable != null) {
     if (typeof validateEmbeddable === "function") {
-      const ret = validateEmbeddable(url);
+      const ret = validateEmbeddable(
+        url,
+        element as NonDeleted<ExcalidrawEmbeddableElement> | undefined,
+      );
       // if return value is undefined, leave validation to default
       if (typeof ret === "boolean") {
         return ret;
@@ -562,5 +570,19 @@ export const embeddableURLValidator = (
     }
   }
 
+  if (RE_BILIBILI_PLAYER.test(url)) {
+    return true;
+  }
+
   return !!matchHostname(url, ALLOWED_DOMAINS);
+};
+
+export const getEmbeddableValidationKey = (
+  element: Pick<ExcalidrawEmbeddableElement, "link" | "customData">,
+) => {
+  try {
+    return JSON.stringify([element.link, element.customData]);
+  } catch {
+    return `${element.link ?? ""}:invalid-custom-data`;
+  }
 };

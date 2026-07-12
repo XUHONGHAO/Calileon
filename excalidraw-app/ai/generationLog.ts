@@ -1,9 +1,10 @@
 import { STORAGE_KEYS } from "../app_constants";
 
+import { sanitizePersistedURL } from "./sanitizePersistedURL";
+
 import type {
   AIGenerationLogEntry,
   AIGenerationLogStatus,
-  AIImageGenerationMode,
   AIImageGenerationOutput,
   AIImageGenerationParams,
   AIModelMediaType,
@@ -33,8 +34,18 @@ export const loadAIGenerationLogs = (): AIGenerationLogEntry[] => {
     }
 
     const parsed = JSON.parse(raw);
+    const logs = Array.isArray(parsed)
+      ? parsed.filter(isAIGenerationLogEntry).map(sanitizeGenerationLogEntry)
+      : [];
 
-    return Array.isArray(parsed) ? parsed.filter(isAIGenerationLogEntry) : [];
+    if (JSON.stringify(logs) !== raw) {
+      localStorage.setItem(
+        STORAGE_KEYS.LOCAL_STORAGE_AI_GENERATION_LOGS,
+        JSON.stringify(logs),
+      );
+    }
+
+    return logs;
   } catch (error: any) {
     console.error(error);
     return [];
@@ -44,6 +55,7 @@ export const loadAIGenerationLogs = (): AIGenerationLogEntry[] => {
 export const saveAIGenerationLogs = (logs: AIGenerationLogEntry[]) => {
   const normalizedLogs = logs
     .filter(isAIGenerationLogEntry)
+    .map(sanitizeGenerationLogEntry)
     .slice(0, MAX_AI_GENERATION_LOG_ENTRIES);
 
   localStorage.setItem(
@@ -80,7 +92,7 @@ export const createAIGenerationLogEntry = ({
 }: {
   submittedAt: string;
   mediaType: AIModelMediaType;
-  mode: AIImageGenerationMode | "text-to-video" | "text-to-audio";
+  mode: AIGenerationLogEntry["mode"];
   status: AIGenerationLogStatus;
   model: {
     id: string;
@@ -107,11 +119,11 @@ export const createAIGenerationLogEntry = ({
     negativePrompt,
     params,
     request: {
-      baseURL,
-      endpoint,
+      baseURL: sanitizePersistedURL(baseURL),
+      endpoint: endpoint ? sanitizePersistedURL(endpoint) : undefined,
     },
     response: {
-      summary: responseSummary,
+      summary: sanitizePersistedURL(responseSummary),
       details: sanitizeLogDetails(responseDetails),
     },
   };
@@ -125,7 +137,9 @@ export const createSuccessResponseDetails = (
     outputs: outputs.map((output, index) => ({
       index,
       mimeType: output.mimeType,
-      remoteURL: output.remoteURL,
+      remoteURL: output.remoteURL
+        ? sanitizePersistedURL(output.remoteURL)
+        : undefined,
       storageType: output.storageType || "data-url",
       remoteFetchError: output.remoteFetchError,
       revisedPrompt: output.revisedPrompt,
@@ -161,7 +175,11 @@ const dispatchAIGenerationLogsUpdated = (logs: AIGenerationLogEntry[]) => {
   );
 };
 
-export const sanitizeLogDetails = (value: unknown, depth = 0): unknown => {
+export const sanitizeLogDetails = (
+  value: unknown,
+  depth = 0,
+  fieldName?: string,
+): unknown => {
   if (value == null) {
     return value;
   }
@@ -175,9 +193,13 @@ export const sanitizeLogDetails = (value: unknown, depth = 0): unknown => {
       };
     }
 
-    return value.length > MAX_STRING_LENGTH
-      ? `${value.slice(0, MAX_STRING_LENGTH)}...`
-      : value;
+    const sanitizedValue = shouldPreserveTextField(fieldName)
+      ? value
+      : sanitizePersistedURL(value);
+
+    return sanitizedValue.length > MAX_STRING_LENGTH
+      ? `${sanitizedValue.slice(0, MAX_STRING_LENGTH)}...`
+      : sanitizedValue;
   }
 
   if (typeof value === "number" || typeof value === "boolean") {
@@ -191,7 +213,7 @@ export const sanitizeLogDetails = (value: unknown, depth = 0): unknown => {
   if (Array.isArray(value)) {
     return value
       .slice(0, MAX_ARRAY_ITEMS)
-      .map((item) => sanitizeLogDetails(item, depth + 1));
+      .map((item) => sanitizeLogDetails(item, depth + 1, fieldName));
   }
 
   if (typeof value === "object") {
@@ -200,7 +222,7 @@ export const sanitizeLogDetails = (value: unknown, depth = 0): unknown => {
         key,
         shouldRedactField(key)
           ? "[redacted]"
-          : sanitizeLogDetails(entry, depth + 1),
+          : sanitizeLogDetails(entry, depth + 1, key),
       ]),
     );
   }
@@ -210,6 +232,32 @@ export const sanitizeLogDetails = (value: unknown, depth = 0): unknown => {
 
 const shouldRedactField = (key: string) => {
   return /api[-_]?key|authorization|token|secret|password/i.test(key);
+};
+
+const shouldPreserveTextField = (key?: string) => {
+  return (
+    !!key &&
+    !/url|uri|href|link/i.test(key) &&
+    /prompt|message|text|description|summary/i.test(key)
+  );
+};
+
+const sanitizeGenerationLogEntry = (
+  entry: AIGenerationLogEntry,
+): AIGenerationLogEntry => {
+  return {
+    ...entry,
+    request: {
+      baseURL: sanitizePersistedURL(entry.request.baseURL),
+      endpoint: entry.request.endpoint
+        ? sanitizePersistedURL(entry.request.endpoint)
+        : undefined,
+    },
+    response: {
+      summary: sanitizePersistedURL(entry.response.summary),
+      details: sanitizeLogDetails(entry.response.details),
+    },
+  };
 };
 
 const isAIGenerationLogEntry = (

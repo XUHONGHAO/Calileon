@@ -40,6 +40,7 @@ import { CustomAgentChat } from "./CustomAgentChat/CustomAgentChat";
 import "./AppSidebar.scss";
 
 import type { AIImageWorkbenchDraftState } from "./AIImageWorkbench";
+import type { PersistAIVideoOutputInput } from "./AIImageWorkbench";
 import type {
   AIGenerationLogEntry,
   AIMaskReadyPayload,
@@ -47,6 +48,7 @@ import type {
   PromptTemplate,
 } from "../ai/types";
 import type { CloudAITaskRun } from "../data/cloud/cloudAITasks";
+import type { VideoAssetIngestResult } from "../data/cloud";
 
 export type AIReferenceAddRequest = {
   id: number;
@@ -69,6 +71,7 @@ export type GenerationLogReuseRequest = {
 
 type AppSidebarProps = {
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  persistenceScopeId: string | null;
   referenceAddRequest?: AIReferenceAddRequest | null;
   assistantSkillRequest?: AssistantSkillRequest | null;
   promptTemplateRequest?: PromptTemplateRequest | null;
@@ -82,6 +85,9 @@ type AppSidebarProps = {
     handler: ((payload: AIMaskReadyPayload) => void) | null,
   ) => void;
   onCloudAITaskRun?: (run: CloudAITaskRun) => void | Promise<void>;
+  onPersistVideoOutput?: (
+    input: PersistAIVideoOutputInput,
+  ) => Promise<VideoAssetIngestResult | null>;
 };
 
 type AssistantIncomingPrompt = {
@@ -92,6 +98,7 @@ type AssistantIncomingPrompt = {
 export const AppSidebar = memo(
   ({
     excalidrawAPI,
+    persistenceScopeId,
     referenceAddRequest,
     assistantSkillRequest,
     promptTemplateRequest,
@@ -99,6 +106,7 @@ export const AppSidebar = memo(
     onEnterMaskEditing,
     onMaskReady,
     onCloudAITaskRun,
+    onPersistVideoOutput,
   }: AppSidebarProps) => {
     const [workbenchDraftState, setWorkbenchDraftState] =
       useState<AIImageWorkbenchDraftState>(
@@ -226,6 +234,7 @@ export const AppSidebar = memo(
             <AppSidebarCommandHeader activeArea="Create" />
             <AIImageWorkbench
               excalidrawAPI={excalidrawAPI}
+              persistenceScopeId={persistenceScopeId}
               draftState={workbenchDraftState}
               onDraftStateChange={setWorkbenchDraftState}
               onEnterMaskEditing={onEnterMaskEditing}
@@ -233,6 +242,7 @@ export const AppSidebar = memo(
               onSendPromptToAssistant={sendPromptToAssistant}
               referenceAddRequest={referenceAddRequest}
               onCloudAITaskRun={onCloudAITaskRun}
+              onPersistVideoOutput={onPersistVideoOutput}
             />
           </Sidebar.Tab>
           <Sidebar.Tab

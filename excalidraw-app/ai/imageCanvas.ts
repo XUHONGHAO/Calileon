@@ -34,6 +34,7 @@ type InsertGeneratedImageOptions = {
   metadata: AIImageGenerationMetadata;
   index: number;
   placement?: GeneratedImagePlacement;
+  signal?: AbortSignal;
 };
 
 const MAX_INSERTED_IMAGE_SIZE = 640;
@@ -51,7 +52,10 @@ export const insertGeneratedImageIntoCanvas = async ({
   metadata,
   index,
   placement,
+  signal,
 }: InsertGeneratedImageOptions) => {
+  signal?.throwIfAborted();
+
   const fileId = isRemoteImageOutput(output)
     ? createRemoteImageFileId(index)
     : await generateIdFromFile(
@@ -63,7 +67,11 @@ export const insertGeneratedImageIntoCanvas = async ({
           output.mimeType,
         ),
       );
-  const dimensions = await getImageDimensions(output.dataURL);
+  signal?.throwIfAborted();
+
+  const dimensions = await getImageDimensions(output.dataURL, signal);
+  signal?.throwIfAborted();
+
   const fittedDimensions = fitImageDimensions(dimensions);
   const appState = excalidrawAPI.getAppState();
   const elements = excalidrawAPI.getSceneElements();
@@ -102,6 +110,7 @@ export const insertGeneratedImageIntoCanvas = async ({
 
   syncInvalidIndices(nextElements);
 
+  signal?.throwIfAborted();
   excalidrawAPI.addFiles([binaryFileData]);
   excalidrawAPI.updateScene({
     elements: nextElements,
@@ -144,22 +153,37 @@ export const fileToDataURL = (file: File): Promise<DataURL> => {
   });
 };
 
-const getImageDimensions = async (dataURL: DataURL) => {
-  return new Promise<{ width: number; height: number }>((resolve) => {
+const getImageDimensions = async (dataURL: DataURL, signal?: AbortSignal) => {
+  return new Promise<{ width: number; height: number }>((resolve, reject) => {
     const image = new Image();
+    const cleanup = () => signal?.removeEventListener("abort", handleAbort);
+    const handleAbort = () => {
+      image.onload = null;
+      image.onerror = null;
+      cleanup();
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
 
     image.onload = () => {
+      cleanup();
       resolve({
         width: image.naturalWidth || image.width || MAX_INSERTED_IMAGE_SIZE,
         height: image.naturalHeight || image.height || MAX_INSERTED_IMAGE_SIZE,
       });
     };
     image.onerror = () => {
+      cleanup();
       resolve({
         width: MAX_INSERTED_IMAGE_SIZE,
         height: MAX_INSERTED_IMAGE_SIZE,
       });
     };
+    signal?.addEventListener("abort", handleAbort, { once: true });
     image.src = dataURL;
   });
 };

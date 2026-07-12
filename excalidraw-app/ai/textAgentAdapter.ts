@@ -122,6 +122,69 @@ async function* parseSSEStream(
 ): AsyncGenerator<string, void, unknown> {
   const decoder = new TextDecoder();
   let buffer = "";
+  let dataLines: string[] = [];
+
+  const processLine = (line: string) => {
+    if (!line) {
+      if (!dataLines.length) {
+        return null;
+      }
+
+      const data = dataLines.join("\n");
+      dataLines = [];
+      return data;
+    }
+
+    if (line.startsWith(":")) {
+      return null;
+    }
+
+    const colonIndex = line.indexOf(":");
+    const field = colonIndex === -1 ? line : line.slice(0, colonIndex);
+
+    if (field === "data") {
+      let value = colonIndex === -1 ? "" : line.slice(colonIndex + 1);
+
+      if (value.startsWith(" ")) {
+        value = value.slice(1);
+      }
+
+      dataLines.push(value);
+    }
+
+    return null;
+  };
+
+  const readCompleteLines = function* (flush = false) {
+    while (true) {
+      const lineEndingIndex = buffer.search(/[\r\n]/);
+
+      if (lineEndingIndex === -1) {
+        return;
+      }
+
+      if (
+        !flush &&
+        buffer[lineEndingIndex] === "\r" &&
+        lineEndingIndex === buffer.length - 1
+      ) {
+        return;
+      }
+
+      const line = buffer.slice(0, lineEndingIndex);
+      const lineEndingLength =
+        buffer[lineEndingIndex] === "\r" && buffer[lineEndingIndex + 1] === "\n"
+          ? 2
+          : 1;
+      buffer = buffer.slice(lineEndingIndex + lineEndingLength);
+
+      const data = processLine(line);
+
+      if (data !== null) {
+        yield data;
+      }
+    }
+  };
 
   try {
     while (true) {
@@ -133,16 +196,23 @@ async function* parseSSEStream(
 
       buffer += decoder.decode(value, { stream: true });
 
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-
-        if (trimmedLine.startsWith("data:")) {
-          yield trimmedLine.slice(5).trimStart();
-        }
+      for (const data of readCompleteLines()) {
+        yield data;
       }
+    }
+
+    buffer += decoder.decode();
+
+    for (const data of readCompleteLines(true)) {
+      yield data;
+    }
+
+    if (buffer) {
+      processLine(buffer);
+    }
+
+    if (dataLines.length) {
+      yield dataLines.join("\n");
     }
   } finally {
     reader.releaseLock();
@@ -179,8 +249,8 @@ const streamResponse = async (
         generatedResponse += chunk;
         options.onChunk?.(chunk);
       }
-    } catch (error) {
-      console.warn("Failed to parse AI agent stream chunk:", data, error);
+    } catch {
+      console.warn("Failed to parse AI agent stream event.");
     }
   }
 

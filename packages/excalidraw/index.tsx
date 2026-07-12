@@ -67,6 +67,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
   const {
     onExport,
     onChange,
+    onSceneReplace,
     onThemeChange,
     onIncrement,
     initialData,
@@ -187,6 +188,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
         <App
           onExport={onExport}
           onChange={onChange}
+          onSceneReplace={onSceneReplace}
           onThemeChange={onThemeChange}
           onIncrement={onIncrement}
           initialData={initialData}

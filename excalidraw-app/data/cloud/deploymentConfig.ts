@@ -12,6 +12,7 @@ export interface CloudDeploymentConfig {
   hasFirebase: boolean;
   collabPersistenceBackend: CollabPersistenceBackend;
   e2eCloudStorageEnabled: boolean;
+  remoteVideoAssetsEnabled: boolean;
 }
 
 export const hasFirebaseConfig = (): boolean => {
@@ -37,5 +38,6 @@ export const readCloudDeploymentConfig = (): CloudDeploymentConfig => {
     hasFirebase: hasFirebaseConfig(),
     collabPersistenceBackend: readCollabPersistenceBackend(),
     e2eCloudStorageEnabled: capabilities.encryptedCloudStorage,
+    remoteVideoAssetsEnabled: !!capabilities.remoteVideoAssets,
   };
 };

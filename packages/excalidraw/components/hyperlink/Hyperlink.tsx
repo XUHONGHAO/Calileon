@@ -124,7 +124,7 @@ export const Hyperlink = ({
         return;
       }
 
-      if (!embeddableURLValidator(link, appProps.validateEmbeddable)) {
+      if (!embeddableURLValidator(link, appProps.validateEmbeddable, element)) {
         if (link) {
           setToast({ message: t("toast.unableToEmbed"), closable: true });
         }

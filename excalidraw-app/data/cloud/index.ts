@@ -28,6 +28,7 @@ import {
   createLocalSceneActivityService,
   createLocalSceneStorage,
   createLocalShareService,
+  createLocalVideoAssetService,
 } from "./LocalAdapter";
 import { createSupabaseAssetStorage } from "./supabase/SupabaseAssetStorage";
 import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
@@ -39,6 +40,7 @@ import { createSupabaseEmbedService } from "./supabase/SupabaseEmbedService";
 import { createSupabaseSceneActivityService } from "./supabase/SupabaseSceneActivityService";
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
 import { createSupabaseShareService } from "./supabase/SupabaseShareService";
+import { createSupabaseVideoAssetService } from "./supabase/SupabaseVideoAssetService";
 
 import type { BackendCapabilities, CloudBackend } from "./types";
 
@@ -51,6 +53,9 @@ const ensureBackendShape = (backend: CloudBackend): CloudBackend => {
       ? createCloudEncryptionService(true)
       : createLocalCloudEncryptionService();
   }
+  if (!legacyBackend.videoAssets) {
+    backend.videoAssets = createLocalVideoAssetService();
+  }
   return backend;
 };
 
@@ -59,6 +64,7 @@ const assembleLocalBackend = (): CloudBackend => ({
   auth: createLocalAuthProvider(),
   scenes: createLocalSceneStorage(),
   assets: createLocalAssetStorage(),
+  videoAssets: createLocalVideoAssetService(),
   shares: createLocalShareService(),
   aiTasks: createLocalAITaskService(),
   activity: createLocalSceneActivityService(),
@@ -86,6 +92,9 @@ const assembleSupabaseBackend = (
   auth: createSupabaseAuthProvider(),
   scenes: createSupabaseSceneStorage(),
   assets: createSupabaseAssetStorage(),
+  videoAssets: capabilities.remoteVideoAssets
+    ? createSupabaseVideoAssetService()
+    : createLocalVideoAssetService(),
   shares: createSupabaseShareService(),
   aiTasks: createSupabaseAITaskService(),
   activity: createSupabaseSceneActivityService(),

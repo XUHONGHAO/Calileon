@@ -273,7 +273,7 @@ export type AIGenerationLogEntry = {
   submittedAt: string;
   completedAt: string;
   mediaType: AIModelMediaType;
-  mode: AIImageGenerationMode | "text-to-video" | "text-to-audio";
+  mode: AIImageGenerationMode | AIVideoGenerationMode | "text-to-audio";
   status: AIGenerationLogStatus;
   model: {
     id: string;
@@ -362,19 +362,33 @@ export type AIVideoPollResult = {
 // Stored on the inserted embeddable element's `customData.aiVideoGeneration`.
 // The canvas has no native video element type, so the real video URL lives here
 // (and on the element's `link`); the app renders it as an inline <video> player.
-export type AIVideoGenerationMetadata = {
-  version: 1;
+type AIVideoGenerationMetadataBase = {
   kind: "video";
   mode: AIVideoGenerationMode;
   model: string;
   prompt: string;
   params: AIImageGenerationParams;
-  videoURL: string;
   mimeType: string;
   durationSeconds?: number;
   revisedPrompt?: string;
   createdAt: string;
 };
+
+export type AIVideoGenerationMetadataV1 = AIVideoGenerationMetadataBase & {
+  version: 1;
+  videoURL: string;
+};
+
+export type AIVideoGenerationMetadataV2 = AIVideoGenerationMetadataBase & {
+  version: 2;
+  assetId: string;
+  width?: number;
+  height?: number;
+};
+
+export type AIVideoGenerationMetadata =
+  | AIVideoGenerationMetadataV1
+  | AIVideoGenerationMetadataV2;
 
 // A submitted-but-not-yet-finished video task, persisted to localStorage so
 // polling can resume after a page refresh. `params`/`prompt`/`mode` are kept so

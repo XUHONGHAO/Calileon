@@ -1,4 +1,20 @@
-import { getVideoDimensions, isLikelyVideoURL } from "./videoCanvas";
+import { embeddableURLValidator } from "@excalidraw/element/embeddable";
+
+import type {
+  ExcalidrawEmbeddableElement,
+  NonDeleted,
+} from "@excalidraw/element/types";
+
+import {
+  buildAIVideoAssetLink,
+  getAIVideoAssetIdFromEmbeddable,
+  getAIVideoURLFromEmbeddable,
+  getVideoDimensions,
+  isValidAIVideoEmbeddable,
+  isSafeAIVideoURL,
+} from "./videoCanvas";
+
+import type { AIVideoGenerationMetadata } from "./types";
 
 // jsdom does not load media, so <video> metadata events never fire on their own.
 // Stub document.createElement("video") so onloadedmetadata / onerror can be driven
@@ -41,30 +57,154 @@ const stubVideo = (configure: (video: VideoStub) => void) => {
   });
 };
 
-describe("isLikelyVideoURL", () => {
-  it("accepts http(s) URLs ending in a known video extension", () => {
-    expect(isLikelyVideoURL("https://cdn.example.com/out.mp4")).toBe(true);
-    expect(isLikelyVideoURL("https://cdn.example.com/clip.webm?sig=abc")).toBe(
-      true,
-    );
-    expect(isLikelyVideoURL("http://cdn.example.com/a/b/c.mov#t=1")).toBe(true);
+describe("AI video embeddable validation", () => {
+  const opaqueSignedURL =
+    "https://cdn.example.com/abc123?X-Amz-Signature=keep-me&token=full";
+  const metadata: AIVideoGenerationMetadata = {
+    version: 1,
+    kind: "video",
+    mode: "text-to-video",
+    model: "test-video-model",
+    prompt: "A paper plane taking flight",
+    params: { size: "", n: 1 },
+    videoURL: opaqueSignedURL,
+    mimeType: "video/mp4",
+    createdAt: "2026-07-11T00:00:00.000Z",
+  };
+  const aiVideoElement = {
+    type: "embeddable" as const,
+    link: opaqueSignedURL,
+    customData: { aiVideoGeneration: metadata },
+  };
+
+  it("accepts safe opaque signed http(s) URLs without changing their query", () => {
+    expect(isSafeAIVideoURL(opaqueSignedURL)).toBe(true);
+    expect(getAIVideoURLFromEmbeddable(aiVideoElement)).toBe(opaqueSignedURL);
   });
 
-  it("accepts extension-less signed URLs with a /video/ path hint", () => {
+  it("accepts v2 stable asset links without persisting a playback URL", () => {
+    const assetId = "asset-stable-1";
+    const element = {
+      type: "embeddable" as const,
+      link: buildAIVideoAssetLink(assetId),
+      customData: {
+        aiVideoGeneration: {
+          version: 2,
+          kind: "video",
+          mode: "text-to-video",
+          model: "test-video-model",
+          prompt: "A paper plane taking flight",
+          params: { size: "", n: 1 },
+          assetId,
+          mimeType: "video/mp4",
+          createdAt: "2026-07-12T00:00:00.000Z",
+        },
+      },
+    };
+
+    expect(getAIVideoAssetIdFromEmbeddable(element)).toBe(assetId);
+    expect(getAIVideoURLFromEmbeddable(element)).toBeNull();
+    expect(isValidAIVideoEmbeddable(element)).toBe(true);
+    expect(JSON.stringify(element)).not.toContain("https://");
     expect(
-      isLikelyVideoURL("https://storage.deepwl.cn/video/abcdef?token=xyz"),
-    ).toBe(true);
-    expect(isLikelyVideoURL("https://cdn.example.com/videos/123")).toBe(true);
+      getAIVideoAssetIdFromEmbeddable({
+        ...element,
+        link: buildAIVideoAssetLink("different-asset"),
+      }),
+    ).toBeNull();
   });
 
-  it("rejects non-video URLs, non-http protocols, and junk", () => {
-    expect(isLikelyVideoURL("https://cdn.example.com/image.png")).toBe(false);
-    expect(isLikelyVideoURL("https://youtube.com/watch?v=abc")).toBe(false);
-    expect(isLikelyVideoURL("data:video/mp4;base64,AAAA")).toBe(false);
-    expect(isLikelyVideoURL("not a url")).toBe(false);
-    expect(isLikelyVideoURL("")).toBe(false);
-    expect(isLikelyVideoURL(null)).toBe(false);
-    expect(isLikelyVideoURL(undefined)).toBe(false);
+  it("requires matching valid metadata instead of trusting a video-like path", () => {
+    const ordinaryVideoPage = "https://example.com/video/page";
+
+    expect(isSafeAIVideoURL(ordinaryVideoPage)).toBe(true);
+    expect(
+      getAIVideoURLFromEmbeddable({
+        ...aiVideoElement,
+        link: "https://cdn.example.com/a-different-link",
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects invalid metadata and unsafe URL protocols", () => {
+    expect(isSafeAIVideoURL("data:video/mp4;base64,AAAA")).toBe(false);
+    expect(isSafeAIVideoURL("ftp://cdn.example.com/out.mp4")).toBe(false);
+    expect(isSafeAIVideoURL("not a url")).toBe(false);
+    expect(
+      getAIVideoURLFromEmbeddable({
+        type: "embeddable",
+        link: "https://cdn.example.com/out",
+        customData: {
+          aiVideoGeneration: {
+            ...metadata,
+            videoURL: "data:video/mp4;base64,AAAA",
+          },
+        },
+      }),
+    ).toBeNull();
+    expect(
+      getAIVideoURLFromEmbeddable({
+        ...aiVideoElement,
+        customData: {
+          aiVideoGeneration: { ...metadata, params: [] },
+        },
+      }),
+    ).toBeNull();
+    expect(
+      getAIVideoURLFromEmbeddable({
+        ...aiVideoElement,
+        customData: {
+          aiVideoGeneration: {
+            ...metadata,
+            params: { size: "", n: 1 },
+            mimeType: "text/html",
+          },
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("falls back to the core whitelist for Bilibili and ordinary pasted pages", () => {
+    const appValidator = (
+      link: string,
+      element?: NonDeleted<ExcalidrawEmbeddableElement>,
+    ) =>
+      element && getAIVideoURLFromEmbeddable(element) === link
+        ? true
+        : undefined;
+
+    expect(
+      embeddableURLValidator(opaqueSignedURL, appValidator, aiVideoElement),
+    ).toBe(true);
+    expect(embeddableURLValidator(opaqueSignedURL, appValidator)).toBe(false);
+    expect(
+      embeddableURLValidator(opaqueSignedURL, appValidator, {
+        ...aiVideoElement,
+        customData: undefined,
+      }),
+    ).toBe(false);
+
+    expect(
+      embeddableURLValidator(
+        "https://player.bilibili.com/player.html?bvid=BV1xx",
+        appValidator,
+      ),
+    ).toBe(true);
+    expect(
+      embeddableURLValidator(
+        "https://player.bilibili.com/not-a-player",
+        appValidator,
+      ),
+    ).toBe(false);
+    expect(
+      embeddableURLValidator(
+        "https://www.bilibili.com/video/BV1xx",
+        appValidator,
+      ),
+    ).toBe(false);
+    expect(
+      embeddableURLValidator("https://example.com/video/page", appValidator),
+    ).toBe(false);
   });
 });
 

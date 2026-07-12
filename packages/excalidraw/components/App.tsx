@@ -163,6 +163,7 @@ import {
   isPathALoop,
   createSrcDoc,
   embeddableURLValidator,
+  getEmbeddableValidationKey,
   maybeParseEmbedSrc,
   getEmbedLink,
   getInitializedImageElements,
@@ -666,6 +667,10 @@ class App extends React.Component<AppProps, AppState> {
    * the validation came from a trusted source (the editor).
    **/
   private embedsValidationStatus: EmbedsValidationStatus = new Map();
+  private embedsValidationKeys = new Map<
+    ExcalidrawEmbeddableElement["id"],
+    string
+  >();
   /** embeds that have been inserted to DOM (as a perf optim, we don't want to
    * insert to DOM before user initially scrolls to them) */
   private initializedEmbeds = new Set<ExcalidrawIframeLikeElement["id"]>();
@@ -1647,6 +1652,10 @@ class App extends React.Component<AppProps, AppState> {
     status: boolean,
   ) => {
     this.embedsValidationStatus.set(element.id, status);
+    this.embedsValidationKeys.set(
+      element.id,
+      getEmbeddableValidationKey(element),
+    );
     ShapeCache.delete(element);
   };
 
@@ -1657,12 +1666,14 @@ class App extends React.Component<AppProps, AppState> {
     this.scene.getNonDeletedElements().filter((element) => {
       if (isEmbeddableElement(element)) {
         iframeLikes.add(element.id);
-        if (!this.embedsValidationStatus.has(element.id)) {
+        const validationKey = getEmbeddableValidationKey(element);
+        if (this.embedsValidationKeys.get(element.id) !== validationKey) {
           updated = true;
 
           const validated = embeddableURLValidator(
             element.link,
             this.props.validateEmbeddable,
+            element,
           );
 
           this.updateEmbedValidationStatus(element, validated);
@@ -1683,6 +1694,8 @@ class App extends React.Component<AppProps, AppState> {
         this.iFrameRefs.delete(id);
         this.initializedEmbeds.delete(id);
         this.loadedVideoEmbeds.delete(id);
+        this.embedsValidationStatus.delete(id);
+        this.embedsValidationKeys.delete(id);
       }
     });
   };
@@ -3118,6 +3131,7 @@ class App extends React.Component<AppProps, AppState> {
       }));
       this.resetStore();
       this.resetHistory();
+      this.props.onSceneReplace?.();
     },
   );
 
@@ -12377,6 +12391,7 @@ class App extends React.Component<AppProps, AppState> {
             replaceFiles: true,
             captureUpdate: CaptureUpdateAction.IMMEDIATELY,
           });
+          this.props.onSceneReplace?.();
           return;
         } catch (error: any) {
           if (error.name !== "EncodingError") {
@@ -12534,6 +12549,7 @@ class App extends React.Component<AppProps, AppState> {
           replaceFiles: true,
           captureUpdate: CaptureUpdateAction.IMMEDIATELY,
         });
+        this.props.onSceneReplace?.();
       } else if (ret.type === MIME_TYPES.excalidrawlib) {
         await this.library
           .updateLibrary({

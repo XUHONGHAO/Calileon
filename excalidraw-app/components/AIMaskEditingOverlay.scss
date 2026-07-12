@@ -2,7 +2,7 @@
   position: fixed;
   inset: 0;
   z-index: var(--zIndex-layerUI, 3);
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .AIMaskEditingOverlay__backdrop {
@@ -10,6 +10,14 @@
   inset: 0;
   width: 100vw;
   height: 100vh;
+  pointer-events: none;
+}
+
+.AIMaskEditingOverlay__drawingSurface {
+  position: fixed;
+  z-index: 2;
+  cursor: none;
+  touch-action: none;
 }
 
 .AIMaskEditingOverlay__scrim {

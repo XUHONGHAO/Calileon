@@ -1,9 +1,12 @@
+import { sanitizePersistedURL } from "./sanitizePersistedURL";
+
 import type {
   AIImageGenerationMetadata,
   AIImageGenerationMode,
   AIImageGenerationOutput,
   AIImageGenerationParams,
   AIVideoGenerationMetadata,
+  AIVideoGenerationMetadataV2,
   AIVideoGenerationMode,
   AIVideoGenerationOutput,
 } from "./types";
@@ -44,7 +47,9 @@ export const createAIImageGenerationMetadata = ({
       provider: "openai-compatible",
       index,
       mimeType: output.mimeType,
-      remoteURL: output.remoteURL,
+      remoteURL: output.remoteURL
+        ? sanitizePersistedURL(output.remoteURL)
+        : undefined,
       revisedPrompt: output.revisedPrompt,
     },
     createdAt,
@@ -86,3 +91,40 @@ export const createAIVideoGenerationMetadata = ({
     createdAt,
   };
 };
+
+export const createAIVideoAssetMetadata = ({
+  mode,
+  model,
+  prompt,
+  params,
+  asset,
+  createdAt = new Date().toISOString(),
+}: {
+  mode: AIVideoGenerationMode;
+  model: string;
+  prompt: string;
+  params: AIImageGenerationParams;
+  asset: {
+    assetId: string;
+    mimeType: string;
+    width?: number;
+    height?: number;
+    durationSeconds?: number;
+    revisedPrompt?: string;
+  };
+  createdAt?: string;
+}): AIVideoGenerationMetadataV2 => ({
+  version: 2,
+  kind: "video",
+  mode,
+  model,
+  prompt,
+  params,
+  assetId: asset.assetId,
+  mimeType: asset.mimeType,
+  width: asset.width,
+  height: asset.height,
+  durationSeconds: asset.durationSeconds,
+  revisedPrompt: asset.revisedPrompt,
+  createdAt,
+});

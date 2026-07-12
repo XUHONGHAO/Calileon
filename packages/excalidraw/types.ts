@@ -581,12 +581,21 @@ export type OnExportProgress = {
   progress?: number;
 };
 
+export type OnExportDataOverride = {
+  cancel?: boolean;
+  elements?: readonly ExcalidrawElement[];
+  appState?: AppState;
+  files?: BinaryFiles;
+};
+
 export interface ExcalidrawProps {
   onChange?: (
     elements: readonly OrderedExcalidrawElement[],
     appState: AppState,
     files: BinaryFiles,
   ) => void;
+  /** Called after the current scene is explicitly replaced or reset. */
+  onSceneReplace?: () => void;
   onThemeChange?: (theme: Theme | "system") => void;
   /**
    * note: only subscribes if the props.onIncrement is defined on initial render
@@ -696,7 +705,10 @@ export interface ExcalidrawProps {
     | string[]
     | RegExp
     | RegExp[]
-    | ((link: string) => boolean | undefined);
+    | ((
+        link: string,
+        element?: NonDeleted<ExcalidrawEmbeddableElement>,
+      ) => boolean | undefined);
   renderEmbeddable?: (
     element: NonDeleted<ExcalidrawEmbeddableElement>,
     appState: AppState,
@@ -729,7 +741,9 @@ export interface ExcalidrawProps {
        */
       signal: AbortSignal;
     },
-  ) => MaybePromise<void> | AsyncGenerator<OnExportProgress, void>;
+  ) =>
+    | MaybePromise<void | OnExportDataOverride>
+    | AsyncGenerator<OnExportProgress, void | OnExportDataOverride>;
 }
 
 export type SceneData = {

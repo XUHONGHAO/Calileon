@@ -41,6 +41,7 @@ import type {
   BinaryFiles,
   ExcalidrawProps,
   OnExportProgress,
+  OnExportDataOverride,
 } from "../types";
 
 export const actionChangeProjectName = register<AppState["name"]>({
@@ -207,7 +208,7 @@ async function handleOnExportResult(
     signal: AbortSignal;
     app: AppClassProperties;
   },
-): Promise<void> {
+): Promise<OnExportDataOverride | null> {
   if (opts.app.state.isLoading) {
     onProgressToast(opts.app, { progress: null });
     await opts.app.onStateChange({ predicate: (state) => !state.isLoading });
@@ -218,10 +219,14 @@ async function handleOnExportResult(
     typeof onExportResult === "object" &&
     Symbol.asyncIterator in onExportResult
   ) {
-    for await (const value of onExportResult) {
+    while (true) {
+      const { value, done } = await onExportResult.next();
+      if (done) {
+        return value || null;
+      }
       if (opts.signal.aborted) {
-        onExportResult.return();
-        return;
+        await onExportResult.return(undefined);
+        return null;
       }
       if (value.type === "progress") {
         onProgressToast(opts.app, {
@@ -229,21 +234,20 @@ async function handleOnExportResult(
           progress: value.progress ?? null,
         });
       } else if (value.type === "done") {
-        return;
+        return null;
       }
     }
-
-    // Generator completed without explicit "done" message
-    return;
   }
 
   if (onExportResult instanceof Promise) {
     onProgressToast(opts.app, { progress: null });
-    await onExportResult;
+    return (await onExportResult) || null;
   }
+
+  return onExportResult || null;
 }
 
-function prepareDataForJSONExport(
+export function prepareDataForJSONExport(
   elements: readonly ExcalidrawElement[],
   appState: AppState,
   files: BinaryFiles,
@@ -252,10 +256,10 @@ function prepareDataForJSONExport(
   const abortController = new AbortController();
   const signal = abortController.signal;
 
-  const dataPromise = new Promise<JSONExportData>(async (resolve) => {
+  const dataPromise = new Promise<JSONExportData>(async (resolve, reject) => {
     try {
       if (app.props.onExport) {
-        await handleOnExportResult(
+        const override = await handleOnExportResult(
           app.props.onExport(
             "json",
             {
@@ -272,6 +276,21 @@ function prepareDataForJSONExport(
             signal,
           },
         );
+        if (override?.cancel) {
+          reject(
+            new DOMException(
+              "Export canceled by host application.",
+              "AbortError",
+            ),
+          );
+          return;
+        }
+        resolve({
+          elements: override?.elements ?? elements,
+          appState: override?.appState ?? appState,
+          files: override?.files ?? app.files,
+        });
+        return;
       }
     } catch (error: any) {
       if (error?.name === "AbortError") {
@@ -289,12 +308,7 @@ function prepareDataForJSONExport(
       // so we resolve to orig data
     }
 
-    resolve({
-      elements,
-      appState,
-      // return latest files in case they finished loading during onExport
-      files: app.files,
-    });
+    resolve({ elements, appState, files: app.files });
   });
 
   return {
@@ -463,6 +477,7 @@ export const actionLoadScene = register({
         appState: loadedAppState,
         files,
       } = await loadFromJSON(appState, elements);
+      app.props.onSceneReplace?.();
       return {
         elements: loadedElements,
         appState: loadedAppState,

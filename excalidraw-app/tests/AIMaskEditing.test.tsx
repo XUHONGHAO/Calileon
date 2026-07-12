@@ -1,13 +1,18 @@
-import { useMemo, useRef, useState } from "react";
+import { createRef, useMemo, useRef, useState } from "react";
 
+import { KEYS } from "@excalidraw/common";
+import { Excalidraw, CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
+import { defaultLang, setLanguage } from "@excalidraw/excalidraw/i18n";
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
+import { Keyboard } from "@excalidraw/excalidraw/tests/helpers/ui";
 import {
   act,
   fireEvent,
+  render as renderExcalidraw,
   screen,
 } from "@excalidraw/excalidraw/tests/test-utils";
-import { render as rtlRender } from "@testing-library/react";
+import { render as rtlRender, waitFor } from "@testing-library/react";
 import { pointFrom } from "@excalidraw/math";
 import { vi } from "vitest";
 
@@ -25,6 +30,7 @@ import type {
 import type { LocalPoint } from "@excalidraw/math";
 
 import { STORAGE_KEYS } from "../app_constants";
+import * as maskCanvas from "../ai/maskCanvas";
 import {
   AIMaskEditingController,
   type AIMaskEditingControllerHandle,
@@ -33,6 +39,7 @@ import {
   AIMaskEditingOverlay,
   type AIMaskEditingTargetBounds,
 } from "../components/AIMaskEditingOverlay";
+import { createMaskViewportGeometry } from "../ai/maskViewportGeometry";
 import {
   AIImageWorkbench,
   createInitialAIImageWorkbenchDraftState,
@@ -102,6 +109,7 @@ const secondImageFile: BinaryFileData = {
 
 describe("AI mask editing", () => {
   beforeEach(() => {
+    vi.stubGlobal("Image", MaskSourceImage);
     localStorage.clear();
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE,
@@ -124,6 +132,117 @@ describe("AI mask editing", () => {
         ],
       }),
     );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("blocks real editor tools, deletion, transforms, and history while editing", async () => {
+    const controllerRef = createRef<AIMaskEditingControllerHandle>();
+    let realAPI: ExcalidrawImperativeAPI | null = null;
+
+    await renderExcalidraw(
+      <RealExcalidrawMaskHarness
+        controllerRef={controllerRef}
+        onAPI={(api) => {
+          realAPI = api;
+        }}
+      />,
+    );
+    await waitFor(() => {
+      expect(realAPI).not.toBeNull();
+      expect(controllerRef.current).not.toBeNull();
+    });
+
+    act(() => {
+      realAPI!.updateScene({
+        appState: { selectedElementIds: { [targetImage.id]: true } },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    });
+    const beforeElement = realAPI!.getSceneElements()[0];
+    const beforeTool = realAPI!.getAppState().activeTool;
+    const beforeSelection = realAPI!.getAppState().selectedElementIds;
+    const beforeUndoLength = API.getUndoStack().length;
+    const beforeRedoLength = API.getRedoStack().length;
+
+    act(() => {
+      controllerRef.current!.requestEnterMaskEditing(targetImage.id);
+    });
+    await waitFor(() => {
+      expect(screen.getByText(/Drawing \(white brush\)/)).toBeInTheDocument();
+    });
+
+    Keyboard.keyPress("r");
+    Keyboard.keyPress("h");
+    Keyboard.keyPress("k");
+    Keyboard.keyPress(KEYS.DELETE);
+    Keyboard.keyPress(KEYS.ARROW_RIGHT);
+    Keyboard.undo();
+    Keyboard.redo();
+
+    const doneButton = screen.getByRole("button", { name: "Done" });
+    doneButton.focus();
+    Keyboard.keyPress(KEYS.DELETE, doneButton);
+    Keyboard.keyPress("r", doneButton);
+    Keyboard.keyPress(KEYS.ARROW_RIGHT, doneButton);
+
+    const brushSizeSlider = screen.getByRole("slider", {
+      name: "Brush size",
+    });
+    brushSizeSlider.focus();
+    Keyboard.keyPress(KEYS.DELETE, brushSizeSlider);
+    Keyboard.keyPress("v", brushSizeSlider);
+    Keyboard.keyPress(KEYS.ARROW_RIGHT, brushSizeSlider);
+    Keyboard.keyPress(KEYS.TAB, brushSizeSlider);
+    expect(doneButton).toHaveFocus();
+    await act(async () => {});
+
+    expect(realAPI!.getAppState().activeTool).toEqual(beforeTool);
+    expect(realAPI!.getAppState().selectedElementIds).toEqual(beforeSelection);
+    expect(realAPI!.getSceneElements()[0]).toEqual(beforeElement);
+    expect(API.getUndoStack()).toHaveLength(beforeUndoLength);
+    expect(API.getRedoStack()).toHaveLength(beforeRedoLength);
+  });
+
+  it("cancels mask editing if the target geometry changes externally", async () => {
+    const controllerRef = createRef<AIMaskEditingControllerHandle>();
+    let realAPI: ExcalidrawImperativeAPI | null = null;
+
+    await renderExcalidraw(
+      <RealExcalidrawMaskHarness
+        controllerRef={controllerRef}
+        onAPI={(api) => {
+          realAPI = api;
+        }}
+      />,
+    );
+    await waitFor(() => {
+      expect(realAPI).not.toBeNull();
+      expect(controllerRef.current).not.toBeNull();
+    });
+
+    act(() => {
+      controllerRef.current!.requestEnterMaskEditing(targetImage.id);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    const currentTarget = realAPI!.getSceneElements()[0];
+    act(() => {
+      realAPI!.updateScene({
+        elements: [{ ...currentTarget, x: currentTarget.x + 25 }],
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+    expect(realAPI!.getSceneElements()[0].x).toBe(currentTarget.x + 25);
   });
 
   it("enters mask editing from the workbench and restores state on cancel", async () => {
@@ -174,18 +293,31 @@ describe("AI mask editing", () => {
 
   it("shows erasing state, brush size control, and mask preview", () => {
     const onBrushSizeChange = vi.fn();
+    const onMaskPointerDown = vi.fn();
+    const onMaskPointerMove = vi.fn();
+    const onMaskPointerUp = vi.fn();
 
     rtlRender(
       <AIMaskEditingOverlay
         targetImageId={targetImage.id}
-        targetBounds={{ x: 40, y: 60, width: 120, height: 90 }}
+        targetBounds={createMaskViewportGeometry({
+          centerX: 100,
+          centerY: 105,
+          width: 120,
+          height: 90,
+          angle: 0,
+        })}
         isErasing={true}
         brushSize={32}
         zoomValue={1}
         maskPreviewDataURL={TEST_IMAGE_DATA_URL}
+        isDonePending={false}
         onBrushSizeChange={onBrushSizeChange}
-        onDone={() => null}
-        onCancel={() => null}
+        onDone={() => undefined}
+        onCancel={() => undefined}
+        onMaskPointerDown={onMaskPointerDown}
+        onMaskPointerMove={onMaskPointerMove}
+        onMaskPointerUp={onMaskPointerUp}
       />,
     );
 
@@ -212,25 +344,115 @@ describe("AI mask editing", () => {
     });
 
     expect(onBrushSizeChange).toHaveBeenCalledWith(44);
+
+    const drawingSurface = screen.getByTestId("mask-drawing-surface");
+    fireEvent.pointerDown(drawingSurface, {
+      pointerId: 1,
+      button: 0,
+      clientX: 80,
+      clientY: 90,
+    });
+    fireEvent.pointerDown(drawingSurface, {
+      pointerId: 2,
+      button: 0,
+      clientX: 85,
+      clientY: 95,
+    });
+    fireEvent.pointerMove(drawingSurface, {
+      pointerId: 2,
+      clientX: 90,
+      clientY: 100,
+    });
+    fireEvent.blur(window);
+
+    expect(onMaskPointerDown).toHaveBeenCalledTimes(1);
+    expect(onMaskPointerMove).not.toHaveBeenCalled();
+    expect(onMaskPointerUp).toHaveBeenCalledTimes(1);
   });
 
-  it("toggles eraser mode with E and applies brush size to freedraw state", async () => {
+  it("uses localized copy for all visible mask editing controls", async () => {
+    await act(async () => {
+      await setLanguage({ code: "__test__", label: "test language" });
+    });
+
+    try {
+      rtlRender(
+        <AIMaskEditingOverlay
+          targetImageId={targetImage.id}
+          targetBounds={createMaskViewportGeometry({
+            centerX: 100,
+            centerY: 105,
+            width: 120,
+            height: 90,
+            angle: 0,
+          })}
+          isErasing={true}
+          brushSize={32}
+          zoomValue={1}
+          maskPreviewDataURL={TEST_IMAGE_DATA_URL}
+          isDonePending={false}
+          onBrushSizeChange={() => undefined}
+          onDone={() => undefined}
+          onCancel={() => undefined}
+          onMaskPointerDown={() => undefined}
+          onMaskPointerMove={() => undefined}
+          onMaskPointerUp={() => undefined}
+        />,
+      );
+
+      expect(
+        screen.getByText(/\[\[ai\.workbench\.maskEditor\.erasing\]\]/),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: /\[\[ai\.workbench\.maskEditor\.done\]\]/,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", {
+          name: /\[\[ai\.workbench\.maskEditor\.cancel\]\]/,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /\[\[ai\.workbench\.maskEditor\.brushSize\("size":32\)\]\]/,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("slider", {
+          name: /\[\[ai\.workbench\.maskEditor\.brushSizeLabel\]\]/,
+        }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("img", {
+          name: /\[\[ai\.workbench\.maskEditor\.preview\]\]/,
+        }),
+      ).toBeInTheDocument();
+    } finally {
+      await act(async () => {
+        await setLanguage(defaultLang);
+      });
+    }
+  });
+
+  it("toggles the in-memory eraser mode without changing editor drawing state", async () => {
     rtlRender(<MaskEditingControllerHarness />);
 
     fireEvent.click(screen.getByRole("button", { name: "Start mask editing" }));
 
     await flushReact();
     screen.getByText(/Drawing \(white brush\)/);
-    expect(screen.getByTestId("mask-stroke-color")).toHaveTextContent(
-      "#ffffff",
-    );
+    const initialStrokeColor =
+      screen.getByTestId("mask-stroke-color").textContent;
+    const initialStrokeWidth =
+      screen.getByTestId("mask-stroke-width").textContent;
 
     fireEvent.keyDown(window, { key: "e" });
 
     await flushReact();
     screen.getByText(/Erasing mask/);
-    expect(screen.getByTestId("mask-stroke-color")).toHaveTextContent(
-      "#000000",
+    expect(screen.getByTestId("mask-stroke-color").textContent).toBe(
+      initialStrokeColor,
     );
 
     fireEvent.change(screen.getByRole("slider", { name: "Brush size" }), {
@@ -238,7 +460,9 @@ describe("AI mask editing", () => {
     });
 
     await flushReact();
-    expect(screen.getByTestId("mask-stroke-width")).toHaveTextContent("36");
+    expect(screen.getByTestId("mask-stroke-width").textContent).toBe(
+      initialStrokeWidth,
+    );
   });
 
   it("exports a mask on done, clears temporary strokes, and hands it to the workbench", async () => {
@@ -254,21 +478,101 @@ describe("AI mask editing", () => {
 
     await flushReact();
     screen.getByText(/Drawing \(white brush\)/);
-    fireEvent.click(screen.getByRole("button", { name: "Add white mask" }));
+    const drawingSurface = screen.getByTestId("mask-drawing-surface");
+    fireEvent.pointerDown(drawingSurface, {
+      pointerId: 1,
+      button: 0,
+      clientX: 80,
+      clientY: 90,
+    });
+    fireEvent.pointerMove(drawingSurface, {
+      pointerId: 1,
+      clientX: 110,
+      clientY: 105,
+    });
+    fireEvent.pointerUp(drawingSurface, {
+      pointerId: 1,
+      clientX: 110,
+      clientY: 105,
+    });
     fireEvent.keyDown(window, { key: "e" });
 
     await flushReact();
     screen.getByText(/Erasing mask/);
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
-    await flushReact();
-    screen.getByText("Mask: mask-target-image.png");
+    await waitFor(() => {
+      expect(
+        screen.getByText("Mask: mask-target-image.png"),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("mask-element-count")).toHaveTextContent("1");
     expect(screen.getByTestId("scene-element-ids")).toHaveTextContent(
       targetImage.id,
     );
     expect(screen.getByTestId("scene-element-ids")).not.toHaveTextContent(
       "mask-stroke",
     );
+  });
+
+  it("keeps mask strokes out of the scene and supports session undo", async () => {
+    rtlRender(<MaskEditingDoneHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
+    await flushReact();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit mask on canvas" }),
+    );
+    await flushReact();
+
+    const drawingSurface = screen.getByTestId("mask-drawing-surface");
+    const drawStroke = (pointerId: number, offset: number) => {
+      fireEvent.pointerDown(drawingSurface, {
+        pointerId,
+        button: 0,
+        clientX: 75 + offset,
+        clientY: 85 + offset,
+      });
+      fireEvent.pointerMove(drawingSurface, {
+        pointerId,
+        clientX: 95 + offset,
+        clientY: 100 + offset,
+      });
+      fireEvent.pointerUp(drawingSurface, {
+        pointerId,
+        clientX: 95 + offset,
+        clientY: 100 + offset,
+      });
+    };
+
+    drawStroke(1, 0);
+    drawStroke(2, 10);
+    expect(screen.getByTestId("scene-element-ids")).toHaveTextContent(
+      targetImage.id,
+    );
+    expect(screen.getByTestId("scene-element-ids")).not.toHaveTextContent(
+      "freedraw",
+    );
+
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("mask-element-count")).toHaveTextContent("1");
+    });
+  });
+
+  it("cancels the in-memory mask session with Escape", async () => {
+    rtlRender(<MaskEditingControllerHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start mask editing" }));
+    await flushReact();
+    expect(screen.getByTestId("mask-drawing-surface")).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await flushReact();
+
+    expect(screen.queryByTestId("mask-drawing-surface")).toBeNull();
   });
 
   it("preserves AI image workbench draft state after the tab unmounts", () => {
@@ -382,13 +686,90 @@ describe("AI mask editing", () => {
     );
 
     await flushReact();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
 
-    expect(screen.getByTestId("editable-mask-position")).toHaveTextContent(
-      "114,112",
+    await waitFor(() => {
+      expect(screen.getByTestId("editable-mask-position")).toHaveTextContent(
+        "114,112",
+      );
+    });
+    expect(screen.getByTestId("saved-mask-geometry-version")).toHaveTextContent(
+      "2",
     );
+  });
+
+  it("invalidates a stale async export when a new mask session starts", async () => {
+    const exportSignalRef: { current: AbortSignal | null } = { current: null };
+    const resolveExportRef: { current: ((file: File) => void) | null } = {
+      current: null,
+    };
+    vi.spyOn(maskCanvas, "exportMaskAsFile").mockImplementation(
+      (_targetImage, _maskElements, _files, signal) => {
+        exportSignalRef.current = signal || null;
+
+        return new Promise<File>((resolve, reject) => {
+          resolveExportRef.current = resolve;
+          signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("Aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      },
+    );
+
+    rtlRender(<MovedImageMaskControllerHarness />);
+    const startButton = screen.getByRole("button", {
+      name: "Start moved image mask editing",
+    });
+    fireEvent.click(startButton);
+    await flushReact();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    await waitFor(() => {
+      expect(exportSignalRef.current).not.toBeNull();
+    });
+    fireEvent.click(startButton);
+    await flushReact();
+
+    expect(exportSignalRef.current?.aborted).toBe(true);
+    resolveExportRef.current?.(
+      new File(["mask"], "stale-mask.png", { type: "image/png" }),
+    );
+    await flushReact();
+
+    expect(screen.getByTestId("mask-drawing-surface")).toBeInTheDocument();
+    expect(screen.getByTestId("editable-mask-position")).toHaveTextContent("");
   });
 });
 
+const RealExcalidrawMaskHarness = ({
+  controllerRef,
+  onAPI,
+}: {
+  controllerRef: React.RefObject<AIMaskEditingControllerHandle | null>;
+  onAPI: (api: ExcalidrawImperativeAPI) => void;
+}) => {
+  const [api, setAPI] = useState<ExcalidrawImperativeAPI | null>(null);
+
+  return (
+    <>
+      <Excalidraw
+        handleKeyboardGlobally
+        initialData={{
+          elements: [targetImage],
+          files: { [imageFile.id]: imageFile },
+        }}
+        onExcalidrawAPI={(nextAPI) => {
+          const resolvedAPI = nextAPI as ExcalidrawImperativeAPI;
+          setAPI(resolvedAPI);
+          onAPI(resolvedAPI);
+        }}
+      />
+      <AIMaskEditingController ref={controllerRef} excalidrawAPI={api} />
+    </>
+  );
+};
 const MaskEditingHarness = () => {
   const [activeToolType, setActiveToolType] =
     useState<AppState["activeTool"]["type"]>("rectangle");
@@ -444,7 +825,15 @@ const MaskEditingHarness = () => {
           };
           excalidrawAPI.setActiveTool({ type: "freedraw" });
           setSelectedElementIds({ [imageId]: true });
-          setMaskTargetBounds({ x: 40, y: 60, width: 120, height: 90 });
+          setMaskTargetBounds(
+            createMaskViewportGeometry({
+              centerX: 100,
+              centerY: 105,
+              width: 120,
+              height: 90,
+              angle: 0,
+            }),
+          );
         }}
       />
       {maskTargetBounds && (
@@ -455,6 +844,7 @@ const MaskEditingHarness = () => {
           brushSize={20}
           zoomValue={1}
           maskPreviewDataURL={null}
+          isDonePending={false}
           onBrushSizeChange={() => null}
           onDone={() => setMaskTargetBounds(null)}
           onCancel={() => {
@@ -466,6 +856,9 @@ const MaskEditingHarness = () => {
             }
             setMaskTargetBounds(null);
           }}
+          onMaskPointerDown={() => null}
+          onMaskPointerMove={() => null}
+          onMaskPointerUp={() => null}
         />
       )}
       <div data-testid="active-tool">{activeToolType}</div>
@@ -677,6 +1070,9 @@ const MaskEditingControllerHarness = () => {
 
 const MaskEditingDoneHarness = () => {
   const controllerRef = useRef<AIMaskEditingControllerHandle>(null);
+  const [lastMaskElementCount, setLastMaskElementCount] = useState<
+    number | null
+  >(null);
   const maskReadyHandlerRef = useRef<
     ((payload: AIMaskReadyPayload) => void) | null
   >(null);
@@ -794,6 +1190,7 @@ const MaskEditingDoneHarness = () => {
   };
 
   const handleMaskReady = (payload: AIMaskReadyPayload) => {
+    setLastMaskElementCount(payload.maskElements.length);
     if (maskReadyHandlerRef.current) {
       maskReadyHandlerRef.current(payload);
       return;
@@ -832,6 +1229,7 @@ const MaskEditingDoneHarness = () => {
       <div data-testid="scene-element-ids">
         {sceneElements.map((element) => element.id).join(",")}
       </div>
+      <div data-testid="mask-element-count">{lastMaskElementCount ?? ""}</div>
     </div>
   );
 };
@@ -991,6 +1389,8 @@ const ImageBoundMaskWorkbenchHarness = ({
 
 const MovedImageMaskControllerHarness = () => {
   const controllerRef = useRef<AIMaskEditingControllerHandle>(null);
+  const [savedMaskPosition, setSavedMaskPosition] = useState("");
+  const [savedMaskGeometryVersion, setSavedMaskGeometryVersion] = useState("");
   const changeListenersRef = useRef<
     Set<Parameters<ExcalidrawImperativeAPI["onChange"]>[0]>
   >(new Set());
@@ -1099,10 +1499,6 @@ const MovedImageMaskControllerHarness = () => {
       } as unknown as ExcalidrawImperativeAPI),
     [],
   );
-  const editableMaskElement = sceneElements.find(
-    (element) => element.type === "freedraw",
-  );
-
   return (
     <div>
       <button
@@ -1118,13 +1514,19 @@ const MovedImageMaskControllerHarness = () => {
       <AIMaskEditingController
         ref={controllerRef}
         excalidrawAPI={excalidrawAPI}
+        onMaskReady={(payload) => {
+          const element = payload.maskElements[0];
+          setSavedMaskPosition(
+            element ? `${Math.round(element.x)},${Math.round(element.y)}` : "",
+          );
+          setSavedMaskGeometryVersion(
+            element?.customData?.aiMaskSource?.version?.toString() || "",
+          );
+        }}
       />
-      <div data-testid="editable-mask-position">
-        {editableMaskElement
-          ? `${Math.round(editableMaskElement.x)},${Math.round(
-              editableMaskElement.y,
-            )}`
-          : ""}
+      <div data-testid="editable-mask-position">{savedMaskPosition}</div>
+      <div data-testid="saved-mask-geometry-version">
+        {savedMaskGeometryVersion}
       </div>
     </div>
   );
@@ -1140,6 +1542,19 @@ const createMaskStroke = () =>
     strokeWidth: 20,
     points: [pointFrom<LocalPoint>(0, 0), pointFrom<LocalPoint>(32, 18)],
   });
+
+class MaskSourceImage {
+  public naturalWidth = 200;
+  public naturalHeight = 200;
+  public width = 200;
+  public height = 200;
+  public onload: ((event: Event) => void) | null = null;
+  public onerror: ((event: Event) => void) | null = null;
+
+  public set src(_value: string) {
+    queueMicrotask(() => this.onload?.(new Event("load")));
+  }
+}
 
 const createBoundMaskStroke = () => ({
   ...createMaskStroke(),

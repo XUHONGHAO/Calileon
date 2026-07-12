@@ -8,6 +8,7 @@ import {
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type {
+  ExcalidrawElement,
   ExcalidrawEmbeddableElement,
   NonDeleted,
 } from "@excalidraw/element/types";
@@ -20,34 +21,139 @@ const MAX_INSERTED_VIDEO_SIZE = 640;
 const DEFAULT_VIDEO_WIDTH = 640;
 const DEFAULT_VIDEO_HEIGHT = 360;
 const METADATA_LOAD_TIMEOUT_MS = 6000;
+const AI_VIDEO_ASSET_LINK_PREFIX = "urn:excalidraw:ai-video:";
 
-// A conservative check for URLs we're willing to render as an inline <video>.
-// Used by the app's `validateEmbeddable` so a generated video URL passes the
-// embeddable gate (which otherwise only allows a fixed platform whitelist), and
-// re-runs on refresh since validation is keyed off the element's link. We accept
-// http(s) URLs whose path ends in a known video extension OR carries a `/video/`
-// path hint, since signed CDN links often omit the extension.
-const VIDEO_EXTENSION_RE = /\.(mp4|webm|mov|m4v|ogv)(\?|#|$)/i;
-
-export const isLikelyVideoURL = (url: string | null | undefined): boolean => {
+// AI video URLs may be opaque, extension-less, and signed. The URL shape does
+// not establish trust; callers must also require valid AI video element metadata.
+export const isSafeAIVideoURL = (
+  url: string | null | undefined,
+): url is string => {
   if (!url) {
     return false;
   }
   try {
     const parsed = new URL(url);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return false;
-    }
-    if (VIDEO_EXTENSION_RE.test(parsed.pathname)) {
-      return true;
-    }
-    // Some gateways hand back extension-less signed URLs but keep a hint in the
-    // path (…/video/…) — accept those too so playback isn't blocked.
-    return /\/video[s]?\//i.test(parsed.pathname);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
     return false;
   }
 };
+
+export const getAIVideoURLFromEmbeddable = (
+  element: Pick<ExcalidrawElement, "type" | "link" | "customData">,
+): string | null => {
+  if (element.type !== "embeddable" || !element.link) {
+    return null;
+  }
+
+  const metadata = (
+    element.customData as { aiVideoGeneration?: unknown } | null
+  )?.aiVideoGeneration;
+
+  if (!isAIVideoGenerationMetadata(metadata)) {
+    return null;
+  }
+
+  return metadata.version === 1 && metadata.videoURL === element.link
+    ? metadata.videoURL
+    : null;
+};
+
+export const getAIVideoGenerationMetadataFromEmbeddable = (
+  element: Pick<ExcalidrawElement, "type" | "customData">,
+): AIVideoGenerationMetadata | null => {
+  if (element.type !== "embeddable") {
+    return null;
+  }
+  const metadata = (
+    element.customData as { aiVideoGeneration?: unknown } | null
+  )?.aiVideoGeneration;
+  return isAIVideoGenerationMetadata(metadata) ? metadata : null;
+};
+
+export const buildAIVideoAssetLink = (assetId: string) =>
+  `${AI_VIDEO_ASSET_LINK_PREFIX}${encodeURIComponent(assetId)}`;
+
+export const getAIVideoAssetIdFromEmbeddable = (
+  element: Pick<ExcalidrawElement, "type" | "link" | "customData">,
+): string | null => {
+  if (element.type !== "embeddable" || !element.link) {
+    return null;
+  }
+  const metadata = (
+    element.customData as { aiVideoGeneration?: unknown } | null
+  )?.aiVideoGeneration;
+  if (
+    !isAIVideoGenerationMetadata(metadata) ||
+    metadata.version !== 2 ||
+    element.link !== buildAIVideoAssetLink(metadata.assetId)
+  ) {
+    return null;
+  }
+  return metadata.assetId;
+};
+
+export const isValidAIVideoEmbeddable = (
+  element: Pick<ExcalidrawElement, "type" | "link" | "customData">,
+) =>
+  !!getAIVideoURLFromEmbeddable(element) ||
+  !!getAIVideoAssetIdFromEmbeddable(element);
+
+const isAIVideoGenerationMetadata = (
+  value: unknown,
+): value is AIVideoGenerationMetadata => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const metadata = value as Partial<AIVideoGenerationMetadata>;
+  const params = metadata.params;
+  const assetId = (metadata as { assetId?: unknown }).assetId;
+
+  return (
+    (metadata.version === 1 || metadata.version === 2) &&
+    metadata.kind === "video" &&
+    (metadata.mode === "text-to-video" || metadata.mode === "image-to-video") &&
+    typeof metadata.model === "string" &&
+    typeof metadata.prompt === "string" &&
+    !!params &&
+    typeof params === "object" &&
+    !Array.isArray(params) &&
+    typeof params.size === "string" &&
+    typeof params.n === "number" &&
+    Number.isFinite(params.n) &&
+    params.n > 0 &&
+    isOptionalFiniteNumber(params.seed, true) &&
+    isOptionalString(params.quality) &&
+    isOptionalString(params.style) &&
+    isOptionalFiniteNumber(params.referenceStrength) &&
+    isOptionalFiniteNumber(params.duration) &&
+    isOptionalFiniteNumber(params.fps) &&
+    isOptionalString(params.resolution) &&
+    isOptionalString(params.aspectRatio) &&
+    isOptionalString(params.audioFormat) &&
+    isOptionalString(params.voice) &&
+    (metadata.version === 1
+      ? isSafeAIVideoURL(metadata.videoURL)
+      : typeof assetId === "string" && !!assetId) &&
+    typeof metadata.mimeType === "string" &&
+    metadata.mimeType.startsWith("video/") &&
+    isOptionalFiniteNumber(metadata.durationSeconds) &&
+    isOptionalFiniteNumber((metadata as { width?: unknown }).width) &&
+    isOptionalFiniteNumber((metadata as { height?: unknown }).height) &&
+    isOptionalString(metadata.revisedPrompt) &&
+    typeof metadata.createdAt === "string" &&
+    !Number.isNaN(Date.parse(metadata.createdAt))
+  );
+};
+
+const isOptionalString = (value: unknown) =>
+  value === undefined || typeof value === "string";
+
+const isOptionalFiniteNumber = (value: unknown, allowNull = false) =>
+  value === undefined ||
+  (allowNull && value === null) ||
+  (typeof value === "number" && Number.isFinite(value));
 
 /**
  * Read a video's intrinsic dimensions via a metadata-only <video> load. Unlike
@@ -156,7 +262,10 @@ export const insertVideoEmbedIntoCanvas = ({
     strokeWidth: STROKE_WIDTH.thin,
     strokeStyle: "solid",
     roughness: ROUGHNESS.architect,
-    link: metadata.videoURL,
+    link:
+      metadata.version === 1
+        ? metadata.videoURL
+        : buildAIVideoAssetLink(metadata.assetId),
     customData: {
       aiVideoGeneration: metadata,
     },

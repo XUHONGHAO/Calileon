@@ -12,6 +12,7 @@ import type {
 import { dataURLToFile } from "./imageCanvas";
 
 export const DEFAULT_MASK_BRUSH_SIZE = 20;
+export const MASK_SOURCE_IMAGE_LOAD_TIMEOUT_MS = 10_000;
 const MAX_MASK_PREVIEW_CANVAS_DIMENSION = 1024;
 
 export const MASK_BRUSH_SIZE_LIMITS = {
@@ -76,6 +77,10 @@ export const generateMaskPreview = (
   maskElements: readonly ExcalidrawFreeDrawElement[],
   canvas: HTMLCanvasElement = document.createElement("canvas"),
   canvasSize: MaskCanvasSize = getMaskCanvasSize(targetImage),
+  canvasTransform: MaskCanvasTransform = getMaskPreviewTransform(
+    targetImage,
+    canvasSize,
+  ),
 ) => {
   const { width, height } = normalizeMaskCanvasSize(canvasSize);
   canvas.width = width;
@@ -91,24 +96,26 @@ export const generateMaskPreview = (
   context.fillRect(0, 0, width, height);
 
   for (const element of maskElements) {
-    drawMaskFreeDrawElement(context, targetImage, element, { width, height });
+    drawMaskFreeDrawElement(context, targetImage, element, canvasTransform);
   }
 
   return canvas.toDataURL("image/png");
 };
 
-export const exportMaskAsFile = (
+export const exportMaskAsFile = async (
   targetImage: ExcalidrawImageElement,
   maskElements: readonly ExcalidrawFreeDrawElement[],
   files: BinaryFiles,
+  signal?: AbortSignal,
 ) => {
   const canvas = document.createElement("canvas");
-  const canvasSize = getMaskExportCanvasSize(targetImage, files);
+  const canvasSize = await getMaskExportCanvasSize(targetImage, files, signal);
   const dataURL = generateMaskPreview(
     targetImage,
     maskElements,
     canvas,
     canvasSize,
+    getMaskDisplayToNaturalTransform(targetImage, canvasSize),
   ) as DataURL;
 
   return dataURLToFile(dataURL, `mask-${targetImage.id}.png`, "image/png");
@@ -119,11 +126,25 @@ type MaskCanvasSize = {
   height: number;
 };
 
-type BinaryFileDataWithDimensions = BinaryFileData & {
-  naturalWidth?: number;
-  naturalHeight?: number;
-  width?: number;
-  height?: number;
+export type MaskCanvasTransform = {
+  scaleX: number;
+  scaleY: number;
+  translateX: number;
+  translateY: number;
+};
+
+const getMaskPreviewTransform = (
+  targetImage: ExcalidrawImageElement,
+  canvasSize: MaskCanvasSize,
+): MaskCanvasTransform => {
+  const displaySize = getMaskCanvasSize(targetImage);
+
+  return {
+    scaleX: canvasSize.width / displaySize.width,
+    scaleY: canvasSize.height / displaySize.height,
+    translateX: 0,
+    translateY: 0,
+  };
 };
 
 const getMaskCanvasSize = (targetImage: ExcalidrawImageElement) =>
@@ -131,6 +152,64 @@ const getMaskCanvasSize = (targetImage: ExcalidrawImageElement) =>
     width: targetImage.width,
     height: targetImage.height,
   });
+
+export const getMaskDisplayToNaturalTransform = (
+  targetImage: ExcalidrawImageElement,
+  naturalSize: MaskCanvasSize,
+): MaskCanvasTransform => {
+  const displaySize = getMaskCanvasSize(targetImage);
+  const crop = getNormalizedImageCrop(targetImage, naturalSize);
+  const isFlippedX = targetImage.scale[0] < 0;
+  const isFlippedY = targetImage.scale[1] < 0;
+
+  return {
+    scaleX: (isFlippedX ? -1 : 1) * (crop.width / displaySize.width),
+    scaleY: (isFlippedY ? -1 : 1) * (crop.height / displaySize.height),
+    translateX: isFlippedX ? crop.x + crop.width : crop.x,
+    translateY: isFlippedY ? crop.y + crop.height : crop.y,
+  };
+};
+
+const getNormalizedImageCrop = (
+  targetImage: ExcalidrawImageElement,
+  naturalSize: MaskCanvasSize,
+) => {
+  const crop = targetImage.crop;
+
+  if (!crop) {
+    return {
+      x: 0,
+      y: 0,
+      width: naturalSize.width,
+      height: naturalSize.height,
+    };
+  }
+
+  if (
+    !Number.isFinite(crop.x) ||
+    !Number.isFinite(crop.y) ||
+    !Number.isFinite(crop.width) ||
+    !Number.isFinite(crop.height) ||
+    !Number.isFinite(crop.naturalWidth) ||
+    !Number.isFinite(crop.naturalHeight) ||
+    crop.width <= 0 ||
+    crop.height <= 0 ||
+    crop.naturalWidth <= 0 ||
+    crop.naturalHeight <= 0
+  ) {
+    throw new Error("Cannot export an AI mask with invalid crop dimensions.");
+  }
+
+  const naturalScaleX = naturalSize.width / crop.naturalWidth;
+  const naturalScaleY = naturalSize.height / crop.naturalHeight;
+
+  return {
+    x: crop.x * naturalScaleX,
+    y: crop.y * naturalScaleY,
+    width: crop.width * naturalScaleX,
+    height: crop.height * naturalScaleY,
+  };
+};
 
 export const getMaskPreviewCanvasSize = (
   targetImage: ExcalidrawImageElement,
@@ -151,26 +230,18 @@ export const getMaskPreviewCanvasSize = (
   });
 };
 
-const getMaskExportCanvasSize = (
+const getMaskExportCanvasSize = async (
   targetImage: ExcalidrawImageElement,
   files: BinaryFiles,
+  signal?: AbortSignal,
 ) => {
-  const fileData = targetImage.fileId
-    ? (files[targetImage.fileId] as BinaryFileDataWithDimensions | undefined)
-    : undefined;
+  const fileData = targetImage.fileId ? files[targetImage.fileId] : undefined;
 
-  return normalizeMaskCanvasSize({
-    width:
-      getPositiveDimension(fileData?.naturalWidth) ??
-      getPositiveDimension(fileData?.width) ??
-      getPositiveDimension(targetImage.crop?.naturalWidth) ??
-      targetImage.width,
-    height:
-      getPositiveDimension(fileData?.naturalHeight) ??
-      getPositiveDimension(fileData?.height) ??
-      getPositiveDimension(targetImage.crop?.naturalHeight) ??
-      targetImage.height,
-  });
+  if (!fileData) {
+    throw new Error("Cannot export an AI mask without its source image file.");
+  }
+
+  return loadImageDimensions(fileData, signal);
 };
 
 const normalizeMaskCanvasSize = ({ width, height }: MaskCanvasSize) => ({
@@ -178,32 +249,137 @@ const normalizeMaskCanvasSize = ({ width, height }: MaskCanvasSize) => ({
   height: Math.max(1, Math.round(Math.abs(height))),
 });
 
-const getPositiveDimension = (dimension: number | undefined) => {
-  return typeof dimension === "number" && Number.isFinite(dimension)
-    ? Math.max(1, Math.round(Math.abs(dimension)))
-    : undefined;
+const loadImageDimensions = (
+  fileData: BinaryFileData,
+  signal?: AbortSignal,
+) => {
+  return new Promise<MaskCanvasSize>((resolve, reject) => {
+    const image = new Image();
+    let settled = false;
+
+    const finish = (
+      result:
+        | { status: "resolved"; value: MaskCanvasSize }
+        | { status: "rejected"; error: Error },
+    ) => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      cleanup();
+
+      if (result.status === "resolved") {
+        resolve(result.value);
+      } else {
+        reject(result.error);
+      }
+    };
+
+    const handleAbort = () => {
+      finish({ status: "rejected", error: createAbortError() });
+    };
+
+    const cleanup = () => {
+      window.clearTimeout(timeoutId);
+      image.onload = null;
+      image.onerror = null;
+      signal?.removeEventListener("abort", handleAbort);
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      finish({
+        status: "rejected",
+        error: new Error(
+          "Timed out while decoding the source image dimensions.",
+        ),
+      });
+    }, MASK_SOURCE_IMAGE_LOAD_TIMEOUT_MS);
+
+    image.onload = () => {
+      const width = image.naturalWidth || image.width;
+      const height = image.naturalHeight || image.height;
+
+      if (
+        !Number.isFinite(width) ||
+        !Number.isFinite(height) ||
+        width <= 0 ||
+        height <= 0
+      ) {
+        finish({
+          status: "rejected",
+          error: new Error("Could not determine the source image dimensions."),
+        });
+        return;
+      }
+
+      finish({
+        status: "resolved",
+        value: normalizeMaskCanvasSize({ width, height }),
+      });
+    };
+    image.onerror = () => {
+      finish({
+        status: "rejected",
+        error: new Error("Could not decode the source image dimensions."),
+      });
+    };
+
+    if (signal?.aborted) {
+      handleAbort();
+      return;
+    }
+
+    signal?.addEventListener("abort", handleAbort, { once: true });
+    try {
+      image.src = fileData.dataURL;
+    } catch {
+      finish({
+        status: "rejected",
+        error: new Error("Could not decode the source image dimensions."),
+      });
+    }
+  });
+};
+
+const createAbortError = () => {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException("AI mask export was aborted.", "AbortError");
+  }
+
+  return Object.assign(new Error("AI mask export was aborted."), {
+    name: "AbortError",
+  });
 };
 
 const drawMaskFreeDrawElement = (
   context: CanvasRenderingContext2D,
   targetImage: ExcalidrawImageElement,
   element: ExcalidrawFreeDrawElement,
-  canvasSize: MaskCanvasSize,
+  canvasTransform: MaskCanvasTransform,
 ) => {
   if (!element.points.length) {
     return;
   }
 
   context.strokeStyle = getMaskStrokeColor(element.strokeColor);
-  context.lineWidth = getScaledStrokeWidth(targetImage, element, canvasSize);
+  context.lineWidth = element.strokeWidth;
   context.lineCap = "round";
   context.lineJoin = "round";
+  context.save();
+  context.setTransform(
+    canvasTransform.scaleX,
+    0,
+    0,
+    canvasTransform.scaleY,
+    canvasTransform.translateX,
+    canvasTransform.translateY,
+  );
 
-  const [startX, startY] = localMaskPointToCanvasPoint(
+  const [startX, startY] = localMaskPointToDisplayPoint(
     targetImage,
     element,
     element.points[0],
-    canvasSize,
   );
 
   context.beginPath();
@@ -213,20 +389,17 @@ const drawMaskFreeDrawElement = (
     context.arc(startX, startY, context.lineWidth / 2, 0, Math.PI * 2);
     context.fillStyle = context.strokeStyle;
     context.fill();
+    context.restore();
     return;
   }
 
   for (const point of element.points.slice(1)) {
-    const [x, y] = localMaskPointToCanvasPoint(
-      targetImage,
-      element,
-      point,
-      canvasSize,
-    );
+    const [x, y] = localMaskPointToDisplayPoint(targetImage, element, point);
     context.lineTo(x, y);
   }
 
   context.stroke();
+  context.restore();
 };
 
 const getMaskStrokeColor = (strokeColor: string) =>
@@ -234,11 +407,10 @@ const getMaskStrokeColor = (strokeColor: string) =>
     ? "#000000"
     : "#ffffff";
 
-const localMaskPointToCanvasPoint = (
+export const localMaskPointToDisplayPoint = (
   targetImage: ExcalidrawImageElement,
   element: ExcalidrawFreeDrawElement,
   point: readonly [number, number],
-  canvasSize: MaskCanvasSize,
 ) => {
   const elementCenter = getElementCenter(element);
   const scenePoint = rotatePoint(
@@ -248,26 +420,8 @@ const localMaskPointToCanvasPoint = (
   );
   const targetCenter = getElementCenter(targetImage);
   const targetPoint = rotatePoint(scenePoint, targetCenter, -targetImage.angle);
-  const displaySize = getMaskCanvasSize(targetImage);
-  const scaleX = canvasSize.width / displaySize.width;
-  const scaleY = canvasSize.height / displaySize.height;
 
-  return [
-    (targetPoint[0] - targetImage.x) * scaleX,
-    (targetPoint[1] - targetImage.y) * scaleY,
-  ];
-};
-
-const getScaledStrokeWidth = (
-  targetImage: ExcalidrawImageElement,
-  element: ExcalidrawFreeDrawElement,
-  canvasSize: MaskCanvasSize,
-) => {
-  const displaySize = getMaskCanvasSize(targetImage);
-  const scaleX = canvasSize.width / displaySize.width;
-  const scaleY = canvasSize.height / displaySize.height;
-
-  return element.strokeWidth * Math.max(scaleX, scaleY);
+  return [targetPoint[0] - targetImage.x, targetPoint[1] - targetImage.y];
 };
 
 const getElementCenter = (

@@ -133,6 +133,12 @@ import {
   createCoreAIWorkflowCommands,
   createOfficeWorkflowCommands,
 } from "./ai/workflowCommands";
+import {
+  getOrCreateLocalDocumentId,
+  resolveAIWorkbenchPersistenceScope,
+  rotateLocalDocumentId,
+  shouldRotateLocalDocumentId,
+} from "./ai/workbenchPersistenceScope";
 
 import { localStore, shareLink, firebaseStore } from "./data/cloud";
 import { getCloudBackend } from "./data/cloud";
@@ -191,13 +197,37 @@ import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+import { AIVideoAssetPlayer } from "./components/AIVideoAssetPlayer";
 
-import { isLikelyVideoURL } from "./ai/videoCanvas";
+import {
+  buildAIVideoAssetLink,
+  getAIVideoAssetIdFromEmbeddable,
+  getAIVideoGenerationMetadataFromEmbeddable,
+  getAIVideoURLFromEmbeddable,
+  isValidAIVideoEmbeddable,
+} from "./ai/videoCanvas";
+import { seedVideoPlaybackURLCache } from "./ai/videoPlaybackURLCache";
+import {
+  assertAIVideoPersistenceContext,
+  resolveAIVideoPersistenceContextToken,
+} from "./ai/videoPersistenceContext";
+import { createAIVideoAssetMetadata } from "./ai/metadata";
+import {
+  createAIVideoMigrationSnapshot,
+  hasAIVideoGenerationMarker,
+  hasNonPortableAIVideo,
+  omitAIVideoMarkersForInitialCloudSave,
+  replaceAIVideoAssetIfCurrent,
+  sanitizeDeletedAIVideoMarkersForPersistence,
+} from "./ai/videoAssetMigration";
+import {
+  loadLocalAIVideoAsset,
+  persistLocalAIVideoURL,
+} from "./data/AIVideoURLVault";
 
 import type { CollabAPI } from "./collab/Collab";
 import type {
   AIGenerationLogEntry,
-  AIImageCustomData,
   AIMaskReadyPayload,
   AISkill,
   PromptTemplate,
@@ -208,12 +238,14 @@ import type {
   GenerationLogReuseRequest,
   PromptTemplateRequest,
 } from "./components/AppSidebar";
+import type { PersistAIVideoOutputInput } from "./components/AIImageWorkbench";
 import type {
   CollabRoomRecord,
   EmbedMode,
   ScenePayloadKind,
   SceneRecord,
   SceneSummary,
+  VideoAssetIngestResult,
 } from "./data/cloud";
 import type { CloudAITaskRun } from "./data/cloud/cloudAITasks";
 
@@ -340,6 +372,7 @@ const initializeScene = async (opts: {
 }): Promise<
   {
     scene: ExcalidrawInitialDataState | null;
+    didReplaceLocalScene?: boolean;
     activeCloudScene?: ActiveCloudScene | null;
     activeSharedScene?: ActiveSharedScene | null;
     activeEmbeddedScene?: ActiveEmbeddedScene | null;
@@ -378,6 +411,7 @@ const initializeScene = async (opts: {
   let activeEmbeddedScene: ActiveEmbeddedScene | null = null;
   let isCloudShareScene = false;
   let isCloudEmbedScene = false;
+  let didReplaceLocalScene = false;
   const isExternalScene = !!(
     id ||
     jsonBackendMatch ||
@@ -621,6 +655,7 @@ const initializeScene = async (opts: {
             localDataState?.appState,
           ),
         };
+        didReplaceLocalScene = true;
       }
       scene.scrollToContent = true;
       if (!roomLinkData && !cloudShareToken && !cloudEmbedToken) {
@@ -654,7 +689,7 @@ const initializeScene = async (opts: {
         !(scene.elements?.length ?? 0) ||
         (await openConfirmModal(shareableLinkConfirmDialog))
       ) {
-        return { scene: data, isExternalScene };
+        return { scene: data, isExternalScene, didReplaceLocalScene: true };
       }
     } catch (error: any) {
       return {
@@ -756,6 +791,7 @@ const initializeScene = async (opts: {
           isExternalScene,
           id: jsonBackendMatch[1],
           key: jsonBackendMatch[2],
+          didReplaceLocalScene,
         }
       : {
           scene,
@@ -774,6 +810,9 @@ const initializeScene = async (opts: {
 
 const ExcalidrawWrapper = () => {
   const excalidrawAPI = useExcalidrawAPI();
+  const [localDocumentId, setLocalDocumentId] = useState(
+    getOrCreateLocalDocumentId,
+  );
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isCloudAccountOpen, setIsCloudAccountOpen] = useState(false);
@@ -810,6 +849,7 @@ const ExcalidrawWrapper = () => {
     null,
   );
   const cloudSaveInFlightRef = useRef(false);
+  const migrateAIVideoAssetsRef = useRef<() => Promise<void>>(async () => {});
   const [aiPromptTemplates, setAIPromptTemplates] = useState<PromptTemplate[]>(
     getAllPromptTemplates,
   );
@@ -942,6 +982,55 @@ const ExcalidrawWrapper = () => {
   const [, setShareDialogState] = useAtom(shareDialogStateAtom);
   const [collabAPI] = useAtom(collabAPIAtom);
   const [collabRoomRefreshKey, setCollabRoomRefreshKey] = useState(0);
+  const commitNewAIWorkbenchLocalDocumentId = useCallback(() => {
+    setLocalDocumentId(rotateLocalDocumentId());
+  }, []);
+  const handleLocalSceneReplace = useCallback(() => {
+    if (
+      !shouldRotateLocalDocumentId({
+        hasActiveEmbeddedScene: !!activeEmbeddedSceneRef.current,
+        hasActiveSharedScene: !!activeSharedSceneRef.current,
+        hasActiveCloudScene: !!activeCloudSceneRef.current,
+        isCollaborating: !!collabAPI?.isCollaborating(),
+      })
+    ) {
+      return;
+    }
+
+    commitNewAIWorkbenchLocalDocumentId();
+  }, [collabAPI, commitNewAIWorkbenchLocalDocumentId]);
+  const activeCollaborationRoomId = (() => {
+    if (!collabAPI?.isCollaborating()) {
+      return null;
+    }
+
+    const activeRoomLink = collabAPI.getActiveRoomLink();
+    return activeRoomLink
+      ? getCollaborationLinkData(activeRoomLink)?.roomId ?? null
+      : null;
+  })();
+  const aiWorkbenchPersistenceScopeIdRef = useRef<string | null>(null);
+  const aiWorkbenchPersistenceScopeId = useMemo(
+    () =>
+      resolveAIWorkbenchPersistenceScope({
+        activeEmbeddedScene,
+        activeSharedScene,
+        activeCloudScene,
+        activeCollaboration: collabAPI?.isCollaborating()
+          ? { roomId: activeCollaborationRoomId }
+          : null,
+        localDocumentId,
+      }),
+    [
+      activeCollaborationRoomId,
+      activeCloudScene,
+      activeEmbeddedScene,
+      activeSharedScene,
+      collabAPI,
+      localDocumentId,
+    ],
+  );
+  aiWorkbenchPersistenceScopeIdRef.current = aiWorkbenchPersistenceScopeId;
   const [isCollaborating] = useAtomWithInitialValue(isCollaboratingAtom, () => {
     return isCollaborationLink(window.location.href);
   });
@@ -1236,6 +1325,9 @@ const ExcalidrawWrapper = () => {
           );
         }
       }
+      if (data.didReplaceLocalScene) {
+        commitNewAIWorkbenchLocalDocumentId();
+      }
       loadImages(data, /* isInitialLoad */ true);
       initialStatePromiseRef.current.promise.resolve(data.scene);
       if (data.isExternalScene && isCollaborationLink(window.location.href)) {
@@ -1291,6 +1383,9 @@ const ExcalidrawWrapper = () => {
                 ),
               );
             }
+          }
+          if (data.didReplaceLocalScene) {
+            commitNewAIWorkbenchLocalDocumentId();
           }
           loadImages(data);
           if (data.scene) {
@@ -1413,6 +1508,7 @@ const ExcalidrawWrapper = () => {
     setLangCode,
     loadImages,
     openCollaborationInputTarget,
+    commitNewAIWorkbenchLocalDocumentId,
   ]);
 
   useEffect(() => {
@@ -1477,17 +1573,37 @@ const ExcalidrawWrapper = () => {
       }
 
       try {
-        const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+        await migrateAIVideoAssetsRef.current();
+        let elements = sanitizeDeletedAIVideoMarkersForPersistence(
+          excalidrawAPI.getSceneElementsIncludingDeleted(),
+        );
+        const hasBlockedVideoAsset = hasNonPortableAIVideo(elements, {
+          allowLocalAssets: !activeCloudSceneRef.current?.id,
+        });
+        if (hasBlockedVideoAsset) {
+          if (!silent) {
+            excalidrawAPI.setToast({
+              message: t("ai.workbench.videoAssetCloudSaveBlocked"),
+            });
+          }
+          return false;
+        }
         const appState = excalidrawAPI.getAppState();
         const files = excalidrawAPI.getFiles();
-        const serializedPayload = serializeAsJSON(
+        let serializedPayload = serializeAsJSON(
           elements,
           appState,
           files,
           "database",
         );
-        const payloadHash = getCloudPayloadHash(serializedPayload);
-        const localFingerprint = getCloudSceneFingerprint(elements);
+        let payloadHash = getCloudPayloadHash(serializedPayload);
+        let localFingerprint = getCloudSceneFingerprint(elements);
+        const hadLocalVideoAssets = elements.some((element) => {
+          const metadata = getAIVideoGenerationMetadataFromEmbeddable(element);
+          return (
+            metadata?.version === 2 && metadata.assetId.startsWith("local:")
+          );
+        });
 
         let activeScene = activeCloudSceneRef.current;
         if (!activeScene) {
@@ -1514,6 +1630,29 @@ const ExcalidrawWrapper = () => {
           }
         }
 
+        if (activeScene && hadLocalVideoAssets) {
+          await migrateAIVideoAssetsRef.current();
+          elements = sanitizeDeletedAIVideoMarkersForPersistence(
+            excalidrawAPI.getSceneElementsIncludingDeleted(),
+          );
+          const stillHasLocalVideo = hasNonPortableAIVideo(elements);
+          if (stillHasLocalVideo) {
+            if (!silent) {
+              excalidrawAPI.setToast({
+                message: t("ai.workbench.videoAssetCloudSaveBlocked"),
+              });
+            }
+            return false;
+          }
+          serializedPayload = serializeAsJSON(
+            elements,
+            appState,
+            files,
+            "database",
+          );
+          payloadHash = getCloudPayloadHash(serializedPayload);
+          localFingerprint = getCloudSceneFingerprint(elements);
+        }
         if (silent && payloadHash === lastCloudSavedPayloadHashRef.current) {
           return false;
         }
@@ -1554,14 +1693,23 @@ const ExcalidrawWrapper = () => {
         if (activeScene?.payloadKind === "encrypted" && !encryptionKey) {
           throw new Error(t("cloud.e2e.missingKey"));
         }
+        const firstSaveSerializedPayload =
+          !activeScene && hadLocalVideoAssets
+            ? serializeAsJSON(
+                omitAIVideoMarkersForInitialCloudSave(elements),
+                appState,
+                files,
+                "database",
+              )
+            : serializedPayload;
         const scenePayload =
           activeScene?.payloadKind === "encrypted" && encryptionKey
             ? await backend.encryption.encryptScenePayload(
-                JSON.parse(serializedPayload),
+                JSON.parse(firstSaveSerializedPayload),
                 encryptionKey,
               )
-            : JSON.parse(serializedPayload);
-        const result = await backend.scenes.save({
+            : JSON.parse(firstSaveSerializedPayload);
+        let result = await backend.scenes.save({
           id: activeScene?.id ?? null,
           ownerId: cloudAuth.user.id,
           title,
@@ -1596,6 +1744,60 @@ const ExcalidrawWrapper = () => {
           console.warn(error);
         }
 
+        let finalUpdatedAt = now;
+        if (!activeScene && hadLocalVideoAssets) {
+          const provisionalScene: ActiveCloudScene = {
+            id: result.id,
+            ownerId: cloudAuth.user.id,
+            title,
+            payloadKind: "plain",
+            version: result.version,
+            createdAt: now,
+            updatedAt: now,
+          };
+          setActiveCloudScene(provisionalScene);
+          activeCloudSceneRef.current = provisionalScene;
+          lastCloudLocalPayloadHashRef.current = payloadHash;
+          lastCloudSavedPayloadHashRef.current = null;
+          saveCloudSceneBinding({
+            ...provisionalScene,
+            localPayloadHash: payloadHash,
+            localFingerprint,
+            savedPayloadHash: null,
+          });
+
+          await migrateAIVideoAssetsRef.current();
+          const migratedElements = sanitizeDeletedAIVideoMarkersForPersistence(
+            excalidrawAPI.getSceneElementsIncludingDeleted(),
+          );
+          const stillHasNonPortableVideo =
+            hasNonPortableAIVideo(migratedElements);
+          if (stillHasNonPortableVideo) {
+            throw new Error(t("ai.workbench.videoAssetCloudSaveBlocked"));
+          }
+
+          const migratedSerializedPayload = serializeAsJSON(
+            migratedElements,
+            excalidrawAPI.getAppState(),
+            excalidrawAPI.getFiles(),
+            "database",
+          );
+          payloadHash = getCloudPayloadHash(migratedSerializedPayload);
+          localFingerprint = getCloudSceneFingerprint(migratedElements);
+          finalUpdatedAt = Date.now();
+          result = await backend.scenes.save({
+            id: result.id,
+            ownerId: cloudAuth.user.id,
+            title,
+            payloadKind: "plain",
+            payload: JSON.parse(migratedSerializedPayload),
+            version: result.version,
+            createdAt: now,
+            updatedAt: finalUpdatedAt,
+            deletedAt: null,
+          });
+        }
+
         const nextActiveScene: ActiveCloudScene = {
           id: result.id,
           ownerId: cloudAuth.user.id,
@@ -1603,7 +1805,7 @@ const ExcalidrawWrapper = () => {
           payloadKind: activeScene?.payloadKind ?? "plain",
           version: result.version,
           createdAt: activeScene?.createdAt ?? now,
-          updatedAt: now,
+          updatedAt: finalUpdatedAt,
         };
 
         setActiveCloudScene(nextActiveScene);
@@ -1678,7 +1880,15 @@ const ExcalidrawWrapper = () => {
     }
 
     try {
-      const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+      const elements = sanitizeDeletedAIVideoMarkersForPersistence(
+        excalidrawAPI.getSceneElementsIncludingDeleted(),
+      );
+      if (hasNonPortableAIVideo(elements)) {
+        excalidrawAPI.setToast({
+          message: t("ai.workbench.videoAssetCloudSaveBlocked"),
+        });
+        return false;
+      }
       const appState = excalidrawAPI.getAppState();
       const files = excalidrawAPI.getFiles();
       const serializedPayload = serializeAsJSON(
@@ -1800,7 +2010,17 @@ const ExcalidrawWrapper = () => {
       }
 
       try {
-        const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+        const elements = sanitizeDeletedAIVideoMarkersForPersistence(
+          excalidrawAPI.getSceneElementsIncludingDeleted(),
+        );
+        if (hasNonPortableAIVideo(elements)) {
+          if (!silent) {
+            excalidrawAPI.setToast({
+              message: t("ai.workbench.videoAssetShareSaveBlocked"),
+            });
+          }
+          return false;
+        }
         const appState = excalidrawAPI.getAppState();
         const files = excalidrawAPI.getFiles();
         const serializedPayload = serializeAsJSON(
@@ -1935,7 +2155,17 @@ const ExcalidrawWrapper = () => {
       }
 
       try {
-        const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
+        const elements = sanitizeDeletedAIVideoMarkersForPersistence(
+          excalidrawAPI.getSceneElementsIncludingDeleted(),
+        );
+        if (hasNonPortableAIVideo(elements)) {
+          if (!silent) {
+            excalidrawAPI.setToast({
+              message: t("ai.workbench.videoAssetShareSaveBlocked"),
+            });
+          }
+          return false;
+        }
         const appState = excalidrawAPI.getAppState();
         const files = excalidrawAPI.getFiles();
         const serializedPayload = serializeAsJSON(
@@ -2383,6 +2613,7 @@ const ExcalidrawWrapper = () => {
         );
         const payloadHash = getCloudPayloadHash(serializedPayload);
         const localFingerprint = getCloudSceneFingerprint(elements);
+
         if (payloadHash === lastCloudLocalPayloadHashRef.current) {
           return;
         }
@@ -2567,6 +2798,9 @@ const ExcalidrawWrapper = () => {
   ) => {
     if (exportedElements.length === 0) {
       throw new Error(t("alerts.cannotExportEmptyCanvas"));
+    }
+    if (exportedElements.some(hasAIVideoGenerationMarker)) {
+      throw new Error(t("ai.workbench.videoAssetLegacyShareBlocked"));
     }
     try {
       const { url, errorMessage } = await exportToBackend(
@@ -2983,40 +3217,55 @@ const ExcalidrawWrapper = () => {
       const { pending, total } = FileStatusStore.getPendingCount(
         snapshot.value,
       );
-      if (pending === 0) {
-        return;
-      }
-
-      // Yield initial progress
-      yield {
-        type: "progress",
-        progress: (total - pending) / total,
-        message: `Loading images (${total - pending}/${total})...`,
-      };
-
-      // Wait for all pending images to finish
-      while (true) {
-        snapshot = await FileStatusStore.pull(snapshot.version);
-        const { pending: nowPending, total: nowTotal } =
-          FileStatusStore.getPendingCount(snapshot.value);
-
+      if (pending > 0) {
         yield {
           type: "progress",
-          progress: (nowTotal - nowPending) / nowTotal,
-          message: `Loading images (${nowTotal - nowPending}/${nowTotal})...`,
+          progress: (total - pending) / total,
+          message: t("ai.workbench.exportLoadingImages", {
+            loaded: total - pending,
+            total,
+          }),
         };
 
-        if (nowPending === 0) {
-          await new Promise((r) => setTimeout(r, 500));
+        while (true) {
+          snapshot = await FileStatusStore.pull(snapshot.version);
+          const { pending: nowPending, total: nowTotal } =
+            FileStatusStore.getPendingCount(snapshot.value);
+
           yield {
             type: "progress",
-            message: `Preparing export...`,
+            progress: (nowTotal - nowPending) / nowTotal,
+            message: t("ai.workbench.exportLoadingImages", {
+              loaded: nowTotal - nowPending,
+              total: nowTotal,
+            }),
           };
-          return;
+
+          if (nowPending === 0) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            break;
+          }
         }
       }
+
+      yield {
+        type: "progress",
+        message: t("ai.workbench.exportPreparing"),
+      };
+      await migrateAIVideoAssetsRef.current();
+
+      const latestElements = excalidrawAPI?.getSceneElements() ?? [];
+      const containsNonPortableVideo = hasNonPortableAIVideo(latestElements);
+      if (containsNonPortableVideo) {
+        excalidrawAPI?.setToast({
+          message: t("ai.workbench.videoAssetExportBlocked"),
+        });
+        return { cancel: true };
+      }
+
+      return { elements: latestElements };
     },
-    [],
+    [excalidrawAPI],
   );
 
   // const onExport = () => {
@@ -3034,53 +3283,455 @@ const ExcalidrawWrapper = () => {
     [aiPromptTemplates, excalidrawAPI, requestPromptTemplateApply],
   );
 
-  // DEMO (approach B): let AI-generated video URLs pass the embeddable gate so
-  // they can be rendered as an inline player. Excalidraw's default whitelist only
-  // allows known platforms (YouTube/Vimeo/…), so without this a raw CDN video URL
-  // would render as an empty label. Returning `undefined` for everything else
-  // falls back to the default validation.
+  const aiVideoMigrationInFlightRef = useRef(new Set<string>());
+
+  const aiVideoAssetContext = useMemo(() => {
+    if (activeEmbeddedScene) {
+      return {
+        id: `embed:${activeEmbeddedScene.token}:${activeEmbeddedScene.origin}`,
+        kind: "embed" as const,
+      };
+    }
+    if (activeSharedScene) {
+      return {
+        id: `share:${activeSharedScene.token}`,
+        kind: "share" as const,
+      };
+    }
+    if (activeCloudScene) {
+      return { id: `owner:${activeCloudScene.id}`, kind: "owner" as const };
+    }
+    return aiWorkbenchPersistenceScopeId
+      ? {
+          id: `local:${aiWorkbenchPersistenceScopeId}`,
+          kind: "local" as const,
+        }
+      : null;
+  }, [
+    activeCloudScene,
+    activeEmbeddedScene,
+    activeSharedScene,
+    aiWorkbenchPersistenceScopeId,
+  ]);
+
+  const resolveAIVideoAsset = useCallback(
+    async (assetId: string) => {
+      if (assetId.startsWith("local:")) {
+        if (activeCloudScene || activeSharedScene || activeEmbeddedScene) {
+          throw new Error(
+            "Local AI video assets are unavailable outside their local document.",
+          );
+        }
+        const asset = await loadLocalAIVideoAsset(assetId);
+        if (!asset) {
+          throw new Error("Local AI video asset is unavailable.");
+        }
+        return {
+          url: asset.url,
+          expiresAt: Date.now() + 5 * 60 * 1000,
+          mimeType: asset.mimeType,
+        };
+      }
+
+      const backend = getCloudBackend();
+      if (activeEmbeddedScene) {
+        const result = await backend.embed.loadScene(
+          activeEmbeddedScene.token,
+          activeEmbeddedScene.origin,
+        );
+        const asset = result.assets.find(
+          (candidate) => candidate.id === assetId,
+        );
+        if (!asset) {
+          throw new Error(
+            "AI video asset was not found in the embedded scene.",
+          );
+        }
+        return {
+          url: asset.url,
+          expiresAt: Date.now() + 50 * 60 * 1000,
+          mimeType: asset.mimeType || "video/mp4",
+        };
+      }
+
+      if (activeSharedScene) {
+        if (backend.videoAssets?.isAvailable()) {
+          return backend.videoAssets.resolve({
+            assetId,
+            access: { kind: "share", token: activeSharedScene.token },
+          });
+        }
+        const result = await backend.shares.loadScene(activeSharedScene.token);
+        const asset = result.assets.find(
+          (candidate) => candidate.id === assetId,
+        );
+        if (!asset) {
+          throw new Error("AI video asset was not found in the shared scene.");
+        }
+        return {
+          url: asset.url,
+          expiresAt: Date.now() + 50 * 60 * 1000,
+          mimeType: asset.mimeType || "video/mp4",
+        };
+      }
+
+      if (activeCloudScene) {
+        if (backend.videoAssets?.isAvailable()) {
+          return backend.videoAssets.resolve({
+            assetId,
+            access: { kind: "owner" },
+          });
+        }
+        return {
+          url: await backend.assets.getUrl(assetId),
+          expiresAt: Date.now() + 50 * 60 * 1000,
+          mimeType: "video/mp4",
+        };
+      }
+
+      throw new Error("AI video asset access is unavailable for this scene.");
+    },
+    [activeCloudScene, activeEmbeddedScene, activeSharedScene],
+  );
+
+  const persistActiveCloudVideoOutput = useCallback(
+    async ({
+      taskId,
+      output,
+      signal,
+    }: PersistAIVideoOutputInput): Promise<VideoAssetIngestResult | null> => {
+      const getCurrentContextToken = () =>
+        resolveAIVideoPersistenceContextToken({
+          activeCloudSceneId: activeCloudSceneRef.current?.id ?? null,
+          hasActiveSharedScene: !!activeSharedSceneRef.current,
+          hasActiveEmbeddedScene: !!activeEmbeddedSceneRef.current,
+          isCollaborating: !!collabAPI?.isCollaborating(),
+          localScopeId: aiWorkbenchPersistenceScopeIdRef.current,
+        });
+      const contextToken = getCurrentContextToken();
+      if (!contextToken) {
+        throw new Error(
+          "AI video output cannot be persisted in the current access context.",
+        );
+      }
+      const assertCurrentContext = () =>
+        assertAIVideoPersistenceContext(
+          contextToken,
+          getCurrentContextToken(),
+          signal,
+        );
+      assertCurrentContext();
+
+      const activeScene = activeCloudSceneRef.current;
+      const backend = getCloudBackend();
+      if (contextToken.startsWith("owner:")) {
+        if (
+          !activeScene ||
+          !backend.capabilities.remoteVideoAssets ||
+          !backend.videoAssets?.isAvailable()
+        ) {
+          throw new Error("Remote AI video asset persistence is unavailable.");
+        }
+        const asset = await backend.videoAssets.ingest({
+          sceneId: activeScene.id,
+          sourceUrl: output.videoURL,
+          expectedMimeType: output.mimeType,
+          idempotencyKey: taskId,
+          signal,
+        });
+        assertCurrentContext();
+        const resolution = await backend.videoAssets.resolve({
+          assetId: asset.assetId,
+          access: { kind: "owner" },
+          signal,
+        });
+        assertCurrentContext();
+        seedVideoPlaybackURLCache(contextToken, asset.assetId, resolution);
+        return asset;
+      }
+
+      const localAsset = await persistLocalAIVideoURL({
+        taskId,
+        url: output.videoURL,
+        mimeType: output.mimeType,
+      });
+      assertCurrentContext();
+      seedVideoPlaybackURLCache(contextToken, localAsset.assetId, {
+        url: localAsset.url,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+        mimeType: localAsset.mimeType,
+      });
+      return {
+        assetId: localAsset.assetId,
+        mimeType: localAsset.mimeType,
+        bytes: 0,
+      };
+    },
+    [collabAPI],
+  );
+
+  const migrateAIVideoAssets = useCallback(async () => {
+    const activeScene = activeCloudSceneRef.current;
+    const backend = getCloudBackend();
+    if (!excalidrawAPI) {
+      return;
+    }
+
+    const getCurrentMigrationContextToken = () =>
+      resolveAIVideoPersistenceContextToken({
+        activeCloudSceneId: activeCloudSceneRef.current?.id ?? null,
+        hasActiveSharedScene: !!activeSharedSceneRef.current,
+        hasActiveEmbeddedScene: !!activeEmbeddedSceneRef.current,
+        isCollaborating: !!collabAPI?.isCollaborating(),
+        localScopeId: aiWorkbenchPersistenceScopeIdRef.current,
+      });
+    const migrationContextToken = getCurrentMigrationContextToken();
+    if (!migrationContextToken) {
+      return;
+    }
+    const canIngestRemote =
+      migrationContextToken.startsWith("owner:") &&
+      !!activeScene &&
+      backend.capabilities.remoteVideoAssets &&
+      backend.videoAssets?.isAvailable();
+    const canPersistLocally = migrationContextToken.startsWith("local:");
+
+    const candidates = excalidrawAPI.getSceneElements().flatMap((element) => {
+      const metadata = getAIVideoGenerationMetadataFromEmbeddable(element);
+      if (element.type !== "embeddable" || !metadata) {
+        return [];
+      }
+
+      const candidate =
+        metadata.version === 1 &&
+        element.link === metadata.videoURL &&
+        (canIngestRemote || canPersistLocally)
+          ? {
+              kind: "legacy" as const,
+              element,
+              metadata,
+              sourceUrl: metadata.videoURL,
+              localAssetId: null,
+            }
+          : metadata.version === 2 &&
+            canIngestRemote &&
+            metadata.assetId.startsWith("local:") &&
+            element.link === buildAIVideoAssetLink(metadata.assetId)
+          ? {
+              kind: "local" as const,
+              element,
+              metadata,
+              sourceUrl: null,
+              localAssetId: metadata.assetId,
+            }
+          : null;
+      if (!candidate) {
+        return [];
+      }
+      const snapshot = createAIVideoMigrationSnapshot(
+        element,
+        migrationContextToken,
+      );
+      if (!snapshot) {
+        return [];
+      }
+
+      const signature = `${element.id}:${element.version}:${
+        candidate.sourceUrl ?? candidate.localAssetId
+      }`;
+      if (aiVideoMigrationInFlightRef.current.has(signature)) {
+        return [];
+      }
+      aiVideoMigrationInFlightRef.current.add(signature);
+      return [{ ...candidate, signature, snapshot }];
+    });
+
+    await Promise.all(
+      candidates.map(async (candidate) => {
+        const { element, metadata, signature } = candidate;
+        try {
+          let asset: VideoAssetIngestResult;
+          if (canIngestRemote && activeScene && backend.videoAssets) {
+            if (getCurrentMigrationContextToken() !== migrationContextToken) {
+              return;
+            }
+            const sourceUrl =
+              candidate.kind === "legacy"
+                ? candidate.sourceUrl
+                : (await loadLocalAIVideoAsset(candidate.localAssetId))?.url;
+            if (!sourceUrl) {
+              return;
+            }
+            asset = await backend.videoAssets.ingest({
+              sceneId: activeScene.id,
+              sourceUrl,
+              expectedMimeType: metadata.mimeType,
+              idempotencyKey: `${candidate.kind}-${element.id}-${element.version}`,
+            });
+            const resolution = await backend.videoAssets.resolve({
+              assetId: asset.assetId,
+              access: { kind: "owner" },
+            });
+            if (getCurrentMigrationContextToken() !== migrationContextToken) {
+              return;
+            }
+            seedVideoPlaybackURLCache(
+              migrationContextToken,
+              asset.assetId,
+              resolution,
+            );
+          } else if (candidate.kind === "legacy" && canPersistLocally) {
+            const localAsset = await persistLocalAIVideoURL({
+              taskId: `legacy-${element.id}-${element.version}`,
+              url: candidate.sourceUrl,
+              mimeType: metadata.mimeType,
+            });
+            asset = {
+              assetId: localAsset.assetId,
+              mimeType: localAsset.mimeType,
+              bytes: 0,
+            };
+            if (getCurrentMigrationContextToken() !== migrationContextToken) {
+              return;
+            }
+            seedVideoPlaybackURLCache(
+              migrationContextToken,
+              localAsset.assetId,
+              {
+                url: localAsset.url,
+                expiresAt: Date.now() + 5 * 60 * 1000,
+                mimeType: localAsset.mimeType,
+              },
+            );
+          } else {
+            return;
+          }
+
+          if (getCurrentMigrationContextToken() !== migrationContextToken) {
+            return;
+          }
+
+          const nextMetadata = createAIVideoAssetMetadata({
+            mode: metadata.mode,
+            model: metadata.model,
+            prompt: metadata.prompt,
+            params: metadata.params,
+            asset: {
+              ...asset,
+              durationSeconds: metadata.durationSeconds,
+              revisedPrompt: metadata.revisedPrompt,
+            },
+            createdAt: metadata.createdAt,
+          });
+          const currentContextToken = getCurrentMigrationContextToken();
+          if (!currentContextToken) {
+            return;
+          }
+          const replacement = replaceAIVideoAssetIfCurrent({
+            elements: excalidrawAPI.getSceneElements(),
+            snapshot: candidate.snapshot,
+            currentContextToken,
+            metadata: nextMetadata,
+          });
+          if (replacement.didReplace) {
+            excalidrawAPI.updateScene({
+              elements: replacement.elements,
+              captureUpdate: CaptureUpdateAction.NEVER,
+            });
+          }
+        } catch {
+          // Keep the complete legacy element unchanged. A later scene change or
+          // remount retries the idempotent ingest while the provider URL works.
+        } finally {
+          aiVideoMigrationInFlightRef.current.delete(signature);
+        }
+      }),
+    );
+  }, [collabAPI, excalidrawAPI]);
+
+  migrateAIVideoAssetsRef.current = migrateAIVideoAssets;
+
+  useEffect(() => {
+    if (!excalidrawAPI) {
+      return;
+    }
+    const scheduleMigration = () => {
+      window.setTimeout(() => void migrateAIVideoAssets(), 0);
+    };
+    scheduleMigration();
+    return excalidrawAPI.onChange(scheduleMigration);
+  }, [excalidrawAPI, migrateAIVideoAssets]);
+
+  // Only bypass the core embeddable whitelist for the current element when it
+  // carries valid AI video metadata matching its stable link or legacy URL.
   const validateEmbeddable = useCallback(
-    (link: string): boolean | undefined => {
-      return isLikelyVideoURL(link) ? true : undefined;
+    (
+      link: string,
+      element?: NonDeleted<ExcalidrawEmbeddableElement>,
+    ): boolean | undefined => {
+      return element &&
+        element.link === link &&
+        isValidAIVideoEmbeddable(element)
+        ? true
+        : undefined;
     },
     [],
   );
 
-  // DEMO (approach B): render AI-generated video embeddables as a native
-  // `<video controls>`. This renders directly in Excalidraw's DOM (not inside an
+  // Render validated AI-generated video embeddables as a native video player.
+  // This renders directly in Excalidraw's DOM (not inside an
   // iframe), so playback works for cross-origin CDN URLs without CORS headers —
   // unlike first-frame capture, plain playback never taints a canvas. Returning
   // `null` for non-video embeddables leaves them on the default iframe path.
   const renderEmbeddable = useCallback(
     (element: NonDeleted<ExcalidrawEmbeddableElement>, _appState: AppState) => {
-      const metadata = (element.customData as AIImageCustomData | undefined)
-        ?.aiVideoGeneration;
-      const videoURL = metadata?.videoURL || element.link;
+      const videoURL = getAIVideoURLFromEmbeddable(element);
+      const assetId = getAIVideoAssetIdFromEmbeddable(element);
 
-      if (!metadata || !videoURL || !isLikelyVideoURL(videoURL)) {
+      if (!videoURL && !assetId) {
         return null;
+      }
+
+      const playerStyle = {
+        width: "100%",
+        height: "100%",
+        objectFit: "contain" as const,
+        background: "#000",
+        borderRadius: "inherit",
+      };
+
+      if (assetId) {
+        if (!aiVideoAssetContext) {
+          return (
+            <div style={playerStyle} role="status">
+              {t("ai.workbench.videoAssetUnavailable")}
+            </div>
+          );
+        }
+        return (
+          <AIVideoAssetPlayer
+            assetId={assetId}
+            contextId={aiVideoAssetContext.id}
+            resolveAsset={() => resolveAIVideoAsset(assetId)}
+            style={playerStyle}
+          />
+        );
       }
 
       return (
         <video
-          src={videoURL}
+          src={videoURL || undefined}
           controls
           playsInline
           preload="metadata"
-          style={{
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            background: "#000",
-            borderRadius: "inherit",
-          }}
+          style={playerStyle}
           // Stop pointer events from bubbling to the canvas so the player's
           // controls (scrub/volume) work without moving the element.
           onPointerDown={(event) => event.stopPropagation()}
         />
       );
     },
-    [],
+    [aiVideoAssetContext, resolveAIVideoAsset],
   );
 
   const aiGenerationLogCommands = useMemo(
@@ -3192,6 +3843,7 @@ const ExcalidrawWrapper = () => {
     >
       <Excalidraw
         onChange={onChange}
+        onSceneReplace={handleLocalSceneReplace}
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
         isCollaborating={isCollaborating}
@@ -3314,6 +3966,14 @@ const ExcalidrawWrapper = () => {
               throw new Error(t("cloud.collabRooms.genericError"));
             }
             if (collabAPI.isCollaborating()) {
+              return;
+            }
+            if (
+              excalidrawAPI?.getSceneElements().some(hasAIVideoGenerationMarker)
+            ) {
+              excalidrawAPI.setToast({
+                message: t("ai.workbench.videoAssetCollabBlocked"),
+              });
               return;
             }
             void collabAPI.startCollaboration(room, {
@@ -3447,6 +4107,14 @@ const ExcalidrawWrapper = () => {
             if (collabAPI.isCollaborating()) {
               return;
             }
+            if (
+              excalidrawAPI?.getSceneElements().some(hasAIVideoGenerationMarker)
+            ) {
+              excalidrawAPI.setToast({
+                message: t("ai.workbench.videoAssetCollabBlocked"),
+              });
+              return;
+            }
             await collabAPI.startCollaboration(room, {
               preserveLocalScene: true,
             });
@@ -3458,6 +4126,7 @@ const ExcalidrawWrapper = () => {
 
         <AppSidebar
           excalidrawAPI={excalidrawAPI}
+          persistenceScopeId={aiWorkbenchPersistenceScopeId}
           referenceAddRequest={aiReferenceAddRequest}
           assistantSkillRequest={assistantSkillRequest}
           promptTemplateRequest={promptTemplateRequest}
@@ -3466,6 +4135,7 @@ const ExcalidrawWrapper = () => {
           onEnterMaskEditing={requestEnterMaskEditing}
           onMaskReady={registerWorkbenchMaskReadyHandler}
           onCloudAITaskRun={recordActiveCloudAITask}
+          onPersistVideoOutput={persistActiveCloudVideoOutput}
         />
 
         {errorMessage && (

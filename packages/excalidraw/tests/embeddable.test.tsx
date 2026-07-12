@@ -1,3 +1,8 @@
+import type {
+  ExcalidrawEmbeddableElement,
+  NonDeleted,
+} from "@excalidraw/element/types";
+
 import { Excalidraw } from "../index";
 import { createPasteEvent } from "../clipboard";
 
@@ -195,5 +200,51 @@ describe("embeddables", () => {
     await pasteEmbeddable(bilibiliIframe, bilibiliPlayerLink);
 
     await expectBilibiliIframeLoaded();
+  });
+
+  it("keeps a custom-validated embeddable valid after submitting its unchanged link", async () => {
+    const opaqueVideoLink =
+      "https://cdn.example.com/opaque?X-Amz-Signature=keep";
+    const embeddable = {
+      ...API.createElement({
+        type: "embeddable",
+        x: 0,
+        y: 0,
+        width: 560,
+        height: 315,
+      }),
+      link: opaqueVideoLink,
+      customData: { aiVideoGeneration: { version: 1 } },
+    } as unknown as NonDeleted<ExcalidrawEmbeddableElement>;
+    const validateEmbeddable = vi.fn(
+      (_link: string, element?: NonDeleted<ExcalidrawEmbeddableElement>) =>
+        element ? true : undefined,
+    );
+
+    await render(<Excalidraw validateEmbeddable={validateEmbeddable} />);
+    API.setElements([embeddable]);
+
+    API.setAppState({
+      selectedElementIds: { [embeddable.id]: true },
+      showHyperlinkPopup: "editor",
+    });
+    const input = await waitFor(() => {
+      const linkInput = document.querySelector(
+        ".excalidraw-hyperlinkContainer-input",
+      );
+      expect(linkInput).not.toBe(null);
+      return linkInput as HTMLInputElement;
+    });
+
+    fireEvent.change(input, { target: { value: opaqueVideoLink } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(window.h.state.toast).toBe(null);
+      expect(validateEmbeddable).toHaveBeenLastCalledWith(
+        opaqueVideoLink,
+        expect.objectContaining({ id: embeddable.id }),
+      );
+    });
   });
 });

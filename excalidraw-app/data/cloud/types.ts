@@ -39,6 +39,7 @@ export interface BackendCapabilities {
   embed: boolean;
   encryptedCloudStorage: boolean;
   aiGateway: boolean;
+  remoteVideoAssets?: boolean;
 }
 
 // —— Domain types (shared across interfaces) ——
@@ -94,6 +95,7 @@ export type SceneMetadata = SceneSummary;
 export type AssetType =
   | "image"
   | "ai-output"
+  | "ai-video-output"
   | "recording"
   | "export"
   | "embed-preview";
@@ -382,6 +384,43 @@ export interface AssetStorage {
   listByScene(sceneId: string): Promise<AssetRef[]>;
 }
 
+export type VideoAssetAccessContext =
+  | { kind: "owner" }
+  | { kind: "share"; token: string }
+  | { kind: "embed"; token: string; origin: string }
+  | { kind: "collab"; accessToken: string };
+
+export type VideoAssetIngestResult = {
+  assetId: string;
+  mimeType: string;
+  bytes: number;
+  width?: number;
+  height?: number;
+  durationSeconds?: number;
+};
+
+export type VideoAssetResolution = {
+  url: string;
+  expiresAt: number;
+  mimeType: string;
+};
+
+export interface VideoAssetService {
+  isAvailable(): boolean;
+  ingest(input: {
+    sceneId: string;
+    sourceUrl: string;
+    expectedMimeType?: string;
+    idempotencyKey: string;
+    signal?: AbortSignal;
+  }): Promise<VideoAssetIngestResult>;
+  resolve(input: {
+    assetId: string;
+    access: VideoAssetAccessContext;
+    signal?: AbortSignal;
+  }): Promise<VideoAssetResolution>;
+}
+
 // —— Share (BR-SHARE, Phase 2; D5: read/write/revocable) ——
 export interface ShareService {
   create(input: { sceneId: string; mode: ShareMode }): Promise<ShareLink>;
@@ -541,6 +580,7 @@ export interface CloudBackend {
   auth: AuthProvider;
   scenes: SceneStorage;
   assets: AssetStorage;
+  videoAssets?: VideoAssetService;
   shares: ShareService;
   aiTasks: AITaskService;
   activity: SceneActivityService;

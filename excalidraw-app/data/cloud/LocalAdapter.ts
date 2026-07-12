@@ -29,6 +29,7 @@ import type {
   SceneActivityService,
   SceneStorage,
   ShareService,
+  VideoAssetService,
 } from "./types";
 
 export const createLocalAuthProvider = (): AuthProvider => ({
@@ -56,6 +57,12 @@ export const createLocalAssetStorage = (): AssetStorage => ({
   getUrl: async () => notConfigured(),
   remove: async () => notConfigured(),
   listByScene: async () => notConfigured(),
+});
+
+export const createLocalVideoAssetService = (): VideoAssetService => ({
+  isAvailable: () => false,
+  ingest: async () => notConfigured(),
+  resolve: async () => notConfigured(),
 });
 
 export const createLocalShareService = (): ShareService => ({

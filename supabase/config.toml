@@ -1,0 +1,7 @@
+project_id = "excalidraw-self-hosted"
+
+[functions.ai-video-ingest]
+verify_jwt = true
+
+[functions.video-asset-resolve]
+verify_jwt = false

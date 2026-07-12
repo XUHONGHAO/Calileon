@@ -1,15 +1,19 @@
-import { useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+
+import { t } from "@excalidraw/excalidraw/i18n";
 
 import { MASK_BRUSH_SIZE_LIMITS } from "../ai/maskCanvas";
+import {
+  expandMaskViewportGeometry,
+  getMaskViewportBoxStyle,
+  isPointInMaskViewportGeometry,
+} from "../ai/maskViewportGeometry";
 
 import "./AIMaskEditingOverlay.scss";
 
-export type AIMaskEditingTargetBounds = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-};
+import type { MaskViewportGeometry } from "../ai/maskViewportGeometry";
+
+export type AIMaskEditingTargetBounds = MaskViewportGeometry;
 
 type AIMaskEditingOverlayProps = {
   targetImageId: string;
@@ -18,9 +22,13 @@ type AIMaskEditingOverlayProps = {
   brushSize: number;
   zoomValue: number;
   maskPreviewDataURL: string | null;
+  isDonePending: boolean;
   onBrushSizeChange: (size: number) => void;
-  onDone: () => void;
+  onDone: () => void | Promise<void>;
   onCancel: () => void;
+  onMaskPointerDown: (clientX: number, clientY: number) => void;
+  onMaskPointerMove: (clientX: number, clientY: number) => void;
+  onMaskPointerUp: () => void;
 };
 
 const HIGHLIGHT_PADDING = 8;
@@ -32,24 +40,47 @@ export const AIMaskEditingOverlay = ({
   brushSize,
   zoomValue,
   maskPreviewDataURL,
+  isDonePending,
   onBrushSizeChange,
   onDone,
   onCancel,
+  onMaskPointerDown,
+  onMaskPointerMove,
+  onMaskPointerUp,
 }: AIMaskEditingOverlayProps) => {
   const maskId = `ai-mask-${useId().replace(/:/g, "")}`;
   const [cursorPosition, setCursorPosition] = useState<{
     x: number;
     y: number;
   } | null>(null);
+  const activePointerIdRef = useRef<number | null>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const paddedBounds = targetBounds
-    ? {
-        x: targetBounds.x - HIGHLIGHT_PADDING,
-        y: targetBounds.y - HIGHLIGHT_PADDING,
-        width: targetBounds.width + HIGHLIGHT_PADDING * 2,
-        height: targetBounds.height + HIGHLIGHT_PADDING * 2,
-      }
+    ? expandMaskViewportGeometry(targetBounds, HIGHLIGHT_PADDING)
     : null;
   const cursorSize = Math.max(2, brushSize * zoomValue);
+  const finishActivePointer = useCallback(
+    (pointerId?: number) => {
+      if (
+        activePointerIdRef.current === null ||
+        (pointerId !== undefined && activePointerIdRef.current !== pointerId)
+      ) {
+        return;
+      }
+
+      activePointerIdRef.current = null;
+      onMaskPointerUp();
+    },
+    [onMaskPointerUp],
+  );
+
+  useEffect(() => {
+    overlayRef.current
+      ?.querySelector<HTMLElement>(
+        "button:not([disabled]), input:not([disabled])",
+      )
+      ?.focus();
+  }, []);
 
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
@@ -58,11 +89,10 @@ export const AIMaskEditingOverlay = ({
         return;
       }
 
-      const isWithinTarget =
-        event.clientX >= targetBounds.x &&
-        event.clientX <= targetBounds.x + targetBounds.width &&
-        event.clientY >= targetBounds.y &&
-        event.clientY <= targetBounds.y + targetBounds.height;
+      const isWithinTarget = isPointInMaskViewportGeometry(targetBounds, [
+        event.clientX,
+        event.clientY,
+      ]);
 
       setCursorPosition(
         isWithinTarget ? { x: event.clientX, y: event.clientY } : null,
@@ -82,19 +112,49 @@ export const AIMaskEditingOverlay = ({
     };
   }, [targetBounds]);
 
+  useEffect(() => {
+    const handleWindowPointerUp = (event: PointerEvent) => {
+      finishActivePointer(event.pointerId);
+    };
+    const handleWindowBlur = () => {
+      finishActivePointer();
+    };
+
+    window.addEventListener("pointerup", handleWindowPointerUp, true);
+    window.addEventListener("pointercancel", handleWindowPointerUp, true);
+    window.addEventListener("blur", handleWindowBlur);
+
+    return () => {
+      window.removeEventListener("pointerup", handleWindowPointerUp, true);
+      window.removeEventListener("pointercancel", handleWindowPointerUp, true);
+      window.removeEventListener("blur", handleWindowBlur);
+    };
+  }, [finishActivePointer]);
+
   return (
-    <div className="AIMaskEditingOverlay" data-target-image-id={targetImageId}>
+    <div
+      ref={overlayRef}
+      className="AIMaskEditingOverlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("ai.workbench.maskEditor.drawing")}
+      tabIndex={-1}
+      data-target-image-id={targetImageId}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerMove={(event) => event.stopPropagation()}
+      onPointerUp={(event) => event.stopPropagation()}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
+    >
       <svg className="AIMaskEditingOverlay__backdrop" aria-hidden="true">
         <defs>
           <mask id={maskId} maskUnits="userSpaceOnUse">
             <rect x="0" y="0" width="100%" height="100%" fill="white" />
             {paddedBounds && (
-              <rect
-                x={paddedBounds.x}
-                y={paddedBounds.y}
-                width={paddedBounds.width}
-                height={paddedBounds.height}
-                rx="10"
+              <polygon
+                points={toPolygonPoints(paddedBounds.corners)}
                 fill="black"
               />
             )}
@@ -109,16 +169,67 @@ export const AIMaskEditingOverlay = ({
           mask={`url(#${maskId})`}
         />
         {paddedBounds && (
-          <rect
-            x={paddedBounds.x}
-            y={paddedBounds.y}
-            width={paddedBounds.width}
-            height={paddedBounds.height}
-            rx="10"
+          <polygon
+            points={toPolygonPoints(paddedBounds.corners)}
             className="AIMaskEditingOverlay__focusRing"
           />
         )}
       </svg>
+
+      {targetBounds && (
+        <div
+          className="AIMaskEditingOverlay__drawingSurface"
+          data-testid="mask-drawing-surface"
+          style={getMaskViewportBoxStyle(targetBounds)}
+          onPointerDown={(event) => {
+            if (
+              event.button !== 0 ||
+              isDonePending ||
+              activePointerIdRef.current !== null
+            ) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            activePointerIdRef.current = event.pointerId;
+            try {
+              event.currentTarget.setPointerCapture?.(event.pointerId);
+            } catch {
+              // Pointer capture polyfills may reject synthetic pointer ids.
+            }
+            onMaskPointerDown(event.clientX, event.clientY);
+          }}
+          onPointerMove={(event) => {
+            if (activePointerIdRef.current !== event.pointerId) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            onMaskPointerMove(event.clientX, event.clientY);
+          }}
+          onPointerUp={(event) => {
+            if (activePointerIdRef.current !== event.pointerId) {
+              return;
+            }
+
+            event.preventDefault();
+            event.stopPropagation();
+            finishActivePointer(event.pointerId);
+          }}
+          onPointerCancel={(event) => {
+            if (activePointerIdRef.current !== event.pointerId) {
+              return;
+            }
+
+            finishActivePointer(event.pointerId);
+          }}
+          onLostPointerCapture={(event) => {
+            finishActivePointer(event.pointerId);
+          }}
+        />
+      )}
 
       {targetBounds && maskPreviewDataURL && (
         <img
@@ -126,12 +237,7 @@ export const AIMaskEditingOverlay = ({
           src={maskPreviewDataURL}
           alt=""
           aria-hidden="true"
-          style={{
-            left: targetBounds.x,
-            top: targetBounds.y,
-            width: targetBounds.width,
-            height: targetBounds.height,
-          }}
+          style={getMaskViewportBoxStyle(targetBounds)}
         />
       )}
 
@@ -154,28 +260,30 @@ export const AIMaskEditingOverlay = ({
       <div className="AIMaskEditingOverlay__toolbar" role="status">
         <span>
           {isErasing
-            ? "Erasing mask | Press E to draw"
-            : "Drawing (white brush) | Press E to erase"}
+            ? t("ai.workbench.maskEditor.erasing")
+            : t("ai.workbench.maskEditor.drawing")}
         </span>
         <div className="AIMaskEditingOverlay__buttons">
-          <button type="button" onClick={onDone}>
-            Done
+          <button type="button" disabled={isDonePending} onClick={onDone}>
+            {t("ai.workbench.maskEditor.done")}
           </button>
-          <button type="button" onClick={onCancel}>
-            Cancel
+          <button type="button" disabled={isDonePending} onClick={onCancel}>
+            {t("ai.workbench.maskEditor.cancel")}
           </button>
         </div>
       </div>
 
       <div className="AIMaskEditingOverlay__brushToolbar">
         <label>
-          <span>Brush size: {brushSize}px</span>
+          <span>
+            {t("ai.workbench.maskEditor.brushSize", { size: brushSize })}
+          </span>
           <input
             type="range"
             min={MASK_BRUSH_SIZE_LIMITS.min}
             max={MASK_BRUSH_SIZE_LIMITS.max}
             value={brushSize}
-            aria-label="Brush size"
+            aria-label={t("ai.workbench.maskEditor.brushSizeLabel")}
             onChange={(event) =>
               onBrushSizeChange(Number(event.currentTarget.value))
             }
@@ -185,8 +293,13 @@ export const AIMaskEditingOverlay = ({
 
       {maskPreviewDataURL && (
         <aside className="AIMaskEditingOverlay__preview">
-          <div className="AIMaskEditingOverlay__previewTitle">Mask preview</div>
-          <img src={maskPreviewDataURL} alt="Mask preview" />
+          <div className="AIMaskEditingOverlay__previewTitle">
+            {t("ai.workbench.maskEditor.preview")}
+          </div>
+          <img
+            src={maskPreviewDataURL}
+            alt={t("ai.workbench.maskEditor.preview")}
+          />
         </aside>
       )}
     </div>
@@ -201,3 +314,6 @@ const isMaskEditingControlTarget = (target: EventTarget | null) => {
     )
   );
 };
+
+const toPolygonPoints = (corners: MaskViewportGeometry["corners"]) =>
+  corners.map(([x, y]) => `${x},${y}`).join(" ");

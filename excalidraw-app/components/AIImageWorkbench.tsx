@@ -61,7 +61,7 @@ import {
 } from "../ai/videoTaskStore";
 import {
   createAIImageGenerationMetadata,
-  createAIVideoGenerationMetadata,
+  createAIVideoAssetMetadata,
 } from "../ai/metadata";
 import {
   appendAIGenerationLog,
@@ -75,6 +75,10 @@ import {
 } from "../ai/promptTemplates";
 import { createAIReferenceId } from "../ai/referenceIds";
 import { createAIOpenSettingsEvent } from "../ai/workflowEvents";
+import {
+  getLegacyAIWorkbenchMaskKey,
+  getLegacyAIWorkbenchReferenceKey,
+} from "../ai/workbenchPersistenceScope";
 
 import {
   createGeneratedAssetReferenceSource,
@@ -96,7 +100,6 @@ import {
   validatePromptReferences,
 } from "./AIImageWorkbenchReferences";
 import {
-  getMaskPersistenceKey,
   loadPersistedMaskState,
   persistMaskState,
 } from "./AIImageWorkbenchMasks";
@@ -128,6 +131,7 @@ import type {
   AIMaskReadyPayload,
   AIReferenceExportOptions,
   AIVideoGenerationMode,
+  AIVideoGenerationOutput,
   PendingVideoTask,
   PromptTemplate,
   PromptTemplateCategory,
@@ -137,6 +141,13 @@ import type { PromptEditorHandle } from "./AIImageWorkbenchPromptEditor";
 import type { AIImageWorkbenchRunStatus } from "./AIImageWorkbenchStatus";
 import type { GeneratedAsset } from "./AIImageWorkbenchAssets";
 import type { CloudAITaskRun } from "../data/cloud/cloudAITasks";
+import type { VideoAssetIngestResult } from "../data/cloud";
+
+export type PersistAIVideoOutputInput = {
+  taskId: string;
+  output: AIVideoGenerationOutput;
+  signal: AbortSignal;
+};
 
 const DEFAULT_PARAMS: AIImageGenerationParams = {
   size: "1024x1024",
@@ -248,6 +259,10 @@ type AIImageWorkbenchProps = {
   onSendPromptToAssistant?: (prompt: string) => void;
   referenceAddRequest?: { id: number } | null;
   onCloudAITaskRun?: (run: CloudAITaskRun) => void | Promise<void>;
+  onPersistVideoOutput?: (
+    input: PersistAIVideoOutputInput,
+  ) => Promise<VideoAssetIngestResult | null>;
+  persistenceScopeId?: string | null;
 };
 
 const isAIModelMediaType = (value: unknown): value is AIModelMediaType => {
@@ -516,6 +531,8 @@ export const AIImageWorkbench = ({
   onSendPromptToAssistant,
   referenceAddRequest,
   onCloudAITaskRun,
+  onPersistVideoOutput,
+  persistenceScopeId,
 }: AIImageWorkbenchProps) => {
   const [initialState] = useState(() => ({
     config: loadAIImageConfig(),
@@ -807,6 +824,10 @@ export const AIImageWorkbench = ({
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isSubmittingVideo, setIsSubmittingVideo] = useState(false);
+  const [isRestoringPersistence, setIsRestoringPersistence] = useState(
+    !!persistenceScopeId,
+  );
   const [runStatus, setRunStatus] = useState<AIImageWorkbenchRunStatus>("idle");
   // In-flight async video tasks (submit -> poll). Persisted to localStorage so
   // polling resumes after a page refresh; see decision 0015.
@@ -819,6 +840,8 @@ export const AIImageWorkbench = ({
   const videoPollControllersRef = useRef<Map<string, AbortController>>(
     new Map(),
   );
+  const videoSubmitControllerRef = useRef<AbortController | null>(null);
+  const videoSubmitTimeoutRef = useRef<number | null>(null);
   const didResumeVideoTasksRef = useRef(false);
   const activeRunIdRef = useRef(0);
   const generationTimeoutRef = useRef<number | null>(null);
@@ -835,6 +858,12 @@ export const AIImageWorkbench = ({
   const didRestoreMasksRef = useRef(false);
   const skipNextMaskPersistenceRef = useRef(false);
   const persistMaskTimeoutRef = useRef<number | null>(null);
+  const persistenceRestoreRunIdRef = useRef(0);
+  const restoredPersistenceScopeRef = useRef<string | null>(null);
+  const lastPersistenceScopeIdRef = useRef<string | null>(
+    persistenceScopeId || null,
+  );
+  const persistenceScopeIdRef = useRef(persistenceScopeId);
   const excalidrawAPIRef = useRef(excalidrawAPI);
   const generationStateRef = useRef({
     config,
@@ -849,6 +878,7 @@ export const AIImageWorkbench = ({
     selectedSources,
   });
   excalidrawAPIRef.current = excalidrawAPI;
+  persistenceScopeIdRef.current = persistenceScopeId;
 
   generationStateRef.current = {
     config,
@@ -960,35 +990,45 @@ export const AIImageWorkbench = ({
     // for the component's lifetime, so this reference stays valid.
     const videoPollControllers = videoPollControllersRef.current;
     const flushWorkbenchMediaState = () => {
+      if (persistReferenceTimeoutRef.current !== null) {
+        window.clearTimeout(persistReferenceTimeoutRef.current);
+        persistReferenceTimeoutRef.current = null;
+      }
+      if (persistMaskTimeoutRef.current !== null) {
+        window.clearTimeout(persistMaskTimeoutRef.current);
+        persistMaskTimeoutRef.current = null;
+      }
       const api = excalidrawAPIRef.current;
+      const scopeId = persistenceScopeIdRef.current;
 
-      if (!api) {
+      if (!api || !scopeId) {
         return;
       }
 
+      const legacyInput = {
+        pathname: window.location.pathname,
+        search: window.location.search,
+        sceneName: api.getAppState().name,
+      };
+
       if (didRestoreReferenceImagesRef.current) {
         const sources = generationStateRef.current.selectedSources;
-        const key = getReferencePersistenceKey(api);
-
-        if (sources.length) {
-          persistReferenceState(key, {
+        void persistReferenceState(
+          scopeId,
+          {
             locked: isReferenceLockedRef.current,
             images: sources,
-          });
-        } else {
-          try {
-            localStorage.removeItem(key);
-          } catch {
-            // Ignore storage failures during page teardown.
-          }
-        }
+          },
+          getLegacyAIWorkbenchReferenceKey(legacyInput),
+        ).catch((error) => console.error(error));
       }
 
       if (didRestoreMasksRef.current) {
-        persistMaskState(
-          getMaskPersistenceKey(api),
+        void persistMaskState(
+          scopeId,
           generationStateRef.current.inpaintDraft.masksByImageId,
-        );
+          getLegacyAIWorkbenchMaskKey(legacyInput),
+        ).catch((error) => console.error(error));
       }
     };
 
@@ -1001,10 +1041,17 @@ export const AIImageWorkbench = ({
       activeRunIdRef.current += 1;
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
+      videoSubmitControllerRef.current?.abort();
+      videoSubmitControllerRef.current = null;
 
       if (generationTimeoutRef.current !== null) {
         window.clearTimeout(generationTimeoutRef.current);
         generationTimeoutRef.current = null;
+      }
+
+      if (videoSubmitTimeoutRef.current !== null) {
+        window.clearTimeout(videoSubmitTimeoutRef.current);
+        videoSubmitTimeoutRef.current = null;
       }
 
       if (persistReferenceTimeoutRef.current !== null) {
@@ -1322,24 +1369,29 @@ export const AIImageWorkbench = ({
     inpaintSourceCandidates[0]?.fileId
       ? inpaintSourceCandidates[0]
       : null;
-  const { canGenerate, requiresMask, requiresReference, statusStripItems } =
-    createAIImageWorkbenchStatus({
-      mediaType,
-      mode,
-      selectedModelLabel: selectedModel
-        ? selectedModel.siteName || selectedModel.model
-        : null,
-      hasSelectedModelBaseURL: hasSelectedModelEndpoint,
-      selectedModelId,
-      prompt,
-      modelSupportsMode,
-      referenceCount: availableSelectedSources.length,
-      selectedImageCount: inpaintSourceCandidates.length,
-      hasCurrentMask: !!currentMask,
-      hasExcalidrawAPI: !!excalidrawAPI,
-      isGenerating,
-      runStatus,
-    });
+  const {
+    canGenerate: canGenerateFromStatus,
+    requiresMask,
+    requiresReference,
+    statusStripItems,
+  } = createAIImageWorkbenchStatus({
+    mediaType,
+    mode,
+    selectedModelLabel: selectedModel
+      ? selectedModel.siteName || selectedModel.model
+      : null,
+    hasSelectedModelBaseURL: hasSelectedModelEndpoint,
+    selectedModelId,
+    prompt,
+    modelSupportsMode,
+    referenceCount: availableSelectedSources.length,
+    selectedImageCount: inpaintSourceCandidates.length,
+    hasCurrentMask: !!currentMask,
+    hasExcalidrawAPI: !!excalidrawAPI,
+    isGenerating,
+    runStatus,
+  });
+  const canGenerate = canGenerateFromStatus && !isRestoringPersistence;
   const configurationNotice = getAIImageWorkbenchConfigurationNotice({
     mediaType,
     hasModelsForMediaType: modelsForMediaType.length > 0,
@@ -1351,6 +1403,8 @@ export const AIImageWorkbench = ({
   const hasActiveVideoTasks = pendingVideoTasks.length > 0;
   const canGenerateVideo =
     mediaType === "video" &&
+    !isRestoringPersistence &&
+    !isSubmittingVideo &&
     !hasActiveVideoTasks &&
     !!prompt.trim() &&
     !!selectedModelId &&
@@ -1616,31 +1670,143 @@ export const AIImageWorkbench = ({
   }, [mode]);
 
   useEffect(() => {
-    if (!excalidrawAPI || didRestoreReferenceImagesRef.current) {
+    const runId = ++persistenceRestoreRunIdRef.current;
+    const previousScopeId = lastPersistenceScopeIdRef.current;
+    const scopeChanged = previousScopeId !== (persistenceScopeId || null);
+    lastPersistenceScopeIdRef.current = persistenceScopeId || null;
+    didRestoreReferenceImagesRef.current = false;
+    didRestoreMasksRef.current = false;
+    restoredPersistenceScopeRef.current = null;
+
+    if (scopeChanged) {
+      isReferenceLockedRef.current = false;
+      setIsReferenceLocked(false);
+      setSelectedSources([]);
+      setActiveDraftState((current) => ({
+        ...current,
+        imageModes: {
+          ...current.imageModes,
+          inpaint: {
+            ...current.imageModes.inpaint,
+            masksByImageId: {},
+          },
+        },
+      }));
+    }
+
+    if (!excalidrawAPI || !persistenceScopeId) {
+      setIsRestoringPersistence(false);
       return;
     }
 
-    didRestoreReferenceImagesRef.current = true;
-    const savedState = loadPersistedReferenceState(
-      getReferencePersistenceKey(excalidrawAPI),
+    setIsRestoringPersistence(true);
+    const legacyInput = {
+      pathname: window.location.pathname,
+      search: window.location.search,
+      sceneName: excalidrawAPI.getAppState().name,
+    };
+
+    const isCurrentRestore = () =>
+      mountedRef.current && persistenceRestoreRunIdRef.current === runId;
+    let pendingRestores = 2;
+    const finishRestoreKind = () => {
+      if (!isCurrentRestore()) {
+        return;
+      }
+      pendingRestores -= 1;
+      restoredPersistenceScopeRef.current = persistenceScopeId;
+      if (pendingRestores === 0) {
+        setIsRestoringPersistence(false);
+      }
+    };
+
+    void loadPersistedReferenceState(
+      persistenceScopeId,
       excalidrawAPI.getFiles(),
-    );
+      getLegacyAIWorkbenchReferenceKey(legacyInput),
+    )
+      .then((savedReferences) => {
+        if (!isCurrentRestore()) {
+          return;
+        }
+        if (savedReferences?.images.length) {
+          isReferenceLockedRef.current = savedReferences.locked;
+          setIsReferenceLocked(savedReferences.locked);
+          skipNextReferencePersistenceRef.current = true;
+          setSelectedSources(reindexReferenceImages(savedReferences.images));
+        }
+      })
+      .catch((error) => {
+        if (isCurrentRestore()) {
+          console.error("Could not restore AI reference images", error);
+        }
+      })
+      .finally(() => {
+        if (!isCurrentRestore()) {
+          return;
+        }
+        didRestoreReferenceImagesRef.current = true;
+        finishRestoreKind();
+      });
 
-    if (!savedState?.images.length) {
-      return;
-    }
+    void loadPersistedMaskState(
+      persistenceScopeId,
+      getLegacyAIWorkbenchMaskKey(legacyInput),
+      () =>
+        new Set(
+          excalidrawAPI
+            .getSceneElements()
+            .filter((element) => element.type === "image")
+            .map((element) => element.id),
+        ),
+    )
+      .then((restoredMasks) => {
+        if (!isCurrentRestore() || !Object.keys(restoredMasks).length) {
+          return;
+        }
+        skipNextMaskPersistenceRef.current = true;
+        setActiveDraftState((current) => ({
+          ...current,
+          imageModes: {
+            ...current.imageModes,
+            inpaint: {
+              ...current.imageModes.inpaint,
+              masksByImageId: {
+                ...restoredMasks,
+                ...current.imageModes.inpaint.masksByImageId,
+              },
+            },
+          },
+        }));
+      })
+      .catch((error) => {
+        if (isCurrentRestore()) {
+          console.error("Could not restore AI inpaint masks", error);
+        }
+      })
+      .finally(() => {
+        if (!isCurrentRestore()) {
+          return;
+        }
+        didRestoreMasksRef.current = true;
+        finishRestoreKind();
+      });
 
-    setIsReferenceLocked(savedState.locked);
-    skipNextReferencePersistenceRef.current = true;
-    setSelectedSources(reindexReferenceImages(savedState.images));
-  }, [excalidrawAPI]);
+    return () => {
+      persistenceRestoreRunIdRef.current += 1;
+    };
+  }, [excalidrawAPI, persistenceScopeId, setActiveDraftState]);
 
   useEffect(() => {
-    if (!excalidrawAPI || !didRestoreReferenceImagesRef.current) {
+    if (
+      !excalidrawAPI ||
+      !persistenceScopeId ||
+      isRestoringPersistence ||
+      restoredPersistenceScopeRef.current !== persistenceScopeId ||
+      !didRestoreReferenceImagesRef.current
+    ) {
       return;
     }
-
-    const key = getReferencePersistenceKey(excalidrawAPI);
 
     if (skipNextReferencePersistenceRef.current) {
       skipNextReferencePersistenceRef.current = false;
@@ -1652,61 +1818,38 @@ export const AIImageWorkbench = ({
       persistReferenceTimeoutRef.current = null;
     }
 
-    if (!selectedSources.length) {
-      try {
-        localStorage.removeItem(key);
-      } catch {
-        // Ignore storage failures (private mode); the tray just won't persist.
-      }
-      return;
-    }
-
     persistReferenceTimeoutRef.current = window.setTimeout(() => {
       persistReferenceTimeoutRef.current = null;
-      persistReferenceState(key, {
-        locked: isReferenceLocked,
-        images: selectedSources,
+      const legacyKey = getLegacyAIWorkbenchReferenceKey({
+        pathname: window.location.pathname,
+        search: window.location.search,
+        sceneName: excalidrawAPI.getAppState().name,
       });
+      void persistReferenceState(
+        persistenceScopeId,
+        { locked: isReferenceLocked, images: selectedSources },
+        legacyKey,
+      ).catch((error) =>
+        console.error("Could not persist AI reference images", error),
+      );
     }, 250);
-  }, [excalidrawAPI, isReferenceLocked, selectedSources]);
-
-  // Restore inpaint masks once the API is ready, so a refresh keeps an
-  // in-progress mask instead of forcing the user to redraw it.
-  useEffect(() => {
-    if (!excalidrawAPI || didRestoreMasksRef.current) {
-      return;
-    }
-
-    didRestoreMasksRef.current = true;
-    const restored = loadPersistedMaskState(
-      getMaskPersistenceKey(excalidrawAPI),
-    );
-
-    if (!Object.keys(restored).length) {
-      return;
-    }
-
-    skipNextMaskPersistenceRef.current = true;
-    setActiveDraftState((current) => ({
-      ...current,
-      imageModes: {
-        ...current.imageModes,
-        inpaint: {
-          ...current.imageModes.inpaint,
-          // Restored masks seed only the images that don't already have a mask
-          // in the live draft, so a freshly-drawn mask is never clobbered.
-          masksByImageId: {
-            ...restored,
-            ...current.imageModes.inpaint.masksByImageId,
-          },
-        },
-      },
-    }));
-  }, [excalidrawAPI, setActiveDraftState]);
+  }, [
+    excalidrawAPI,
+    isReferenceLocked,
+    isRestoringPersistence,
+    persistenceScopeId,
+    selectedSources,
+  ]);
 
   // Debounced persist whenever the mask map changes (drawn, updated, cleared).
   useEffect(() => {
-    if (!excalidrawAPI || !didRestoreMasksRef.current) {
+    if (
+      !excalidrawAPI ||
+      !persistenceScopeId ||
+      isRestoringPersistence ||
+      restoredPersistenceScopeRef.current !== persistenceScopeId ||
+      !didRestoreMasksRef.current
+    ) {
       return;
     }
 
@@ -1720,12 +1863,27 @@ export const AIImageWorkbench = ({
       persistMaskTimeoutRef.current = null;
     }
 
-    const key = getMaskPersistenceKey(excalidrawAPI);
     persistMaskTimeoutRef.current = window.setTimeout(() => {
       persistMaskTimeoutRef.current = null;
-      persistMaskState(key, inpaintDraft.masksByImageId);
+      const legacyKey = getLegacyAIWorkbenchMaskKey({
+        pathname: window.location.pathname,
+        search: window.location.search,
+        sceneName: excalidrawAPI.getAppState().name,
+      });
+      void persistMaskState(
+        persistenceScopeId,
+        inpaintDraft.masksByImageId,
+        legacyKey,
+      ).catch((error) =>
+        console.error("Could not persist AI inpaint masks", error),
+      );
     }, 300);
-  }, [excalidrawAPI, inpaintDraft.masksByImageId]);
+  }, [
+    excalidrawAPI,
+    inpaintDraft.masksByImageId,
+    isRestoringPersistence,
+    persistenceScopeId,
+  ]);
 
   useEffect(() => {
     if (
@@ -1893,10 +2051,55 @@ export const AIImageWorkbench = ({
         didTimeout = true;
         abortController.abort();
       }, timeoutSeconds * 1000);
-      const isActiveRun = () =>
+      const isCurrentRun = () =>
         mountedRef.current &&
         activeRunIdRef.current === runId &&
         abortControllerRef.current === abortController;
+      const isActiveRun = () =>
+        isCurrentRun() && !abortController.signal.aborted;
+      const nextGeneratedAssets: GeneratedAsset[] = [];
+      let outputs: AIImageGenerationOutput[] = [];
+      const ensureActiveRun = () => {
+        if (isActiveRun()) {
+          return true;
+        }
+
+        if (isCurrentRun()) {
+          abortController.signal.throwIfAborted();
+        }
+
+        return false;
+      };
+      const getInsertedOutputs = () =>
+        nextGeneratedAssets.map((asset) => ({
+          output: asset.output,
+          insertedElementId: asset.insertedElementId,
+          insertedFileId: asset.insertedFileId,
+        }));
+      const getRunErrorResponseDetails = (error: unknown) =>
+        nextGeneratedAssets.length
+          ? {
+              ...createSuccessResponseDetails(
+                nextGeneratedAssets.map((asset) => asset.output),
+              ),
+              error: createErrorResponseDetails(error),
+            }
+          : createErrorResponseDetails(error);
+      const publishGeneratedAssets = () => {
+        if (!mountedRef.current || !nextGeneratedAssets.length) {
+          return;
+        }
+
+        const generatedAssetIds = new Set(
+          nextGeneratedAssets.map((asset) => asset.id),
+        );
+        setGeneratedAssets((current) =>
+          [
+            ...nextGeneratedAssets,
+            ...current.filter((asset) => !generatedAssetIds.has(asset.id)),
+          ].slice(0, 12),
+        );
+      };
 
       abortControllerRef.current = abortController;
       generationTimeoutRef.current = timeoutId;
@@ -1916,11 +2119,11 @@ export const AIImageWorkbench = ({
               }
             : null;
 
-        if (!isActiveRun()) {
+        if (!ensureActiveRun()) {
           return;
         }
 
-        const outputs = await generateImagesWithOpenAIAdapter({
+        outputs = await generateImagesWithOpenAIAdapter({
           config: activeModelCard
             ? {
                 ...config,
@@ -1944,7 +2147,7 @@ export const AIImageWorkbench = ({
           signal: abortController.signal,
         });
 
-        if (!isActiveRun()) {
+        if (!ensureActiveRun()) {
           return;
         }
 
@@ -1956,10 +2159,8 @@ export const AIImageWorkbench = ({
           );
         }
 
-        const nextGeneratedAssets: GeneratedAsset[] = [];
-
         for (const [index, output] of outputs.entries()) {
-          if (!isActiveRun()) {
+          if (!ensureActiveRun()) {
             return;
           }
 
@@ -1985,7 +2186,7 @@ export const AIImageWorkbench = ({
             index,
           });
 
-          if (!isActiveRun()) {
+          if (!ensureActiveRun()) {
             return;
           }
 
@@ -1995,9 +2196,10 @@ export const AIImageWorkbench = ({
             metadata,
             index,
             placement: generatedImagePlacement,
+            signal: abortController.signal,
           });
 
-          if (!isActiveRun()) {
+          if (!isCurrentRun()) {
             return;
           }
 
@@ -2014,16 +2216,15 @@ export const AIImageWorkbench = ({
             modelLabel: activeModelCard?.label || activeModelName,
             siteName: activeSiteName,
           });
+          publishGeneratedAssets();
+          abortController.signal.throwIfAborted();
         }
 
-        if (!isActiveRun()) {
+        if (!ensureActiveRun()) {
           return;
         }
 
         const insertedCount = outputs.length;
-        setGeneratedAssets((current) =>
-          [...nextGeneratedAssets, ...current].slice(0, 12),
-        );
         notifyCloudAITaskRun({
           submittedAt,
           completedAt: new Date().toISOString(),
@@ -2039,11 +2240,7 @@ export const AIImageWorkbench = ({
           negativePrompt: activeNegativePrompt.trim() || undefined,
           params: effectiveParams,
           sources: activeSources,
-          outputs: nextGeneratedAssets.map((asset) => ({
-            output: asset.output,
-            insertedElementId: asset.insertedElementId,
-            insertedFileId: asset.insertedFileId,
-          })),
+          outputs: getInsertedOutputs(),
         });
         appendGenerationLogEntry(
           createAIGenerationLogEntry({
@@ -2082,13 +2279,11 @@ export const AIImageWorkbench = ({
           message: t("ai.workbench.generatedImageInserted"),
         });
       } catch (error: any) {
-        if (!isActiveRun()) {
+        if (!isCurrentRun()) {
           return;
         }
 
-        console.error("AI image generation failed", error);
-
-        if (error?.name === "AbortError") {
+        if (error?.name === "AbortError" || abortController.signal.aborted) {
           if (didTimeout) {
             notifyCloudAITaskRun({
               submittedAt,
@@ -2105,6 +2300,7 @@ export const AIImageWorkbench = ({
               negativePrompt: activeNegativePrompt.trim() || undefined,
               params: effectiveParams,
               sources: activeSources,
+              outputs: getInsertedOutputs(),
               errorCode: "timeout",
               errorMessage: t("ai.workbench.generationTimedOut", {
                 seconds: timeoutSeconds,
@@ -2129,7 +2325,7 @@ export const AIImageWorkbench = ({
                 responseSummary: t("ai.workbench.generationTimedOut", {
                   seconds: timeoutSeconds,
                 }),
-                responseDetails: createErrorResponseDetails(error),
+                responseDetails: getRunErrorResponseDetails(error),
               }),
             );
             setErrorMessage(
@@ -2155,6 +2351,7 @@ export const AIImageWorkbench = ({
               negativePrompt: activeNegativePrompt.trim() || undefined,
               params: effectiveParams,
               sources: activeSources,
+              outputs: getInsertedOutputs(),
               errorCode: "canceled",
               errorMessage: t("ai.workbench.generationCanceled"),
             });
@@ -2175,7 +2372,7 @@ export const AIImageWorkbench = ({
                 baseURL: activeBaseURL,
                 endpoint,
                 responseSummary: t("ai.workbench.generationCanceled"),
-                responseDetails: createErrorResponseDetails(error),
+                responseDetails: getRunErrorResponseDetails(error),
               }),
             );
             setStatusMessage(t("ai.workbench.generationCanceled"));
@@ -2184,10 +2381,18 @@ export const AIImageWorkbench = ({
           return;
         }
 
+        console.error("AI image generation failed", error);
+
         const errorMessage =
           error instanceof AIImageGenerationError
             ? error.message
             : getUnknownErrorMessage(error, t);
+        const partialFailureMessage = nextGeneratedAssets.length
+          ? t("ai.workbench.partialGenerationFailed", {
+              count: nextGeneratedAssets.length,
+              total: outputs.length,
+            })
+          : errorMessage;
         notifyCloudAITaskRun({
           submittedAt,
           completedAt: new Date().toISOString(),
@@ -2203,9 +2408,14 @@ export const AIImageWorkbench = ({
           negativePrompt: activeNegativePrompt.trim() || undefined,
           params: effectiveParams,
           sources: activeSources,
+          outputs: getInsertedOutputs(),
           errorCode:
-            error instanceof AIImageGenerationError ? error.code : "unknown",
-          errorMessage,
+            nextGeneratedAssets.length > 0
+              ? "partial-insert-failure"
+              : error instanceof AIImageGenerationError
+              ? error.code
+              : "unknown",
+          errorMessage: partialFailureMessage,
         });
         appendGenerationLogEntry(
           createAIGenerationLogEntry({
@@ -2223,11 +2433,11 @@ export const AIImageWorkbench = ({
             params: effectiveParams,
             baseURL: activeBaseURL,
             endpoint,
-            responseSummary: errorMessage,
-            responseDetails: createErrorResponseDetails(error),
+            responseSummary: partialFailureMessage,
+            responseDetails: getRunErrorResponseDetails(error),
           }),
         );
-        setErrorMessage(errorMessage);
+        setErrorMessage(partialFailureMessage);
         setStatusMessage("");
         setRunStatus("failed");
       } finally {
@@ -2236,9 +2446,11 @@ export const AIImageWorkbench = ({
           generationTimeoutRef.current = null;
         }
 
-        if (isActiveRun()) {
-          setIsGenerating(false);
+        if (isCurrentRun()) {
           abortControllerRef.current = null;
+          if (mountedRef.current) {
+            setIsGenerating(false);
+          }
         }
       }
     },
@@ -2254,25 +2466,29 @@ export const AIImageWorkbench = ({
   }, []);
 
   // Poll a single submitted task until it completes or fails. On completion it
-  // resolves a cover image (thumbnail -> first frame -> placeholder) and inserts
-  // it into the canvas with the real video URL on customData.aiVideoGeneration.
-  // Runs against a per-task AbortController so it can be cancelled independently
-  // of image generation and survives across a resume-on-mount.
+  // resolves the video's intrinsic dimensions and inserts an inline embeddable
+  // player with the real URL on customData.aiVideoGeneration. Runs against a
+  // per-task AbortController so it can be cancelled independently of image
+  // generation and survives across a resume-on-mount.
   const runVideoPollLoop = useCallback(
     async (task: PendingVideoTask, controller: AbortController) => {
       const POLL_INTERVAL_MS = 4000;
       const delay = (ms: number) =>
         new Promise<void>((resolve) => {
-          const timeoutId = window.setTimeout(resolve, ms);
+          let settled = false;
+          const finish = () => {
+            if (settled) {
+              return;
+            }
 
-          controller.signal.addEventListener(
-            "abort",
-            () => {
-              window.clearTimeout(timeoutId);
-              resolve();
-            },
-            { once: true },
-          );
+            settled = true;
+            window.clearTimeout(timeoutId);
+            controller.signal.removeEventListener("abort", finish);
+            resolve();
+          };
+          const timeoutId = window.setTimeout(finish, ms);
+
+          controller.signal.addEventListener("abort", finish, { once: true });
         });
 
       const currentConfig = generationStateRef.current.config;
@@ -2284,26 +2500,80 @@ export const AIImageWorkbench = ({
       const apiKey = modelCard?.apiKey || currentConfig.apiKey;
       const siteName = task.siteName;
       const endpoint = baseURL ? buildVideoSubmitEndpoint(baseURL) : undefined;
+      const pollRequestTimeoutMs =
+        (modelCard?.requestTimeoutSeconds ||
+          DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS) * 1000;
+      let consecutivePollErrors = 0;
 
       try {
         while (!controller.signal.aborted) {
-          const result = await pollVideoTask({
-            baseURL,
-            apiKey,
-            taskId: task.taskId,
-            signal: controller.signal,
-          });
+          let result;
+
+          try {
+            const pollController = new AbortController();
+            let didPollTimeout = false;
+            const abortPoll = () => pollController.abort();
+            const timeoutId = window.setTimeout(() => {
+              didPollTimeout = true;
+              pollController.abort();
+            }, pollRequestTimeoutMs);
+            controller.signal.addEventListener("abort", abortPoll, {
+              once: true,
+            });
+            try {
+              result = await pollVideoTask({
+                baseURL,
+                apiKey,
+                taskId: task.taskId,
+                signal: pollController.signal,
+              });
+            } catch (error) {
+              if (didPollTimeout && !controller.signal.aborted) {
+                throw new Error("AI video status request timed out.");
+              }
+              throw error;
+            } finally {
+              window.clearTimeout(timeoutId);
+              controller.signal.removeEventListener("abort", abortPoll);
+            }
+            consecutivePollErrors = 0;
+          } catch (error: any) {
+            if (error?.name === "AbortError" || controller.signal.aborted) {
+              return;
+            }
+
+            consecutivePollErrors += 1;
+            console.warn("AI video task polling failed; retrying.");
+
+            if (mountedRef.current) {
+              setErrorMessage(
+                error instanceof AIImageGenerationError
+                  ? error.message
+                  : getUnknownErrorMessage(error, t),
+              );
+              setStatusMessage(t("ai.workbench.videoTaskPolling"));
+            }
+
+            const retryDelay = Math.min(
+              POLL_INTERVAL_MS * 2 ** (consecutivePollErrors - 1),
+              30_000,
+            );
+            await delay(retryDelay);
+            continue;
+          }
 
           if (controller.signal.aborted || !mountedRef.current) {
             return;
           }
+
+          setErrorMessage("");
 
           if (result.status === "failed") {
             appendGenerationLogEntry(
               createAIGenerationLogEntry({
                 submittedAt: task.submittedAt,
                 mediaType: "video",
-                mode: "text-to-video",
+                mode: task.mode,
                 status: "failed",
                 model: {
                   id: task.modelId,
@@ -2357,12 +2627,30 @@ export const AIImageWorkbench = ({
             return;
           }
 
-          const metadata = createAIVideoGenerationMetadata({
+          if (!onPersistVideoOutput) {
+            throw new Error("AI video asset persistence is unavailable.");
+          }
+          const persistedAsset = await onPersistVideoOutput({
+            taskId: task.taskId,
+            output,
+            signal: controller.signal,
+          });
+          if (!persistedAsset) {
+            throw new Error("AI video asset persistence returned no asset.");
+          }
+
+          const metadata = createAIVideoAssetMetadata({
             mode: task.mode,
             model: task.model,
             prompt: task.prompt,
             params: task.params,
-            output,
+            asset: {
+              ...persistedAsset,
+              width: dimensions?.width,
+              height: dimensions?.height,
+              durationSeconds: output.durationSeconds,
+              revisedPrompt: output.revisedPrompt,
+            },
           });
 
           if (excalidrawAPI) {
@@ -2377,7 +2665,7 @@ export const AIImageWorkbench = ({
             createAIGenerationLogEntry({
               submittedAt: task.submittedAt,
               mediaType: "video",
-              mode: "text-to-video",
+              mode: task.mode,
               status: "success",
               model: {
                 id: task.modelId,
@@ -2390,7 +2678,7 @@ export const AIImageWorkbench = ({
               endpoint,
               responseSummary: t("ai.workbench.videoReady"),
               responseDetails: {
-                videoURL: output.videoURL,
+                assetId: persistedAsset.assetId,
                 durationSeconds: output.durationSeconds,
               },
             }),
@@ -2409,43 +2697,25 @@ export const AIImageWorkbench = ({
           return;
         }
 
-        console.error("AI video task polling failed", error);
-        appendGenerationLogEntry(
-          createAIGenerationLogEntry({
-            submittedAt: task.submittedAt,
-            mediaType: "video",
-            mode: "text-to-video",
-            status: "failed",
-            model: {
-              id: task.modelId,
-              name: task.model,
-              siteName,
-            },
-            prompt: task.prompt,
-            params: task.params,
-            baseURL,
-            endpoint,
-            responseSummary:
-              error instanceof AIImageGenerationError
-                ? error.message
-                : t("ai.workbench.videoTaskFailed"),
-            responseDetails: createErrorResponseDetails(error),
-          }),
-        );
-        removeVideoTask(task.taskId);
-        syncPendingVideoTasks();
-        setErrorMessage(
-          error instanceof AIImageGenerationError
-            ? error.message
-            : t("ai.workbench.videoTaskFailed"),
-        );
-        setStatusMessage("");
-        setRunStatus("failed");
+        // Errors after a successful poll (for example while resolving metadata
+        // or inserting the result) are not a terminal provider task failure.
+        // Keep the persisted task so a remount can recover it instead of losing
+        // a completed-but-not-yet-inserted result.
+        console.error("AI video task result processing failed", error);
+        if (mountedRef.current) {
+          setErrorMessage(
+            error instanceof AIImageGenerationError
+              ? error.message
+              : getUnknownErrorMessage(error, t),
+          );
+          setStatusMessage(t("ai.workbench.videoTaskResumed"));
+          setRunStatus("failed");
+        }
       } finally {
         videoPollControllersRef.current.delete(task.taskId);
       }
     },
-    [excalidrawAPI, syncPendingVideoTasks],
+    [excalidrawAPI, onPersistVideoOutput, syncPendingVideoTasks],
   );
 
   const startVideoPolling = useCallback(
@@ -2473,7 +2743,17 @@ export const AIImageWorkbench = ({
     [syncPendingVideoTasks],
   );
 
+  const cancelVideoSubmission = useCallback(() => {
+    videoSubmitControllerRef.current?.abort();
+  }, []);
+
   const generateVideo = useCallback(async () => {
+    // React state does not update synchronously, so the disabled button alone
+    // cannot prevent a double click/programmatic re-entry before POST begins.
+    if (videoSubmitControllerRef.current) {
+      return;
+    }
+
     if (!excalidrawAPI) {
       return;
     }
@@ -2525,7 +2805,7 @@ export const AIImageWorkbench = ({
     }
 
     // Reference sources drive image-to-video when the model supports it.
-    const videoSources = selectedSources.filter(
+    const videoSources = generationStateRef.current.selectedSources.filter(
       (source) => !source.missingElement,
     );
     const mode: AIVideoGenerationMode =
@@ -2534,7 +2814,20 @@ export const AIImageWorkbench = ({
         ? "image-to-video"
         : "text-to-video";
     const submittedAt = new Date().toISOString();
+    const controller = new AbortController();
+    const timeoutSeconds =
+      modelCard.requestTimeoutSeconds ||
+      DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS;
+    let didTimeout = false;
+    const timeoutId = window.setTimeout(() => {
+      didTimeout = true;
+      controller.abort();
+    }, timeoutSeconds * 1000);
 
+    videoSubmitControllerRef.current = controller;
+    videoSubmitTimeoutRef.current = timeoutId;
+
+    setIsSubmittingVideo(true);
     setRunStatus("generating");
     setStatusMessage(t("ai.workbench.generatingVideo"));
     setErrorMessage("");
@@ -2555,7 +2848,16 @@ export const AIImageWorkbench = ({
         prompt: trimmedPrompt,
         params: videoParams,
         sources: mode === "image-to-video" ? videoSources : undefined,
+        signal: controller.signal,
       });
+
+      if (
+        controller.signal.aborted ||
+        !mountedRef.current ||
+        videoSubmitControllerRef.current !== controller
+      ) {
+        return;
+      }
 
       const task: PendingVideoTask = {
         taskId,
@@ -2575,9 +2877,36 @@ export const AIImageWorkbench = ({
       setStatusMessage(t("ai.workbench.videoTaskQueued"));
       startVideoPolling(task);
     } catch (error: any) {
-      if (error?.name === "AbortError") {
-        setStatusMessage(t("ai.workbench.generationCanceled"));
-        setRunStatus("idle");
+      if (error?.name === "AbortError" || controller.signal.aborted) {
+        if (!mountedRef.current) {
+          return;
+        }
+
+        const responseSummary = didTimeout
+          ? t("ai.workbench.generationTimedOut", { seconds: timeoutSeconds })
+          : t("ai.workbench.generationCanceled");
+        appendGenerationLogEntry(
+          createAIGenerationLogEntry({
+            submittedAt,
+            mediaType: "video",
+            mode,
+            status: didTimeout ? "failed" : "canceled",
+            model: {
+              id: modelCard.id,
+              name: modelCard.model,
+              siteName: modelCard.siteName || modelCard.label || "Unknown site",
+            },
+            prompt: trimmedPrompt,
+            params: videoParams,
+            baseURL,
+            endpoint: buildVideoSubmitEndpoint(baseURL),
+            responseSummary,
+            responseDetails: createErrorResponseDetails(error),
+          }),
+        );
+        setErrorMessage(didTimeout ? responseSummary : "");
+        setStatusMessage(didTimeout ? "" : responseSummary);
+        setRunStatus(didTimeout ? "failed" : "canceled");
         return;
       }
 
@@ -2586,7 +2915,7 @@ export const AIImageWorkbench = ({
         createAIGenerationLogEntry({
           submittedAt,
           mediaType: "video",
-          mode: "text-to-video",
+          mode,
           status: "failed",
           model: {
             id: modelCard.id,
@@ -2611,13 +2940,19 @@ export const AIImageWorkbench = ({
       );
       setStatusMessage("");
       setRunStatus("failed");
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (videoSubmitTimeoutRef.current === timeoutId) {
+        videoSubmitTimeoutRef.current = null;
+      }
+      if (videoSubmitControllerRef.current === controller) {
+        videoSubmitControllerRef.current = null;
+        if (mountedRef.current) {
+          setIsSubmittingVideo(false);
+        }
+      }
     }
-  }, [
-    excalidrawAPI,
-    selectedSources,
-    startVideoPolling,
-    syncPendingVideoTasks,
-  ]);
+  }, [excalidrawAPI, startVideoPolling, syncPendingVideoTasks]);
 
   // Resume-on-mount: pick up any unfinished video tasks persisted in a previous
   // session (e.g. before a page refresh) and continue polling them. Runs once.
@@ -4049,8 +4384,22 @@ export const AIImageWorkbench = ({
 
       {renderConfigurationNotice()}
 
-      {pendingVideoTasks.length > 0 && (
+      {(isSubmittingVideo || pendingVideoTasks.length > 0) && (
         <div className="AIImageWorkbench__videoTasks">
+          {isSubmittingVideo && (
+            <div className="AIImageWorkbench__videoTask">
+              <span className="AIImageWorkbench__videoTaskLabel">
+                {t("ai.workbench.generatingVideo")}
+              </span>
+              <button
+                type="button"
+                className="AIImageWorkbench__textButton"
+                onClick={cancelVideoSubmission}
+              >
+                {t("ai.common.cancel")}
+              </button>
+            </div>
+          )}
           {pendingVideoTasks.map((task) => (
             <div key={task.taskId} className="AIImageWorkbench__videoTask">
               <span className="AIImageWorkbench__videoTaskLabel">
@@ -4459,16 +4808,6 @@ const groupPromptTemplates = (
   }
 
   return groups;
-};
-
-const getReferencePersistenceKey = (excalidrawAPI: ExcalidrawImperativeAPI) => {
-  // getName() fabricates a timestamped Untitled name when appState.name is
-  // null, which made every persistence read/write use a different key.
-  const sceneName = excalidrawAPI.getAppState().name?.trim() || "default";
-
-  return `ai-reference-images-${encodeURIComponent(
-    `${window.location.pathname}${window.location.search}:${sceneName}`,
-  )}`;
 };
 
 const appendGenerationLogEntry = (

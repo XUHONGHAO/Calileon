@@ -1,13 +1,10 @@
 import {
-  CaptureUpdateAction,
   sceneCoordsToViewportCoords,
+  viewportCoordsToSceneCoords,
 } from "@excalidraw/excalidraw";
 import {
-  getElementAbsoluteCoords,
-  isFreeDrawElement,
   isInitializedImageElement,
   newFreeDrawElement,
-  syncInvalidIndices,
 } from "@excalidraw/element";
 import {
   forwardRef,
@@ -19,13 +16,11 @@ import {
 } from "react";
 import { pointFrom } from "@excalidraw/math";
 
-import type {
-  AppState,
-  ExcalidrawImperativeAPI,
-} from "@excalidraw/excalidraw/types";
+import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type {
   ExcalidrawElement,
   ExcalidrawFreeDrawElement,
+  ExcalidrawImageElement,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
 import type { LocalPoint, Radians } from "@excalidraw/math";
@@ -34,13 +29,31 @@ import {
   DEFAULT_MASK_BRUSH_SIZE,
   exportMaskAsFile,
   generateMaskPreview,
-  getMaskDrawingAppState,
   getMaskPreviewCanvasSize,
 } from "../ai/maskCanvas";
+import {
+  appendAIMaskStrokePoint,
+  beginAIMaskStroke,
+  createAIMaskSession,
+  endAIMaskStroke,
+  redoAIMaskSession,
+  undoAIMaskSession,
+} from "../ai/maskSession";
+import {
+  createMaskSourceGeometryV2,
+  getMaskGeometryStrokeScale,
+  isValidMaskSourceGeometry,
+  legacyDisplayPointToScenePoint,
+  normalizedNaturalPointToScenePoint,
+  scenePointToLegacyDisplayPoint,
+  scenePointToNormalizedNaturalPoint,
+} from "../ai/maskGeometry";
+import { createMaskViewportGeometry } from "../ai/maskViewportGeometry";
 
 import { AIMaskEditingOverlay } from "./AIMaskEditingOverlay";
 
 import type { AIMaskEditingState, AIMaskReadyPayload } from "../ai/types";
+import type { AIMaskSourceGeometry } from "../ai/maskGeometry";
 
 import type { AIMaskEditingTargetBounds } from "./AIMaskEditingOverlay";
 
@@ -68,16 +81,6 @@ type PendingMaskEditingRequest = {
   maskElements: readonly ExcalidrawFreeDrawElement[];
 };
 
-type AIMaskSourceGeometry = {
-  version: 1;
-  imageId: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  angle: Radians;
-};
-
 export const AIMaskEditingController = forwardRef<
   AIMaskEditingControllerHandle,
   AIMaskEditingControllerProps
@@ -94,21 +97,30 @@ export const AIMaskEditingController = forwardRef<
   const [maskPreviewDataURL, setMaskPreviewDataURL] = useState<string | null>(
     null,
   );
-  const maskEditingBaseElementIdsRef = useRef<Set<string>>(new Set());
+  const [maskSession, setMaskSession] = useState(createAIMaskSession);
+  const maskSessionElementsRef = useRef(maskSession.elements);
+  const [isCompletingMask, setIsCompletingMask] = useState(false);
+  const isCompletingMaskRef = useRef(false);
+  const exitMaskEditingRef = useRef<(cancelled: boolean) => void>(() => {});
+  const mountedRef = useRef(true);
+  const maskSessionTokenRef = useRef(0);
+  const maskExportControllerRef = useRef<AbortController | null>(null);
+  const activeTargetImageIdRef = useRef<string | null>(null);
+  const activeTargetGeometrySignatureRef = useRef<string | null>(null);
+  maskSessionElementsRef.current = maskSession.elements;
+  activeTargetImageIdRef.current = aiMaskEditingState.targetImageId;
 
-  const applyMaskDrawingConfig = useCallback(
-    (isErasing: boolean, brushSize: number) => {
-      if (!excalidrawAPI) {
-        return;
-      }
+  useEffect(() => {
+    mountedRef.current = true;
 
-      excalidrawAPI.updateScene({
-        appState: getMaskDrawingAppState(isErasing, brushSize),
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
-    },
-    [excalidrawAPI],
-  );
+    return () => {
+      mountedRef.current = false;
+      maskSessionTokenRef.current += 1;
+      maskExportControllerRef.current?.abort();
+      maskExportControllerRef.current = null;
+      activeTargetGeometrySignatureRef.current = null;
+    };
+  }, []);
 
   const getMaskTargetViewportBounds = useCallback(
     (targetImageId: string): AIMaskEditingTargetBounds | null => {
@@ -125,25 +137,21 @@ export const AIMaskEditingController = forwardRef<
       }
 
       const appState = excalidrawAPI.getAppState();
-      const [x1, y1, x2, y2] = getElementAbsoluteCoords(
-        targetImage,
-        excalidrawAPI.getSceneElementsMapIncludingDeleted(),
-      );
-      const topLeft = sceneCoordsToViewportCoords(
-        { sceneX: x1, sceneY: y1 },
-        appState,
-      );
-      const bottomRight = sceneCoordsToViewportCoords(
-        { sceneX: x2, sceneY: y2 },
+      const center = sceneCoordsToViewportCoords(
+        {
+          sceneX: targetImage.x + targetImage.width / 2,
+          sceneY: targetImage.y + targetImage.height / 2,
+        },
         appState,
       );
 
-      return {
-        x: Math.min(topLeft.x, bottomRight.x),
-        y: Math.min(topLeft.y, bottomRight.y),
-        width: Math.abs(bottomRight.x - topLeft.x),
-        height: Math.abs(bottomRight.y - topLeft.y),
-      };
+      return createMaskViewportGeometry({
+        centerX: center.x,
+        centerY: center.y,
+        width: Math.abs(targetImage.width) * appState.zoom.value,
+        height: Math.abs(targetImage.height) * appState.zoom.value,
+        angle: targetImage.angle,
+      });
     },
     [excalidrawAPI],
   );
@@ -171,11 +179,6 @@ export const AIMaskEditingController = forwardRef<
 
       const appState = excalidrawAPI.getAppState();
 
-      maskEditingBaseElementIdsRef.current = new Set(
-        excalidrawAPI
-          .getSceneElementsIncludingDeleted()
-          .map((element) => element.id),
-      );
       const editableMaskElements = cloneMaskElementsForEditing(
         existingMaskElements,
         targetImage,
@@ -203,37 +206,21 @@ export const AIMaskEditingController = forwardRef<
         },
       };
 
-      excalidrawAPI.setActiveTool({ type: "freedraw" }, true);
-      applyMaskDrawingConfig(false, DEFAULT_MASK_BRUSH_SIZE);
-      if (editableMaskElements.length) {
-        const nextElements = [
-          ...excalidrawAPI.getSceneElementsIncludingDeleted(),
-          ...editableMaskElements,
-        ];
-
-        syncInvalidIndices(nextElements);
-        excalidrawAPI.updateScene({
-          elements: nextElements,
-          captureUpdate: CaptureUpdateAction.NEVER,
-        });
-      }
-      excalidrawAPI.updateScene({
-        appState: {
-          selectedElementIds: {
-            [imageId]: true,
-          } as AppState["selectedElementIds"],
-          openMenu: null,
-          openPopup: null,
-        },
-        captureUpdate: CaptureUpdateAction.NEVER,
-      });
+      maskSessionTokenRef.current += 1;
+      activeTargetGeometrySignatureRef.current =
+        getMaskTargetGeometrySignature(targetImage);
+      maskExportControllerRef.current?.abort();
+      maskExportControllerRef.current = null;
+      setMaskSession(createAIMaskSession(editableMaskElements));
       setIsMaskErasing(false);
       setMaskBrushSize(DEFAULT_MASK_BRUSH_SIZE);
+      setIsCompletingMask(false);
+      isCompletingMaskRef.current = false;
       setAIMaskEditingState(nextMaskEditingState);
       setAIMaskTargetBounds(getMaskTargetViewportBounds(imageId));
       setMaskEditingZoomValue(appState.zoom.value);
     },
-    [applyMaskDrawingConfig, excalidrawAPI, getMaskTargetViewportBounds],
+    [excalidrawAPI, getMaskTargetViewportBounds],
   );
 
   const requestEnterMaskEditing = useCallback(
@@ -277,34 +264,95 @@ export const AIMaskEditingController = forwardRef<
       return;
     }
 
-    applyMaskDrawingConfig(isMaskErasing, maskBrushSize);
-  }, [
-    aiMaskEditingState.mode,
-    applyMaskDrawingConfig,
-    isMaskErasing,
-    maskBrushSize,
-  ]);
-
-  useEffect(() => {
-    if (aiMaskEditingState.mode !== "editing") {
-      return;
-    }
-
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (
-        event.key.toLowerCase() !== "e" ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.shiftKey ||
-        isEditableEventTarget(event.target)
-      ) {
+      const key = event.key.toLowerCase();
+      const isControlTarget = isMaskEditingControlTarget(event.target);
+
+      if (key === "escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        exitMaskEditingRef.current(true);
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
-      setIsMaskErasing((current) => !current);
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && key === "z") {
+        event.preventDefault();
+        event.stopPropagation();
+        setMaskSession((current) =>
+          event.shiftKey
+            ? redoAIMaskSession(current)
+            : undoAIMaskSession(current),
+        );
+        return;
+      }
+
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        key === "y"
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setMaskSession(redoAIMaskSession);
+        return;
+      }
+
+      if (
+        key === "e" &&
+        !isControlTarget &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.shiftKey
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        setIsMaskErasing((current) => !current);
+        return;
+      }
+
+      if (isControlTarget) {
+        if (key === "tab") {
+          event.preventDefault();
+          event.stopPropagation();
+          moveMaskEditingFocus(event.shiftKey);
+          return;
+        }
+
+        if (
+          key === "enter" ||
+          key === " " ||
+          (isMaskEditingRangeTarget(event.target) &&
+            MASK_EDITING_RANGE_KEYS.has(key))
+        ) {
+          event.stopPropagation();
+          return;
+        }
+
+        if (MASK_EDITING_BLOCKED_EDITOR_KEYS.has(key)) {
+          event.preventDefault();
+        }
+        event.stopPropagation();
+        return;
+      }
+
+      if (key === "tab") {
+        event.preventDefault();
+        event.stopPropagation();
+        moveMaskEditingFocus(event.shiftKey);
+        return;
+      }
+
+      if (event.ctrlKey || event.metaKey || event.altKey) {
+        event.stopPropagation();
+        return;
+      }
+
+      if (MASK_EDITING_BLOCKED_EDITOR_KEYS.has(key)) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
     };
 
     window.addEventListener("keydown", handleKeyDown, true);
@@ -315,7 +363,7 @@ export const AIMaskEditingController = forwardRef<
   }, [aiMaskEditingState.mode]);
 
   const exitMaskEditing = useCallback(
-    (cancelled: boolean) => {
+    (_cancelled: boolean) => {
       if (
         !excalidrawAPI ||
         aiMaskEditingState.mode !== "editing" ||
@@ -324,114 +372,120 @@ export const AIMaskEditingController = forwardRef<
         return;
       }
 
-      const { previousState, maskElementIds } = aiMaskEditingState;
-      const restoredAppState = {
-        selectedElementIds: previousState.selectedElementIds,
-        scrollX: previousState.scrollX,
-        scrollY: previousState.scrollY,
-        zoom: previousState.zoom,
-        activeTool: previousState.activeTool,
-        currentItemStrokeColor: previousState.currentItemStrokeColor,
-        currentItemBackgroundColor: previousState.currentItemBackgroundColor,
-        currentItemStrokeWidth: previousState.currentItemStrokeWidth,
-        currentItemStrokeStyle: previousState.currentItemStrokeStyle,
-        currentItemRoughness: previousState.currentItemRoughness,
-        currentItemOpacity: previousState.currentItemOpacity,
-      };
-
-      if (cancelled) {
-        const currentMaskElements = getMaskElements(
-          excalidrawAPI.getSceneElementsIncludingDeleted(),
-          maskEditingBaseElementIdsRef.current,
-        );
-        const maskElementIdsSet = new Set([
-          ...maskElementIds,
-          ...currentMaskElements.map((element) => element.id),
-        ]);
-        const elements = excalidrawAPI
-          .getSceneElementsIncludingDeleted()
-          .filter((element) => !maskElementIdsSet.has(element.id));
-
-        excalidrawAPI.updateScene({
-          elements,
-          appState: restoredAppState,
-          captureUpdate: CaptureUpdateAction.NEVER,
-        });
-      } else {
-        excalidrawAPI.updateScene({
-          appState: restoredAppState,
-          captureUpdate: CaptureUpdateAction.NEVER,
-        });
-      }
       setAIMaskEditingState(EMPTY_AI_MASK_EDITING_STATE);
+      setMaskSession(createAIMaskSession());
       setAIMaskTargetBounds(null);
       setMaskEditingZoomValue(1);
       setIsMaskErasing(false);
       setMaskBrushSize(DEFAULT_MASK_BRUSH_SIZE);
       setMaskPreviewDataURL(null);
-      maskEditingBaseElementIdsRef.current = new Set();
+      setIsCompletingMask(false);
+      isCompletingMaskRef.current = false;
+      maskSessionTokenRef.current += 1;
+      maskExportControllerRef.current?.abort();
+      maskExportControllerRef.current = null;
+      activeTargetGeometrySignatureRef.current = null;
     },
     [aiMaskEditingState, excalidrawAPI],
   );
 
-  const handleMaskEditingDone = useCallback(() => {
+  exitMaskEditingRef.current = exitMaskEditing;
+
+  const handleMaskEditingDone = useCallback(async () => {
     if (
       !excalidrawAPI ||
       aiMaskEditingState.mode !== "editing" ||
-      !aiMaskEditingState.targetImageId
+      !aiMaskEditingState.targetImageId ||
+      isCompletingMaskRef.current
     ) {
       return;
     }
 
+    isCompletingMaskRef.current = true;
+    setIsCompletingMask(true);
+    const sessionToken = maskSessionTokenRef.current;
+    const targetImageId = aiMaskEditingState.targetImageId;
+    const exportController = new AbortController();
+    maskExportControllerRef.current?.abort();
+    maskExportControllerRef.current = exportController;
+
     const currentElements = excalidrawAPI.getSceneElements();
     const targetImage = currentElements.find(
-      (element) => element.id === aiMaskEditingState.targetImageId,
+      (element) => element.id === targetImageId,
     );
 
     if (!targetImage || !isInitializedImageElement(targetImage)) {
       excalidrawAPI.setToast({
         message: "The selected image is no longer available.",
       });
+      isCompletingMaskRef.current = false;
+      setIsCompletingMask(false);
       exitMaskEditing(true);
       return;
     }
 
-    const currentMaskElements = getMaskElements(
-      currentElements,
-      maskEditingBaseElementIdsRef.current,
-    );
-    const maskFile = exportMaskAsFile(
-      targetImage,
-      currentMaskElements,
-      excalidrawAPI.getFiles(),
-    );
-    const boundMaskElements = bindMaskElementsToImage(
-      currentMaskElements,
-      targetImage,
-    );
+    try {
+      const maskFile = await exportMaskAsFile(
+        targetImage,
+        maskSession.elements,
+        excalidrawAPI.getFiles(),
+        exportController.signal,
+      );
+      const currentTargetImage = excalidrawAPI
+        .getSceneElements()
+        .find((element) => element.id === targetImageId);
 
-    onMaskReady?.({
-      imageId: targetImage.id,
-      maskFile,
-      maskElements: boundMaskElements,
-    });
+      if (
+        exportController.signal.aborted ||
+        !mountedRef.current ||
+        maskSessionTokenRef.current !== sessionToken ||
+        activeTargetImageIdRef.current !== targetImageId ||
+        !currentTargetImage ||
+        !isInitializedImageElement(currentTargetImage) ||
+        currentTargetImage.fileId !== targetImage.fileId
+      ) {
+        return;
+      }
+      const boundMaskElements = bindMaskElementsToImage(
+        maskSession.elements,
+        currentTargetImage,
+      );
 
-    const maskElementIdsSet = new Set([
-      ...aiMaskEditingState.maskElementIds,
-      ...currentMaskElements.map((element) => element.id),
-    ]);
-
-    if (maskElementIdsSet.size) {
-      excalidrawAPI.updateScene({
-        elements: excalidrawAPI
-          .getSceneElementsIncludingDeleted()
-          .filter((element) => !maskElementIdsSet.has(element.id)),
-        captureUpdate: CaptureUpdateAction.NEVER,
+      onMaskReady?.({
+        imageId: currentTargetImage.id,
+        maskFile,
+        maskElements: boundMaskElements,
       });
-    }
 
-    exitMaskEditing(false);
-  }, [aiMaskEditingState, excalidrawAPI, exitMaskEditing, onMaskReady]);
+      exitMaskEditing(false);
+    } catch (error) {
+      if (
+        exportController.signal.aborted ||
+        (error instanceof DOMException && error.name === "AbortError")
+      ) {
+        return;
+      }
+      console.error("AI mask export failed", error);
+      if (
+        mountedRef.current &&
+        maskSessionTokenRef.current === sessionToken &&
+        activeTargetImageIdRef.current === targetImageId
+      ) {
+        isCompletingMaskRef.current = false;
+        setIsCompletingMask(false);
+      }
+    } finally {
+      if (maskExportControllerRef.current === exportController) {
+        maskExportControllerRef.current = null;
+      }
+    }
+  }, [
+    aiMaskEditingState,
+    excalidrawAPI,
+    exitMaskEditing,
+    maskSession.elements,
+    onMaskReady,
+  ]);
 
   useEffect(() => {
     const targetImageId = aiMaskEditingState.targetImageId;
@@ -465,29 +519,33 @@ export const AIMaskEditingController = forwardRef<
         }
       }
 
-      const maskElements = getMaskElements(
-        elements,
-        maskEditingBaseElementIdsRef.current,
-      );
-      const nextMaskElementIds = maskElements.map((element) => element.id);
+      if (!targetImage || !isInitializedImageElement(targetImage)) {
+        exitMaskEditingRef.current(true);
+        return;
+      }
+
+      if (
+        activeTargetGeometrySignatureRef.current !==
+        getMaskTargetGeometrySignature(targetImage)
+      ) {
+        exitMaskEditingRef.current(true);
+        return;
+      }
 
       setMaskPreviewDataURL(
-        targetImage && isInitializedImageElement(targetImage)
-          ? generateMaskPreview(
-              targetImage,
-              maskElements,
-              undefined,
-              getMaskPreviewCanvasSize(targetImage),
-            )
-          : null,
+        generateMaskPreview(
+          targetImage,
+          maskSessionElementsRef.current,
+          undefined,
+          getMaskPreviewCanvasSize(targetImage),
+        ),
       );
 
       setAIMaskEditingState((current) => {
-        if (
-          current.mode !== "editing" ||
-          current.targetImageId !== targetImageId ||
-          areStringArraysEqual(current.maskElementIds, nextMaskElementIds)
-        ) {
+        const nextMaskElementIds = maskSessionElementsRef.current.map(
+          (element) => element.id,
+        );
+        if (areStringArraysEqual(current.maskElementIds, nextMaskElementIds)) {
           return current;
         }
 
@@ -518,6 +576,90 @@ export const AIMaskEditingController = forwardRef<
     getMaskTargetViewportBounds,
   ]);
 
+  useEffect(() => {
+    const targetImageId = aiMaskEditingState.targetImageId;
+
+    if (
+      !excalidrawAPI ||
+      aiMaskEditingState.mode !== "editing" ||
+      !targetImageId
+    ) {
+      return;
+    }
+
+    const targetImage = excalidrawAPI
+      .getSceneElements()
+      .find((element) => element.id === targetImageId);
+
+    if (!targetImage || !isInitializedImageElement(targetImage)) {
+      return;
+    }
+
+    setMaskPreviewDataURL(
+      generateMaskPreview(
+        targetImage,
+        maskSession.elements,
+        undefined,
+        getMaskPreviewCanvasSize(targetImage),
+      ),
+    );
+    setAIMaskEditingState((current) => {
+      const maskElementIds = maskSession.elements.map((element) => element.id);
+
+      return areStringArraysEqual(current.maskElementIds, maskElementIds)
+        ? current
+        : { ...current, maskElementIds };
+    });
+  }, [
+    aiMaskEditingState.mode,
+    aiMaskEditingState.targetImageId,
+    excalidrawAPI,
+    maskSession.elements,
+  ]);
+
+  const handleMaskPointerDown = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!excalidrawAPI || isCompletingMaskRef.current) {
+        return;
+      }
+
+      const { x: sceneX, y: sceneY } = viewportCoordsToSceneCoords(
+        { clientX, clientY },
+        excalidrawAPI.getAppState(),
+      );
+      setMaskSession((current) =>
+        beginAIMaskStroke(current, {
+          sceneX,
+          sceneY,
+          isErasing: isMaskErasing,
+          brushSize: maskBrushSize,
+        }),
+      );
+    },
+    [excalidrawAPI, isMaskErasing, maskBrushSize],
+  );
+
+  const handleMaskPointerMove = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!excalidrawAPI || isCompletingMaskRef.current) {
+        return;
+      }
+
+      const { x: sceneX, y: sceneY } = viewportCoordsToSceneCoords(
+        { clientX, clientY },
+        excalidrawAPI.getAppState(),
+      );
+      setMaskSession((current) =>
+        appendAIMaskStrokePoint(current, sceneX, sceneY),
+      );
+    },
+    [excalidrawAPI],
+  );
+
+  const handleMaskPointerUp = useCallback(() => {
+    setMaskSession(endAIMaskStroke);
+  }, []);
+
   if (
     aiMaskEditingState.mode !== "editing" ||
     !aiMaskEditingState.targetImageId
@@ -533,9 +675,13 @@ export const AIMaskEditingController = forwardRef<
       brushSize={maskBrushSize}
       zoomValue={maskEditingZoomValue}
       maskPreviewDataURL={maskPreviewDataURL}
+      isDonePending={isCompletingMask}
       onBrushSizeChange={setMaskBrushSize}
       onDone={handleMaskEditingDone}
       onCancel={() => exitMaskEditing(true)}
+      onMaskPointerDown={handleMaskPointerDown}
+      onMaskPointerMove={handleMaskPointerMove}
+      onMaskPointerUp={handleMaskPointerUp}
     />
   );
 });
@@ -601,9 +747,9 @@ const cloneMaskElements = (
 
 const bindMaskElementsToImage = (
   elements: readonly ExcalidrawFreeDrawElement[],
-  targetImage: ExcalidrawElement,
+  targetImage: ExcalidrawImageElement,
 ): ExcalidrawFreeDrawElement[] => {
-  const sourceGeometry = getImageMaskSourceGeometry(targetImage);
+  const sourceGeometry = createMaskSourceGeometryV2(targetImage);
 
   return cloneMaskElements(elements).map((element) => ({
     ...element,
@@ -618,21 +764,46 @@ const relocateMaskElementToImage = (
   element: ExcalidrawFreeDrawElement,
   targetImage: ExcalidrawElement,
 ): ExcalidrawFreeDrawElement => {
+  if (!isInitializedImageElement(targetImage)) {
+    return element;
+  }
+
   const sourceGeometry = getElementMaskSourceGeometry(element, targetImage.id);
 
   if (!sourceGeometry) {
     return element;
   }
 
-  const targetGeometry = getImageMaskSourceGeometry(targetImage);
+  const targetGeometry = createMaskSourceGeometryV2(targetImage);
+
+  if (
+    sourceGeometry.version === 2 &&
+    sourceGeometry.fileId !== targetGeometry.fileId
+  ) {
+    return element;
+  }
+
   const transformedScenePoints = element.points.map((point) => {
     const sourceScenePoint = localPointToScenePoint(element, point);
-    const sourceLocalPoint = scenePointToImageLocalPoint(
-      sourceScenePoint,
-      sourceGeometry,
-    );
+    if (sourceGeometry.version === 1) {
+      return legacyDisplayPointToScenePoint(
+        scenePointToLegacyDisplayPoint(sourceScenePoint, sourceGeometry),
+        {
+          version: 1,
+          imageId: targetGeometry.imageId,
+          x: targetGeometry.x,
+          y: targetGeometry.y,
+          width: targetGeometry.width,
+          height: targetGeometry.height,
+          angle: targetGeometry.angle,
+        },
+      );
+    }
 
-    return imageLocalPointToScenePoint(sourceLocalPoint, targetGeometry);
+    return normalizedNaturalPointToScenePoint(
+      scenePointToNormalizedNaturalPoint(sourceScenePoint, sourceGeometry),
+      targetGeometry,
+    );
   });
 
   if (!transformedScenePoints.length) {
@@ -652,7 +823,10 @@ const relocateMaskElementToImage = (
   const minY = Math.min(...transformedScenePoints.map((point) => point[1]));
   const maxX = Math.max(...transformedScenePoints.map((point) => point[0]));
   const maxY = Math.max(...transformedScenePoints.map((point) => point[1]));
-  const strokeScale = getMaskStrokeScale(sourceGeometry, targetGeometry);
+  const strokeScale = getMaskGeometryStrokeScale(
+    sourceGeometry,
+    targetGeometry,
+  );
 
   return {
     ...element,
@@ -678,32 +852,12 @@ const getElementMaskSourceGeometry = (
 ): AIMaskSourceGeometry | null => {
   const sourceGeometry = element.customData?.aiMaskSource;
 
-  if (
-    !sourceGeometry ||
-    sourceGeometry.version !== 1 ||
-    sourceGeometry.imageId !== targetImageId ||
-    !isFiniteGeometry(sourceGeometry)
-  ) {
+  if (!isValidMaskSourceGeometry(sourceGeometry, targetImageId)) {
     return null;
   }
 
   return sourceGeometry;
 };
-
-const getImageMaskSourceGeometry = (
-  image: Pick<
-    ExcalidrawElement,
-    "id" | "x" | "y" | "width" | "height" | "angle"
-  >,
-): AIMaskSourceGeometry => ({
-  version: 1,
-  imageId: image.id,
-  x: image.x,
-  y: image.y,
-  width: image.width,
-  height: image.height,
-  angle: image.angle,
-});
 
 const localPointToScenePoint = (
   element: ExcalidrawFreeDrawElement,
@@ -715,47 +869,6 @@ const localPointToScenePoint = (
     element.angle,
   );
 };
-
-const scenePointToImageLocalPoint = (
-  point: readonly [number, number],
-  image: AIMaskSourceGeometry,
-) => {
-  const unrotatedPoint = rotatePoint(
-    point,
-    getElementCenter(image),
-    -image.angle,
-  );
-
-  return [
-    (unrotatedPoint[0] - image.x) / getSafeDimension(image.width),
-    (unrotatedPoint[1] - image.y) / getSafeDimension(image.height),
-  ] as const;
-};
-
-const imageLocalPointToScenePoint = (
-  point: readonly [number, number],
-  image: AIMaskSourceGeometry,
-) => {
-  const unrotatedPoint = [
-    image.x + point[0] * image.width,
-    image.y + point[1] * image.height,
-  ] as const;
-
-  return rotatePoint(unrotatedPoint, getElementCenter(image), image.angle);
-};
-
-const getMaskStrokeScale = (
-  source: AIMaskSourceGeometry,
-  target: AIMaskSourceGeometry,
-) => {
-  const scaleX = Math.abs(target.width) / getSafeDimension(source.width);
-  const scaleY = Math.abs(target.height) / getSafeDimension(source.height);
-
-  return Math.max(scaleX, scaleY);
-};
-
-const getSafeDimension = (dimension: number) =>
-  Math.max(1, Math.abs(dimension));
 
 const getElementCenter = (
   element: Pick<ExcalidrawElement, "x" | "y" | "width" | "height">,
@@ -781,13 +894,6 @@ const rotatePoint = (
   ] as const;
 };
 
-const isFiniteGeometry = (geometry: AIMaskSourceGeometry) =>
-  Number.isFinite(geometry.x) &&
-  Number.isFinite(geometry.y) &&
-  Number.isFinite(geometry.width) &&
-  Number.isFinite(geometry.height) &&
-  Number.isFinite(geometry.angle);
-
 const areStringArraysEqual = (first: string[], second: string[]) => {
   if (first.length !== second.length) {
     return false;
@@ -796,30 +902,100 @@ const areStringArraysEqual = (first: string[], second: string[]) => {
   return first.every((value, index) => value === second[index]);
 };
 
-const getMaskElements = (
-  elements: readonly ExcalidrawElement[] | readonly OrderedExcalidrawElement[],
-  baseElementIds: Set<string>,
-): ExcalidrawFreeDrawElement[] => {
-  const maskElements: ExcalidrawFreeDrawElement[] = [];
-
-  for (const element of elements) {
-    if (isFreeDrawElement(element) && !baseElementIds.has(element.id)) {
-      maskElements.push(element as ExcalidrawFreeDrawElement);
-    }
-  }
-
-  return maskElements;
-};
-
-const isEditableEventTarget = (target: EventTarget | null) => {
+const isMaskEditingControlTarget = (target: EventTarget | null) => {
   if (!(target instanceof HTMLElement)) {
     return false;
   }
 
   return (
     target.isContentEditable ||
-    target.tagName === "INPUT" ||
-    target.tagName === "TEXTAREA" ||
-    target.tagName === "SELECT"
+    !!target.closest(
+      ".AIMaskEditingOverlay__toolbar, .AIMaskEditingOverlay__brushToolbar, .AIMaskEditingOverlay__preview",
+    )
   );
+};
+
+const getMaskTargetGeometrySignature = (image: ExcalidrawImageElement) =>
+  JSON.stringify({
+    fileId: image.fileId,
+    x: image.x,
+    y: image.y,
+    width: image.width,
+    height: image.height,
+    angle: image.angle,
+    scale: image.scale,
+    crop: image.crop,
+  });
+
+const isMaskEditingRangeTarget = (target: EventTarget | null) =>
+  target instanceof HTMLInputElement && target.type === "range";
+
+const MASK_EDITING_RANGE_KEYS = new Set([
+  "arrowup",
+  "arrowdown",
+  "arrowleft",
+  "arrowright",
+]);
+
+const MASK_EDITING_BLOCKED_EDITOR_KEYS = new Set([
+  "delete",
+  "backspace",
+  "enter",
+  " ",
+  "arrowup",
+  "arrowdown",
+  "arrowleft",
+  "arrowright",
+  "v",
+  "r",
+  "h",
+  "k",
+  "d",
+  "a",
+  "l",
+  "p",
+  "t",
+  "i",
+  "o",
+  "x",
+  "f",
+  "w",
+  "q",
+  "0",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+]);
+
+const moveMaskEditingFocus = (moveBackward: boolean) => {
+  const overlay = document.querySelector<HTMLElement>(".AIMaskEditingOverlay");
+  if (!overlay) {
+    return;
+  }
+
+  const focusable = Array.from(
+    overlay.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.hidden && element.tabIndex >= 0);
+  if (!focusable.length) {
+    overlay.focus();
+    return;
+  }
+
+  const currentIndex = focusable.indexOf(document.activeElement as HTMLElement);
+  const nextIndex = moveBackward
+    ? currentIndex <= 0
+      ? focusable.length - 1
+      : currentIndex - 1
+    : currentIndex < 0 || currentIndex === focusable.length - 1
+    ? 0
+    : currentIndex + 1;
+  focusable[nextIndex].focus();
 };
