@@ -3943,7 +3943,7 @@ const ExcalidrawWrapper = () => {
           refresh={refreshApp}
           onCloudAccountOpen={() => setIsCloudAccountOpen(true)}
           onSingleFileDialogOpen={() => setIsSingleFileDialogOpen(true)}
-          onEmbedOpen={() => {
+          onEmbedOpen={({ mode, preset }) => {
             if (!excalidrawAPI) {
               return;
             }
@@ -3953,7 +3953,9 @@ const ExcalidrawWrapper = () => {
                 instanceId,
               )}&parentOrigin=${encodeURIComponent(
                 window.location.origin,
-              )}&mode=edit&preset=full&lang=${encodeURIComponent(langCode)}`,
+              )}&mode=${mode}&preset=${preset}&lang=${encodeURIComponent(
+                langCode,
+              )}`,
               "_blank",
             );
             if (!embedWindow) {

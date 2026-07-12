@@ -40,7 +40,10 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   onCloudAccountOpen?: () => void;
   onSingleFileDialogOpen: () => void;
-  onEmbedOpen: () => void;
+  onEmbedOpen: (options: {
+    mode: "view" | "edit";
+    preset: "full" | "compact" | "presentation";
+  }) => void;
   excalidrawAPI?: ExcalidrawImperativeAPI | null;
   activeCloudScene?: ActiveCloudSceneInfo | null;
   langCode?: ExcalidrawProps["langCode"];
@@ -154,14 +157,48 @@ export const AppMainMenu: React.FC<{
           >
             {t("labels.experimental.singleFileBoard")}
           </MainMenu.Item>
-          <MainMenu.Item
-            icon={P3EmbedIcon}
-            onSelect={props.onEmbedOpen}
-            data-testid="embed-menu-item"
-            aria-label={t("labels.experimental.embedWhiteboard")}
-          >
-            {t("labels.experimental.embedWhiteboard")}
-          </MainMenu.Item>
+          <MainMenu.Sub>
+            <MainMenu.Sub.Trigger icon={P3EmbedIcon}>
+              {t("labels.experimental.embedWhiteboard")}
+            </MainMenu.Sub.Trigger>
+            <MainMenu.Sub.Content>
+              <MainMenu.Item
+                onSelect={() =>
+                  props.onEmbedOpen({ mode: "view", preset: "full" })
+                }
+                data-testid="embed-view-menu-item"
+              >
+                {t("labels.experimental.embedPresets.view")}
+              </MainMenu.Item>
+              <MainMenu.Item
+                onSelect={() =>
+                  props.onEmbedOpen({ mode: "edit", preset: "full" })
+                }
+                data-testid="embed-edit-menu-item"
+              >
+                {t("labels.experimental.embedPresets.edit")}
+              </MainMenu.Item>
+              <MainMenu.Item
+                onSelect={() =>
+                  props.onEmbedOpen({ mode: "edit", preset: "compact" })
+                }
+                data-testid="embed-compact-menu-item"
+              >
+                {t("labels.experimental.embedPresets.compact")}
+              </MainMenu.Item>
+              <MainMenu.Item
+                onSelect={() =>
+                  props.onEmbedOpen({
+                    mode: "view",
+                    preset: "presentation",
+                  })
+                }
+                data-testid="embed-presentation-menu-item"
+              >
+                {t("labels.experimental.embedPresets.presentation")}
+              </MainMenu.Item>
+            </MainMenu.Sub.Content>
+          </MainMenu.Sub>
           <MainMenu.Item
             icon={CastIcon}
             onSelect={() => setIsCastDialogOpen(true)}

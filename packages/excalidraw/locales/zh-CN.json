@@ -119,6 +119,12 @@
       "lumina": "光照 Lumina",
       "singleFileBoard": "单文件白板",
       "embedWhiteboard": "嵌入式白板",
+      "embedPresets": {
+        "view": "只读预览",
+        "edit": "可编辑嵌入",
+        "compact": "紧凑嵌入",
+        "presentation": "演示模式"
+      },
       "cast": "边画边录",
       "echo": "Echo 锚点分身"
     },
