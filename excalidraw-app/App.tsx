@@ -103,6 +103,7 @@ import Collab, {
 } from "./collab/Collab";
 import { AppFooter } from "./components/AppFooter";
 import { AppMainMenu } from "./components/AppMainMenu";
+import { SingleFileDialog } from "./components/SingleFileDialog";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import { AITaskListDialog } from "./components/AITaskListDialog";
 import { AuthDialog } from "./components/AuthDialog";
@@ -155,6 +156,7 @@ import {
   uploadSharedSceneAssets,
 } from "./data/cloud/cloudAssets";
 import { recordCloudAITask } from "./data/cloud/cloudAITasks";
+import { forwardCastEditorPointerUpdate } from "./cast";
 import { getCloudEmbedAccessFromUrl } from "./data/cloud/cloudEmbedLinks";
 import { getCloudShareAccessFromUrl } from "./data/cloud/cloudShareLinks";
 import {
@@ -816,6 +818,7 @@ const ExcalidrawWrapper = () => {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isCloudAccountOpen, setIsCloudAccountOpen] = useState(false);
+  const [isSingleFileDialogOpen, setIsSingleFileDialogOpen] = useState(false);
   const [isCloudSceneListOpen, setIsCloudSceneListOpen] = useState(false);
   const [isCloudAITaskListOpen, setIsCloudAITaskListOpen] = useState(false);
   const [isCloudEmbedListOpen, setIsCloudEmbedListOpen] = useState(false);
@@ -3847,7 +3850,10 @@ const ExcalidrawWrapper = () => {
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
         isCollaborating={isCollaborating}
-        onPointerUpdate={collabAPI?.onPointerUpdate}
+        onPointerUpdate={(payload) => {
+          collabAPI?.onPointerUpdate(payload);
+          forwardCastEditorPointerUpdate(payload);
+        }}
         validateEmbeddable={validateEmbeddable}
         renderEmbeddable={renderEmbeddable}
         UIOptions={{
@@ -3928,6 +3934,15 @@ const ExcalidrawWrapper = () => {
           theme={appTheme}
           refresh={refreshApp}
           onCloudAccountOpen={() => setIsCloudAccountOpen(true)}
+          onSingleFileDialogOpen={() => setIsSingleFileDialogOpen(true)}
+          excalidrawAPI={excalidrawAPI}
+          activeCloudScene={activeCloudScene}
+          langCode={langCode}
+        />
+        <SingleFileDialog
+          open={isSingleFileDialogOpen}
+          onClose={() => setIsSingleFileDialogOpen(false)}
+          excalidrawAPI={excalidrawAPI}
         />
         <AuthDialog
           open={isCloudAccountOpen}

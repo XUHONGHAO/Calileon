@@ -135,6 +135,9 @@ import {
   refreshTextDimensions,
   deepCopyElement,
   duplicateElements,
+  remapEchoAnchorIds,
+  syncEchoChanges,
+  drainEchoConflicts,
   hasBoundTextElement,
   isArrowElement,
   isBindingElement,
@@ -683,6 +686,37 @@ class App extends React.Component<AppProps, AppState> {
 
   // C1 Lumina：「高级材质需 WebGL」轻提示只弹一次，避免每帧刷屏。
   private luminaFallbackToastShown = false;
+  private readonly echoConflictToastKeys = new Set<string>();
+
+  private notifyEchoConflicts = () => {
+    const conflicts = drainEchoConflicts().filter((conflict) => {
+      const key = `${conflict.anchorId}:${conflict.field}:${[
+        conflict.localMutationId,
+        conflict.remoteMutationId,
+      ]
+        .sort()
+        .join(":")}`;
+      if (this.echoConflictToastKeys.has(key)) {
+        return false;
+      }
+      this.echoConflictToastKeys.add(key);
+      if (this.echoConflictToastKeys.size > 128) {
+        this.echoConflictToastKeys.delete(
+          this.echoConflictToastKeys.values().next().value!,
+        );
+      }
+      return true;
+    });
+    if (conflicts.length) {
+      const fields = [...new Set(conflicts.map((conflict) => conflict.field))]
+        .map((field) => t(`labels.echo.fields.${field}`))
+        .join(", ");
+      this.setToast({
+        message: t("toast.echoConflict", { field: fields }),
+        closable: true,
+      });
+    }
+  };
 
   private readonly editorLifecycleEvents = new AppEventBus<
     ExcalidrawImperativeAPIEventMap,
@@ -3020,7 +3054,15 @@ class App extends React.Component<AppProps, AppState> {
 
     let editingTextElement: AppState["editingTextElement"] | null = null;
     if (actionResult.elements) {
-      this.scene.replaceAllElements(actionResult.elements);
+      const nextElements =
+        actionResult.captureUpdate === CaptureUpdateAction.NEVER
+          ? actionResult.elements
+          : syncEchoChanges(
+              this.scene.getElementsIncludingDeleted(),
+              actionResult.elements,
+            );
+      actionResult = { ...actionResult, elements: nextElements };
+      this.scene.replaceAllElements(nextElements);
       didUpdate = true;
     }
 
@@ -4195,7 +4237,7 @@ class App extends React.Component<AppProps, AppState> {
 
     const { duplicatedElements } = duplicateElements({
       type: "everything",
-      elements: elements.map((element) => {
+      elements: remapEchoAnchorIds(elements).map((element) => {
         return newElementWith(element, {
           x: element.x + gridX - minX,
           y: element.y + gridY - minY,
@@ -4852,6 +4894,9 @@ class App extends React.Component<AppProps, AppState> {
 
       if (elements) {
         this.scene.replaceAllElements(elements);
+        if (captureUpdate === CaptureUpdateAction.NEVER) {
+          this.notifyEchoConflicts();
+        }
       }
 
       if (collaborators) {
@@ -5961,25 +6006,28 @@ class App extends React.Component<AppProps, AppState> {
     const elementsMap = this.scene.getElementsMapIncludingDeleted();
 
     const updateElement = (nextOriginalText: string, isDeleted: boolean) => {
-      this.scene.replaceAllElements([
-        // Not sure why we include deleted elements as well hence using deleted elements map
-        ...this.scene.getElementsIncludingDeleted().map((_element) => {
-          if (_element.id === element.id && isTextElement(_element)) {
-            return newElementWith(_element, {
-              originalText: nextOriginalText,
-              isDeleted: isDeleted ?? _element.isDeleted,
-              // returns (wrapped) text and new dimensions
-              ...refreshTextDimensions(
-                _element,
-                getContainerElement(_element, elementsMap),
-                elementsMap,
-                nextOriginalText,
-              ),
-            });
-          }
-          return _element;
-        }),
-      ]);
+      const previousElements = this.scene.getElementsIncludingDeleted();
+      this.scene.replaceAllElements(
+        syncEchoChanges(previousElements, [
+          // Not sure why we include deleted elements as well hence using deleted elements map
+          ...this.scene.getElementsIncludingDeleted().map((_element) => {
+            if (_element.id === element.id && isTextElement(_element)) {
+              return newElementWith(_element, {
+                originalText: nextOriginalText,
+                isDeleted: isDeleted ?? _element.isDeleted,
+                // returns (wrapped) text and new dimensions
+                ...refreshTextDimensions(
+                  _element,
+                  getContainerElement(_element, elementsMap),
+                  elementsMap,
+                  nextOriginalText,
+                ),
+              });
+            }
+            return _element;
+          }),
+        ]),
+      );
     };
 
     textWysiwyg({

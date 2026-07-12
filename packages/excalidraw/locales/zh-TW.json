@@ -104,9 +104,53 @@
       },
       "webglFallback": "進階材質（玻璃、鏡面）需要 WebGL，目前降級為簡單陰影。"
     },
+    "echo": {
+      "createAnchor": "建立 Echo 錨點",
+      "bindSelection": "綁定所選元素",
+      "duplicateIndependent": "複製為獨立元素",
+      "unbind": "解除所選元素聯動",
+      "namePrompt": "Echo 錨點名稱",
+      "defaultName": "Echo 錨點",
+      "status": { "label": "狀態", "none": "無狀態", "todo": "待辦", "in-progress": "進行中", "blocked": "阻塞", "done": "完成" },
+      "fields": { "text": "文字", "status": "狀態", "backgroundColor": "背景色" }
+    },
     "experimental": {
       "label": "實驗性",
-      "lumina": "光照 Lumina"
+      "lumina": "光照 Lumina",
+      "singleFileBoard": "單檔案白板",
+      "cast": "邊畫邊錄",
+      "echo": "Echo 錨點分身"
+    },
+    "cast": {
+      "title": "邊畫邊錄",
+      "description": "記錄場景、視口和指標的語意變化，並產生可互動回放。",
+      "start": "開始錄製",
+      "pause": "暫停",
+      "resume": "繼續",
+      "stop": "停止錄製",
+      "play": "播放",
+      "restart": "重新播放",
+      "preview": "互動回放",
+      "export": "匯出 CastScript",
+      "import": "匯入 CastScript",
+      "saveCloud": "儲存到雲端",
+      "savingCloud": "正在儲存…",
+      "savedCloud": "已儲存到雲端",
+      "discard": "捨棄錄製",
+      "status": {
+        "idle": "可以開始錄製",
+        "recording": "正在錄製",
+        "paused": "錄製已暫停",
+        "stopped": "錄製已就緒"
+      },
+      "timeline": "時間軸",
+      "speed": "播放速度",
+      "pointer": "錄製指標",
+      "empty": "請先錄製或匯入 CastScript。",
+      "cloudUnavailable": "請先登入並將目前白板綁定到雲端，再儲存錄製。",
+      "unsupportedVersion": "不支援此 CastScript 版本。",
+      "invalidScript": "所選檔案不是有效的 CastScript。",
+      "cloudError": "無法將錄製儲存到雲端。"
     },
     "textAlign": "文字對齊",
     "edges": "邊緣",
@@ -248,6 +292,40 @@
     "wrapSelectionInFrame": "將選取內容放入框架",
     "tab": "",
     "shapeSwitch": ""
+  },
+  "singleFile": {
+    "title": "單檔案白板",
+    "description": "將目前白板匯出為一個可離線執行、可繼續編輯的自包含 HTML 檔案。",
+    "export": "匯出單一檔案",
+    "exporting": "正在匯出...",
+    "save": "儲存",
+    "saveAs": "另存新檔",
+    "saving": "正在儲存...",
+    "support": "檔案包含離線編輯、本機圖片與目前 Lumina 資料。單檔案執行環境不提供 AI、雲端、登入與即時協作。",
+    "overwriteSupported": "此瀏覽器可透過 File System Access API 覆寫已授權的 HTML 檔案。",
+    "overwriteUnsupported": "此瀏覽器不支援直接覆寫本機檔案。「儲存」會自動改為下載新的副本。",
+    "saveFallback": "無法覆寫目前檔案，已自動轉為「另存新檔」，你的編輯內容不會遺失。",
+    "firstSaveTitle": "授權覆寫儲存",
+    "firstSaveDescription": "首次覆寫需要你明確選擇並授權一個 HTML 檔案。你可隨時使用「另存新檔」，系統不會靜默覆寫任何檔案。",
+    "firstSaveContinue": "選擇檔案",
+    "firstOverwritePrompt": "覆寫單檔案白板前，需要你明確選擇並授權 HTML 檔案。如果瀏覽器不支援、授權遭拒或寫入失敗，儲存會自動轉為另存新檔。是否繼續？",
+    "sizeWarningTitle": "單檔案體積較大",
+    "sizeWarning": "產生的 HTML 約為 {{size}}。大型檔案開啟與儲存可能較慢，但系統不會靜默捨棄資源。",
+    "browserSupportTitle": "瀏覽器支援",
+    "browserSupport": "目前 Chromium、Firefox 與 Safari 支援開啟、編輯和另存。直接覆寫儲存主要支援 Chrome 與 Edge，且一律需要使用者授權。",
+    "fileBoundaryTitle": "檔案內容與邊界",
+    "fileBoundary": "HTML 包含目前場景、已引用的本機圖片、樣式、字型與執行階段程式碼。遠端嵌入內容可能仍需連線。API Key、Token、帳號憑證與檔案控制代碼不會寫入檔案。",
+    "errors": {
+      "exportFailed": "無法匯出單檔案白板，目前白板未被修改。",
+      "saveFailed": "無法儲存單檔案白板，你的編輯仍保留在目前頁面中。",
+      "saveAsFailed": "無法另存新副本，你的編輯仍保留在目前頁面中。",
+      "invalidFile": "所選檔案不是相容的單檔案白板。"
+    },
+    "success": {
+      "exported": "單檔案白板已匯出。",
+      "saved": "單檔案白板已儲存。",
+      "savedAs": "新的單檔案白板已儲存。"
+    }
   },
   "elementLink": {
     "title": "連結至物件",
@@ -609,6 +687,7 @@
     "width": "寬度"
   },
   "toast": {
+    "echoConflict": "Echo 的{{field}}發生並行修改，已保留依穩定規則選出的最新版本。",
     "addedToLibrary": "加入資料庫",
     "copyStyles": "已複製樣式",
     "copyToClipboard": "複製至剪貼簿。",

@@ -108,9 +108,53 @@
       },
       "webglFallback": "Advanced materials (glass, mirror) need WebGL; showing simple shadows instead."
     },
+    "echo": {
+      "createAnchor": "Create Echo anchor",
+      "bindSelection": "Bind selected elements",
+      "duplicateIndependent": "Duplicate as independent",
+      "unbind": "Unbind selected elements",
+      "namePrompt": "Echo anchor name",
+      "defaultName": "Echo anchor",
+      "status": { "label": "Status", "none": "No status", "todo": "To do", "in-progress": "In progress", "blocked": "Blocked", "done": "Done" },
+      "fields": { "text": "text", "status": "status", "backgroundColor": "background color" }
+    },
     "experimental": {
       "label": "Experimental",
-      "lumina": "Lighting (Lumina)"
+      "lumina": "Lighting (Lumina)",
+      "singleFileBoard": "Single-file board",
+      "cast": "Cast / Record drawing",
+      "echo": "Echo anchors"
+    },
+    "cast": {
+      "title": "Cast / Record drawing",
+      "description": "Record semantic scene changes, viewport movement, and pointer motion for an interactive replay.",
+      "start": "Start recording",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop recording",
+      "play": "Play",
+      "restart": "Restart",
+      "preview": "Interactive replay",
+      "export": "Export CastScript",
+      "import": "Import CastScript",
+      "saveCloud": "Save to cloud",
+      "savingCloud": "Saving…",
+      "savedCloud": "Saved to cloud",
+      "discard": "Discard recording",
+      "status": {
+        "idle": "Ready to record",
+        "recording": "Recording",
+        "paused": "Recording paused",
+        "stopped": "Recording ready"
+      },
+      "timeline": "Timeline",
+      "speed": "Playback speed",
+      "pointer": "Recorded pointer",
+      "empty": "Record or import a CastScript to preview it.",
+      "cloudUnavailable": "Bind this whiteboard to your signed-in cloud account to save the recording.",
+      "unsupportedVersion": "This CastScript version is not supported.",
+      "invalidScript": "The selected file is not a valid CastScript.",
+      "cloudError": "The recording could not be saved to the cloud."
     },
     "textAlign": "Text align",
     "edges": "Edges",
@@ -267,6 +311,40 @@
     "boxSelectionOverlap": "Overlap",
     "arrowBinding": "Arrow binding",
     "midpointSnapping": "Snap to midpoints"
+  },
+  "singleFile": {
+    "title": "Single-file board",
+    "description": "Export this board as one self-contained HTML file that works offline and remains editable.",
+    "export": "Export single file",
+    "exporting": "Exporting...",
+    "save": "Save",
+    "saveAs": "Save as",
+    "saving": "Saving...",
+    "support": "Offline editing, local images, and current Lumina data are included. AI, cloud, sign-in, and collaboration are unavailable in the single-file runtime.",
+    "overwriteSupported": "This browser can overwrite an authorized HTML file using the File System Access API.",
+    "overwriteUnsupported": "This browser cannot overwrite local files directly. Save will automatically download a new copy instead.",
+    "saveFallback": "The current file could not be overwritten. Continuing with Save as so your edits are preserved.",
+    "firstSaveTitle": "Authorize overwrite saving",
+    "firstSaveDescription": "The first overwrite requires you to explicitly choose and authorize an HTML file. You can use Save as at any time, and no file will be overwritten silently.",
+    "firstSaveContinue": "Choose file",
+    "firstOverwritePrompt": "To overwrite a single-file board, explicitly choose and authorize the HTML file. If access is unavailable or denied, Save will automatically continue with Save as. Continue?",
+    "sizeWarningTitle": "Large single-file board",
+    "sizeWarning": "The generated HTML is about {{size}}. Large files may open and save slowly, but no resources will be silently omitted.",
+    "browserSupportTitle": "Browser support",
+    "browserSupport": "Opening, editing, and Save as work in current Chromium, Firefox, and Safari. Direct overwrite saving is supported primarily by Chrome and Edge and always requires permission.",
+    "fileBoundaryTitle": "File contents and limits",
+    "fileBoundary": "The HTML contains the current scene, referenced local images, styles, fonts, and runtime code. Remote embeds may still require a network connection. API keys, tokens, account credentials, and file handles are excluded.",
+    "errors": {
+      "exportFailed": "Could not export the single-file board. Your current board is unchanged.",
+      "saveFailed": "Could not save the single-file board. Your edits are still available in this page.",
+      "saveAsFailed": "Could not save a new copy. Your edits are still available in this page.",
+      "invalidFile": "The selected file is not a compatible single-file board."
+    },
+    "success": {
+      "exported": "Single-file board exported.",
+      "saved": "Single-file board saved.",
+      "savedAs": "New single-file board saved."
+    }
   },
   "elementLink": {
     "title": "Link to object",
@@ -648,6 +726,7 @@
     "width": "Width"
   },
   "toast": {
+    "echoConflict": "Echo received concurrent changes to {{field}}. The latest deterministic version was kept.",
     "addedToLibrary": "Added to library",
     "copyStyles": "Copied styles.",
     "copyToClipboard": "Copied to clipboard.",
