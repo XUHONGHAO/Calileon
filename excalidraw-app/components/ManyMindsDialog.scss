@@ -1,0 +1,78 @@
+.ManyMindsDialog .Dialog__content {
+  max-width: 1120px;
+}
+.ManyMinds {
+  display: grid;
+  gap: 1rem;
+  max-height: 78vh;
+  overflow: auto;
+}
+.ManyMinds__setup {
+  display: grid;
+  gap: 0.75rem;
+}
+.ManyMinds label {
+  display: grid;
+  gap: 0.25rem;
+}
+.ManyMinds textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+.ManyMinds__row,
+.ManyMinds__batchHeader,
+.ManyMinds__footer,
+.ManyMinds__taskActions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ManyMinds__row > * {
+  flex: 1;
+}
+.ManyMinds__perspectives {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.5rem;
+}
+.ManyMinds__primary {
+  justify-self: start;
+}
+.ManyMinds__batchHeader {
+  justify-content: space-between;
+}
+.ManyMinds__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.ManyMinds__grid--6,
+.ManyMinds__grid--9 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.ManyMinds__task {
+  border: 1px solid var(--color-gray-30);
+  border-radius: 0.5rem;
+  padding: 0.65rem;
+  display: grid;
+  gap: 0.45rem;
+}
+.ManyMinds__task img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  background: var(--color-gray-10);
+  border-radius: 0.35rem;
+}
+.ManyMinds__task.is-failed,
+.ManyMinds__task.is-interrupted {
+  border-color: var(--color-danger);
+}
+@media (max-width: 720px) {
+  .ManyMinds__grid,
+  .ManyMinds__grid--6,
+  .ManyMinds__grid--9 {
+    grid-template-columns: 1fr;
+  }
+}

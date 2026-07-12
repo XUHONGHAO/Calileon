@@ -3997,6 +3997,7 @@ const ExcalidrawWrapper = () => {
             };
             window.addEventListener("message", handleReady);
           }}
+          manyMindsPersistenceScopeId={aiWorkbenchPersistenceScopeId}
           excalidrawAPI={excalidrawAPI}
           activeCloudScene={activeCloudScene}
           langCode={langCode}
