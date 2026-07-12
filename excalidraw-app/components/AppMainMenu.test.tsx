@@ -166,6 +166,7 @@ vi.mock("@excalidraw/excalidraw/index", () => {
     </div>
   );
   ExperimentalFeatures.Lumina = () => <div>Lumina submenu</div>;
+  ExperimentalFeatures.Echo = () => <div>Echo submenu</div>;
 
   MainMenu.DefaultItems = {
     ChangeCanvasBackground: () => (
@@ -238,11 +239,12 @@ describe("AppMainMenu experimental features", () => {
     authMock.state = makeAuthState();
   });
 
-  it("keeps Lumina and opens the single-file board dialog", () => {
+  it("keeps Lumina and Echo and opens the single-file board dialog", () => {
     const onSingleFileDialogOpen = vi.fn();
     renderMenu({ onSingleFileDialogOpen });
 
     expect(screen.getByText("Lumina submenu")).toBeInTheDocument();
+    expect(screen.getByText("Echo submenu")).toBeInTheDocument();
     expect(screen.getByTestId("single-file-board-icon")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Single-file board" }));
