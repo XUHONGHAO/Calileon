@@ -109,6 +109,7 @@ describe("line tone SVG rendering", () => {
     const anchor = getLineTonePathAnchor(element, elementsMap)!;
     const context = document.createElement("canvas").getContext("2d")!;
     const translate = vi.spyOn(context, "translate");
+    const scale = vi.spyOn(context, "scale");
     const arc = vi.spyOn(context, "arc");
 
     renderLineToneMarker(
@@ -120,12 +121,13 @@ describe("line tone SVG rendering", () => {
         theme: "light",
         canvasBackgroundColor: "#ffffff",
       } as any,
-      { zoom: { value: 1 }, scrollX: 0, scrollY: 0 } as any,
+      { zoom: { value: 2 }, scrollX: 0, scrollY: 0 } as any,
     );
 
     expect(translate.mock.calls[0][0]).toBeCloseTo(anchor.point[0]);
     expect(translate.mock.calls[0][1]).toBeCloseTo(anchor.point[1]);
     expect(arc).toHaveBeenCalledWith(0, 0, 9, 0, Math.PI * 2);
+    expect(scale).not.toHaveBeenCalled();
   });
 
   it("moves the marker to the preferred side when the midpoint has a label", () => {
@@ -161,7 +163,7 @@ describe("line tone SVG rendering", () => {
         theme: "light",
         canvasBackgroundColor: "#ffffff",
       } as any,
-      { zoom: { value: 1 }, scrollX: 0, scrollY: 0 } as any,
+      { zoom: { value: 2 }, scrollX: 0, scrollY: 0 } as any,
     );
 
     expect(translate.mock.calls[0][0]).toBeCloseTo(

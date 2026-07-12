@@ -632,22 +632,16 @@ export const renderLineToneMarker = (
     return;
   }
 
-  const markerScale = renderConfig.isExporting ? 1 : 1 / appState.zoom.value;
   const hasBoundText = !!getBoundTextElement(element, elementsMap);
   const markerOffset = hasBoundText ? LINE_TONE_MARKER_OFFSET : 0;
   const markerX =
-    anchor.point[0] +
-    appState.scrollX +
-    anchor.normal[0] * markerOffset * markerScale;
+    anchor.point[0] + appState.scrollX + anchor.normal[0] * markerOffset;
   const markerY =
-    anchor.point[1] +
-    appState.scrollY +
-    anchor.normal[1] * markerOffset * markerScale;
+    anchor.point[1] + appState.scrollY + anchor.normal[1] * markerOffset;
   const geometry = getLineToneMarkerGeometry(tone);
 
   context.save();
   context.translate(markerX, markerY);
-  context.scale(markerScale, markerScale);
   context.lineCap = "round";
   context.lineJoin = "round";
   context.lineWidth = 2;
