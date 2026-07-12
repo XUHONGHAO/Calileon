@@ -114,12 +114,28 @@
       "status": { "label": "狀態", "none": "無狀態", "todo": "待辦", "in-progress": "進行中", "blocked": "阻塞", "done": "完成" },
       "fields": { "text": "文字", "status": "狀態", "backgroundColor": "背景色" }
     },
+    "lineTone": {
+      "label": "連線語氣",
+      "normal": "一般",
+      "certain": "確定",
+      "possible": "可能",
+      "blocked": "阻塞",
+      "questioned": "存疑"
+    },
     "experimental": {
       "label": "實驗性",
       "lumina": "光照 Lumina",
       "singleFileBoard": "單檔案白板",
+      "embedWhiteboard": "嵌入式白板",
+      "embedPresets": {
+        "view": "唯讀預覽",
+        "edit": "可編輯嵌入",
+        "compact": "精簡嵌入",
+        "presentation": "簡報模式"
+      },
       "cast": "邊畫邊錄",
-      "echo": "Echo 錨點分身"
+      "echo": "Echo 錨點分身",
+      "lineTone": "連線語氣"
     },
     "cast": {
       "title": "邊畫邊錄",
@@ -829,6 +845,46 @@
     "upsellBtnLabel": ""
   },
   "ai": {
+    "manyMinds": {
+      "title": "異世界視角",
+      "inputKind": "輸入",
+      "prompt": "要求",
+      "count": "視角數量",
+      "model": "Model ID",
+      "perspectives": "視角",
+      "perspective": "視角",
+      "customPerspective": "自訂視角",
+      "customName": "視角名稱",
+      "customPrompt": "視角說明",
+      "addPerspective": "新增視角",
+      "deletePerspective": "刪除 {{name}}",
+      "generate": "生成 {{count}} 個視角",
+      "progress": "已完成 {{done}} / {{total}}",
+      "restoredNotice": "已恢復上次結果；未完成的付費請求沒有被自動重新提交。",
+      "cancelBatch": "取消批次",
+      "cancel": "取消",
+      "retry": "明確重試",
+      "delete": "刪除",
+      "insertOne": "插入",
+      "insertSelected": "插入所選",
+      "insertAll": "整組插入",
+      "replace": "替換原圖",
+      "branch": "繼續裂變",
+      "branchReady": "該結果已可作為新批次輸入。",
+      "costWarning": "執行中的請求可能已被 provider 計費。",
+      "inputs": { "image": "選中圖片", "region": "選中區域", "text": "文字", "visionAndText": "視覺輸入 + 文字" },
+      "status": { "queued": "排隊中", "running": "生成中", "succeeded": "成功", "failed": "失敗", "cancelled": "已取消", "interrupted": "已中斷——需要明確重試" },
+      "errors": {
+        "modelUnavailable": "指定模型不可用或不支援該模式。請選擇模型後明確重試。",
+        "inputMissing": "穩定輸入資產不可用。",
+        "emptyOutput": "Provider 未返回圖片。",
+        "scopeUnavailable": "目前白板尚無穩定的本地持久化作用域。",
+        "selectOneImage": "請只選擇一張圖片。",
+        "selectRegion": "請選擇一個或多個畫布元素。",
+        "promptRequired": "請輸入文字要求。",
+        "perspectivesRequired": "請為每個任務選擇視角。"
+      }
+    },
     "common": {
       "ai": "AI",
       "settings": "AI 設定",

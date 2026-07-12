@@ -22,10 +22,11 @@ const element = (
   id: string,
   version: number,
   customData?: Record<string, unknown>,
+  type: ExcalidrawElement["type"] = "rectangle",
 ) =>
   ({
     id,
-    type: "rectangle",
+    type,
     x: version,
     y: 0,
     width: 10,
@@ -187,7 +188,7 @@ describe("Cast semantic core", () => {
     expect(new CastPlayer(script).seek(20).elements[0].version).toBe(3);
   });
 
-  it("preserves normal Lumina state and strips all game state", () => {
+  it("preserves portable element semantics and strips all game state", () => {
     const { recorder } = setup();
     recorder.start(
       snapshot(
@@ -197,6 +198,12 @@ describe("Cast semantic core", () => {
             luminaLight: { light: "point", intensity: 1 },
             luminaGame: { role: "target" },
           }),
+          element(
+            "blocked-arrow",
+            1,
+            { lineTone: { version: 1, tone: "blocked" } },
+            "arrow",
+          ),
         ],
         {},
         {
@@ -211,6 +218,9 @@ describe("Cast semantic core", () => {
     expect(script.initial.elements[0].customData).toEqual({
       luminaMaterial: { material: "glass" },
       luminaLight: { light: "point", intensity: 1 },
+    });
+    expect(script.initial.elements[1].customData).toEqual({
+      lineTone: { version: 1, tone: "blocked" },
     });
     expect(script.initial.appState).toMatchObject({
       luminaEnabled: true,

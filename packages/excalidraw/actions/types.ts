@@ -69,6 +69,7 @@ export type ActionName =
   | "changeStrokeShape"
   | "changeSloppiness"
   | "changeStrokeStyle"
+  | "changeLineTone"
   | "changeArrowhead"
   | "changeArrowType"
   | "changeArrowProperties"

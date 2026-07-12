@@ -43,6 +43,70 @@ describe("restoreElements", () => {
     expect(restoredElements.length).toBe(elements.length);
   });
 
+  describe("line tone custom data", () => {
+    it.each([
+      { type: "line" as const },
+      { type: "arrow" as const },
+      { type: "arrow" as const, elbowed: true },
+    ])("preserves valid tone on supported element: %j", (elementProps) => {
+      const element = API.createElement({
+        ...elementProps,
+        customData: {
+          lineTone: { version: 1, tone: "blocked", ignored: true },
+          preserved: { value: 1 },
+        },
+      });
+
+      const restored = restore.restoreElements([element], null)[0];
+      expect(restored.customData).toEqual({
+        lineTone: { version: 1, tone: "blocked" },
+        preserved: { value: 1 },
+      });
+    });
+
+    it.each([
+      { version: 2, tone: "certain" },
+      { version: 1, tone: "unknown" },
+      { version: 1 },
+      "certain",
+      null,
+    ])("removes invalid or unknown tone during restore: %j", (lineTone) => {
+      const element = API.createElement({
+        type: "line",
+        customData: { lineTone, preserved: true },
+      });
+
+      expect(restore.restoreElements([element], null)[0].customData).toEqual({
+        preserved: true,
+      });
+    });
+
+    it("removes tone from unsupported elements while preserving other data", () => {
+      const rectangle = API.createElement({
+        type: "rectangle",
+        customData: {
+          lineTone: { version: 1, tone: "certain" },
+          luminaMaterial: { material: "glass" },
+        },
+      });
+
+      expect(restore.restoreElements([rectangle], null)[0].customData).toEqual({
+        luminaMaterial: { material: "glass" },
+      });
+    });
+
+    it("drops customData when invalid tone was its only key", () => {
+      const arrow = API.createElement({
+        type: "arrow",
+        customData: { lineTone: { version: 99, tone: "certain" } },
+      });
+
+      expect(
+        restore.restoreElements([arrow], null)[0].customData,
+      ).toBeUndefined();
+    });
+  });
+
   it("restores created timestamp safely", () => {
     const elementWithCreated = API.createElement({
       type: "rectangle",
