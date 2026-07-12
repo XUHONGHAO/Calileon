@@ -3935,6 +3935,7 @@ const ExcalidrawWrapper = () => {
           refresh={refreshApp}
           onCloudAccountOpen={() => setIsCloudAccountOpen(true)}
           onSingleFileDialogOpen={() => setIsSingleFileDialogOpen(true)}
+          manyMindsPersistenceScopeId={aiWorkbenchPersistenceScopeId}
           excalidrawAPI={excalidrawAPI}
           activeCloudScene={activeCloudScene}
           langCode={langCode}

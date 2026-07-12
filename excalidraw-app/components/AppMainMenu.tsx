@@ -25,6 +25,7 @@ import { useCloudAuth } from "../auth/useCloudAuth";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 
 import { AISettings } from "./AISettings";
+import { ManyMindsDialog } from "./ManyMindsDialog";
 
 import { CastDialog } from "./CastDialog";
 import { saveDebugState } from "./DebugCanvas";
@@ -39,12 +40,14 @@ export const AppMainMenu: React.FC<{
   refresh: () => void;
   onCloudAccountOpen?: () => void;
   onSingleFileDialogOpen: () => void;
+  manyMindsPersistenceScopeId?: string | null;
   excalidrawAPI?: ExcalidrawImperativeAPI | null;
   activeCloudScene?: ActiveCloudSceneInfo | null;
   langCode?: ExcalidrawProps["langCode"];
 }> = React.memo((props) => {
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
   const [isCastDialogOpen, setIsCastDialogOpen] = React.useState(false);
+  const [isManyMindsOpen, setIsManyMindsOpen] = React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
     "models" | "agents" | "templates"
   >("models");
@@ -160,6 +163,14 @@ export const AppMainMenu: React.FC<{
           >
             {t("labels.experimental.cast")}
           </MainMenu.Item>
+          <MainMenu.Item
+            icon={MagicIcon}
+            onSelect={() => setIsManyMindsOpen(true)}
+            data-testid="many-minds-menu-item"
+            aria-label={t("ai.manyMinds.title")}
+          >
+            {t("ai.manyMinds.title")}
+          </MainMenu.Item>
         </MainMenu.DefaultItems.ExperimentalFeatures>
         <MainMenu.DefaultItems.Preferences
           additionalItems={
@@ -204,6 +215,12 @@ export const AppMainMenu: React.FC<{
         excalidrawAPI={props.excalidrawAPI ?? null}
         activeCloudScene={props.activeCloudScene}
         langCode={props.langCode}
+      />
+      <ManyMindsDialog
+        open={isManyMindsOpen}
+        onClose={() => setIsManyMindsOpen(false)}
+        excalidrawAPI={props.excalidrawAPI ?? null}
+        persistenceScopeId={props.manyMindsPersistenceScopeId ?? null}
       />
     </>
   );

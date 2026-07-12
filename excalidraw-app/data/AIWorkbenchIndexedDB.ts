@@ -7,7 +7,11 @@ import {
   promisifyRequest,
 } from "idb-keyval";
 
-export type AIWorkbenchPayloadKind = "reference" | "mask";
+export type AIWorkbenchPayloadKind =
+  | "reference"
+  | "mask"
+  | "many-minds-batch"
+  | "many-minds-asset";
 
 export type AIWorkbenchStoredMaskPayload<TElement = unknown> = {
   blob: Blob;
