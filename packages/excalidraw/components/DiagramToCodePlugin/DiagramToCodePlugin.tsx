@@ -13,6 +13,12 @@ export const DiagramToCodePlugin = (props: {
     app.setPlugins({
       diagramToCode: { generate: props.generate },
     });
+
+    return () => {
+      app.setPlugins({
+        diagramToCode: undefined,
+      });
+    };
   }, [app, props.generate]);
 
   return null;

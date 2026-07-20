@@ -5,3 +5,9 @@ verify_jwt = true
 
 [functions.video-asset-resolve]
 verify_jwt = false
+
+[functions.vault-asset-access]
+verify_jwt = false
+
+[functions.vault-control-plane]
+verify_jwt = false

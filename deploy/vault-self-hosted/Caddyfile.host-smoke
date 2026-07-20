@@ -1,0 +1,30 @@
+https://vault.localhost:8443 {
+  tls internal
+  encode zstd gzip
+
+  route {
+    @room path /socket.io/* /vault/capabilities /vault/rooms /vault/control-plane/* /healthz /readyz
+    reverse_proxy @room host.docker.internal:3002
+
+    root * /srv
+    try_files {path} /index.html
+    file_server
+  }
+
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    X-Frame-Options "SAMEORIGIN"
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; frame-src 'self' https:; worker-src 'self' blob:; connect-src 'self' {$SUPABASE_PUBLIC_URL}"
+  }
+
+  log {
+    output discard
+  }
+}
+
+http://vault.localhost:8080 {
+  redir https://vault.localhost:8443{uri} permanent
+}

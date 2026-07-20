@@ -2,6 +2,11 @@ import { getFeatureFlag } from "@excalidraw/common";
 import * as Sentry from "@sentry/browser";
 import callsites from "callsites";
 
+import {
+  sanitizeSentryBreadcrumbForTelemetry,
+  sanitizeSentryEventForTelemetry,
+} from "./data/vault/redaction";
+
 const SentryEnvHostnameMap: { [key: string]: string } = {
   "excalidraw.com": "production",
   "staging.excalidraw.com": "staging",
@@ -36,10 +41,11 @@ Sentry.init({
     }),
     Sentry.featureFlagsIntegration(),
   ],
-  beforeSend(event) {
-    if (event.request?.url) {
-      event.request.url = event.request.url.replace(/#.*$/, "");
-    }
+  beforeBreadcrumb(breadcrumb) {
+    return sanitizeSentryBreadcrumbForTelemetry(breadcrumb);
+  },
+  beforeSend(sourceEvent) {
+    const event = sanitizeSentryEventForTelemetry(sourceEvent);
 
     if (!event.exception) {
       event.exception = {

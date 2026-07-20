@@ -10,3 +10,4 @@ examples/**/public
 dev-dist
 coverage
 logs/
+deploy/vault-self-hosted/backups/

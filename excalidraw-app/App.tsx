@@ -15,6 +15,7 @@ import {
   DEFAULT_CATEGORIES,
 } from "@excalidraw/excalidraw/components/CommandPalette/CommandPalette";
 import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
+import { Button } from "@excalidraw/excalidraw/components/Button";
 import { OverwriteConfirmDialog } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirm";
 import { openConfirmModal } from "@excalidraw/excalidraw/components/OverwriteConfirm/OverwriteConfirmState";
 import { ShareableLinkDialog } from "@excalidraw/excalidraw/components/ShareableLinkDialog";
@@ -74,6 +75,7 @@ import type {
   FileId,
   ExcalidrawEmbeddableElement,
   ExcalidrawFreeDrawElement,
+  ExcalidrawElement,
   NonDeleted,
   NonDeletedExcalidrawElement,
   OrderedExcalidrawElement,
@@ -122,6 +124,8 @@ import {
   exportToExcalidrawPlus,
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
+import { VaultStatus } from "./components/VaultStatus";
+import { VaultShareDialog } from "./components/VaultShareDialog";
 import {
   AI_AGENT_CONFIG_UPDATED_EVENT,
   loadAIAgentConfig,
@@ -150,7 +154,7 @@ import {
 } from "./ai/workbenchPersistenceScope";
 
 import { localStore, shareLink, firebaseStore } from "./data/cloud";
-import { getCloudBackend } from "./data/cloud";
+import { createSupabaseVaultBackend, getCloudBackend } from "./data/cloud";
 import {
   loadAssetRefsForElements,
   loadEncryptedAssetRefsForElements,
@@ -181,6 +185,18 @@ import {
   saveCloudSceneBinding,
 } from "./data/cloud/sceneBinding";
 import { isEncryptedScenePayloadV1 } from "./data/cloud/CloudEncryptionService";
+import {
+  assertVaultClientConfig,
+  createVaultSnapshotAutosaveController,
+  createHttpVaultDeploymentDiscoveryTransport,
+  discoverVaultDeployment,
+  getVaultLinkData,
+  hasVaultUrlMarker,
+  openVault,
+  readVaultClientConfig,
+  readVaultSessionSecrets,
+  VaultError,
+} from "./data/vault";
 
 import { updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
@@ -258,6 +274,22 @@ import type {
   VideoAssetIngestResult,
 } from "./data/cloud";
 import type { CloudAITaskRun } from "./data/cloud/cloudAITasks";
+import type { VaultBackend } from "./data/cloud";
+import type {
+  OpenedVault,
+  VaultClientConfig,
+  VaultClientSession,
+  VaultDeploymentDiscoveryTransport,
+  VaultDeploymentReady,
+  VaultLinkData,
+  VaultOwnerService,
+  VaultPersistenceService,
+  VaultAutosaveUnsyncedReason,
+  VaultEncryptedAssetService,
+  VaultErrorCode,
+  VaultSnapshotAutosaveController,
+  VaultSyncStatus,
+} from "./data/vault";
 
 polyfill();
 
@@ -286,6 +318,88 @@ type ActiveEmbeddedScene = ActiveCloudScene & {
   mode: EmbedMode;
   origin: string;
   encryptionKey: string | null;
+};
+
+export type VaultAutosaveSnapshot = {
+  readonly elements: readonly OrderedExcalidrawElement[];
+  readonly appState: Partial<AppState>;
+  readonly files: BinaryFiles;
+};
+
+export type ActiveVault = {
+  readonly session: VaultClientSession;
+  readonly owner: VaultOwnerService;
+  readonly persistence: VaultPersistenceService;
+  readonly assets: VaultEncryptedAssetService;
+  readonly generation: number;
+  readonly syncStatus: VaultSyncStatus;
+  readonly autosaveErrorCode?: VaultErrorCode | null;
+  readonly autosaveUnsyncedReason?: VaultAutosaveUnsyncedReason | null;
+};
+
+const createVaultAutosaveSnapshot = (
+  elements: readonly ExcalidrawElement[],
+  appState: Partial<AppState>,
+  files: BinaryFiles,
+) => {
+  const serializedScene = JSON.parse(
+    serializeAsJSON(elements, appState, files, "database"),
+  ) as Partial<VaultAutosaveSnapshot>;
+  const snapshot: VaultAutosaveSnapshot = {
+    elements: serializedScene.elements ?? [],
+    appState: serializedScene.appState ?? {},
+    files: serializedScene.files ?? {},
+  };
+  return {
+    serializedSnapshot: JSON.stringify(snapshot),
+    snapshot,
+  };
+};
+
+export const reconcileVaultAutosaveSnapshots = (
+  pendingSnapshot: VaultAutosaveSnapshot,
+  latestSnapshot: VaultAutosaveSnapshot,
+  localAppState: AppState,
+): VaultAutosaveSnapshot => ({
+  elements: reconcileElements(
+    pendingSnapshot.elements,
+    latestSnapshot.elements as readonly RemoteExcalidrawElement[],
+    localAppState,
+  ),
+  appState: pendingSnapshot.appState,
+  files: { ...latestSnapshot.files, ...pendingSnapshot.files },
+});
+
+export const recoverVaultAfterRoomReconnect = async (
+  autosave: Pick<
+    VaultSnapshotAutosaveController<VaultAutosaveSnapshot>,
+    "flush"
+  > | null,
+  reload: () => void,
+) => {
+  if (autosave) {
+    const state = await autosave.flush();
+    if (state.status !== "synced" || state.hasPendingChanges) {
+      throw new VaultError(
+        "VAULT_PERSISTENCE_UNAVAILABLE",
+        "Vault room recovery requires a fully persisted snapshot.",
+      );
+    }
+  }
+  reload();
+};
+
+export const prepareVaultAutosaveSnapshot = (
+  previousSerializedSnapshot: string | null,
+  elements: readonly ExcalidrawElement[],
+  appState: Partial<AppState>,
+  files: BinaryFiles,
+) => {
+  const prepared = createVaultAutosaveSnapshot(elements, appState, files);
+  if (prepared.serializedSnapshot === previousSerializedSnapshot) {
+    return null;
+  }
+  return prepared;
 };
 
 type CloudSceneRemoteUpdateState =
@@ -376,9 +490,200 @@ const shareableLinkConfirmDialog = {
   color: "danger",
 } as const;
 
-const initializeScene = async (opts: {
+const getVaultRouteErrorMessage = (code: VaultError["code"]) => {
+  switch (code) {
+    case "VAULT_URL_INVALID":
+      return t("vault.errors.invalidUrl");
+    case "VAULT_PROTOCOL_UNSUPPORTED":
+      return t("vault.errors.protocolUnsupported");
+    case "VAULT_DECRYPT_FAILED":
+      return t("vault.errors.decryptFailed");
+    case "VAULT_ENVELOPE_INVALID":
+      return t("vault.errors.integrityFailed");
+    case "VAULT_CAPABILITY_EXPIRED":
+      return t("vault.errors.expired");
+    case "VAULT_CAPABILITY_REVOKED":
+      return t("vault.errors.revoked");
+    case "VAULT_CAPABILITY_INVALID":
+    case "VAULT_CAPABILITY_FORBIDDEN":
+      return t("vault.errors.accessDenied");
+    default:
+      return t("vault.errors.unavailable");
+  }
+};
+
+const getBlockedVaultScene = (code: VaultError["code"], vaultId?: string) => ({
+  scene: {
+    elements: [],
+    files: {},
+    appState: restoreAppState(
+      {
+        isLoading: false,
+        viewModeEnabled: true,
+        errorMessage: getVaultRouteErrorMessage(code),
+      },
+      null,
+    ),
+  },
+  isExternalScene: true as const,
+  id: vaultId ?? "vault",
+  key: "",
+});
+
+const isCurrentVaultRoute = () => hasVaultUrlMarker(window.location.href);
+
+export const isVaultExternalFeatureDisabled = (
+  activeVault: ActiveVault | null,
+): boolean => Boolean(activeVault) || isCurrentVaultRoute();
+
+type ReadyVaultClientConfig = VaultClientConfig & {
+  enabled: true;
+  persistenceCapabilitiesUrl: string;
+  roomCapabilitiesUrl: string;
+  roomProvisionUrl: string;
+};
+
+const readReadyVaultClientConfig = (): ReadyVaultClientConfig => {
+  const config = readVaultClientConfig();
+  assertVaultClientConfig(config);
+  return config;
+};
+
+export interface VaultSceneRouteDependencies {
+  readConfig(): ReadyVaultClientConfig;
+  createDiscoveryTransport(input: {
+    persistenceCapabilitiesUrl: string;
+    roomCapabilitiesUrl: string;
+  }): VaultDeploymentDiscoveryTransport;
+  discover(
+    transport: VaultDeploymentDiscoveryTransport,
+  ): Promise<{ ready: VaultDeploymentReady }>;
+  createBackend(deployment: VaultDeploymentReady): VaultBackend;
+  open(input: {
+    deployment: VaultDeploymentReady;
+    persistence: VaultPersistenceService;
+    link: VaultLinkData;
+    createEmptySnapshot: () => unknown;
+  }): Promise<OpenedVault<unknown>>;
+}
+
+const defaultVaultSceneRouteDependencies: VaultSceneRouteDependencies = {
+  readConfig: readReadyVaultClientConfig,
+  createDiscoveryTransport: createHttpVaultDeploymentDiscoveryTransport,
+  discover: discoverVaultDeployment,
+  createBackend: createSupabaseVaultBackend,
+  open: openVault,
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const assertVaultSceneSnapshot = (
+  value: unknown,
+  role: VaultClientSession["role"],
+): ExcalidrawInitialDataState => {
+  if (!isRecord(value)) {
+    throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault scene.");
+  }
+  const keys = Object.keys(value);
+  if (
+    keys.length !== 3 ||
+    !["elements", "appState", "files"].every((key) => keys.includes(key)) ||
+    !Array.isArray(value.elements) ||
+    !isRecord(value.appState) ||
+    !isRecord(value.files)
+  ) {
+    throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault scene.");
+  }
+
+  const snapshotElements = value.elements;
+  const elements = restoreElements(snapshotElements, null, {
+    repairBindings: true,
+    deleteInvisibleElements: true,
+  });
+  if (
+    elements.length !== snapshotElements.length ||
+    elements.some((element, index) => {
+      const source = snapshotElements[index];
+      return (
+        !isRecord(source) ||
+        source.id !== element.id ||
+        source.type !== element.type
+      );
+    })
+  ) {
+    throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault scene.");
+  }
+
+  for (const [fileId, file] of Object.entries(value.files)) {
+    if (
+      !isRecord(file) ||
+      file.id !== fileId ||
+      typeof file.mimeType !== "string" ||
+      typeof file.dataURL !== "string" ||
+      typeof file.created !== "number" ||
+      !Number.isFinite(file.created) ||
+      (file.lastRetrieved !== undefined &&
+        (typeof file.lastRetrieved !== "number" ||
+          !Number.isFinite(file.lastRetrieved))) ||
+      (file.version !== undefined &&
+        (typeof file.version !== "number" ||
+          !Number.isSafeInteger(file.version)))
+    ) {
+      throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault scene.");
+    }
+  }
+
+  const appState = restoreAppState(value.appState as Partial<AppState>, null);
+  return {
+    elements,
+    files: value.files as BinaryFiles,
+    appState: {
+      ...appState,
+      isLoading: false,
+      viewModeEnabled: role === "viewer" ? true : appState.viewModeEnabled,
+    },
+  };
+};
+
+export const openVaultSceneFromLink = async (
+  link: VaultLinkData,
+  dependencies: VaultSceneRouteDependencies = defaultVaultSceneRouteDependencies,
+) => {
+  const config = dependencies.readConfig();
+  const transport = dependencies.createDiscoveryTransport({
+    persistenceCapabilitiesUrl: config.persistenceCapabilitiesUrl,
+    roomCapabilitiesUrl: config.roomCapabilitiesUrl,
+  });
+  const { ready } = await dependencies.discover(transport);
+  const backend = dependencies.createBackend(ready);
+  const opened = await dependencies.open({
+    deployment: ready,
+    persistence: backend.persistence,
+    link,
+    createEmptySnapshot: () => ({ elements: [], appState: {}, files: {} }),
+  });
+  const scene = assertVaultSceneSnapshot(opened.snapshot, opened.session.role);
+  return {
+    scene,
+    activeVault: Object.freeze({
+      session: opened.session,
+      owner: backend.owner,
+      persistence: backend.persistence,
+      assets: backend.assets,
+      generation: opened.generation,
+      syncStatus: opened.syncStatus,
+    }),
+    isExternalScene: true as const,
+    id: link.vaultId,
+    key: "",
+  };
+};
+
+export const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
+  openVaultRoute?: typeof openVaultSceneFromLink;
 }): Promise<
   {
     scene: ExcalidrawInitialDataState | null;
@@ -386,6 +691,7 @@ const initializeScene = async (opts: {
     activeCloudScene?: ActiveCloudScene | null;
     activeSharedScene?: ActiveSharedScene | null;
     activeEmbeddedScene?: ActiveEmbeddedScene | null;
+    activeVault?: ActiveVault | null;
     isCloudShareScene?: boolean;
     isCloudEmbedScene?: boolean;
   } & (
@@ -393,6 +699,25 @@ const initializeScene = async (opts: {
     | { isExternalScene: false; id?: null; key?: null }
   )
 > => {
+  if (hasVaultUrlMarker(window.location.href)) {
+    let vaultId: string | undefined;
+    try {
+      const vaultLinkData = getVaultLinkData(window.location.href);
+      if (!vaultLinkData) {
+        throw new VaultError("VAULT_URL_INVALID", "Invalid Vault URL.");
+      }
+      vaultId = vaultLinkData.vaultId;
+      return await (opts.openVaultRoute ?? openVaultSceneFromLink)(
+        vaultLinkData,
+      );
+    } catch (error) {
+      return getBlockedVaultScene(
+        error instanceof VaultError ? error.code : "VAULT_INTERNAL",
+        vaultId,
+      );
+    }
+  }
+
   const searchParams = new URLSearchParams(window.location.search);
   const id = searchParams.get("id");
   const jsonBackendMatch = window.location.hash.match(
@@ -849,6 +1174,14 @@ const ExcalidrawWrapper = () => {
   const [activeEmbeddedScene, setActiveEmbeddedScene] =
     useState<ActiveEmbeddedScene | null>(null);
   const activeEmbeddedSceneRef = useRef<ActiveEmbeddedScene | null>(null);
+  const [activeVault, setActiveVault] = useState<ActiveVault | null>(null);
+  const isVaultMode = isVaultExternalFeatureDisabled(activeVault);
+  const [isVaultShareDialogOpen, setIsVaultShareDialogOpen] = useState(false);
+  const activeVaultRef = useRef<ActiveVault | null>(null);
+  const lastVaultSerializedSnapshotRef = useRef<string | null>(null);
+  const vaultAutosaveRef =
+    useRef<VaultSnapshotAutosaveController<VaultAutosaveSnapshot> | null>(null);
+  const vaultRealtimeAvailableRef = useRef(true);
   const lastCloudLocalPayloadHashRef = useRef<string | null>(null);
   const lastCloudSavedPayloadHashRef = useRef<string | null>(null);
   const lastSharedSavedPayloadHashRef = useRef<string | null>(null);
@@ -1164,6 +1497,103 @@ const ExcalidrawWrapper = () => {
     forceRefresh((prev) => !prev);
   }, []);
 
+  const setActiveVaultSession = useCallback(
+    (next: ActiveVault | null, serializedSnapshot: string | null = null) => {
+      vaultRealtimeAvailableRef.current = true;
+      vaultAutosaveRef.current?.dispose();
+      vaultAutosaveRef.current = null;
+      lastVaultSerializedSnapshotRef.current = serializedSnapshot;
+      activeVaultRef.current = next;
+      setActiveVault(next);
+      setIsVaultShareDialogOpen(false);
+      if (!next || next.session.role !== "editor") {
+        return;
+      }
+      const secrets = readVaultSessionSecrets(next.session);
+      vaultAutosaveRef.current = createVaultSnapshotAutosaveController({
+        persistence: next.persistence,
+        vaultId: next.session.vaultId,
+        invitationCapability: secrets.invitationCapability,
+        rootKey: secrets.rootKey,
+        role: next.session.role,
+        initialGeneration: next.generation,
+        isOnline: () => navigator.onLine !== false,
+        reconcileConflict: ({ pendingSnapshot, latestSnapshot }) => {
+          if (!excalidrawAPI) {
+            throw new VaultError(
+              "VAULT_INTERNAL",
+              "Vault editor is unavailable during snapshot reconciliation.",
+            );
+          }
+          return reconcileVaultAutosaveSnapshots(
+            pendingSnapshot,
+            latestSnapshot,
+            excalidrawAPI.getAppState(),
+          );
+        },
+        onStateChange: (state) => {
+          const current = activeVaultRef.current;
+          if (!current || current.session !== next.session) {
+            return;
+          }
+          const updated = Object.freeze({
+            ...current,
+            generation: state.generation,
+            syncStatus: vaultRealtimeAvailableRef.current
+              ? state.status
+              : "unsynced",
+            autosaveErrorCode: state.errorCode,
+            autosaveUnsyncedReason: state.unsyncedReason,
+          });
+          activeVaultRef.current = updated;
+          setActiveVault(updated);
+        },
+      });
+    },
+    [excalidrawAPI],
+  );
+
+  const setVaultRealtimeStatus = useCallback(
+    (session: VaultClientSession, syncStatus: VaultSyncStatus) => {
+      const current = activeVaultRef.current;
+      if (!current || current.session !== session) {
+        return;
+      }
+      vaultRealtimeAvailableRef.current = syncStatus === "synced";
+      const updated = Object.freeze({
+        ...current,
+        syncStatus,
+      });
+      activeVaultRef.current = updated;
+      setActiveVault(updated);
+    },
+    [],
+  );
+
+  const recoverVaultRoomConnection = useCallback(
+    async (session: VaultClientSession) => {
+      const current = activeVaultRef.current;
+      if (!current || current.session !== session) {
+        throw new VaultError(
+          "VAULT_PERSISTENCE_UNAVAILABLE",
+          "Vault room recovery session is no longer active.",
+        );
+      }
+      await recoverVaultAfterRoomReconnect(vaultAutosaveRef.current, () =>
+        window.location.reload(),
+      );
+    },
+    [],
+  );
+
+  useEffect(
+    () => () => {
+      vaultAutosaveRef.current?.dispose();
+      vaultAutosaveRef.current = null;
+    },
+    [],
+  );
+
   useEffect(() => {
     if (isDevEnv()) {
       const debugState = loadSavedDebugState();
@@ -1185,6 +1615,13 @@ const ExcalidrawWrapper = () => {
   const loadImages = useCallback(
     (data: ResolutionType<typeof initializeScene>, isInitialLoad = false) => {
       if (!data.scene || !excalidrawAPI) {
+        return;
+      }
+
+      if (data.activeVault) {
+        if (data.scene.files) {
+          excalidrawAPI.addFiles(Object.values(data.scene.files));
+        }
         return;
       }
 
@@ -1300,6 +1737,16 @@ const ExcalidrawWrapper = () => {
     }
 
     initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
+      setActiveVaultSession(
+        data.activeVault ?? null,
+        data.activeVault && data.scene
+          ? createVaultAutosaveSnapshot(
+              data.scene.elements ?? [],
+              data.scene.appState ?? {},
+              data.scene.files ?? {},
+            ).serializedSnapshot
+          : null,
+      );
       setActiveSharedScene(data.activeSharedScene ?? null);
       activeSharedSceneRef.current = data.activeSharedScene ?? null;
       setActiveEmbeddedScene(data.activeEmbeddedScene ?? null);
@@ -1341,6 +1788,33 @@ const ExcalidrawWrapper = () => {
       }
       loadImages(data, /* isInitialLoad */ true);
       initialStatePromiseRef.current.promise.resolve(data.scene);
+      if (data.activeVault && collabAPI) {
+        const connected = await collabAPI.startVaultCollaboration(
+          data.activeVault.session,
+          {
+            assetService: data.activeVault.assets,
+            onError: () =>
+              setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
+            onDisconnect: () =>
+              setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
+            onReconnect: async () =>
+              await recoverVaultRoomConnection(data.activeVault!.session),
+            onTeardown: (error) => {
+              vaultAutosaveRef.current?.dispose();
+              vaultAutosaveRef.current = null;
+              setVaultRealtimeStatus(
+                data.activeVault!.session,
+                error.code === "VAULT_CAPABILITY_EXPIRED"
+                  ? "expired"
+                  : "revoked",
+              );
+            },
+          },
+        );
+        if (!connected) {
+          setVaultRealtimeStatus(data.activeVault.session, "unsynced");
+        }
+      }
       if (data.isExternalScene && isCollaborationLink(window.location.href)) {
         openCollaborationInputTarget();
       }
@@ -1358,7 +1832,17 @@ const ExcalidrawWrapper = () => {
         }
         excalidrawAPI.updateScene({ appState: { isLoading: true } });
 
-        initializeScene({ collabAPI, excalidrawAPI }).then((data) => {
+        initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
+          setActiveVaultSession(
+            data.activeVault ?? null,
+            data.activeVault && data.scene
+              ? createVaultAutosaveSnapshot(
+                  data.scene.elements ?? [],
+                  data.scene.appState ?? {},
+                  data.scene.files ?? {},
+                ).serializedSnapshot
+              : null,
+          );
           setActiveSharedScene(data.activeSharedScene ?? null);
           activeSharedSceneRef.current = data.activeSharedScene ?? null;
           setActiveEmbeddedScene(data.activeEmbeddedScene ?? null);
@@ -1417,12 +1901,39 @@ const ExcalidrawWrapper = () => {
               openCollaborationInputTarget();
             }
           }
+          if (data.activeVault && collabAPI) {
+            const connected = await collabAPI.startVaultCollaboration(
+              data.activeVault.session,
+              {
+                assetService: data.activeVault.assets,
+                onError: () =>
+                  setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
+                onDisconnect: () =>
+                  setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
+                onReconnect: async () =>
+                  await recoverVaultRoomConnection(data.activeVault!.session),
+                onTeardown: (error) => {
+                  vaultAutosaveRef.current?.dispose();
+                  vaultAutosaveRef.current = null;
+                  setVaultRealtimeStatus(
+                    data.activeVault!.session,
+                    error.code === "VAULT_CAPABILITY_EXPIRED"
+                      ? "expired"
+                      : "revoked",
+                  );
+                },
+              },
+            );
+            if (!connected) {
+              setVaultRealtimeStatus(data.activeVault.session, "unsynced");
+            }
+          }
         });
       }
     };
 
     const syncData = debounce(() => {
-      if (isTestEnv()) {
+      if (isTestEnv() || isCurrentVaultRoute()) {
         return;
       }
       if (
@@ -1481,11 +1992,20 @@ const ExcalidrawWrapper = () => {
     }, SYNC_BROWSER_TABS_TIMEOUT);
 
     const onUnload = () => {
-      LocalData.flushSave();
+      if (isCurrentVaultRoute()) {
+        void vaultAutosaveRef.current?.flush();
+      } else {
+        LocalData.flushSave();
+      }
     };
 
     const visibilityChange = (event: FocusEvent | Event) => {
-      if (event.type === EVENT.BLUR || document.hidden) {
+      if (
+        isCurrentVaultRoute() &&
+        (event.type === EVENT.BLUR || document.hidden)
+      ) {
+        void vaultAutosaveRef.current?.flush();
+      } else if (event.type === EVENT.BLUR || document.hidden) {
         LocalData.flushSave();
       }
       if (
@@ -1520,10 +2040,19 @@ const ExcalidrawWrapper = () => {
     loadImages,
     openCollaborationInputTarget,
     commitNewAIWorkbenchLocalDocumentId,
+    recoverVaultRoomConnection,
+    setVaultRealtimeStatus,
+    setActiveVaultSession,
   ]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
+      if (isCurrentVaultRoute()) {
+        if (vaultAutosaveRef.current?.shouldWarnBeforeUnload()) {
+          preventUnload(event);
+        }
+        return;
+      }
       LocalData.flushSave();
 
       if (
@@ -2742,13 +3271,26 @@ const ExcalidrawWrapper = () => {
     appState: AppState,
     files: BinaryFiles,
   ) => {
+    const isVaultRoute = isCurrentVaultRoute();
+    if (isVaultRoute && activeVaultRef.current?.session.role === "editor") {
+      const prepared = prepareVaultAutosaveSnapshot(
+        lastVaultSerializedSnapshotRef.current,
+        elements,
+        appState,
+        files,
+      );
+      if (prepared) {
+        lastVaultSerializedSnapshotRef.current = prepared.serializedSnapshot;
+        vaultAutosaveRef.current?.schedule(prepared.snapshot);
+      }
+    }
     if (collabAPI?.isCollaborating()) {
       collabAPI.syncElements(elements);
     }
 
     // this check is redundant, but since this is a hot path, it's best
     // not to evaludate the nested expression every time
-    if (!LocalData.isSavePaused()) {
+    if (!isVaultRoute && !LocalData.isSavePaused()) {
       LocalData.save(elements, appState, files, () => {
         if (excalidrawAPI) {
           let didChange = false;
@@ -2778,14 +3320,18 @@ const ExcalidrawWrapper = () => {
       });
     }
 
-    scheduleCloudBindingSync(elements, appState, files);
-    if (activeEmbeddedSceneRef.current) {
+    if (!isVaultRoute) {
+      scheduleCloudBindingSync(elements, appState, files);
+    }
+    if (!isVaultRoute && activeEmbeddedSceneRef.current) {
       postEmbedEvent("sceneChange", {
         sceneId: activeEmbeddedSceneRef.current.id,
         version: activeEmbeddedSceneRef.current.version,
       });
     }
-    scheduleCloudAutosave();
+    if (!isVaultRoute) {
+      scheduleCloudAutosave();
+    }
 
     // Render the debug scene if the debug canvas is available
     if (debugCanvasRef.current && excalidrawAPI) {
@@ -2807,6 +3353,12 @@ const ExcalidrawWrapper = () => {
     appState: Partial<AppState>,
     files: BinaryFiles,
   ) => {
+    if (isCurrentVaultRoute()) {
+      throw new VaultError(
+        "VAULT_EGRESS_DENIED",
+        "Vault cannot use legacy share export.",
+      );
+    }
     if (exportedElements.length === 0) {
       throw new Error(t("alerts.cannotExportEmptyCanvas"));
     }
@@ -3111,13 +3663,16 @@ const ExcalidrawWrapper = () => {
   }, []);
   const openAIWorkflowTab = useCallback(
     (tab: "ai-image" | "ai-assistant" | "ai-generation-logs") => {
+      if (isVaultMode) {
+        return;
+      }
       excalidrawAPI?.toggleSidebar({
         name: DEFAULT_SIDEBAR.name,
         tab,
         force: true,
       });
     },
-    [excalidrawAPI],
+    [excalidrawAPI, isVaultMode],
   );
   const requestAIReferenceAdd = useCallback(() => {
     openAIWorkflowTab("ai-image");
@@ -3482,6 +4037,9 @@ const ExcalidrawWrapper = () => {
   );
 
   const migrateAIVideoAssets = useCallback(async () => {
+    if (isVaultMode) {
+      return;
+    }
     const activeScene = activeCloudSceneRef.current;
     const backend = getCloudBackend();
     if (!excalidrawAPI) {
@@ -3658,7 +4216,7 @@ const ExcalidrawWrapper = () => {
         }
       }),
     );
-  }, [collabAPI, excalidrawAPI]);
+  }, [collabAPI, excalidrawAPI, isVaultMode]);
 
   migrateAIVideoAssetsRef.current = migrateAIVideoAssets;
 
@@ -3680,13 +4238,16 @@ const ExcalidrawWrapper = () => {
       link: string,
       element?: NonDeleted<ExcalidrawEmbeddableElement>,
     ): boolean | undefined => {
+      if (isVaultMode) {
+        return false;
+      }
       return element &&
         element.link === link &&
         isValidAIVideoEmbeddable(element)
         ? true
         : undefined;
     },
-    [],
+    [isVaultMode],
   );
 
   // Render validated AI-generated video embeddables as a native video player.
@@ -3696,6 +4257,13 @@ const ExcalidrawWrapper = () => {
   // `null` for non-video embeddables leaves them on the default iframe path.
   const renderEmbeddable = useCallback(
     (element: NonDeleted<ExcalidrawEmbeddableElement>, _appState: AppState) => {
+      if (isVaultMode) {
+        return (
+          <div style={{ width: "100%", height: "100%" }} role="status">
+            {t("vault.egress.denied")}
+          </div>
+        );
+      }
       const videoURL = getAIVideoURLFromEmbeddable(element);
       const assetId = getAIVideoAssetIdFromEmbeddable(element);
 
@@ -3742,7 +4310,7 @@ const ExcalidrawWrapper = () => {
         />
       );
     },
-    [aiVideoAssetContext, resolveAIVideoAsset],
+    [aiVideoAssetContext, isVaultMode, resolveAIVideoAsset],
   );
 
   const aiGenerationLogCommands = useMemo(
@@ -3853,6 +4421,7 @@ const ExcalidrawWrapper = () => {
       })}
     >
       <Excalidraw
+        aiEnabled={!isVaultMode}
         onChange={onChange}
         onSceneReplace={handleLocalSceneReplace}
         onExport={onExport}
@@ -3869,30 +4438,31 @@ const ExcalidrawWrapper = () => {
             toggleTheme: true,
             export: {
               onExportToBackend,
-              renderCustomUI: excalidrawAPI
-                ? (elements, appState, files) => {
-                    return (
-                      <ExportToExcalidrawPlus
-                        elements={elements}
-                        appState={appState}
-                        files={files}
-                        name={excalidrawAPI.getName()}
-                        onError={(error) => {
-                          excalidrawAPI?.updateScene({
-                            appState: {
-                              errorMessage: error.message,
-                            },
-                          });
-                        }}
-                        onSuccess={() => {
-                          excalidrawAPI.updateScene({
-                            appState: { openDialog: null },
-                          });
-                        }}
-                      />
-                    );
-                  }
-                : undefined,
+              renderCustomUI:
+                !isVaultMode && excalidrawAPI
+                  ? (elements, appState, files) => {
+                      return (
+                        <ExportToExcalidrawPlus
+                          elements={elements}
+                          appState={appState}
+                          files={files}
+                          name={excalidrawAPI.getName()}
+                          onError={(error) => {
+                            excalidrawAPI?.updateScene({
+                              appState: {
+                                errorMessage: error.message,
+                              },
+                            });
+                          }}
+                          onSuccess={() => {
+                            excalidrawAPI.updateScene({
+                              appState: { openDialog: null },
+                            });
+                          }}
+                        />
+                      );
+                    }
+                  : undefined,
             },
           },
         }}
@@ -3905,26 +4475,63 @@ const ExcalidrawWrapper = () => {
         theme={editorTheme}
         onThemeChange={setAppTheme}
         renderTopRightUI={(isMobile) => {
-          if (isMobile || !collabAPI || isCollabDisabled) {
+          const canManageVault =
+            activeVault?.session.role === "editor" &&
+            !["revoked", "expired", "closed"].includes(activeVault.syncStatus);
+          const showCollaborationControls =
+            !isMobile && !!collabAPI && !isCollabDisabled;
+
+          if (!activeVault && !showCollaborationControls) {
             return null;
           }
 
           return (
             <div className="excalidraw-ui-top-right">
-              {excalidrawAPI?.getEditorInterface().formFactor === "desktop" && (
-                <ExcalidrawPlusPromoBanner
-                  isSignedIn={isExcalidrawPlusSignedUser}
+              {activeVault && (
+                <div className="VaultStatusControls">
+                  <VaultStatus
+                    role={activeVault.session.role}
+                    syncStatus={activeVault.syncStatus}
+                    autosaveErrorCode={activeVault.autosaveErrorCode}
+                    autosaveUnsyncedReason={activeVault.autosaveUnsyncedReason}
+                  />
+                  {canManageVault && (
+                    <Button
+                      className="VaultStatusControls__share"
+                      onSelect={() => setIsVaultShareDialogOpen(true)}
+                    >
+                      {t("vault.share.manage")}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {canManageVault && activeVault && (
+                <VaultShareDialog
+                  open={isVaultShareDialogOpen}
+                  onClose={() => setIsVaultShareDialogOpen(false)}
+                  activeVault={activeVault}
                 />
               )}
-
-              {collabError.message && <CollabError collabError={collabError} />}
-              <LiveCollaborationTrigger
-                isCollaborating={isCollaborating}
-                onSelect={() =>
-                  setShareDialogState({ isOpen: true, type: "share" })
-                }
-                editorInterface={editorInterface}
-              />
+              {showCollaborationControls && (
+                <>
+                  {excalidrawAPI?.getEditorInterface().formFactor ===
+                    "desktop" && (
+                    <ExcalidrawPlusPromoBanner
+                      isSignedIn={isExcalidrawPlusSignedUser}
+                    />
+                  )}
+                  {collabError.message && (
+                    <CollabError collabError={collabError} />
+                  )}
+                  <LiveCollaborationTrigger
+                    isCollaborating={isCollaborating}
+                    onSelect={() =>
+                      setShareDialogState({ isOpen: true, type: "share" })
+                    }
+                    editorInterface={editorInterface}
+                  />
+                </>
+              )}
             </div>
           );
         }}
@@ -3997,6 +4604,7 @@ const ExcalidrawWrapper = () => {
             };
             window.addEventListener("message", handleReady);
           }}
+          externalFeaturesDisabled={isVaultMode}
           manyMindsPersistenceScopeId={aiWorkbenchPersistenceScopeId}
           excalidrawAPI={excalidrawAPI}
           activeCloudScene={activeCloudScene}
@@ -4117,7 +4725,7 @@ const ExcalidrawWrapper = () => {
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
-          {excalidrawAPI && (
+          {excalidrawAPI && !isVaultMode && (
             <OverwriteConfirmDialog.Action
               title={t("overwriteConfirm.action.excalidrawPlus.title")}
               actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
@@ -4135,9 +4743,11 @@ const ExcalidrawWrapper = () => {
           )}
         </OverwriteConfirmDialog>
         <AppFooter onChange={() => excalidrawAPI?.refresh()} />
-        {excalidrawAPI && <AIComponents excalidrawAPI={excalidrawAPI} />}
+        {excalidrawAPI && !isVaultMode && (
+          <AIComponents excalidrawAPI={excalidrawAPI} />
+        )}
 
-        <TTDDialogTrigger />
+        {!isVaultMode && <TTDDialogTrigger />}
         {isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}
@@ -4202,19 +4812,21 @@ const ExcalidrawWrapper = () => {
           onCollabRoomRevoked={stopCurrentCollabRoomIfRevoked}
         />
 
-        <AppSidebar
-          excalidrawAPI={excalidrawAPI}
-          persistenceScopeId={aiWorkbenchPersistenceScopeId}
-          referenceAddRequest={aiReferenceAddRequest}
-          assistantSkillRequest={assistantSkillRequest}
-          promptTemplateRequest={promptTemplateRequest}
-          generationLogReuseRequest={generationLogReuseRequest}
-          onAddSelectionAsReference={requestAIReferenceAdd}
-          onEnterMaskEditing={requestEnterMaskEditing}
-          onMaskReady={registerWorkbenchMaskReadyHandler}
-          onCloudAITaskRun={recordActiveCloudAITask}
-          onPersistVideoOutput={persistActiveCloudVideoOutput}
-        />
+        {!isVaultMode && (
+          <AppSidebar
+            excalidrawAPI={excalidrawAPI}
+            persistenceScopeId={aiWorkbenchPersistenceScopeId}
+            referenceAddRequest={aiReferenceAddRequest}
+            assistantSkillRequest={assistantSkillRequest}
+            promptTemplateRequest={promptTemplateRequest}
+            generationLogReuseRequest={generationLogReuseRequest}
+            onAddSelectionAsReference={requestAIReferenceAdd}
+            onEnterMaskEditing={requestEnterMaskEditing}
+            onMaskReady={registerWorkbenchMaskReadyHandler}
+            onCloudAITaskRun={recordActiveCloudAITask}
+            onPersistVideoOutput={persistActiveCloudVideoOutput}
+          />
+        )}
 
         {errorMessage && (
           <ErrorDialog onClose={() => setErrorMessage("")}>
@@ -4224,11 +4836,15 @@ const ExcalidrawWrapper = () => {
 
         <CommandPalette
           customCommandPaletteItems={[
-            ...coreAIWorkflowCommands,
-            ...aiPromptTemplateCommands,
-            ...aiSkillCommands,
-            ...aiGenerationLogCommands,
-            ...aiSettingsCommands,
+            ...(isVaultMode
+              ? []
+              : [
+                  ...coreAIWorkflowCommands,
+                  ...aiPromptTemplateCommands,
+                  ...aiSkillCommands,
+                  ...aiGenerationLogCommands,
+                  ...aiSettingsCommands,
+                ]),
             ...officeWorkflowCommands,
             {
               label: t("roomDialog.button_stopSession"),

@@ -10,6 +10,10 @@ interface ImportMetaEnv {
 
   // collaboration WebSocket server (https: string
   VITE_APP_WS_SERVER_URL: string;
+  VITE_APP_VAULT_ENABLED: string;
+  VITE_APP_VAULT_PERSISTENCE_CAPABILITIES_URL: string;
+  VITE_APP_VAULT_ROOM_CAPABILITIES_URL: string;
+  VITE_APP_VAULT_ROOM_PROVISION_URL: string;
 
   // set this only if using the collaboration workflow we use on excalidraw.com
   VITE_APP_PORTAL_URL: string;
@@ -35,6 +39,7 @@ interface ImportMetaEnv {
 
   // Enable PWA in dev server
   VITE_APP_ENABLE_PWA: string;
+  VITE_APP_SELF_HOSTED: string;
 
   VITE_APP_PLUS_LP: string;
 

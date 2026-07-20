@@ -140,6 +140,8 @@ export { BackendError } from "./errors";
 export type { BackendErrorCode } from "./errors";
 export { readCapabilities } from "./capabilities";
 export { readCloudDeploymentConfig } from "./deploymentConfig";
+export { createSupabaseVaultBackend } from "./vault";
+export type { VaultBackend } from "./vault";
 
 // —— Phase 0 passthrough surface (today's behavior, verbatim) ——
 export * as localStore from "./passthrough/localStore";

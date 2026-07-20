@@ -1,0 +1,110 @@
+name: excalidraw-vault
+
+services:
+  app:
+    build:
+      context: ../..
+      dockerfile: deploy/vault-self-hosted/Dockerfile.app
+      args:
+        APP_NODE_IMAGE: ${APP_NODE_IMAGE:-node:24@sha256:8530f76a96d88820d288761f022e318970dda93d01536919fbc16076b7983e63}
+        APP_NGINX_IMAGE: ${APP_NGINX_IMAGE:-nginx:1.28.0-alpine@sha256:30f1c0d78e0ad60901648be663a710bdadf19e4c10ac6782c235200619158284}
+        VITE_APP_WS_SERVER_URL: ${APP_ORIGIN:?APP_ORIGIN is required}
+        VITE_APP_VAULT_ENABLED: ${VAULT_ENABLED:-false}
+        VITE_APP_VAULT_PERSISTENCE_CAPABILITIES_URL: ${SUPABASE_PUBLIC_URL:?SUPABASE_PUBLIC_URL is required}/functions/v1/vault-control-plane
+        VITE_APP_VAULT_ROOM_CAPABILITIES_URL: ${APP_ORIGIN:?APP_ORIGIN is required}/vault/capabilities
+        VITE_APP_VAULT_ROOM_PROVISION_URL: ${APP_ORIGIN:?APP_ORIGIN is required}/vault/rooms
+        VITE_APP_SUPABASE_URL: ${SUPABASE_PUBLIC_URL:?SUPABASE_PUBLIC_URL is required}
+        VITE_APP_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - vault-edge
+
+  room:
+    build:
+      context: ${ROOM_SERVER_CONTEXT:-../../../excalidraw-room}
+      dockerfile: Dockerfile
+      args:
+        ROOM_NODE_IMAGE: ${ROOM_NODE_IMAGE:-node:20.19.4-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799}
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      CORS_ORIGIN: ${APP_ORIGIN:?APP_ORIGIN is required}
+      VAULT_ENABLED: ${VAULT_ENABLED:-false}
+      VAULT_SUPABASE_URL: ${VAULT_SUPABASE_URL:?VAULT_SUPABASE_URL is required}
+      VAULT_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
+      VAULT_CONTROL_PLANE_TOKEN: ${VAULT_CONTROL_PLANE_TOKEN:?VAULT_CONTROL_PLANE_TOKEN is required}
+      VAULT_CAPABILITY_RESOLVE_TIMEOUT_MS: ${VAULT_CAPABILITY_RESOLVE_TIMEOUT_MS:-5000}
+      VAULT_ALLOW_DOCKER_HOST_HTTP: ${VAULT_ALLOW_DOCKER_HOST_HTTP:-false}
+      VAULT_MAX_PAYLOAD_BYTES: ${VAULT_MAX_PAYLOAD_BYTES:-1048576}
+      VAULT_MAX_MESSAGES_PER_MINUTE: ${VAULT_MAX_MESSAGES_PER_MINUTE:-1200}
+      VAULT_MAX_CONNECTIONS_PER_VAULT: ${VAULT_MAX_CONNECTIONS_PER_VAULT:-64}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - vault-edge
+
+  proxy:
+    image: ${CADDY_IMAGE:-caddy:2.10.2-alpine}
+    environment:
+      APP_ORIGIN: ${APP_ORIGIN:?APP_ORIGIN is required}
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:?SUPABASE_PUBLIC_URL is required}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - ${HTTP_PORT:-80}:${HTTP_PORT:-80}
+      - ${HTTPS_PORT:-443}:${HTTPS_PORT:-443}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+      room:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - vault-edge
+
+  migrate:
+    image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.6-alpine}
+    profiles: ["ops"]
+    environment:
+      VAULT_DATABASE_URL: ${VAULT_DATABASE_URL:?VAULT_DATABASE_URL is required}
+    volumes:
+      - ../../excalidraw-app/data/cloud/supabase:/schema:ro
+      - ../../supabase/migrations:/migrations:ro
+      - ./scripts:/ops:ro
+    entrypoint: ["/bin/sh", "/ops/install-schema.sh"]
+
+  schema-smoke:
+    image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.6-alpine}
+    profiles: ["ops"]
+    environment:
+      VAULT_DATABASE_URL: ${VAULT_DATABASE_URL:?VAULT_DATABASE_URL is required}
+    volumes:
+      - ../../excalidraw-app/data/cloud/supabase:/schema:ro
+      - ./scripts:/ops:ro
+    entrypoint: ["/bin/sh", "/ops/schema-smoke.sh"]
+
+  rollback-schema:
+    image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.6-alpine}
+    profiles: ["rollback"]
+    environment:
+      VAULT_DATABASE_URL: ${VAULT_DATABASE_URL:?VAULT_DATABASE_URL is required}
+      ALLOW_VAULT_SCHEMA_ROLLBACK: ${ALLOW_VAULT_SCHEMA_ROLLBACK:-NO}
+    volumes:
+      - ../../excalidraw-app/data/cloud/supabase:/schema:ro
+      - ./scripts:/ops:ro
+    entrypoint: ["/bin/sh", "/ops/rollback-schema.sh"]
+
+networks:
+  vault-edge:
+
+volumes:
+  caddy_data:
+  caddy_config:

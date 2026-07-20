@@ -1,13 +1,31 @@
-import Trans from "@excalidraw/excalidraw/components/Trans";
 import { t } from "@excalidraw/excalidraw/i18n";
 import * as Sentry from "@sentry/browser";
 import React from "react";
+
+import { getErrorReportLocalStorage, hasVaultUrlMarker } from "../data/vault";
 
 interface TopErrorBoundaryState {
   hasError: boolean;
   sentryEventId: string;
   localStorage: string;
 }
+
+const renderMessageWithButton = (
+  message: string,
+  onClick: () => void,
+): React.ReactNode => {
+  const match = message.match(/^(.*)<button>(.*)<\/button>(.*)$/s);
+  if (!match) {
+    return message;
+  }
+  return (
+    <>
+      {match[1]}
+      <button onClick={onClick}>{match[2]}</button>
+      {match[3]}
+    </>
+  );
+};
 
 export class TopErrorBoundary extends React.Component<
   any,
@@ -24,14 +42,10 @@ export class TopErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    const _localStorage: any = {};
-    for (const [key, value] of Object.entries({ ...localStorage })) {
-      try {
-        _localStorage[key] = JSON.parse(value);
-      } catch (error: any) {
-        _localStorage[key] = value;
-      }
-    }
+    const localStorageReport = getErrorReportLocalStorage(
+      localStorage,
+      hasVaultUrlMarker(window.location.href),
+    );
 
     Sentry.withScope((scope) => {
       scope.setExtras(errorInfo);
@@ -40,7 +54,7 @@ export class TopErrorBoundary extends React.Component<
       this.setState((state) => ({
         hasError: true,
         sentryEventId: eventId,
-        localStorage: JSON.stringify(_localStorage),
+        localStorage: localStorageReport,
       }));
     });
   }
@@ -77,31 +91,22 @@ export class TopErrorBoundary extends React.Component<
       <div className="ErrorSplash excalidraw">
         <div className="ErrorSplash-messageContainer">
           <div className="ErrorSplash-paragraph bigger align-center">
-            <Trans
-              i18nKey="errorSplash.headingMain"
-              button={(el) => (
-                <button onClick={() => window.location.reload()}>{el}</button>
-              )}
-            />
+            {renderMessageWithButton(t("errorSplash.headingMain"), () =>
+              window.location.reload(),
+            )}
           </div>
           <div className="ErrorSplash-paragraph align-center">
-            <Trans
-              i18nKey="errorSplash.clearCanvasMessage"
-              button={(el) => (
-                <button
-                  onClick={() => {
-                    try {
-                      localStorage.clear();
-                      window.location.reload();
-                    } catch (error: any) {
-                      console.error(error);
-                    }
-                  }}
-                >
-                  {el}
-                </button>
-              )}
-            />
+            {renderMessageWithButton(
+              t("errorSplash.clearCanvasMessage"),
+              () => {
+                try {
+                  localStorage.clear();
+                  window.location.reload();
+                } catch (error: any) {
+                  console.error(error);
+                }
+              },
+            )}
             <br />
             <div className="smaller">
               <span role="img" aria-label="warning">
@@ -120,12 +125,10 @@ export class TopErrorBoundary extends React.Component<
               })}
             </div>
             <div className="ErrorSplash-paragraph">
-              <Trans
-                i18nKey="errorSplash.openIssueMessage"
-                button={(el) => (
-                  <button onClick={() => this.createGithubIssue()}>{el}</button>
-                )}
-              />
+              {renderMessageWithButton(
+                t("errorSplash.openIssueMessage"),
+                () => void this.createGithubIssue(),
+              )}
             </div>
             <div className="ErrorSplash-paragraph">
               <div className="ErrorSplash-details">

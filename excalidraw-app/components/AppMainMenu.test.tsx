@@ -14,6 +14,8 @@ const authMock = vi.hoisted((): { state: any } => ({
   },
 }));
 
+const vaultConfigMock = vi.hoisted(() => ({ enabled: false }));
+
 const makeAuthState = (overrides: Record<string, unknown> = {}) => ({
   isAuthAvailable: false,
   isSignedIn: false,
@@ -25,6 +27,15 @@ const makeAuthState = (overrides: Record<string, unknown> = {}) => ({
 
 vi.mock("../auth/useCloudAuth", () => ({
   useCloudAuth: () => authMock.state,
+}));
+
+vi.mock("../data/vault", () => ({
+  readVaultClientConfig: () => ({
+    enabled: vaultConfigMock.enabled,
+    persistenceCapabilitiesUrl: null,
+    roomCapabilitiesUrl: null,
+    roomProvisionUrl: null,
+  }),
 }));
 
 vi.mock("../app_constants", () => ({
@@ -50,6 +61,7 @@ vi.mock("@excalidraw/excalidraw/components/icons", () => ({
   loginIcon: null,
   ExcalLogo: null,
   eyeIcon: null,
+  LockedIcon: <svg data-testid="vault-icon" />,
   MagicIcon: null,
   P3EmbedIcon: <svg data-testid="p3-embed-icon" />,
   SingleFileBoardIcon: <svg data-testid="single-file-board-icon" />,
@@ -96,6 +108,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
         "labels.experimental.embedPresets.compact": "Compact embed",
         "labels.experimental.embedPresets.presentation": "Presentation mode",
         "labels.experimental.singleFileBoard": "Single-file board",
+        "vault.menu": "Vault (experimental)",
       }[key] ?? key;
 
     return value.replace(/\{\{(\w+)\}\}/g, (_, name) =>
@@ -242,6 +255,28 @@ vi.mock("./DebugCanvas", () => ({
   saveDebugState: vi.fn(),
 }));
 
+vi.mock("./VaultDependencyDialog", () => ({
+  VaultDependencyDialog: ({
+    open,
+    canCreate,
+    onSignIn,
+  }: {
+    open: boolean;
+    canCreate: boolean;
+    onSignIn?: () => void;
+  }) =>
+    open ? (
+      <div role="dialog">
+        Vault dependency dialog {canCreate ? "signed-in" : "signed-out"}
+        {!canCreate && onSignIn && (
+          <button type="button" onClick={onSignIn}>
+            Vault sign in
+          </button>
+        )}
+      </div>
+    ) : null,
+}));
+
 const renderMenu = (
   props: {
     onCloudAccountOpen?: () => void;
@@ -250,6 +285,7 @@ const renderMenu = (
       preset: "full" | "compact" | "presentation";
     }) => void;
     onSingleFileDialogOpen?: () => void;
+    externalFeaturesDisabled?: boolean;
   } = {},
 ) =>
   render(
@@ -260,10 +296,15 @@ const renderMenu = (
       onCloudAccountOpen={props.onCloudAccountOpen}
       onEmbedOpen={props.onEmbedOpen ?? vi.fn()}
       onSingleFileDialogOpen={props.onSingleFileDialogOpen ?? vi.fn()}
+      externalFeaturesDisabled={props.externalFeaturesDisabled}
       refresh={vi.fn()}
       theme="light"
     />,
   );
+
+beforeEach(() => {
+  vaultConfigMock.enabled = false;
+});
 
 describe("AppMainMenu experimental features", () => {
   beforeEach(() => {
@@ -299,6 +340,80 @@ describe("AppMainMenu experimental features", () => {
       [{ mode: "edit", preset: "compact" }],
       [{ mode: "view", preset: "presentation" }],
     ]);
+  });
+
+  it("hides Vault by default and opens its dependency dialog only when explicitly enabled", () => {
+    const { unmount } = renderMenu();
+
+    expect(
+      screen.queryByRole("button", { name: "Vault (experimental)" }),
+    ).not.toBeInTheDocument();
+
+    unmount();
+    vaultConfigMock.enabled = true;
+    renderMenu();
+
+    expect(screen.getByTestId("vault-icon")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vault (experimental)" }),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Vault dependency dialog signed-out",
+    );
+  });
+
+  it("passes signed-in creation authorization and reuses the account dialog for sign-in", () => {
+    const onCloudAccountOpen = vi.fn();
+    vaultConfigMock.enabled = true;
+    authMock.state = makeAuthState({ isAuthAvailable: true });
+    const { unmount } = renderMenu({ onCloudAccountOpen });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vault (experimental)" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Vault sign in" }));
+    expect(onCloudAccountOpen).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    unmount();
+    authMock.state = makeAuthState({
+      isAuthAvailable: true,
+      isSignedIn: true,
+      status: "signed-in",
+    });
+    renderMenu({ onCloudAccountOpen });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vault (experimental)" }),
+    );
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Vault dependency dialog signed-in",
+    );
+  });
+});
+
+describe("AppMainMenu Vault external feature isolation", () => {
+  it("hides AI, iframe, remote workflow, plain export, and external product entries", () => {
+    authMock.state = makeAuthState();
+    renderMenu({ externalFeaturesDisabled: true });
+
+    expect(
+      screen.queryByRole("link", { name: "Excalidraw+" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Sign up" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Single-file board" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Read-only preview" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "labels.experimental.cast" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "AI settings" }),
+    ).not.toBeInTheDocument();
   });
 });
 

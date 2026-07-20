@@ -13,12 +13,18 @@ import type {
 
 import { WS_EVENTS, FILE_UPLOAD_TIMEOUT, WS_SUBTYPES } from "../app_constants";
 import { isSyncableElement } from "../data";
+import {
+  assertVaultAdmissionToken,
+  VAULT_SOCKET_EVENTS,
+  VaultError,
+} from "../data/vault";
 
 import type {
   SocketUpdateData,
   SocketUpdateDataSource,
   SyncableExcalidrawElement,
 } from "../data";
+import type { VaultAdmission, VaultRealtimeSession } from "../data/vault";
 import type { TCollabClass } from "./Collab";
 import type { Socket } from "socket.io-client";
 
@@ -28,35 +34,69 @@ class Portal {
   socketInitialized: boolean = false; // we don't want the socket to emit any updates until it is fully initialized
   roomId: string | null = null;
   roomKey: string | null = null;
+  vaultRealtimeSession: VaultRealtimeSession | null = null;
+  private vaultBroadcastQueue: Promise<void> = Promise.resolve();
   broadcastedElementVersions: Map<string, number> = new Map();
 
   constructor(collab: TCollabClass) {
     this.collab = collab;
   }
 
-  open(socket: Socket, id: string, key: string) {
-    this.socket = socket;
-    this.roomId = id;
-    this.roomKey = key;
-
-    // Initialize socket listeners
-    this.socket.on("init-room", () => {
+  private initializeLegacySocketListeners() {
+    this.socket?.on("init-room", () => {
       if (this.socket) {
         this.socket.emit("join-room", this.roomId);
         trackEvent("share", "room joined");
       }
     });
-    this.socket.on("new-user", async (_socketId: string) => {
+    this.socket?.on("new-user", async (_socketId: string) => {
       this.broadcastScene(
         WS_SUBTYPES.INIT,
         this.collab.getSceneElementsIncludingDeleted(),
         /* syncAll */ true,
       );
     });
-    this.socket.on("room-user-change", (clients: SocketId[]) => {
+    this.socket?.on("room-user-change", (clients: SocketId[]) => {
       this.collab.setCollaborators(clients);
     });
+  }
 
+  open(socket: Socket, id: string, key: string) {
+    this.vaultRealtimeSession?.destroy();
+    this.vaultRealtimeSession = null;
+    this.socket = socket;
+    this.roomId = id;
+    this.roomKey = key;
+    this.initializeLegacySocketListeners();
+
+    return socket;
+  }
+
+  /**
+   * Attaches a socket after the F2 capability admission handshake succeeds.
+   * Unlike ordinary collaboration, this never emits the legacy `join-room`.
+   */
+  openVaultTransport(
+    admission: VaultAdmission,
+    socket: Socket,
+    session: VaultRealtimeSession,
+  ) {
+    assertVaultAdmissionToken(admission);
+    if (
+      session.vaultId !== admission.vaultId ||
+      session.role !== admission.role ||
+      session.senderSessionId !== admission.senderSessionId
+    ) {
+      throw new VaultError(
+        "VAULT_CAPABILITY_INVALID",
+        "Vault realtime session does not match its admission.",
+      );
+    }
+    this.vaultRealtimeSession?.destroy();
+    this.socket = socket;
+    this.roomId = admission.activeRoomId;
+    this.roomKey = null;
+    this.vaultRealtimeSession = session;
     return socket;
   }
 
@@ -64,11 +104,18 @@ class Portal {
     if (!this.socket) {
       return;
     }
-    this.queueFileUpload.flush();
+    if (this.vaultRealtimeSession) {
+      this.queueFileUpload.cancel();
+    } else {
+      this.queueFileUpload.flush();
+    }
     this.socket.close();
     this.socket = null;
     this.roomId = null;
     this.roomKey = null;
+    this.vaultRealtimeSession?.destroy();
+    this.vaultRealtimeSession = null;
+    this.vaultBroadcastQueue = Promise.resolve();
     this.socketInitialized = false;
     this.broadcastedElementVersions = new Map();
   }
@@ -78,7 +125,7 @@ class Portal {
       this.socketInitialized &&
       this.socket &&
       this.roomId &&
-      this.roomKey
+      (this.roomKey || this.vaultRealtimeSession)
     );
   }
 
@@ -87,7 +134,36 @@ class Portal {
     volatile: boolean = false,
     roomId?: string,
   ) {
+    if (data.type === WS_SUBTYPES.INVALID_RESPONSE) {
+      return;
+    }
+
     if (this.isOpen()) {
+      if (this.vaultRealtimeSession) {
+        const session = this.vaultRealtimeSession;
+        // Vault follow relationships stay encrypted. Viewport presence is
+        // broadcast to the main Vault room and filtered by recipients instead
+        // of using the legacy plaintext `follow@<socketId>` routing room.
+        const targetRoomId = this.roomId;
+        const socket = this.socket;
+        const event = volatile
+          ? VAULT_SOCKET_EVENTS.serverVolatile
+          : VAULT_SOCKET_EVENTS.server;
+        const task = this.vaultBroadcastQueue.then(async () => {
+          const envelope = await session.encrypt(data);
+          if (
+            this.vaultRealtimeSession !== session ||
+            this.socket !== socket ||
+            !this.isOpen()
+          ) {
+            return;
+          }
+          socket?.emit(event, targetRoomId, envelope);
+        });
+        this.vaultBroadcastQueue = task.catch(() => undefined);
+        return task;
+      }
+
       const json = JSON.stringify(data);
       const encoded = new TextEncoder().encode(json);
       const { encryptedBuffer, iv } = await encryptData(this.roomKey!, encoded);
@@ -102,8 +178,25 @@ class Portal {
   }
 
   queueFileUpload = throttle(async () => {
+    // Vault assets use the dedicated encrypted asset service. The ordinary
+    // FileManager is never reachable while a Vault transport is attached.
+    const fileManager = this.vaultRealtimeSession
+      ? this.collab.vaultFileManager
+      : this.collab.fileManager;
+    if (!fileManager) {
+      if (this.vaultRealtimeSession) {
+        this.collab.excalidrawAPI.updateScene({
+          appState: {
+            errorMessage: "Vault encrypted asset service is unavailable.",
+            viewModeEnabled: true,
+          },
+        });
+      }
+      return;
+    }
+
     try {
-      await this.collab.fileManager.saveFiles({
+      await fileManager.saveFiles({
         elements: this.collab.excalidrawAPI.getSceneElementsIncludingDeleted(),
         files: this.collab.excalidrawAPI.getFiles(),
       });
@@ -121,7 +214,7 @@ class Portal {
     const newElements = this.collab.excalidrawAPI
       .getSceneElementsIncludingDeleted()
       .map((element) => {
-        if (this.collab.fileManager.shouldUpdateImageElementStatus(element)) {
+        if (fileManager.shouldUpdateImageElementStatus(element)) {
           isChanged = true;
           // this will signal collaborators to pull image data from server
           // (using mutation instead of newElementWith otherwise it'd break
@@ -249,6 +342,13 @@ class Portal {
 
   broadcastUserFollowed = (payload: OnUserFollowedPayload) => {
     if (this.socket?.id) {
+      if (this.vaultRealtimeSession) {
+        const data: SocketUpdateDataSource["USER_FOLLOW_CHANGE"] = {
+          type: WS_SUBTYPES.USER_FOLLOW_CHANGE,
+          payload,
+        };
+        return this._broadcastSocketData(data as SocketUpdateData, true);
+      }
       this.socket.emit(WS_EVENTS.USER_FOLLOW_CHANGE, payload);
     }
   };

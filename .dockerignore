@@ -6,6 +6,9 @@
 !.npmrc
 !.prettierrc
 !excalidraw-app/
+!deploy/
+!deploy/vault-self-hosted/
+!deploy/vault-self-hosted/nginx.conf
 !package.json
 !public/
 !packages/

@@ -1,0 +1,21 @@
+{$APP_ORIGIN} {
+  encode zstd gzip
+
+  @room path /socket.io/* /vault/capabilities /vault/rooms /vault/control-plane/* /healthz /readyz
+  reverse_proxy @room room:8080
+  reverse_proxy app:8080
+
+  header {
+    -Server
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    X-Frame-Options "SAMEORIGIN"
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; frame-src 'self' https:; worker-src 'self' blob:; connect-src 'self' {$SUPABASE_PUBLIC_URL}"
+  }
+
+  log {
+    output discard
+  }
+}

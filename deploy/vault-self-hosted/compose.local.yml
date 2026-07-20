@@ -1,0 +1,13 @@
+services:
+  room:
+    ports:
+      # Local Supabase Edge Runtime runs on a separate Docker network and
+      # reaches the trusted disconnect endpoint through host.docker.internal.
+      # Bind loopback only; never expose this control-plane port to the LAN.
+      - 127.0.0.1:3002:8080
+  proxy:
+    ports:
+      - 8080:8080
+      - 8443:8443
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile:ro

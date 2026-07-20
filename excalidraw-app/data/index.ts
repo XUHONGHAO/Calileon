@@ -25,6 +25,7 @@ import type {
   AppState,
   BinaryFileData,
   BinaryFiles,
+  OnUserFollowedPayload,
   SocketId,
 } from "@excalidraw/excalidraw/types";
 import type { MakeBrand } from "@excalidraw/common/utility-types";
@@ -117,6 +118,10 @@ export type SocketUpdateDataSource = {
       userState: UserIdleState;
       username: string;
     };
+  };
+  USER_FOLLOW_CHANGE: {
+    type: WS_SUBTYPES.USER_FOLLOW_CHANGE;
+    payload: OnUserFollowedPayload;
   };
 };
 

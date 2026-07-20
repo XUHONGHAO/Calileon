@@ -1837,5 +1837,87 @@
       "untitled": "Untitled AI task",
       "updatedAt": "Updated {{date}}"
     }
+  },
+  "vault": {
+    "menu": "Vault (experimental)",
+    "dependency": {
+      "title": "Vault dependency check",
+      "description": "First checks the secure encrypted persistence and room services required by Vault. Creating a Vault always starts with an empty canvas and never uploads the current whiteboard.",
+      "checking": "Checking Vault deployment dependencies...",
+      "ready": "Vault dependencies are available. You can now create an empty Vault.",
+      "retry": "Check again",
+      "errors": {
+        "secureContext": "Vault requires a secure HTTPS context or localhost.",
+        "cryptoUnavailable": "This browser does not provide the WebCrypto features required by Vault.",
+        "roomUnavailable": "The configured secure Vault room service is unavailable or incompatible.",
+        "protocolUnsupported": "The configured encrypted persistence service uses an unsupported Vault protocol.",
+        "persistenceUnavailable": "The Vault deployment configuration or required encrypted persistence services are unavailable.",
+        "internal": "Vault dependencies could not be verified. No Vault was created."
+      }
+    },
+    "creation": {
+      "emptyNotice": "Your current whiteboard stays unchanged in its existing storage. Vault creation does not convert, copy, or upload it.",
+      "signInRequired": "Sign in to the configured Supabase account before creating a Vault.",
+      "signIn": "Sign in",
+      "create": "Create empty Vault",
+      "creating": "Creating encrypted Vault...",
+      "error": "The Vault could not be created. No plain scene or legacy room fallback was used."
+    },
+    "share": {
+      "manage": "Share Vault",
+      "title": "Share encrypted Vault",
+      "description": "Create viewer or editor invitations for this Vault. Only the Vault owner can manage invitations.",
+      "bearerWarning": "Anyone with the complete invitation link can access the Vault with the selected role. Treat it like a password. Revocation blocks new access and disconnects active sessions, but P4a does not rekey content already disclosed.",
+      "role": "Invitation role",
+      "viewer": "Viewer",
+      "editor": "Editor",
+      "expiry": "Expiration",
+      "expiryNever": "No expiration",
+      "expiryDay": "24 hours",
+      "expiryWeek": "7 days",
+      "expiresAt": "Expires {{date}}",
+      "createAndCopy": "Create and copy link",
+      "creating": "Creating invitation...",
+      "createdAndCopied": "Invitation created and copied. The bearer link was not saved to browser storage.",
+      "copied": "Invitation link copied.",
+      "createdInvitations": "Invitations created in this browser session",
+      "noInvitations": "No invitations have been created in this browser session.",
+      "copy": "Copy link",
+      "revoke": "Revoke",
+      "revoking": "Revoking...",
+      "revoked": "Revoked",
+      "errors": {
+        "ownerRequired": "Only the Vault owner can create or revoke invitations.",
+        "expired": "This Vault access has expired.",
+        "revoked": "This Vault access has been revoked.",
+        "unavailable": "The encrypted Vault invitation service is unavailable.",
+        "internal": "The Vault invitation action failed. No bearer secret was logged or persisted."
+      }
+    },
+    "status": {
+      "encrypted": "Encrypted",
+      "editor": "Editor",
+      "viewer": "Viewer",
+      "loading": "Loading",
+      "syncing": "Syncing",
+      "synced": "Synced",
+      "unsynced": "Not synced",
+      "revoked": "Access revoked",
+      "expired": "Access expired",
+      "closed": "Closed"
+    },
+    "egress": {
+      "denied": "External AI, embedded pages, and remote media are disabled in Vault. No plaintext was sent. (VAULT_EGRESS_DENIED)"
+    },
+    "errors": {
+      "invalidUrl": "This Vault link is invalid. Check that the complete invitation link was copied.",
+      "protocolUnsupported": "This Vault uses an unsupported protocol version. Update the app or contact the deployment administrator.",
+      "decryptFailed": "Vault decryption failed because the link key is incorrect or ciphertext authentication failed. No plain or legacy fallback was used. (VAULT_DECRYPT_FAILED)",
+      "integrityFailed": "The encrypted Vault envelope is invalid or was modified. No partial scene or legacy fallback was loaded. (VAULT_ENVELOPE_INVALID)",
+      "expired": "This Vault access link has expired. (VAULT_CAPABILITY_EXPIRED)",
+      "revoked": "This Vault access link has been revoked. (VAULT_CAPABILITY_REVOKED)",
+      "accessDenied": "This Vault access link is invalid or is not authorized. (VAULT_CAPABILITY_FORBIDDEN)",
+      "unavailable": "Vault cannot be opened because the required secure room and encrypted persistence services are unavailable. No plain or legacy fallback was used."
+    }
   }
 }

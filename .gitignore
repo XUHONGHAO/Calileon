@@ -33,3 +33,4 @@ excalidraw-app/single-file/.runtime-build/
 .git_disabled/
 .git_empty_backup_*/
 .gitignore.local
+scripts/vault/*.local.env

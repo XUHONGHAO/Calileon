@@ -1,0 +1,21 @@
+name: excalidraw-vault-host-smoke
+
+services:
+  proxy:
+    image: caddy:2.10.2-alpine
+    pull_policy: never
+    environment:
+      SUPABASE_PUBLIC_URL: ${SUPABASE_PUBLIC_URL:?SUPABASE_PUBLIC_URL is required}
+    ports:
+      - 8080:8080
+      - 8443:8443
+    volumes:
+      - ./Caddyfile.host-smoke:/etc/caddy/Caddyfile:ro
+      - ../../excalidraw-app/build:/srv:ro
+      - host_smoke_caddy_data:/data
+      - host_smoke_caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  host_smoke_caddy_data:
+  host_smoke_caddy_config:

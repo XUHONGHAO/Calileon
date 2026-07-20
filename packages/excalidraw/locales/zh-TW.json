@@ -1557,5 +1557,87 @@
     "spacebar": "",
     "delete": "",
     "mmb": ""
+  },
+  "vault": {
+    "menu": "Vault（實驗性）",
+    "dependency": {
+      "title": "Vault 相依服務檢查",
+      "description": "先檢查 Vault 所需的安全密文持久化與 room 服務。建立 Vault 時一律從空白畫布開始，絕不會上傳目前的白板。",
+      "checking": "正在檢查 Vault 部署相依服務……",
+      "ready": "Vault 相依服務均可使用，現在可以建立一個空 Vault。",
+      "retry": "重新檢查",
+      "errors": {
+        "secureContext": "Vault 需要安全的 HTTPS 環境或 localhost。",
+        "cryptoUnavailable": "目前的瀏覽器不支援 Vault 所需的 WebCrypto 功能。",
+        "roomUnavailable": "設定的安全 Vault room 服務無法使用或協定不相容。",
+        "protocolUnsupported": "設定的密文持久化服務使用了不支援的 Vault 協定。",
+        "persistenceUnavailable": "Vault 部署設定或必要的密文持久化服務無法使用。",
+        "internal": "無法驗證 Vault 相依服務，系統未建立 Vault。"
+      }
+    },
+    "creation": {
+      "emptyNotice": "目前的白板會原樣保留在既有儲存中。建立 Vault 不會轉換、複製或上傳它。",
+      "signInRequired": "建立 Vault 前，請先登入已設定的 Supabase 帳號。",
+      "signIn": "登入",
+      "create": "建立空 Vault",
+      "creating": "正在建立加密 Vault……",
+      "error": "無法建立 Vault。系統未使用明文場景或舊版 room 進行降級。"
+    },
+    "share": {
+      "manage": "分享 Vault",
+      "title": "分享加密 Vault",
+      "description": "為此 Vault 建立檢視者或編輯者邀請。只有 Vault 擁有者可以管理邀請。",
+      "bearerWarning": "任何取得完整邀請連結的人都能以所選角色存取 Vault，請像密碼一樣保護它。撤銷會阻止新存取並中斷現有連線，但 P4a 不會自動輪替已揭露的內容金鑰。",
+      "role": "邀請角色",
+      "viewer": "檢視者",
+      "editor": "編輯者",
+      "expiry": "有效期限",
+      "expiryNever": "永不過期",
+      "expiryDay": "24 小時",
+      "expiryWeek": "7 天",
+      "expiresAt": "到期時間：{{date}}",
+      "createAndCopy": "建立並複製連結",
+      "creating": "正在建立邀請……",
+      "createdAndCopied": "邀請已建立並複製。bearer 連結未儲存到瀏覽器儲存空間。",
+      "copied": "邀請連結已複製。",
+      "createdInvitations": "本次瀏覽器工作階段中建立的邀請",
+      "noInvitations": "本次瀏覽器工作階段尚未建立邀請。",
+      "copy": "複製連結",
+      "revoke": "撤銷",
+      "revoking": "正在撤銷……",
+      "revoked": "已撤銷",
+      "errors": {
+        "ownerRequired": "只有 Vault 擁有者可以建立或撤銷邀請。",
+        "expired": "目前的 Vault 存取已過期。",
+        "revoked": "目前的 Vault 存取已遭撤銷。",
+        "unavailable": "加密 Vault 邀請服務無法使用。",
+        "internal": "Vault 邀請操作失敗。系統未記錄或持久化 bearer secret。"
+      }
+    },
+    "status": {
+      "encrypted": "已加密",
+      "editor": "編輯者",
+      "viewer": "檢視者",
+      "loading": "正在載入",
+      "syncing": "正在同步",
+      "synced": "已同步",
+      "unsynced": "未同步",
+      "revoked": "存取已撤銷",
+      "expired": "存取已過期",
+      "closed": "已關閉"
+    },
+    "egress": {
+      "denied": "Vault 中已停用外部 AI、嵌入網頁與遠端媒體，未傳送任何明文。（VAULT_EGRESS_DENIED）"
+    },
+    "errors": {
+      "invalidUrl": "此 Vault 連結無效，請確認已複製完整邀請連結。",
+      "protocolUnsupported": "此 Vault 使用了不支援的協定版本，請更新應用程式或聯絡部署管理員。",
+      "decryptFailed": "Vault 解密失敗：連結金鑰不正確或密文驗證失敗。系統未使用明文或舊版儲存進行降級。（VAULT_DECRYPT_FAILED）",
+      "integrityFailed": "Vault 加密信封無效或已遭竄改。系統未載入部分場景，也未使用舊版儲存進行降級。（VAULT_ENVELOPE_INVALID）",
+      "expired": "此 Vault 存取連結已過期。（VAULT_CAPABILITY_EXPIRED）",
+      "revoked": "此 Vault 存取連結已遭撤銷。（VAULT_CAPABILITY_REVOKED）",
+      "accessDenied": "此 Vault 存取連結無效或沒有存取權限。（VAULT_CAPABILITY_FORBIDDEN）",
+      "unavailable": "缺少安全 room 或密文持久化服務，無法開啟 Vault。系統未使用明文或舊版儲存進行降級。"
+    }
   }
 }

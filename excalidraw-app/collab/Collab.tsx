@@ -69,6 +69,13 @@ import {
 } from "../data/FileManager";
 import { FileStatusStore } from "../data/fileStatusStore";
 import { resetBrowserStateVersions } from "../data/tabSync";
+import {
+  VaultError,
+  VaultRealtimeTransport,
+  downloadVaultFile,
+  readVaultSessionSecrets,
+  uploadVaultFile,
+} from "../data/vault";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
 import Portal from "./Portal";
@@ -77,6 +84,11 @@ import type {
   SocketUpdateDataSource,
   SyncableExcalidrawElement,
 } from "../data/cloud";
+import type {
+  VaultClientSession,
+  VaultRealtimeDecodedMessage,
+  VaultEncryptedAssetService,
+} from "../data/vault";
 
 // Phase 0: collaboration persistence/links go through the `data/cloud` adapter
 // layer. These bindings keep today's call sites unchanged while removing direct
@@ -113,12 +125,20 @@ type RoomLinkData = { roomId: string; roomKey: string };
 type StartCollaborationOptions = {
   preserveLocalScene?: boolean;
 };
+type StartVaultCollaborationOptions = {
+  assetService?: VaultEncryptedAssetService;
+  onError?(error: VaultError): void;
+  onDisconnect?(error: VaultError): void;
+  onReconnect?(): void | Promise<void>;
+  onTeardown?(error: VaultError): void;
+};
 
 export interface CollabAPI {
   /** function so that we can access the latest value from stale callbacks */
   isCollaborating: () => boolean;
   onPointerUpdate: CollabInstance["onPointerUpdate"];
   startCollaboration: CollabInstance["startCollaboration"];
+  startVaultCollaboration: CollabInstance["startVaultCollaboration"];
   stopCollaboration: CollabInstance["stopCollaboration"];
   syncElements: CollabInstance["syncElements"];
   fetchImageFilesFromFirebase: CollabInstance["fetchImageFilesFromFirebase"];
@@ -136,11 +156,13 @@ interface CollabProps {
 class Collab extends PureComponent<CollabProps, CollabState> {
   portal: Portal;
   fileManager: FileManager;
+  vaultFileManager: FileManager | null;
   excalidrawAPI: CollabProps["excalidrawAPI"];
   activeIntervalId: number | null;
   idleTimeoutId: number | null;
 
   private socketInitializationTimer?: number;
+  private vaultTransport: VaultRealtimeTransport | null = null;
   private lastBroadcastedOrReceivedSceneVersion: number = -1;
   private collaborators = new Map<SocketId, Collaborator>();
 
@@ -210,6 +232,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         };
       },
     });
+    this.vaultFileManager = null;
     this.excalidrawAPI = props.excalidrawAPI;
     this.activeIntervalId = null;
     this.idleTimeoutId = null;
@@ -243,6 +266,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       isCollaborating: this.isCollaborating,
       onPointerUpdate: this.onPointerUpdate,
       startCollaboration: this.startCollaboration,
+      startVaultCollaboration: this.startVaultCollaboration,
       syncElements: this.syncElements,
       fetchImageFilesFromFirebase: this.fetchImageFilesFromFirebase,
       stopCollaboration: this.stopCollaboration,
@@ -271,6 +295,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   };
 
   componentWillUnmount() {
+    if (this.vaultTransport) {
+      this.vaultTransport.dispose();
+      this.vaultTransport = null;
+      this.portal.close();
+    }
     window.removeEventListener("online", this.onOfflineStatusToggle);
     window.removeEventListener("offline", this.onOfflineStatusToggle);
     window.removeEventListener(EVENT.BEFORE_UNLOAD, this.beforeUnload);
@@ -302,6 +331,14 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   };
 
   private beforeUnload = withBatchedUpdates((event: BeforeUnloadEvent) => {
+    // Vault transport is a separate encrypted persistence boundary. While a
+    // Vault session is active, fail closed instead of consulting or writing
+    // through the ordinary collaboration persistence adapter (which may be
+    // Firebase, Supabase collab snapshots, or local storage).
+    if (this.portal.vaultRealtimeSession) {
+      return;
+    }
+
     const syncableElements = getSyncableElements(
       this.getSceneElementsIncludingDeleted(),
     );
@@ -333,6 +370,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   saveCollabRoomToPersistence = async (
     syncableElements: readonly SyncableExcalidrawElement[],
   ) => {
+    // Defense in depth: callers outside the normal queue (e.g. unload/stop)
+    // must not be able to route a Vault scene into legacy persistence.
+    if (this.portal.vaultRealtimeSession) {
+      return;
+    }
+
     syncableElements = cloneJSON(syncableElements);
     try {
       const storedElements = await getCollabPersistence().saveScene({
@@ -378,13 +421,23 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.queueBroadcastAllElements.cancel();
     this.queueSaveToPersistence.cancel();
     this.loadImageFiles.cancel();
+    this.loadVaultImageFiles.cancel();
+    this.vaultFileManager?.reset();
+    this.vaultFileManager = null;
     this.resetErrorIndicator(true);
 
-    this.saveCollabRoomToPersistence(
-      getSyncableElements(
-        this.excalidrawAPI.getSceneElementsIncludingDeleted(),
-      ),
-    );
+    if (this.portal.vaultRealtimeSession || this.vaultTransport) {
+      this.destroySocketClient();
+      return;
+    }
+
+    if (!this.portal.vaultRealtimeSession) {
+      this.saveCollabRoomToPersistence(
+        getSyncableElements(
+          this.excalidrawAPI.getSceneElementsIncludingDeleted(),
+        ),
+      );
+    }
 
     if (this.portal.socket && this.fallbackInitializationHandler) {
       this.portal.socket.off(
@@ -425,6 +478,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   private destroySocketClient = (opts?: { isUnload: boolean }) => {
     this.lastBroadcastedOrReceivedSceneVersion = -1;
+    this.vaultTransport?.dispose();
+    this.vaultTransport = null;
     this.portal.close();
     this.fileManager.reset();
     if (!opts?.isUnload) {
@@ -488,6 +543,181 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   };
 
   private fallbackInitializationHandler: null | (() => any) = null;
+
+  private handleVaultRealtimeMessage = async (
+    message: VaultRealtimeDecodedMessage,
+  ) => {
+    const data = message.payload;
+    switch (data.type) {
+      case WS_SUBTYPES.INIT:
+      case WS_SUBTYPES.UPDATE: {
+        const remoteElements = toBrandedType<
+          readonly RemoteExcalidrawElement[]
+        >(data.payload.elements);
+        this.handleRemoteSceneUpdate(this._reconcileElements(remoteElements));
+        break;
+      }
+      case WS_SUBTYPES.MOUSE_LOCATION: {
+        const { pointer, button, username, selectedElementIds, socketId } =
+          data.payload;
+        this.updateCollaborator(socketId, {
+          pointer,
+          button,
+          selectedElementIds,
+          username,
+        });
+        break;
+      }
+      case WS_SUBTYPES.USER_VISIBLE_SCENE_BOUNDS: {
+        const { sceneBounds, socketId } = data.payload;
+        const appState = this.excalidrawAPI.getAppState();
+        if (appState.userToFollow?.socketId !== socketId) {
+          return;
+        }
+        if (
+          appState.userToFollow &&
+          appState.followedBy.has(appState.userToFollow.socketId)
+        ) {
+          return;
+        }
+        this.excalidrawAPI.updateScene({
+          appState: zoomToFitBounds({
+            appState,
+            bounds: sceneBounds,
+            fitToViewport: true,
+            viewportZoomFactor: 1,
+          }).appState,
+        });
+        break;
+      }
+      case WS_SUBTYPES.IDLE_STATUS: {
+        const { userState, socketId, username } = data.payload;
+        this.updateCollaborator(socketId, { userState, username });
+        break;
+      }
+      case WS_SUBTYPES.USER_FOLLOW_CHANGE:
+        break;
+      default:
+        assertNever(data, null);
+    }
+  };
+
+  startVaultCollaboration = async (
+    clientSession: VaultClientSession,
+    options: StartVaultCollaborationOptions = {},
+  ): Promise<boolean> => {
+    if (this.portal.socket || this.vaultTransport) {
+      return false;
+    }
+    const { default: socketIOClient } = await import(
+      /* webpackChunkName: "socketIoClient" */ "socket.io-client"
+    );
+    if (!options.assetService) {
+      this.setErrorIndicator("VAULT_PERSISTENCE_UNAVAILABLE");
+      return false;
+    }
+    const secrets = readVaultSessionSecrets(clientSession);
+    this.vaultFileManager = new FileManager({
+      onFileStatusChange: FileStatusStore.updateStatuses.bind(FileStatusStore),
+      getFiles: async (fileIds) => {
+        const loadedFiles: BinaryFileData[] = [];
+        const erroredFiles = new Map<FileId, true>();
+        for (const fileId of fileIds) {
+          try {
+            loadedFiles.push(
+              await downloadVaultFile({
+                service: options.assetService!,
+                vaultId: clientSession.vaultId,
+                invitationCapability: secrets.invitationCapability,
+                rootKey: secrets.rootKey,
+                fileId,
+              }),
+            );
+          } catch {
+            erroredFiles.set(fileId, true);
+          }
+        }
+        return { loadedFiles, erroredFiles };
+      },
+      saveFiles: async ({ addedFiles }) => {
+        const savedFiles = new Map<FileId, BinaryFileData>();
+        const erroredFiles = new Map<FileId, BinaryFileData>();
+        for (const [fileId, file] of addedFiles) {
+          try {
+            await uploadVaultFile({
+              service: options.assetService!,
+              vaultId: clientSession.vaultId,
+              invitationCapability: secrets.invitationCapability,
+              rootKey: secrets.rootKey,
+              file,
+            });
+            savedFiles.set(fileId, file);
+          } catch {
+            erroredFiles.set(fileId, file);
+          }
+        }
+        return { savedFiles, erroredFiles };
+      },
+    });
+    const socket = socketIOClient(import.meta.env.VITE_APP_WS_SERVER_URL, {
+      transports: ["websocket", "polling"],
+    });
+    const transport = new VaultRealtimeTransport({
+      clientSession,
+      socket,
+      callbacks: {
+        onMessage: this.handleVaultRealtimeMessage,
+        onError: (error) => {
+          this.setErrorIndicator(error.code);
+          options.onError?.(error);
+        },
+        onDisconnect: (error) => {
+          this.setErrorIndicator(error.code);
+          options.onDisconnect?.(error);
+          this.excalidrawAPI.updateScene({
+            appState: {
+              viewModeEnabled: true,
+              errorMessage: t("vault.errors.unavailable"),
+            },
+          });
+        },
+        onReconnect: async () => {
+          await options.onReconnect?.();
+        },
+        onTeardown: (error) => {
+          this.setErrorIndicator(error.code);
+          options.onTeardown?.(error);
+          this.excalidrawAPI.updateScene({
+            appState: {
+              viewModeEnabled: true,
+              errorMessage: t("vault.errors.unavailable"),
+            },
+          });
+          this.destroySocketClient();
+        },
+      },
+    });
+    try {
+      await transport.connect();
+      this.vaultTransport = transport;
+      this.portal.openVaultTransport(
+        clientSession.admission,
+        socket,
+        transport.realtimeSession,
+      );
+      this.portal.socketInitialized = true;
+      this.setIsCollaborating(true);
+      this.setActiveRoomLink(window.location.href);
+      this.initializeIdleDetector();
+      return true;
+    } catch (error) {
+      transport.dispose();
+      this.setErrorIndicator(
+        error instanceof VaultError ? error.code : "VAULT_INTERNAL",
+      );
+      return false;
+    }
+  };
 
   startCollaboration = async (
     existingRoomLinkData: null | RoomLinkData,
@@ -707,6 +937,13 @@ class Collab extends PureComponent<CollabProps, CollabState> {
             break;
           }
 
+          case WS_SUBTYPES.USER_FOLLOW_CHANGE: {
+            // Vault follow state is encrypted and broadcast in the main room.
+            // The follower already owns its local userToFollow state; other
+            // clients do not need to mutate app state from this event.
+            break;
+          }
+
           default: {
             assertNever(decryptedData, null);
           }
@@ -851,6 +1088,52 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     });
   }, LOAD_IMAGES_TIMEOUT);
 
+  private loadVaultImageFiles = throttle(async () => {
+    const fileManager = this.vaultFileManager;
+    if (!fileManager) {
+      this.excalidrawAPI.updateScene({
+        appState: {
+          viewModeEnabled: true,
+          errorMessage: t("vault.errors.unavailable"),
+        },
+      });
+      return;
+    }
+    const elements = this.excalidrawAPI.getSceneElementsIncludingDeleted();
+    const fileIds = elements.reduce((ids, element) => {
+      if (
+        isInitializedImageElement(element) &&
+        !element.isDeleted &&
+        element.status === "saved" &&
+        !fileManager.isFileTracked(element.fileId)
+      ) {
+        ids.push(element.fileId);
+      }
+      return ids;
+    }, [] as FileId[]);
+    if (!fileIds.length) {
+      return;
+    }
+    try {
+      const { loadedFiles, erroredFiles } = await fileManager.getFiles(fileIds);
+      if (loadedFiles.length) {
+        this.excalidrawAPI.addFiles(loadedFiles);
+      }
+      updateStaleImageStatuses({
+        excalidrawAPI: this.excalidrawAPI,
+        erroredFiles,
+        elements: this.excalidrawAPI.getSceneElementsIncludingDeleted(),
+      });
+    } catch {
+      this.excalidrawAPI.updateScene({
+        appState: {
+          viewModeEnabled: true,
+          errorMessage: t("vault.errors.unavailable"),
+        },
+      });
+    }
+  }, LOAD_IMAGES_TIMEOUT);
+
   private handleRemoteSceneUpdate = (
     elements: ReconciledExcalidrawElement[],
   ) => {
@@ -859,7 +1142,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       captureUpdate: CaptureUpdateAction.NEVER,
     });
 
-    this.loadImageFiles();
+    if (this.portal.vaultRealtimeSession) {
+      this.loadVaultImageFiles();
+    } else {
+      this.loadImageFiles();
+    }
   };
 
   private onPointerMove = () => {
@@ -977,7 +1264,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   relayVisibleSceneBounds = (props?: { force: boolean }) => {
     const appState = this.excalidrawAPI.getAppState();
 
-    if (this.portal.socket && (appState.followedBy.size > 0 || props?.force)) {
+    if (
+      this.portal.socket &&
+      (this.portal.vaultRealtimeSession ||
+        appState.followedBy.size > 0 ||
+        props?.force)
+    ) {
       this.portal.broadcastVisibleSceneBounds(
         {
           sceneBounds: getVisibleSceneBounds(appState),
@@ -1003,6 +1295,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   };
 
   syncElements = (elements: readonly OrderedExcalidrawElement[]) => {
+    if (this.portal.vaultRealtimeSession?.role === "viewer") {
+      return;
+    }
     this.broadcastElements(elements);
     this.queueSaveToPersistence();
   };
@@ -1023,7 +1318,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   queueSaveToPersistence = throttle(
     () => {
-      if (this.portal.socketInitialized) {
+      if (this.portal.socketInitialized && !this.portal.vaultRealtimeSession) {
         this.saveCollabRoomToPersistence(
           getSyncableElements(
             this.excalidrawAPI.getSceneElementsIncludingDeleted(),

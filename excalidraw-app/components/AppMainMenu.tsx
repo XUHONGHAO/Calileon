@@ -3,6 +3,7 @@ import {
   loginIcon,
   ExcalLogo,
   eyeIcon,
+  LockedIcon,
   MagicIcon,
   P3EmbedIcon,
   SingleFileBoardIcon,
@@ -24,12 +25,14 @@ import { LanguageList } from "../app-language/LanguageList";
 import { AI_OPEN_SETTINGS_EVENT } from "../ai/workflowEvents";
 import { useCloudAuth } from "../auth/useCloudAuth";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
+import { readVaultClientConfig } from "../data/vault";
 
 import { AISettings } from "./AISettings";
 import { ManyMindsDialog } from "./ManyMindsDialog";
 
 import { CastDialog } from "./CastDialog";
 import { saveDebugState } from "./DebugCanvas";
+import { VaultDependencyDialog } from "./VaultDependencyDialog";
 
 import type { ActiveCloudSceneInfo } from "./AuthDialog";
 
@@ -49,20 +52,27 @@ export const AppMainMenu: React.FC<{
   excalidrawAPI?: ExcalidrawImperativeAPI | null;
   activeCloudScene?: ActiveCloudSceneInfo | null;
   langCode?: ExcalidrawProps["langCode"];
+  externalFeaturesDisabled?: boolean;
 }> = React.memo((props) => {
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
   const [isCastDialogOpen, setIsCastDialogOpen] = React.useState(false);
   const [isManyMindsOpen, setIsManyMindsOpen] = React.useState(false);
+  const [isVaultDependencyDialogOpen, setIsVaultDependencyDialogOpen] =
+    React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
     "models" | "agents" | "templates"
   >("models");
 
   const { isAuthAvailable, isSignedIn } = useCloudAuth();
+  const vaultEnabled = readVaultClientConfig().enabled;
 
   React.useEffect(() => {
     const openAISettings = (
       event: WindowEventMap[typeof AI_OPEN_SETTINGS_EVENT],
     ) => {
+      if (props.externalFeaturesDisabled) {
+        return;
+      }
       setInitialAISettingsTab(event.detail?.tab || "models");
       setIsAISettingsOpen(true);
     };
@@ -72,7 +82,15 @@ export const AppMainMenu: React.FC<{
     return () => {
       window.removeEventListener(AI_OPEN_SETTINGS_EVENT, openAISettings);
     };
-  }, []);
+  }, [props.externalFeaturesDisabled]);
+
+  React.useEffect(() => {
+    if (props.externalFeaturesDisabled) {
+      setIsAISettingsOpen(false);
+      setIsCastDialogOpen(false);
+      setIsManyMindsOpen(false);
+    }
+  }, [props.externalFeaturesDisabled]);
 
   return (
     <>
@@ -92,15 +110,17 @@ export const AppMainMenu: React.FC<{
         <MainMenu.DefaultItems.Help />
         <MainMenu.DefaultItems.ClearCanvas />
         <MainMenu.Separator />
-        <MainMenu.ItemLink
-          icon={ExcalLogo}
-          href={`${
-            import.meta.env.VITE_APP_PLUS_LP
-          }/plus?utm_source=excalidraw&utm_medium=app&utm_content=hamburger`}
-          className=""
-        >
-          Excalidraw+
-        </MainMenu.ItemLink>
+        {!props.externalFeaturesDisabled && (
+          <MainMenu.ItemLink
+            icon={ExcalLogo}
+            href={`${
+              import.meta.env.VITE_APP_PLUS_LP
+            }/plus?utm_source=excalidraw&utm_medium=app&utm_content=hamburger`}
+            className=""
+          >
+            Excalidraw+
+          </MainMenu.ItemLink>
+        )}
         <MainMenu.DefaultItems.Socials />
         {isAuthAvailable ? (
           isSignedIn ? (
@@ -120,7 +140,7 @@ export const AppMainMenu: React.FC<{
               {t("cloud.auth.signIn")}
             </MainMenu.Item>
           )
-        ) : (
+        ) : !props.externalFeaturesDisabled ? (
           <MainMenu.ItemLink
             icon={loginIcon}
             href={`${import.meta.env.VITE_APP_PLUS_APP}${
@@ -132,7 +152,7 @@ export const AppMainMenu: React.FC<{
               ? t("buttons.signIn")
               : t("buttons.signUp")}
           </MainMenu.ItemLink>
-        )}
+        ) : null}
         {isDevEnv() && (
           <MainMenu.Item
             icon={eyeIcon}
@@ -155,83 +175,99 @@ export const AppMainMenu: React.FC<{
           <MainMenu.DefaultItems.ExperimentalFeatures.Lumina />
           <MainMenu.DefaultItems.ExperimentalFeatures.Echo />
           <MainMenu.DefaultItems.ExperimentalFeatures.LineTone />
-          <MainMenu.Item
-            icon={SingleFileBoardIcon}
-            onSelect={props.onSingleFileDialogOpen}
-          >
-            {t("labels.experimental.singleFileBoard")}
-          </MainMenu.Item>
-          <MainMenu.Sub>
-            <MainMenu.Sub.Trigger icon={P3EmbedIcon}>
-              {t("labels.experimental.embedWhiteboard")}
-            </MainMenu.Sub.Trigger>
-            <MainMenu.Sub.Content>
+          {vaultEnabled && (
+            <MainMenu.Item
+              icon={LockedIcon}
+              onSelect={() => setIsVaultDependencyDialogOpen(true)}
+              data-testid="vault-menu-item"
+              aria-label={t("vault.menu")}
+            >
+              {t("vault.menu")}
+            </MainMenu.Item>
+          )}
+          {!props.externalFeaturesDisabled && (
+            <>
               <MainMenu.Item
-                onSelect={() =>
-                  props.onEmbedOpen({ mode: "view", preset: "full" })
-                }
-                data-testid="embed-view-menu-item"
+                icon={SingleFileBoardIcon}
+                onSelect={props.onSingleFileDialogOpen}
               >
-                {t("labels.experimental.embedPresets.view")}
+                {t("labels.experimental.singleFileBoard")}
+              </MainMenu.Item>
+              <MainMenu.Sub>
+                <MainMenu.Sub.Trigger icon={P3EmbedIcon}>
+                  {t("labels.experimental.embedWhiteboard")}
+                </MainMenu.Sub.Trigger>
+                <MainMenu.Sub.Content>
+                  <MainMenu.Item
+                    onSelect={() =>
+                      props.onEmbedOpen({ mode: "view", preset: "full" })
+                    }
+                    data-testid="embed-view-menu-item"
+                  >
+                    {t("labels.experimental.embedPresets.view")}
+                  </MainMenu.Item>
+                  <MainMenu.Item
+                    onSelect={() =>
+                      props.onEmbedOpen({ mode: "edit", preset: "full" })
+                    }
+                    data-testid="embed-edit-menu-item"
+                  >
+                    {t("labels.experimental.embedPresets.edit")}
+                  </MainMenu.Item>
+                  <MainMenu.Item
+                    onSelect={() =>
+                      props.onEmbedOpen({ mode: "edit", preset: "compact" })
+                    }
+                    data-testid="embed-compact-menu-item"
+                  >
+                    {t("labels.experimental.embedPresets.compact")}
+                  </MainMenu.Item>
+                  <MainMenu.Item
+                    onSelect={() =>
+                      props.onEmbedOpen({
+                        mode: "view",
+                        preset: "presentation",
+                      })
+                    }
+                    data-testid="embed-presentation-menu-item"
+                  >
+                    {t("labels.experimental.embedPresets.presentation")}
+                  </MainMenu.Item>
+                </MainMenu.Sub.Content>
+              </MainMenu.Sub>
+              <MainMenu.Item
+                icon={CastIcon}
+                onSelect={() => setIsCastDialogOpen(true)}
+                data-testid="cast-menu-item"
+                aria-label={t("labels.experimental.cast")}
+              >
+                {t("labels.experimental.cast")}
               </MainMenu.Item>
               <MainMenu.Item
-                onSelect={() =>
-                  props.onEmbedOpen({ mode: "edit", preset: "full" })
-                }
-                data-testid="embed-edit-menu-item"
+                icon={MagicIcon}
+                onSelect={() => setIsManyMindsOpen(true)}
+                data-testid="many-minds-menu-item"
+                aria-label={t("ai.manyMinds.title")}
               >
-                {t("labels.experimental.embedPresets.edit")}
+                {t("ai.manyMinds.title")}
               </MainMenu.Item>
-              <MainMenu.Item
-                onSelect={() =>
-                  props.onEmbedOpen({ mode: "edit", preset: "compact" })
-                }
-                data-testid="embed-compact-menu-item"
-              >
-                {t("labels.experimental.embedPresets.compact")}
-              </MainMenu.Item>
-              <MainMenu.Item
-                onSelect={() =>
-                  props.onEmbedOpen({
-                    mode: "view",
-                    preset: "presentation",
-                  })
-                }
-                data-testid="embed-presentation-menu-item"
-              >
-                {t("labels.experimental.embedPresets.presentation")}
-              </MainMenu.Item>
-            </MainMenu.Sub.Content>
-          </MainMenu.Sub>
-          <MainMenu.Item
-            icon={CastIcon}
-            onSelect={() => setIsCastDialogOpen(true)}
-            data-testid="cast-menu-item"
-            aria-label={t("labels.experimental.cast")}
-          >
-            {t("labels.experimental.cast")}
-          </MainMenu.Item>
-          <MainMenu.Item
-            icon={MagicIcon}
-            onSelect={() => setIsManyMindsOpen(true)}
-            data-testid="many-minds-menu-item"
-            aria-label={t("ai.manyMinds.title")}
-          >
-            {t("ai.manyMinds.title")}
-          </MainMenu.Item>
+            </>
+          )}
         </MainMenu.DefaultItems.ExperimentalFeatures>
         <MainMenu.DefaultItems.Preferences
           additionalItems={
-            <MainMenu.Item
-              className="AppAISettingsMenuItem"
-              icon={MagicIcon}
-              onSelect={() => {
-                setInitialAISettingsTab("models");
-                setIsAISettingsOpen(true);
-              }}
-            >
-              {t("ai.common.globalSettings")}
-            </MainMenu.Item>
+            !props.externalFeaturesDisabled ? (
+              <MainMenu.Item
+                className="AppAISettingsMenuItem"
+                icon={MagicIcon}
+                onSelect={() => {
+                  setInitialAISettingsTab("models");
+                  setIsAISettingsOpen(true);
+                }}
+              >
+                {t("ai.common.globalSettings")}
+              </MainMenu.Item>
+            ) : undefined
           }
         />
         <MainMenu.DefaultItems.ToggleTheme
@@ -244,7 +280,7 @@ export const AppMainMenu: React.FC<{
         <MainMenu.DefaultItems.ChangeCanvasBackground />
       </MainMenu>
 
-      {isAISettingsOpen && (
+      {!props.externalFeaturesDisabled && isAISettingsOpen && (
         <Dialog
           className="AISettingsDialog"
           title={t("ai.common.settings")}
@@ -258,17 +294,26 @@ export const AppMainMenu: React.FC<{
         </Dialog>
       )}
       <CastDialog
-        open={isCastDialogOpen}
+        open={!props.externalFeaturesDisabled && isCastDialogOpen}
         onClose={() => setIsCastDialogOpen(false)}
         excalidrawAPI={props.excalidrawAPI ?? null}
         activeCloudScene={props.activeCloudScene}
         langCode={props.langCode}
       />
       <ManyMindsDialog
-        open={isManyMindsOpen}
+        open={!props.externalFeaturesDisabled && isManyMindsOpen}
         onClose={() => setIsManyMindsOpen(false)}
         excalidrawAPI={props.excalidrawAPI ?? null}
         persistenceScopeId={props.manyMindsPersistenceScopeId ?? null}
+      />
+      <VaultDependencyDialog
+        open={isVaultDependencyDialogOpen}
+        onClose={() => setIsVaultDependencyDialogOpen(false)}
+        canCreate={isSignedIn}
+        onSignIn={() => {
+          setIsVaultDependencyDialogOpen(false);
+          props.onCloudAccountOpen?.();
+        }}
       />
     </>
   );
