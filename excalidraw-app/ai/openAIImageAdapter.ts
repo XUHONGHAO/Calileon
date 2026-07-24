@@ -8,6 +8,7 @@ import type {
   AIImageEndpointConfig,
   AIImageFieldMapping,
   AIImageGenerationOutput,
+  AIImageGenerationParams,
   AIImageGenerationRequest,
   AIImageModel,
 } from "./types";
@@ -22,6 +23,13 @@ type OpenAIImageResponse = {
   result?: unknown;
   b64_json?: unknown;
   url?: unknown;
+  // Async (Right Code) submit/poll fields: submit returns a task id + status;
+  // polling returns the same status until it resolves to completed/failed.
+  task_id?: unknown;
+  taskId?: unknown;
+  id?: unknown;
+  status?: unknown;
+  progress?: unknown;
   error?: {
     message?: string;
     type?: string;
@@ -37,7 +45,11 @@ type NormalizedImageResponseItem = {
   revisedPrompt?: string;
 };
 
-type AIImageProviderFlavor = "openai-compatible" | "lconai" | "gemini-native";
+type AIImageProviderFlavor =
+  | "openai-compatible"
+  | "lconai"
+  | "gemini-native"
+  | "right-code";
 
 export class AIImageGenerationError extends Error {
   constructor(
@@ -59,6 +71,12 @@ const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, "");
 const IMAGE_GENERATION_ENDPOINT = "/images/generations";
 const IMAGE_EDIT_ENDPOINT = "/images/edits";
 const IMAGE_ENDPOINT_SUFFIX = /\/images\/(?:generations|edits)$/i;
+
+// A finished generation can still return an image URL rather than inline base64.
+// Downloading that URL (and the liveness probe that follows a failed download)
+// uses its own short timeout so a slow/hung image host falls back to referencing
+// the URL directly, instead of stalling until the request's 600s cap.
+const DEFAULT_REMOTE_IMAGE_DOWNLOAD_TIMEOUT_MS = 60_000;
 
 export const buildEndpointURL = (
   baseURL: string,
@@ -122,17 +140,61 @@ const dataURLToBase64Payload = (dataURL: DataURL) => {
   return base64Payload || dataURL;
 };
 
-// OpenAI's gpt-image-* models (and the many relays that proxy them) always
-// return base64 and reject an explicit `response_format` parameter with a 400
-// "Unknown parameter: 'response_format'". Omit it for those models on the
-// standard OpenAI-compatible path. The lconai flavor keeps its existing,
-// separately verified behavior untouched.
+// Only OpenAI's *official* API rejects an explicit `response_format` on
+// gpt-image-* with a 400 "Unknown parameter: 'response_format'". The many
+// relays that proxy gpt-image-2 (duoyuanx, etc.) DO accept it, and asking for
+// `b64_json` matters: without it they default to returning an image URL, which
+// forces a second cross-origin download that can hang for minutes on a slow
+// image host. So omit the parameter only for the official host; every relay
+// keeps requesting inline base64 to skip that download entirely.
+const isOpenAIOfficialBaseURL = (baseURL: string | undefined) => {
+  try {
+    const hostname = new URL(
+      trimTrailingSlashes((baseURL || "").trim()),
+    ).hostname;
+
+    return hostname === "api.openai.com" || hostname.endsWith(".openai.com");
+  } catch {
+    return false;
+  }
+};
+
 const shouldOmitResponseFormat = (
   model: string | undefined,
   providerFlavor: AIImageProviderFlavor,
+  baseURL?: string,
 ) =>
-  providerFlavor === "openai-compatible" &&
-  /^gpt-image(-|$)/i.test((model || "").trim());
+  // Right Code's documented request body is minimal and its async task query
+  // returns whichever shape the provider chose (b64/url), which the response
+  // extractor already handles; sending response_format risks a 400.
+  providerFlavor === "right-code" ||
+  (providerFlavor === "openai-compatible" &&
+    isOpenAIOfficialBaseURL(baseURL) &&
+    /^gpt-image(-|$)/i.test((model || "").trim()));
+
+// Right Code takes `size` as an aspect ratio (or pixel string) plus a separate
+// `imageSize` tier (1K/2K/4K), unlike the OpenAI-compatible path that sends one
+// merged pixel string. Reconstruct both from the workbench params: the aspect
+// ratio drives `size` when set (else the already-merged pixel size is a valid
+// fallback Right Code also accepts), and the resolution tier maps to `imageSize`
+// (skipped for auto / the 512 tier, which Right Code does not expose).
+const RIGHT_CODE_IMAGE_SIZE_TIERS: Record<string, string> = {
+  "1k": "1K",
+  "2k": "2K",
+  "4k": "4K",
+};
+
+const buildRightCodeSizing = (params: AIImageGenerationParams) => {
+  const aspectRatio = params.aspectRatio?.trim();
+  const size =
+    aspectRatio && aspectRatio !== "auto" ? aspectRatio : params.size;
+  const resolution = params.resolution?.trim().toLowerCase();
+  const imageSize = resolution
+    ? RIGHT_CODE_IMAGE_SIZE_TIERS[resolution]
+    : undefined;
+
+  return { size, imageSize };
+};
 
 const assertImageModeInputs = (request: AIImageGenerationRequest) => {
   if (request.mode === "text-to-image") {
@@ -161,13 +223,21 @@ export const buildJSONRequestBody = (
 ): Record<string, unknown> => {
   const { model, prompt, negativePrompt, params, sources, mask } = request;
   const includeAdvancedParameters = providerFlavor !== "lconai";
+  const isRightCode = providerFlavor === "right-code";
+  const rightCodeSizing = isRightCode ? buildRightCodeSizing(params) : null;
   const body = stripUndefinedValues({
     [getMappedFieldName(fieldMapping, "model", "model")]: model,
     [getMappedFieldName(fieldMapping, "prompt", "prompt")]: prompt,
     [getMappedFieldName(fieldMapping, "negativePrompt", "negative_prompt")]:
       includeAdvancedParameters && negativePrompt ? negativePrompt : undefined,
     [getMappedFieldName(fieldMapping, "n", "n")]: params.n,
-    [getMappedFieldName(fieldMapping, "size", "size")]: params.size,
+    [getMappedFieldName(fieldMapping, "size", "size")]: rightCodeSizing
+      ? rightCodeSizing.size
+      : params.size,
+    imageSize: rightCodeSizing?.imageSize,
+    // Async endpoints submit the task and return a task id; the adapter polls
+    // taskPollURL for the result. Right Code requires this flag on every call.
+    async: isRightCode ? true : undefined,
     response_format: shouldOmitResponseFormat(model, providerFlavor)
       ? undefined
       : "b64_json",
@@ -327,6 +397,197 @@ export const buildImageEditBody = (
   return buildFormDataRequestBody(request, undefined, providerFlavor);
 };
 
+// Async task polling (Right Code). The submit response carries a task id; poll
+// the task query endpoint on a fixed cadence until the status resolves. Cadence
+// and lifetime are bounded by the caller's AbortSignal (the workbench arms it
+// with the model's requestTimeoutSeconds), so no separate timeout is needed.
+const ASYNC_TASK_POLL_INTERVAL_MS = 2500;
+
+const readAsyncTaskId = (response: OpenAIImageResponse): string => {
+  return (
+    readTrimmedString(response.task_id) ||
+    readTrimmedString(response.taskId) ||
+    readTrimmedString(response.id)
+  );
+};
+
+const readTrimmedString = (value: unknown): string => {
+  return typeof value === "string" ? value.trim() : "";
+};
+
+type AsyncTaskStatus = "pending" | "completed" | "failed";
+
+// Right Code statuses: queued / in_progress keep polling; completed / failed
+// are terminal. Unknown values keep polling so a new status spelling does not
+// abort a task that is still making progress.
+const normalizeAsyncStatus = (raw: string): AsyncTaskStatus => {
+  const value = raw.trim().toLowerCase();
+
+  if (
+    value === "completed" ||
+    value === "succeeded" ||
+    value === "success" ||
+    value === "done" ||
+    value === "finished"
+  ) {
+    return "completed";
+  }
+  if (
+    value === "failed" ||
+    value === "failure" ||
+    value === "error" ||
+    value === "canceled" ||
+    value === "cancelled"
+  ) {
+    return "failed";
+  }
+
+  return "pending";
+};
+
+// Resolve the task query URL. The Right Code preset ships an absolute,
+// site-level template (no `/draw` prefix); a "/"-prefixed template resolves
+// against the provider base URL's origin. `{task_id}` is substituted last.
+export const buildTaskPollURL = (
+  taskPollURL: string | undefined,
+  baseURL: string,
+  taskId: string,
+): string => {
+  const encodedTaskId = encodeURIComponent(taskId);
+  const template = (taskPollURL || "").trim();
+
+  if (!template) {
+    throw new AIImageGenerationError(
+      "Async image endpoint returned a task id but no task poll URL is configured.",
+      "invalid-response",
+    );
+  }
+
+  const substitute = (value: string) =>
+    value.replaceAll("{task_id}", encodedTaskId);
+
+  if (/^https?:\/\//i.test(template)) {
+    return substitute(template);
+  }
+
+  let origin = "";
+
+  try {
+    origin = new URL(trimTrailingSlashes(baseURL.trim())).origin;
+  } catch {
+    throw new AIImageGenerationError(
+      "Async image endpoint has a relative task poll URL but the provider base URL is not a valid absolute URL.",
+      "request-failed",
+      { baseURL, taskPollURL: template },
+    );
+  }
+
+  const path = template.startsWith("/") ? template : `/${template}`;
+
+  return substitute(`${origin}${path}`);
+};
+
+const pollAsyncImageTask = async ({
+  submitJSON,
+  baseURL,
+  apiKey,
+  taskPollURL,
+  signal,
+}: {
+  submitJSON: OpenAIImageResponse;
+  baseURL: string;
+  apiKey: string;
+  taskPollURL: string | undefined;
+  signal: AbortSignal | undefined;
+}): Promise<OpenAIImageResponse> => {
+  const taskId = readAsyncTaskId(submitJSON);
+
+  if (!taskId) {
+    throw new AIImageGenerationError(
+      "Async image submission failed: provider did not return a task id.",
+      "invalid-response",
+      { providerResponse: submitJSON },
+    );
+  }
+
+  const pollURL = buildTaskPollURL(taskPollURL, baseURL, taskId);
+  const authorizationHeader = getAuthorizationHeaderValue(apiKey, "right-code");
+  const headers = new Headers({ Accept: "application/json" });
+
+  if (authorizationHeader) {
+    headers.set("Authorization", authorizationHeader);
+  }
+
+  // TODO(right-code-async-persistence): this loop lives only for the lifetime of
+  // the request; a page refresh mid-generation loses the task. To survive
+  // refreshes, persist { taskId, pollURL, modelId, prompt, params } the way
+  // videoTaskStore does for video, hydrate on mount, and resume polling here.
+  // Left out intentionally for now (Right Code image tasks finish in seconds).
+  for (;;) {
+    signal?.throwIfAborted();
+
+    let response: Response;
+
+    try {
+      response = await fetch(pollURL, { method: "GET", headers, signal });
+    } catch (error: any) {
+      if (error?.name === "AbortError") {
+        throw error;
+      }
+
+      throw new AIImageGenerationError(
+        "AI image status request failed. Check that the provider allows CORS for the task query endpoint.",
+        "cors-or-network",
+        { endpoint: pollURL, errorMessage: error?.message },
+      );
+    }
+
+    const pollJSON = (await parseResponseJSON(response)) as OpenAIImageResponse;
+
+    if (!response.ok) {
+      throw normalizeProviderError(response.status, pollJSON);
+    }
+
+    const rawStatus = readTrimmedString(pollJSON.status);
+    const status =
+      !rawStatus && pollJSON.error ? "failed" : normalizeAsyncStatus(rawStatus);
+
+    if (status === "failed") {
+      throw new AIImageGenerationError(
+        pollJSON.error?.message || "AI image generation task failed.",
+        "request-failed",
+        { providerResponse: pollJSON },
+      );
+    }
+
+    if (status === "completed") {
+      return pollJSON;
+    }
+
+    await delayWithSignal(ASYNC_TASK_POLL_INTERVAL_MS, signal);
+  }
+};
+
+const delayWithSignal = (ms: number, signal: AbortSignal | undefined) => {
+  return new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+      return;
+    }
+
+    const onAbort = () => {
+      window.clearTimeout(timeoutId);
+      reject(signal?.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    const timeoutId = window.setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+};
+
 export const generateImagesWithOpenAIAdapter = async (
   request: AIImageGenerationRequest,
 ): Promise<AIImageGenerationOutput[]> => {
@@ -346,16 +607,31 @@ export const generateImagesWithOpenAIAdapter = async (
   }
 
   const response = await fetchImageGenerationResponse(request);
-  const responseJSON = (await parseResponseJSON(
-    response,
-  )) as OpenAIImageResponse;
+  const submitJSON = (await parseResponseJSON(response)) as OpenAIImageResponse;
 
   if (!response.ok) {
-    throw normalizeProviderError(response.status, responseJSON);
+    throw normalizeProviderError(response.status, submitJSON);
   }
-  if (responseJSON.error) {
-    throw normalizeProviderError(response.status, responseJSON);
+  if (submitJSON.error) {
+    throw normalizeProviderError(response.status, submitJSON);
   }
+
+  // Async (Right Code) endpoints return a task id rather than the image itself;
+  // poll the task query until it completes, then extract from the final body.
+  // Synchronous endpoints keep the submit response as the result body.
+  const endpointConfig = getEndpointConfigForMode(
+    providerConfig.modelConfig,
+    request.mode,
+  );
+  const responseJSON = endpointConfig.async
+    ? await pollAsyncImageTask({
+        submitJSON,
+        baseURL: providerConfig.baseURL,
+        apiKey: providerConfig.apiKey,
+        taskPollURL: providerConfig.modelConfig?.endpoints.taskPollURL,
+        signal: request.signal,
+      })
+    : submitJSON;
 
   const imageItems = extractImageResponseItems(responseJSON);
 
@@ -670,6 +946,13 @@ const getAIImageProviderFlavor = (
     return "gemini-native";
   }
 
+  // Async endpoints (submit -> poll) are the Right Code draw paradigm. Sizing is
+  // sent as a ratio `size` plus a discrete `imageSize` tier rather than a merged
+  // pixel string, so it needs its own flavor even though the wire format is JSON.
+  if (endpointConfig.async) {
+    return "right-code";
+  }
+
   try {
     const hostname = new URL(trimTrailingSlashes(baseURL.trim())).hostname;
 
@@ -959,6 +1242,7 @@ const assertRemoteImageCanRender = (
   url: string,
   signal: AbortSignal | undefined,
   fetchError: AIImageGenerationError,
+  timeoutMs: number = DEFAULT_REMOTE_IMAGE_DOWNLOAD_TIMEOUT_MS,
 ) => {
   return new Promise<void>((resolve, reject) => {
     const image = new Image();
@@ -973,6 +1257,7 @@ const assertRemoteImageCanRender = (
     const cleanup = () => {
       image.onload = null;
       image.onerror = null;
+      window.clearTimeout(timeoutId);
       signal?.removeEventListener("abort", abort);
     };
 
@@ -980,6 +1265,14 @@ const assertRemoteImageCanRender = (
       cleanup();
       reject(createAbortError());
     };
+
+    // The provider already produced this URL, so if the probe itself hangs on a
+    // slow host we accept the URL rather than block until the parent 600s cap.
+    // Referencing a valid-but-slow image beats discarding a successful result.
+    const timeoutId = window.setTimeout(() => {
+      cleanup();
+      resolve();
+    }, timeoutMs);
 
     image.onload = () => {
       cleanup();

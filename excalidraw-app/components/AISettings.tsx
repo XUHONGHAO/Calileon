@@ -64,6 +64,7 @@ import type {
 } from "../ai/types";
 import type {
   AIImageEndpointConfig,
+  AIImageEndpointMode,
   AIImageEndpoints,
   AIImageFieldMapping,
   AIImageModel,
@@ -79,7 +80,7 @@ import type {
 import type { EndpointPresetId } from "../ai/endpointPresets";
 
 const ENDPOINT_FORM_FIELDS: Array<{
-  key: keyof AIImageEndpoints;
+  key: AIImageEndpointMode;
   labelKey: Parameters<typeof t>[0];
   placeholder: string;
 }> = [
@@ -2196,7 +2197,7 @@ export const AISettings = ({
     ).length;
     const capabilityCount = draft.capabilities.length;
     const updateEndpoint = (
-      endpointKey: keyof AIImageEndpoints,
+      endpointKey: AIImageEndpointMode,
       patch: Partial<AIImageEndpointConfig>,
     ) => {
       updateDraft({

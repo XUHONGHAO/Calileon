@@ -5,6 +5,7 @@ export type EndpointPresetId =
   | "newapi-style"
   | "unified-json"
   | "gemini-native"
+  | "right-code"
   | "custom";
 
 export type EndpointPreset = {
@@ -81,6 +82,31 @@ export const GEMINI_NATIVE_ENDPOINTS: AIImageEndpoints = {
   },
 };
 
+// Right Code draw API. Async: every image call submits with `async: true` and
+// returns a task id; the adapter then polls `taskPollURL` until completion.
+// Text-to-image and reference-image both use the OpenAI-compatible generations
+// path (reference images ride along as the standard `image` field). Right Code
+// exposes no dedicated inpaint route, so inpaint reuses the same async path.
+// The poll URL is site-level (no `/draw` prefix), so it is an absolute URL.
+export const RIGHT_CODE_ENDPOINTS: AIImageEndpoints = {
+  textToImage: {
+    path: "/v1/images/generations",
+    format: "json",
+    async: true,
+  },
+  imageToImage: {
+    path: "/v1/images/generations",
+    format: "json",
+    async: true,
+  },
+  inpaint: {
+    path: "/v1/images/generations",
+    format: "json",
+    async: true,
+  },
+  taskPollURL: "https://www.right.codes/v1/tasks/{task_id}",
+};
+
 export const ENDPOINT_PRESETS: EndpointPreset[] = [
   {
     id: "openai-standard",
@@ -109,6 +135,13 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
     endpoints: GEMINI_NATIVE_ENDPOINTS,
   },
   {
+    id: "right-code",
+    name: "Right Code",
+    description:
+      "Right Code async draw API: submits with async=true, then polls the site-level task query for the result.",
+    endpoints: RIGHT_CODE_ENDPOINTS,
+  },
+  {
     id: "custom",
     name: "Custom",
     description: "Manually configure paths, formats, and request fields.",
@@ -122,6 +155,7 @@ export const cloneAIImageEndpoints = (
   textToImage: { ...endpoints.textToImage },
   imageToImage: { ...endpoints.imageToImage },
   inpaint: { ...endpoints.inpaint },
+  ...(endpoints.taskPollURL ? { taskPollURL: endpoints.taskPollURL } : {}),
 });
 
 export const cloneAIImageFieldMapping = (
@@ -135,17 +169,26 @@ export const getPresetById = (
   return ENDPOINT_PRESETS.find((preset) => preset.id === id);
 };
 
+const endpointConfigEqual = (
+  left: AIImageEndpoints[keyof Omit<AIImageEndpoints, "taskPollURL">],
+  right: AIImageEndpoints[keyof Omit<AIImageEndpoints, "taskPollURL">],
+) => {
+  return (
+    left.path === right.path &&
+    left.format === right.format &&
+    !!left.async === !!right.async
+  );
+};
+
 const endpointConfigsEqual = (
   left: AIImageEndpoints,
   right: AIImageEndpoints,
 ) => {
   return (
-    left.textToImage.path === right.textToImage.path &&
-    left.textToImage.format === right.textToImage.format &&
-    left.imageToImage.path === right.imageToImage.path &&
-    left.imageToImage.format === right.imageToImage.format &&
-    left.inpaint.path === right.inpaint.path &&
-    left.inpaint.format === right.inpaint.format
+    endpointConfigEqual(left.textToImage, right.textToImage) &&
+    endpointConfigEqual(left.imageToImage, right.imageToImage) &&
+    endpointConfigEqual(left.inpaint, right.inpaint) &&
+    (left.taskPollURL || "") === (right.taskPollURL || "")
   );
 };
 

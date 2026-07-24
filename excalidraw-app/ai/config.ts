@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from "../app_constants";
 import {
   cloneAIImageEndpoints,
   OPENAI_STANDARD_ENDPOINTS,
+  RIGHT_CODE_ENDPOINTS,
 } from "./endpointPresets";
 import { normalizeAIImageNativeModel } from "./imageDimensions";
 
@@ -162,6 +163,24 @@ export const DEFAULT_AI_MODEL_PROVIDER_PRESETS: AIModelProviderPreset[] = [
     endpoints: OPENAI_STANDARD_ENDPOINTS,
     endpointPresetId: "openai-standard",
   },
+  {
+    // Right Code async draw API. baseURL keeps the `/draw` prefix so the
+    // generations path resolves to https://www.right.codes/draw/v1/images/generations;
+    // the task query is site-level and lives in RIGHT_CODE_ENDPOINTS.taskPollURL.
+    id: "right-code",
+    name: "Right Code",
+    description:
+      "Right Code async draw API. Submits with async=true and polls the task query for the result. Add your API key to use nano-banana-fast.",
+    siteName: "Right Code",
+    baseURL: "https://www.right.codes/draw",
+    model: "nano-banana-fast",
+    label: "nano-banana-fast",
+    mediaType: "image",
+    nativeModel: "nano-banana",
+    capabilities: ["text-to-image", "image-to-image", "seed"],
+    endpoints: RIGHT_CODE_ENDPOINTS,
+    endpointPresetId: "right-code",
+  },
 ];
 
 export const createAIModelConfigId = () => {
@@ -259,12 +278,17 @@ const normalizeEndpointConfig = (
   const format = isEndpointFormat((endpoint as any).format)
     ? (endpoint as AIImageEndpointConfig).format
     : fallback.format;
+  const async =
+    typeof (endpoint as any).async === "boolean"
+      ? (endpoint as AIImageEndpointConfig).async
+      : fallback.async;
 
-  return { path, format };
+  return async ? { path, format, async } : { path, format };
 };
 
 export const normalizeAIImageEndpoints = (value: unknown): AIImageEndpoints => {
   const endpoints = value && typeof value === "object" ? value : {};
+  const taskPollURL = readStringField((endpoints as any).taskPollURL);
 
   return {
     textToImage: normalizeEndpointConfig(
@@ -279,6 +303,7 @@ export const normalizeAIImageEndpoints = (value: unknown): AIImageEndpoints => {
       (endpoints as any).inpaint,
       OPENAI_STANDARD_ENDPOINTS.inpaint,
     ),
+    ...(taskPollURL ? { taskPollURL } : {}),
   };
 };
 

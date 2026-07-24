@@ -5,6 +5,7 @@ import {
   getPresetIdForConfig,
   NEWAPI_STYLE_ENDPOINTS,
   OPENAI_STANDARD_ENDPOINTS,
+  RIGHT_CODE_ENDPOINTS,
   UNIFIED_JSON_ENDPOINTS,
   UNIFIED_JSON_FIELD_MAPPING,
 } from "./endpointPresets";
@@ -17,6 +18,7 @@ describe("AI image endpoint presets", () => {
       "newapi-style",
       "unified-json",
       "gemini-native",
+      "right-code",
       "custom",
     ]);
   });
@@ -52,10 +54,22 @@ describe("AI image endpoint presets", () => {
       getPresetIdForConfig(UNIFIED_JSON_ENDPOINTS, UNIFIED_JSON_FIELD_MAPPING),
     ).toBe("unified-json");
     expect(getPresetIdForConfig(GEMINI_NATIVE_ENDPOINTS)).toBe("gemini-native");
+    expect(getPresetIdForConfig(RIGHT_CODE_ENDPOINTS)).toBe("right-code");
     expect(
       getPresetIdForConfig({
         ...OPENAI_STANDARD_ENDPOINTS,
         textToImage: { path: "/v2/create", format: "json" },
+      }),
+    ).toBe("custom");
+    // An otherwise-OpenAI config that flips `async` on must not match the
+    // synchronous OpenAI Standard preset.
+    expect(
+      getPresetIdForConfig({
+        ...OPENAI_STANDARD_ENDPOINTS,
+        textToImage: {
+          ...OPENAI_STANDARD_ENDPOINTS.textToImage,
+          async: true,
+        },
       }),
     ).toBe("custom");
   });
