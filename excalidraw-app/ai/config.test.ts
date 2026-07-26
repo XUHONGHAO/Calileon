@@ -210,6 +210,13 @@ describe("AI image config", () => {
           model: "gpt-image-2",
           endpointPresetId: "openai-standard",
         }),
+        expect.objectContaining({
+          id: "right-code",
+          siteName: "Right Code",
+          baseURL: "https://www.right.codes/draw",
+          model: "nano-banana-fast",
+          endpointPresetId: "right-code",
+        }),
       ]),
     );
     expect(

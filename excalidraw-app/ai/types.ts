@@ -37,13 +37,27 @@ export type AIImageModelCapability =
 export type AIImageEndpointConfig = {
   path: string;
   format: "json" | "form" | "gemini";
+  // When true, the endpoint returns a task id instead of the image itself; the
+  // adapter submits with `async: true` then polls `AIImageEndpoints.taskPollURL`
+  // until the task completes. Used by async providers such as Right Code.
+  async?: boolean;
 };
 
 export type AIImageEndpoints = {
   textToImage: AIImageEndpointConfig;
   imageToImage: AIImageEndpointConfig;
   inpaint: AIImageEndpointConfig;
+  // Poll URL template for async endpoints, containing a `{task_id}` placeholder.
+  // An absolute URL is used verbatim; a "/"-prefixed path resolves against the
+  // provider base URL's origin (Right Code's task query is site-level, i.e. it
+  // omits the `/draw` prefix the generation endpoints use).
+  taskPollURL?: string;
 };
+
+// The three per-mode endpoint keys of AIImageEndpoints, excluding the optional
+// `taskPollURL` metadata field. Used where code iterates over the endpoint
+// configs (each an AIImageEndpointConfig) and must not include taskPollURL.
+export type AIImageEndpointMode = "textToImage" | "imageToImage" | "inpaint";
 
 export type AIImageFieldMapping = {
   prompt?: string;
