@@ -6,6 +6,7 @@ import {
   getAIAgentProviderPreset,
 } from "./agentProviderPresets";
 import { cleanMermaidCode } from "./mermaidCleaner";
+import { AIProxyTransportError, fetchAIRequest } from "./requestTransport";
 
 import type { AIAgent } from "./types";
 
@@ -278,19 +279,23 @@ const submitOpenAICompatibleTextAgent = async (
     headers.set("Authorization", authorizationHeader);
   }
 
-  const response = await fetch(getOpenAIChatEndpoint(agent), {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: agent.model,
-      stream: true,
-      messages: [
-        { role: "system", content: getSystemPrompt(agent) },
-        ...options.messages,
-      ],
-    }),
-    signal: options.signal,
-  });
+  const response = await fetchAIRequest(
+    getOpenAIChatEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        stream: true,
+        messages: [
+          { role: "system", content: getSystemPrompt(agent) },
+          ...options.messages,
+        ],
+      }),
+      signal: options.signal,
+    },
+    { kind: "text-agent", signal: options.signal },
+  );
 
   if (!response.ok) {
     throw new RequestError({
@@ -310,23 +315,27 @@ const submitAnthropicTextAgent = async (
   agent: AIAgent,
   options: TextAgentSubmitOptions,
 ) => {
-  const response = await fetch(getAnthropicMessagesEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "text/event-stream",
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-      "x-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
+  const response = await fetchAIRequest(
+    getAnthropicMessagesEndpoint(agent),
+    {
+      method: "POST",
+      headers: {
+        Accept: "text/event-stream",
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+        "x-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
+      },
+      body: JSON.stringify({
+        model: agent.model,
+        max_tokens: 4096,
+        stream: true,
+        system: getSystemPrompt(agent),
+        messages: options.messages,
+      }),
+      signal: options.signal,
     },
-    body: JSON.stringify({
-      model: agent.model,
-      max_tokens: 4096,
-      stream: true,
-      system: getSystemPrompt(agent),
-      messages: options.messages,
-    }),
-    signal: options.signal,
-  });
+    { kind: "text-agent", signal: options.signal },
+  );
 
   if (!response.ok) {
     throw new RequestError({
@@ -350,24 +359,28 @@ const submitGeminiTextAgent = async (
   agent: AIAgent,
   options: TextAgentSubmitOptions,
 ) => {
-  const response = await fetch(getGeminiStreamEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "text/event-stream",
-      "Content-Type": "application/json",
-      "x-goog-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: getSystemPrompt(agent) }],
+  const response = await fetchAIRequest(
+    getGeminiStreamEndpoint(agent),
+    {
+      method: "POST",
+      headers: {
+        Accept: "text/event-stream",
+        "Content-Type": "application/json",
+        "x-goog-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
       },
-      contents: options.messages.map((message) => ({
-        role: toGeminiRole(message.role),
-        parts: [{ text: message.content }],
-      })),
-    }),
-    signal: options.signal,
-  });
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: getSystemPrompt(agent) }],
+        },
+        contents: options.messages.map((message) => ({
+          role: toGeminiRole(message.role),
+          parts: [{ text: message.content }],
+        })),
+      }),
+      signal: options.signal,
+    },
+    { kind: "text-agent", signal: options.signal },
+  );
 
   if (!response.ok) {
     throw new RequestError({
@@ -428,6 +441,20 @@ export const submitTextAgent = async (
     if (error.name === "AbortError") {
       return {
         error: new RequestError({ message: "Request aborted", status: 499 }),
+      };
+    }
+
+    if (error instanceof AIProxyTransportError) {
+      return {
+        error: new RequestError({
+          message: error.message,
+          status: error.details?.status || 502,
+          data: {
+            code: error.code,
+            proxyErrorCode: error.details?.proxyErrorCode,
+            requestId: error.details?.requestId,
+          },
+        }),
       };
     }
 

@@ -1,6 +1,6 @@
 export const AI_OPEN_SETTINGS_EVENT = "excalidraw:open-ai-settings";
 
-export type AISettingsTab = "models" | "agents" | "templates";
+export type AISettingsTab = "models" | "agents" | "templates" | "network";
 
 export type AIOpenSettingsEventDetail = {
   tab?: AISettingsTab;

@@ -3,6 +3,7 @@ import { getDataURL } from "@excalidraw/excalidraw/data/blob";
 import type { DataURL } from "@excalidraw/excalidraw/types";
 
 import { OPENAI_STANDARD_ENDPOINTS } from "./endpointPresets";
+import { AIProxyTransportError, fetchAIRequest } from "./requestTransport";
 
 import type {
   AIImageEndpointConfig,
@@ -59,7 +60,10 @@ export class AIImageGenerationError extends Error {
       | "auth"
       | "unsupported"
       | "invalid-response"
-      | "request-failed",
+      | "request-failed"
+      | "proxy-network"
+      | "proxy-error"
+      | "proxy-config",
     public details?: unknown,
   ) {
     super(message);
@@ -532,10 +536,22 @@ const pollAsyncImageTask = async ({
     let response: Response;
 
     try {
-      response = await fetch(pollURL, { method: "GET", headers, signal });
+      response = await fetchAIRequest(
+        pollURL,
+        { method: "GET", headers, signal },
+        { kind: "image-generation", signal },
+      );
     } catch (error: any) {
       if (error?.name === "AbortError") {
         throw error;
+      }
+
+      if (error instanceof AIProxyTransportError) {
+        throw new AIImageGenerationError(
+          error.message,
+          error.code,
+          error.details,
+        );
       }
 
       throw new AIImageGenerationError(
@@ -1098,10 +1114,22 @@ const fetchImageGenerationResponse = async (
         };
 
   try {
-    return await fetch(endpoint, init);
+    const response = await fetchAIRequest(endpoint, init, {
+      kind: "image-generation",
+      signal: request.signal,
+    });
+    return response;
   } catch (error: any) {
     if (error?.name === "AbortError") {
       throw error;
+    }
+
+    if (error instanceof AIProxyTransportError) {
+      throw new AIImageGenerationError(
+        error.message,
+        error.code,
+        error.details,
+      );
     }
 
     throw new AIImageGenerationError(
@@ -1193,9 +1221,11 @@ export const fetchRemoteImageAsDataURL = async (
   }
 
   try {
-    const imageResponse = await fetch(url, {
-      signal: downloadController.signal,
-    });
+    const imageResponse = await fetchAIRequest(
+      url,
+      { signal: downloadController.signal },
+      { kind: "remote-image", signal: downloadController.signal },
+    );
 
     if (!imageResponse.ok) {
       throw new AIImageGenerationError(
@@ -1223,6 +1253,14 @@ export const fetchRemoteImageAsDataURL = async (
 
     if (signal?.aborted || error?.name === "AbortError") {
       throw error;
+    }
+
+    if (error instanceof AIProxyTransportError) {
+      throw new AIImageGenerationError(
+        error.message,
+        error.code,
+        error.details,
+      );
     }
 
     if (error instanceof AIImageGenerationError) {

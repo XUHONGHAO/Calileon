@@ -1,6 +1,8 @@
 import type { DataURL } from "@excalidraw/excalidraw/types";
 import type { FileId } from "@excalidraw/element/types";
 
+import { STORAGE_KEYS } from "../app_constants";
+
 import { AIImageGenerationError } from "./openAIImageAdapter";
 import {
   buildVideoPollEndpoint,
@@ -10,6 +12,8 @@ import {
   pollVideoTask,
   submitVideoTask,
 } from "./openAIVideoAdapter";
+
+import { saveAIProxyConfig } from "./proxyConfig";
 
 import type { AIVideoGenerationRequest } from "./types";
 
@@ -32,6 +36,10 @@ const baseRequest: AIVideoGenerationRequest = {
 };
 
 describe("OpenAI-compatible video adapter", () => {
+  beforeEach(() => {
+    localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY);
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -145,6 +153,39 @@ describe("OpenAI-compatible video adapter", () => {
     expect((init.headers as Headers).get("Authorization")).toBe(
       "Bearer sk-local-only",
     );
+  });
+
+  it("routes video submit through the same global proxy switch", async () => {
+    saveAIProxyConfig({
+      enabled: true,
+      endpoint: "/ai-proxy/v1/forward",
+      accessToken: "proxy-token",
+    });
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ id: "video-proxy", status: "queued" }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(submitVideoTask(baseRequest)).resolves.toMatchObject({
+      taskId: "video-proxy",
+    });
+
+    const [endpoint, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    const headers = init.headers as Headers;
+    expect(endpoint).toBe("/ai-proxy/v1/forward");
+    expect(headers.get("X-Excalidraw-AI-Target")).toBe(
+      "https://duoyuanx.com/v1/videos",
+    );
+    expect(headers.get("X-Excalidraw-AI-Proxy-Token")).toBe("proxy-token");
   });
 
   it("falls back to `task_id` when `id` is absent", async () => {

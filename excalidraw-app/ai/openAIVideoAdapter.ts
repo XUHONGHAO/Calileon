@@ -6,6 +6,7 @@ import {
   getAuthorizationHeaderValue,
   normalizeProviderError,
 } from "./openAIImageAdapter";
+import { AIProxyTransportError, fetchAIRequest } from "./requestTransport";
 
 import type {
   AIVideoGenerationOutput,
@@ -318,15 +319,27 @@ export const submitVideoTask = async (
   let response: Response;
 
   try {
-    response = await fetch(endpoint, {
-      method: "POST",
-      headers: buildAuthHeaders(providerConfig.apiKey, "application/json"),
-      body: JSON.stringify(body),
-      signal: request.signal,
-    });
+    response = await fetchAIRequest(
+      endpoint,
+      {
+        method: "POST",
+        headers: buildAuthHeaders(providerConfig.apiKey, "application/json"),
+        body: JSON.stringify(body),
+        signal: request.signal,
+      },
+      { kind: "video-submit", signal: request.signal },
+    );
   } catch (error: any) {
     if (error?.name === "AbortError") {
       throw error;
+    }
+
+    if (error instanceof AIProxyTransportError) {
+      throw new AIImageGenerationError(
+        error.message,
+        error.code,
+        error.details,
+      );
     }
 
     throw new AIImageGenerationError(
@@ -386,14 +399,26 @@ export const pollVideoTask = async ({
   let response: Response;
 
   try {
-    response = await fetch(endpoint, {
-      method: "GET",
-      headers: buildAuthHeaders(apiKey),
-      signal,
-    });
+    response = await fetchAIRequest(
+      endpoint,
+      {
+        method: "GET",
+        headers: buildAuthHeaders(apiKey),
+        signal,
+      },
+      { kind: "video-poll", signal },
+    );
   } catch (error: any) {
     if (error?.name === "AbortError") {
       throw error;
+    }
+
+    if (error instanceof AIProxyTransportError) {
+      throw new AIImageGenerationError(
+        error.message,
+        error.code,
+        error.details,
+      );
     }
 
     throw new AIImageGenerationError(

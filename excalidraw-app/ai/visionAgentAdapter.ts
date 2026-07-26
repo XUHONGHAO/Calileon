@@ -4,6 +4,7 @@ import {
   DEFAULT_VISION_AGENT_SYSTEM_PROMPT,
   getAIAgentProviderPreset,
 } from "./agentProviderPresets";
+import { fetchAIRequest } from "./requestTransport";
 
 import type { AIAgent } from "./types";
 
@@ -170,29 +171,33 @@ const generateWithOpenAICompatibleVisionAgent = async (
     headers.set("Authorization", authorizationHeader);
   }
 
-  const response = await fetch(getOpenAIChatEndpoint(agent), {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: agent.model,
-      messages: [
-        { role: "system", content: getSystemPrompt(agent) },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: buildVisionPrompt(request) },
-            {
-              type: "image_url",
-              image_url: {
-                url: request.image,
+  const response = await fetchAIRequest(
+    getOpenAIChatEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        messages: [
+          { role: "system", content: getSystemPrompt(agent) },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: buildVisionPrompt(request) },
+              {
+                type: "image_url",
+                image_url: {
+                  url: request.image,
+                },
               },
-            },
-          ],
-        },
-      ],
-    }),
-    signal: request.signal,
-  });
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    { kind: "vision-agent", signal: request.signal },
+  );
 
   if (!response.ok) {
     throw new Error(await getProviderErrorMessage(response));
@@ -205,37 +210,41 @@ const generateWithAnthropicVisionAgent = async (
   request: VisionAgentRequest,
 ) => {
   const agent = assertConfiguredAgent(request.agent);
-  const response = await fetch(getAnthropicMessagesEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-      "x-api-key": agent.apiKey.trim(),
-    },
-    body: JSON.stringify({
-      model: agent.model,
-      max_tokens: 4096,
-      system: getSystemPrompt(agent),
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: buildVisionPrompt(request) },
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: getMimeTypeFromDataURL(request.image),
-                data: dataURLToBase64Payload(request.image),
+  const response = await fetchAIRequest(
+    getAnthropicMessagesEndpoint(agent),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+        "x-api-key": agent.apiKey.trim(),
+      },
+      body: JSON.stringify({
+        model: agent.model,
+        max_tokens: 4096,
+        system: getSystemPrompt(agent),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: buildVisionPrompt(request) },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: getMimeTypeFromDataURL(request.image),
+                  data: dataURLToBase64Payload(request.image),
+                },
               },
-            },
-          ],
-        },
-      ],
-    }),
-    signal: request.signal,
-  });
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    { kind: "vision-agent", signal: request.signal },
+  );
 
   if (!response.ok) {
     throw new Error(await getProviderErrorMessage(response));
@@ -246,34 +255,38 @@ const generateWithAnthropicVisionAgent = async (
 
 const generateWithGeminiVisionAgent = async (request: VisionAgentRequest) => {
   const agent = assertConfiguredAgent(request.agent);
-  const response = await fetch(getGeminiGenerateEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "x-goog-api-key": agent.apiKey.trim(),
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: getSystemPrompt(agent) }],
+  const response = await fetchAIRequest(
+    getGeminiGenerateEndpoint(agent),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "x-goog-api-key": agent.apiKey.trim(),
       },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: buildVisionPrompt(request) },
-            {
-              inline_data: {
-                mime_type: getMimeTypeFromDataURL(request.image),
-                data: dataURLToBase64Payload(request.image),
-              },
-            },
-          ],
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: getSystemPrompt(agent) }],
         },
-      ],
-    }),
-    signal: request.signal,
-  });
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: buildVisionPrompt(request) },
+              {
+                inline_data: {
+                  mime_type: getMimeTypeFromDataURL(request.image),
+                  data: dataURLToBase64Payload(request.image),
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    { kind: "vision-agent", signal: request.signal },
+  );
 
   if (!response.ok) {
     throw new Error(await getProviderErrorMessage(response));

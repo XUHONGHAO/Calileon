@@ -1,0 +1,25 @@
+{
+  "name": "@excalidraw/ai-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run --config vitest.config.mts",
+    "test:watch": "vitest --config vitest.config.mts"
+  },
+  "dependencies": {
+    "ipaddr.js": "2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.10",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "vitest": "3.0.6"
+  }
+}

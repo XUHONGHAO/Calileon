@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@excalidraw/excalidraw/components/Button";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -51,6 +51,18 @@ import {
   serializePromptTemplates,
   upsertCustomPromptTemplate,
 } from "../ai/promptTemplates";
+import {
+  AIProxyConfigError,
+  AI_PROXY_CONFIG_UPDATED_EVENT,
+  getRuntimeDefaultAIProxyEndpoint,
+  loadAIProxyConfig,
+  resetAIProxyConfig,
+  saveAIProxyConfig,
+} from "../ai/proxyConfig";
+import {
+  testAIProxyConnection,
+  AIProxyTransportError,
+} from "../ai/requestTransport";
 
 import "./AISettings.scss";
 
@@ -76,6 +88,7 @@ import type {
   PromptTemplateLanguage,
   AIImageGenerationMode,
 } from "../ai/types";
+import type { AISettingsTab } from "../ai/workflowEvents";
 import type { EndpointPresetId } from "../ai/endpointPresets";
 
 const ENDPOINT_FORM_FIELDS: Array<{
@@ -155,7 +168,6 @@ type AIModelGroup = {
   indexes: number[];
 };
 
-type AISettingsTab = "models" | "agents" | "templates";
 type AgentSettingsSubTab = "base" | "skills";
 
 type AgentEditorState =
@@ -506,11 +518,31 @@ export const AISettings = ({
   const [customTemplates, setCustomTemplates] = useState<PromptTemplate[]>(
     loadCustomPromptTemplates,
   );
+  const [proxyConfig, setProxyConfig] = useState(loadAIProxyConfig);
+  const [isTestingProxy, setIsTestingProxy] = useState(false);
   const [setAsDefault, setSetAsDefault] = useState(false);
   const [setAgentAsDefault, setSetAgentAsDefault] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const templateImportInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const handleProxyConfigUpdated = () => {
+      setProxyConfig(loadAIProxyConfig());
+    };
+
+    window.addEventListener(
+      AI_PROXY_CONFIG_UPDATED_EVENT,
+      handleProxyConfigUpdated,
+    );
+
+    return () => {
+      window.removeEventListener(
+        AI_PROXY_CONFIG_UPDATED_EVENT,
+        handleProxyConfigUpdated,
+      );
+    };
+  }, []);
 
   const visibleModelGroups = useMemo(
     () => groupModelsByProvider(config.models, activeMediaType),
@@ -558,6 +590,54 @@ export const AISettings = ({
     },
     [],
   );
+
+  const persistProxyConfig = useCallback(() => {
+    try {
+      const savedConfig = saveAIProxyConfig(proxyConfig);
+      setProxyConfig(savedConfig);
+      setStatusMessage(t("ai.proxy.saved"));
+      setErrorMessage("");
+    } catch (error: any) {
+      setErrorMessage(
+        error instanceof AIProxyConfigError
+          ? t("ai.proxy.errors.invalidEndpoint")
+          : error?.message || t("ai.proxy.errors.invalidEndpoint"),
+      );
+      setStatusMessage("");
+    }
+  }, [proxyConfig]);
+
+  const testProxy = useCallback(async () => {
+    if (!proxyConfig.enabled) {
+      setErrorMessage(t("ai.proxy.errors.tryDirect"));
+      setStatusMessage("");
+      return;
+    }
+
+    setIsTestingProxy(true);
+    setErrorMessage("");
+    setStatusMessage("");
+
+    try {
+      await testAIProxyConnection(proxyConfig);
+      setStatusMessage(t("ai.proxy.testSuccess"));
+    } catch (error: any) {
+      setErrorMessage(
+        error instanceof AIProxyTransportError
+          ? error.message
+          : t("ai.proxy.errors.server"),
+      );
+    } finally {
+      setIsTestingProxy(false);
+    }
+  }, [proxyConfig]);
+
+  const restoreProxyDefaults = useCallback(() => {
+    const restored = resetAIProxyConfig();
+    setProxyConfig(restored);
+    setStatusMessage(t("ai.proxy.restored"));
+    setErrorMessage("");
+  }, []);
 
   const openCreateModel = useCallback(() => {
     setEditorState({
@@ -2625,6 +2705,128 @@ export const AISettings = ({
     return renderAgentsList();
   };
 
+  const renderNetworkSettings = () => {
+    const runtimeDefaultEndpoint = getRuntimeDefaultAIProxyEndpoint();
+
+    return (
+      <div className="AISettings__network">
+        <div
+          className="AISettings__networkModes"
+          role="radiogroup"
+          aria-label={t("ai.proxy.networkTitle")}
+        >
+          <label
+            className={
+              proxyConfig.enabled
+                ? "AISettings__networkMode"
+                : "AISettings__networkMode is-selected"
+            }
+          >
+            <input
+              type="radio"
+              name="ai-network-mode"
+              checked={!proxyConfig.enabled}
+              onChange={() =>
+                setProxyConfig((current) => ({
+                  ...current,
+                  enabled: false,
+                }))
+              }
+            />
+            <span>
+              <strong>{t("ai.proxy.directTitle")}</strong>
+              <small>{t("ai.proxy.directDescription")}</small>
+            </span>
+          </label>
+
+          <label
+            className={
+              proxyConfig.enabled
+                ? "AISettings__networkMode is-selected"
+                : "AISettings__networkMode"
+            }
+          >
+            <input
+              type="radio"
+              name="ai-network-mode"
+              checked={proxyConfig.enabled}
+              onChange={() =>
+                setProxyConfig((current) => ({
+                  ...current,
+                  enabled: true,
+                }))
+              }
+            />
+            <span>
+              <strong>{t("ai.proxy.backendTitle")}</strong>
+              <small>{t("ai.proxy.backendDescription")}</small>
+            </span>
+          </label>
+        </div>
+
+        <div className="AISettings__networkFields">
+          <label className="AISettings__field">
+            <span>{t("ai.proxy.endpoint")}</span>
+            <input
+              value={proxyConfig.endpoint}
+              placeholder={t("ai.proxy.endpointPlaceholder")}
+              onChange={(event) =>
+                setProxyConfig((current) => ({
+                  ...current,
+                  endpoint: event.target.value,
+                }))
+              }
+            />
+            <span className="AISettings__fieldHint">
+              {t("ai.proxy.endpointHint")}
+            </span>
+            <span className="AISettings__fieldHint">
+              {t("ai.proxy.runtimeDefault", {
+                endpoint: runtimeDefaultEndpoint,
+              })}
+            </span>
+          </label>
+
+          <label className="AISettings__field">
+            <span>{t("ai.proxy.accessToken")}</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={proxyConfig.accessToken}
+              onChange={(event) =>
+                setProxyConfig((current) => ({
+                  ...current,
+                  accessToken: event.target.value,
+                }))
+              }
+            />
+            <span className="AISettings__fieldHint">
+              {t("ai.proxy.accessTokenHint")}
+            </span>
+          </label>
+        </div>
+
+        <div className="AISettings__networkWarning">
+          {t("ai.proxy.videoWarning")}
+        </div>
+
+        <div className="AISettings__networkActions">
+          <button type="button" onClick={restoreProxyDefaults}>
+            {t("ai.proxy.restoreDefaults")}
+          </button>
+          <button
+            type="button"
+            disabled={!proxyConfig.enabled || isTestingProxy}
+            onClick={testProxy}
+          >
+            {isTestingProxy ? t("ai.proxy.testing") : t("ai.proxy.test")}
+          </button>
+          <Button onSelect={persistProxyConfig}>{t("ai.proxy.save")}</Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="AISettings">
       <div
@@ -2671,6 +2873,19 @@ export const AISettings = ({
         >
           {t("ai.settings.tabs.templates")}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSettingsTab === "network"}
+          className={
+            activeSettingsTab === "network"
+              ? "AISettings__tab is-selected"
+              : "AISettings__tab"
+          }
+          onClick={() => setActiveSettingsTab("network")}
+        >
+          {t("ai.proxy.networkTitle")}
+        </button>
       </div>
 
       {activeSettingsTab === "models" &&
@@ -2680,6 +2895,7 @@ export const AISettings = ({
         (templateEditorState.mode === "list"
           ? renderTemplatesList()
           : renderTemplateEditor())}
+      {activeSettingsTab === "network" && renderNetworkSettings()}
 
       {(statusMessage || errorMessage) && (
         <div

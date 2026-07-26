@@ -1,0 +1,42 @@
+name: excalidraw-ai-proxy
+
+services:
+  ai-proxy:
+    build:
+      context: ../..
+      dockerfile: deploy/ai-proxy/Dockerfile
+      args:
+        AI_PROXY_NODE_IMAGE: ${AI_PROXY_NODE_IMAGE:-node:20.19.4-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799}
+    environment:
+      NODE_ENV: production
+      AI_PROXY_PORT: "3016"
+      AI_PROXY_ALLOWED_ORIGINS: ${AI_PROXY_ALLOWED_ORIGINS:?AI_PROXY_ALLOWED_ORIGINS is required}
+      AI_PROXY_CLIENT_TOKENS: ${AI_PROXY_CLIENT_TOKENS:?AI_PROXY_CLIENT_TOKENS is required}
+      AI_PROXY_REQUIRE_CLIENT_TOKEN: "true"
+      AI_PROXY_ALLOW_HTTP_LOCALHOST: "false"
+      AI_PROXY_CONNECT_TIMEOUT_MS: ${AI_PROXY_CONNECT_TIMEOUT_MS:-10000}
+      AI_PROXY_REQUEST_TIMEOUT_MS: ${AI_PROXY_REQUEST_TIMEOUT_MS:-600000}
+      AI_PROXY_IDLE_TIMEOUT_MS: ${AI_PROXY_IDLE_TIMEOUT_MS:-120000}
+      AI_PROXY_MAX_REQUEST_BYTES: ${AI_PROXY_MAX_REQUEST_BYTES:-67108864}
+      AI_PROXY_MAX_REDIRECTS: ${AI_PROXY_MAX_REDIRECTS:-5}
+      AI_PROXY_SHUTDOWN_GRACE_MS: ${AI_PROXY_SHUTDOWN_GRACE_MS:-30000}
+      AI_PROXY_LOG_TARGET_HOSTNAME: ${AI_PROXY_LOG_TARGET_HOSTNAME:-true}
+    expose:
+      - "3016"
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    stop_grace_period: 35s
+    restart: unless-stopped
+    networks:
+      - ai-proxy-edge
+
+networks:
+  ai-proxy-edge:
+    name: ${AI_PROXY_EDGE_NETWORK:-excalidraw-ai-proxy-edge}
