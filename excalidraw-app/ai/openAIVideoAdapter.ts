@@ -6,7 +6,13 @@ import {
   getAuthorizationHeaderValue,
   normalizeProviderError,
 } from "./openAIImageAdapter";
-import { AIProxyTransportError, fetchAIRequest } from "./requestTransport";
+import { loadAIProxyConfig } from "./proxyConfig";
+import {
+  AIProxyTransportError,
+  fetchAIRequest,
+  getManagedRouteForCapability,
+  MANAGED_GATEWAY_TARGET,
+} from "./requestTransport";
 
 import type {
   AIVideoGenerationOutput,
@@ -14,6 +20,8 @@ import type {
   AIVideoPollResult,
   AIVideoTaskStatus,
 } from "./types";
+import type { AIProxyConfigV2 } from "./proxyConfig";
+import type { AiGatewayCatalogEntry } from "../data/cloud/types";
 
 /**
  * Video adapter for the "OpenAI-compatible" video paradigm shared by the
@@ -76,15 +84,22 @@ export const buildVideoPollEndpoint = (
   return `${buildVideoSubmitEndpoint(baseURL)}/${encodeURIComponent(taskId)}`;
 };
 
-const getProviderConfigForRequest = (request: AIVideoGenerationRequest) => {
+const getProviderConfigForRequest = (
+  request: AIVideoGenerationRequest,
+  managedRoute?: AiGatewayCatalogEntry,
+) => {
   const modelConfig = request.config.models.find(
     (model) => model.id === request.model || model.model === request.model,
   );
 
   return {
-    baseURL: request.config.baseURL || modelConfig?.baseURL || "",
-    apiKey: request.config.apiKey || modelConfig?.apiKey || "",
-    modelName: modelConfig?.model || request.model,
+    baseURL: managedRoute
+      ? MANAGED_GATEWAY_TARGET
+      : request.config.baseURL || modelConfig?.baseURL || "",
+    apiKey: managedRoute
+      ? ""
+      : request.config.apiKey || modelConfig?.apiKey || "",
+    modelName: managedRoute?.model || modelConfig?.model || request.model,
   };
 };
 
@@ -297,16 +312,28 @@ const buildAuthHeaders = (apiKey: string, contentType?: string) => {
  */
 export const submitVideoTask = async (
   request: AIVideoGenerationRequest,
-): Promise<{ taskId: string; endpoint: string; model: string }> => {
-  const providerConfig = getProviderConfigForRequest(request);
+): Promise<{
+  taskId: string;
+  endpoint: string;
+  model: string;
+  managedRouteId?: string;
+}> => {
+  const transportConfig = loadAIProxyConfig();
+  const managed = transportConfig.mode === "managed-gateway";
+  const managedRoute = managed
+    ? await getManagedRouteForCapability("video-submit", {
+        config: transportConfig,
+      })
+    : undefined;
+  const providerConfig = getProviderConfigForRequest(request, managedRoute);
 
-  if (!providerConfig.baseURL) {
+  if (!managed && !providerConfig.baseURL) {
     throw new AIImageGenerationError(
       "AI video provider base URL is not configured.",
       "request-failed",
     );
   }
-  if (!request.model) {
+  if (!managed && !request.model) {
     throw new AIImageGenerationError(
       "AI video model is not configured.",
       "request-failed",
@@ -315,6 +342,10 @@ export const submitVideoTask = async (
 
   const endpoint = buildVideoSubmitEndpoint(providerConfig.baseURL);
   const body = buildVideoRequestBody(request, providerConfig.modelName);
+  const headers = buildAuthHeaders(providerConfig.apiKey, "application/json");
+  if (managedRoute) {
+    headers.delete("Authorization");
+  }
 
   let response: Response;
 
@@ -323,11 +354,17 @@ export const submitVideoTask = async (
       endpoint,
       {
         method: "POST",
-        headers: buildAuthHeaders(providerConfig.apiKey, "application/json"),
+        headers,
         body: JSON.stringify(body),
         signal: request.signal,
       },
-      { kind: "video-submit", signal: request.signal },
+      {
+        kind: "video-submit",
+        signal: request.signal,
+        auditPrompt: request.prompt,
+        managedOperation: managedRoute ? "submit" : undefined,
+        ...(managedRoute ? { managedRoute, config: transportConfig } : {}),
+      },
     );
   } catch (error: any) {
     if (error?.name === "AbortError") {
@@ -369,6 +406,7 @@ export const submitVideoTask = async (
     taskId,
     endpoint,
     model: providerConfig.modelName,
+    ...(managedRoute ? { managedRouteId: managedRoute.id } : {}),
   };
 };
 
@@ -381,20 +419,38 @@ export const pollVideoTask = async ({
   apiKey,
   taskId,
   signal,
+  managedRouteId,
+  config,
 }: {
   baseURL: string;
   apiKey: string;
   taskId: string;
   signal?: AbortSignal;
+  managedRouteId?: string;
+  config?: AIProxyConfigV2;
 }): Promise<AIVideoPollResult> => {
-  if (!baseURL) {
+  const transportConfig = config || loadAIProxyConfig();
+  const managed = transportConfig.mode === "managed-gateway";
+  const managedRoute = managed
+    ? await getManagedRouteForCapability("video-poll", {
+        config: transportConfig,
+        ...(managedRouteId ? { routeId: managedRouteId } : {}),
+      })
+    : undefined;
+  if (!managed && !baseURL) {
     throw new AIImageGenerationError(
       "AI video provider base URL is not configured.",
       "request-failed",
     );
   }
 
-  const endpoint = buildVideoPollEndpoint(baseURL, taskId);
+  const endpoint = managed
+    ? MANAGED_GATEWAY_TARGET
+    : buildVideoPollEndpoint(baseURL, taskId);
+  const headers = buildAuthHeaders(managed ? "" : apiKey);
+  if (managed) {
+    headers.delete("Authorization");
+  }
 
   let response: Response;
 
@@ -403,10 +459,16 @@ export const pollVideoTask = async ({
       endpoint,
       {
         method: "GET",
-        headers: buildAuthHeaders(apiKey),
+        headers,
         signal,
       },
-      { kind: "video-poll", signal },
+      {
+        kind: "video-poll",
+        signal,
+        managedOperation: "poll",
+        managedParams: { taskId, task_id: taskId },
+        ...(managedRoute ? { managedRoute, config: transportConfig } : {}),
+      },
     );
   } catch (error: any) {
     if (error?.name === "AbortError") {

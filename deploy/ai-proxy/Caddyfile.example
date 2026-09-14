@@ -10,6 +10,15 @@
     }
   }
 
+  # Managed AI Gateway is a separate contract. Keep it ahead of the static
+  # App fallback as well; it must preserve SSE and media streaming.
+  @ai_gateway path /ai-gateway/*
+  handle @ai_gateway {
+    reverse_proxy ai-proxy:3016 {
+      flush_interval -1
+    }
+  }
+
   # Replace this upstream with the existing static App service.
   handle {
     reverse_proxy app:8080

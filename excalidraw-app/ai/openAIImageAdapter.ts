@@ -3,7 +3,13 @@ import { getDataURL } from "@excalidraw/excalidraw/data/blob";
 import type { DataURL } from "@excalidraw/excalidraw/types";
 
 import { OPENAI_STANDARD_ENDPOINTS } from "./endpointPresets";
-import { AIProxyTransportError, fetchAIRequest } from "./requestTransport";
+import {
+  AIProxyTransportError,
+  fetchAIRequest,
+  getManagedRouteForCapability,
+  MANAGED_GATEWAY_TARGET,
+} from "./requestTransport";
+import { loadAIProxyConfig } from "./proxyConfig";
 
 import type {
   AIImageEndpointConfig,
@@ -13,6 +19,8 @@ import type {
   AIImageGenerationRequest,
   AIImageModel,
 } from "./types";
+
+import type { AiGatewayCatalogEntry } from "../data/cloud/types";
 
 type OpenAIImageResponse = {
   candidates?: unknown;
@@ -500,12 +508,16 @@ const pollAsyncImageTask = async ({
   apiKey,
   taskPollURL,
   signal,
+  managedRoute,
+  transportConfig,
 }: {
   submitJSON: OpenAIImageResponse;
   baseURL: string;
   apiKey: string;
   taskPollURL: string | undefined;
   signal: AbortSignal | undefined;
+  managedRoute?: AiGatewayCatalogEntry;
+  transportConfig?: ReturnType<typeof loadAIProxyConfig>;
 }): Promise<OpenAIImageResponse> => {
   const taskId = readAsyncTaskId(submitJSON);
 
@@ -517,7 +529,12 @@ const pollAsyncImageTask = async ({
     );
   }
 
-  const pollURL = buildTaskPollURL(taskPollURL, baseURL, taskId);
+  // Managed routes keep the provider poll path and credentials on the server;
+  // the browser only sends the opaque task id as a declared gateway query
+  // parameter. BYOK/direct routes retain the legacy provider URL template.
+  const pollURL = managedRoute
+    ? MANAGED_GATEWAY_TARGET
+    : buildTaskPollURL(taskPollURL, baseURL, taskId);
   const authorizationHeader = getAuthorizationHeaderValue(apiKey, "right-code");
   const headers = new Headers({ Accept: "application/json" });
 
@@ -539,7 +556,14 @@ const pollAsyncImageTask = async ({
       response = await fetchAIRequest(
         pollURL,
         { method: "GET", headers, signal },
-        { kind: "image-generation", signal },
+        {
+          kind: "image-generation",
+          signal,
+          managedOperation: "poll",
+          managedParams: { taskId },
+          ...(managedRoute ? { managedRoute } : {}),
+          ...(transportConfig ? { config: transportConfig } : {}),
+        },
       );
     } catch (error: any) {
       if (error?.name === "AbortError") {
@@ -610,22 +634,42 @@ const delayWithSignal = (ms: number, signal: AbortSignal | undefined) => {
 export const generateImagesWithOpenAIAdapter = async (
   request: AIImageGenerationRequest,
 ): Promise<AIImageGenerationOutput[]> => {
-  const providerConfig = getProviderConfigForRequest(request);
+  const transportConfig = loadAIProxyConfig();
+  const managed = transportConfig.mode === "managed-gateway";
+  const managedRoute = managed
+    ? await getManagedRouteForCapability("image-generation", {
+        config: transportConfig,
+      })
+    : undefined;
+  const providerConfig = getProviderConfigForRequest(
+    request,
+    managed,
+    managedRoute,
+  );
 
-  if (!providerConfig.baseURL) {
+  if (!managed && !providerConfig.baseURL) {
     throw new AIImageGenerationError(
       "AI image provider base URL is not configured.",
       "request-failed",
     );
   }
-  if (!request.model) {
+  if (!managed && !request.model) {
     throw new AIImageGenerationError(
       "AI image model is not configured.",
       "request-failed",
     );
   }
 
-  const response = await fetchImageGenerationResponse(request);
+  const responseInfo = await fetchImageGenerationResponse(
+    request,
+    transportConfig,
+    managedRoute,
+  );
+  const {
+    response,
+    managedRoute: responseManagedRoute,
+    endpointConfig,
+  } = responseInfo;
   const submitJSON = (await parseResponseJSON(response)) as OpenAIImageResponse;
 
   if (!response.ok) {
@@ -638,10 +682,6 @@ export const generateImagesWithOpenAIAdapter = async (
   // Async (Right Code) endpoints return a task id rather than the image itself;
   // poll the task query until it completes, then extract from the final body.
   // Synchronous endpoints keep the submit response as the result body.
-  const endpointConfig = getEndpointConfigForMode(
-    providerConfig.modelConfig,
-    request.mode,
-  );
   const responseJSON = endpointConfig.async
     ? await pollAsyncImageTask({
         submitJSON,
@@ -649,6 +689,8 @@ export const generateImagesWithOpenAIAdapter = async (
         apiKey: providerConfig.apiKey,
         taskPollURL: providerConfig.modelConfig?.endpoints.taskPollURL,
         signal: request.signal,
+        ...(responseManagedRoute ? { managedRoute: responseManagedRoute } : {}),
+        ...(managed ? { transportConfig } : {}),
       })
     : submitJSON;
 
@@ -957,7 +999,21 @@ const readImageURL = (value: unknown) => {
 const getAIImageProviderFlavor = (
   baseURL: string,
   endpointConfig: AIImageEndpointConfig,
+  managedWireProtocol?: string,
 ): AIImageProviderFlavor => {
+  const wireProtocol = (managedWireProtocol || "").toLowerCase();
+  if (
+    wireProtocol.includes("right-code") ||
+    wireProtocol.includes("right_code")
+  ) {
+    return "right-code";
+  }
+  if (wireProtocol.includes("lconai")) {
+    return "lconai";
+  }
+  if (wireProtocol.includes("gemini")) {
+    return "gemini-native";
+  }
   if (
     endpointConfig.format === "gemini" ||
     /:generateContent\b/i.test(endpointConfig.path)
@@ -984,6 +1040,76 @@ const getAIImageProviderFlavor = (
   }
 
   return "openai-compatible";
+};
+
+const getManagedImageEndpointConfig = (
+  route: AiGatewayCatalogEntry,
+  mode: AIImageGenerationRequest["mode"],
+): AIImageEndpointConfig => {
+  const wireProtocol = route.wireProtocol.toLowerCase();
+  const isGemini = wireProtocol.includes("gemini");
+  const isForm =
+    wireProtocol.includes("multipart") ||
+    wireProtocol.includes("form-data") ||
+    wireProtocol.includes("form");
+  const operation = getManagedImageOperation(route, mode);
+  if (!operation) {
+    throw new AIImageGenerationError(
+      "The managed image route does not allow this operation.",
+      "unsupported",
+      { routeId: route.id, mode },
+    );
+  }
+  // Managed multipart requests are intentionally kept opaque by the gateway.
+  // Without a reviewed multipart model-field contract, accepting an edit
+  // route here would let a browser override the catalog model.
+  if (isForm && mode !== "text-to-image") {
+    throw new AIImageGenerationError(
+      "Managed image edit routes must use a JSON wire protocol.",
+      "unsupported",
+      { routeId: route.id, wireProtocol: route.wireProtocol },
+    );
+  }
+  const asyncRoute =
+    route.operations.includes("poll") &&
+    (operation === "generate" || operation === "submit");
+  return {
+    path: isGemini
+      ? "/models/{model}:generateContent"
+      : mode === "text-to-image" || !isForm
+      ? "/images/generations"
+      : "/images/edits",
+    format: isGemini ? "gemini" : isForm ? "form" : "json",
+    ...(asyncRoute ? { async: true } : {}),
+  };
+};
+
+const getManagedImageOperation = (
+  route: AiGatewayCatalogEntry,
+  mode: AIImageGenerationRequest["mode"],
+) => {
+  const operation =
+    mode === "text-to-image"
+      ? route.operations.includes("generate")
+        ? "generate"
+        : route.operations.includes("submit")
+        ? "submit"
+        : undefined
+      : route.operations.includes("edit")
+      ? "edit"
+      : route.operations.includes("generate")
+      ? "generate"
+      : route.operations.includes("submit")
+      ? "submit"
+      : undefined;
+  if (!operation) {
+    throw new AIImageGenerationError(
+      "The managed image route does not allow this operation.",
+      "unsupported",
+      { routeId: route.id, mode },
+    );
+  }
+  return operation;
 };
 
 export const getAuthorizationHeaderValue = (
@@ -1050,12 +1176,24 @@ const isImageGenerationAPIEndpointURL = (value: string) => {
 
 const fetchImageGenerationResponse = async (
   request: AIImageGenerationRequest,
+  transportConfig = loadAIProxyConfig(),
+  resolvedManagedRoute?: AiGatewayCatalogEntry,
 ) => {
-  const providerConfig = getProviderConfigForRequest(request);
-  const endpointConfig = getEndpointConfigForMode(
-    providerConfig.modelConfig,
-    request.mode,
+  const managed = transportConfig.mode === "managed-gateway";
+  const managedRoute = managed
+    ? resolvedManagedRoute ||
+      (await getManagedRouteForCapability("image-generation", {
+        config: transportConfig,
+      }))
+    : undefined;
+  const providerConfig = getProviderConfigForRequest(
+    request,
+    managed,
+    managedRoute,
   );
+  const endpointConfig = managedRoute
+    ? getManagedImageEndpointConfig(managedRoute, request.mode)
+    : getEndpointConfigForMode(providerConfig.modelConfig, request.mode);
   const endpoint = buildEndpointURL(
     providerConfig.baseURL,
     endpointConfig,
@@ -1064,16 +1202,24 @@ const fetchImageGenerationResponse = async (
   const providerFlavor = getAIImageProviderFlavor(
     providerConfig.baseURL,
     endpointConfig,
+    managedRoute?.wireProtocol,
   );
+  const managedOperation = managedRoute
+    ? getManagedImageOperation(managedRoute, request.mode)
+    : undefined;
   const headers = new Headers({ Accept: "application/json" });
   const authorizationHeader = getAuthorizationHeaderValue(
     providerConfig.apiKey,
     providerFlavor,
   );
 
-  if (providerFlavor === "gemini-native" && providerConfig.apiKey.trim()) {
+  if (
+    !managed &&
+    providerFlavor === "gemini-native" &&
+    providerConfig.apiKey.trim()
+  ) {
     headers.set("x-goog-api-key", getRawAPIKey(providerConfig.apiKey));
-  } else if (authorizationHeader) {
+  } else if (!managed && authorizationHeader) {
     headers.set("Authorization", authorizationHeader);
   }
 
@@ -1117,8 +1263,14 @@ const fetchImageGenerationResponse = async (
     const response = await fetchAIRequest(endpoint, init, {
       kind: "image-generation",
       signal: request.signal,
+      managedOperation:
+        managedOperation ||
+        (init.body instanceof FormData ? "edit" : "generate"),
+      auditPrompt: request.prompt,
+      ...(managedRoute ? { managedRoute } : {}),
+      ...(managed ? { config: transportConfig } : {}),
     });
-    return response;
+    return { response, managedRoute, endpointConfig };
   } catch (error: any) {
     if (error?.name === "AbortError") {
       throw error;
@@ -1140,17 +1292,23 @@ const fetchImageGenerationResponse = async (
   }
 };
 
-const getProviderConfigForRequest = (request: AIImageGenerationRequest) => {
+const getProviderConfigForRequest = (
+  request: AIImageGenerationRequest,
+  managed = false,
+  managedRoute?: AiGatewayCatalogEntry,
+) => {
   const modelConfig = request.config.models.find(
     (model) => model.id === request.model || model.model === request.model,
   );
 
   return {
-    baseURL: request.config.baseURL || modelConfig?.baseURL || "",
-    apiKey: request.config.apiKey || modelConfig?.apiKey || "",
+    baseURL: managed
+      ? MANAGED_GATEWAY_TARGET
+      : request.config.baseURL || modelConfig?.baseURL || "",
+    apiKey: managed ? "" : request.config.apiKey || modelConfig?.apiKey || "",
     fieldMapping: modelConfig?.fieldMapping,
     modelConfig,
-    modelName: modelConfig?.model || request.model,
+    modelName: managedRoute?.model || modelConfig?.model || request.model,
   };
 };
 
@@ -1224,7 +1382,14 @@ export const fetchRemoteImageAsDataURL = async (
     const imageResponse = await fetchAIRequest(
       url,
       { signal: downloadController.signal },
-      { kind: "remote-image", signal: downloadController.signal },
+      {
+        kind: "remote-image",
+        signal: downloadController.signal,
+        managedOperation: "download",
+        managedParams: {
+          assetId: new URL(url).pathname.split("/").filter(Boolean).pop() || "",
+        },
+      },
     );
 
     if (!imageResponse.ok) {

@@ -126,6 +126,8 @@ import {
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
 import { VaultStatus } from "./components/VaultStatus";
 import { VaultShareDialog } from "./components/VaultShareDialog";
+import { VaultManagedAI } from "./components/VaultManagedAI";
+import { AIDeviceApproval } from "./components/AIDeviceApproval";
 import {
   AI_AGENT_CONFIG_UPDATED_EVENT,
   loadAIAgentConfig,
@@ -4495,6 +4497,7 @@ const ExcalidrawWrapper = () => {
                     autosaveErrorCode={activeVault.autosaveErrorCode}
                     autosaveUnsyncedReason={activeVault.autosaveUnsyncedReason}
                   />
+                  <VaultManagedAI excalidrawAPI={excalidrawAPI} />
                   {canManageVault && (
                     <Button
                       className="VaultStatusControls__share"
@@ -5006,6 +5009,16 @@ const ExcalidrawWrapper = () => {
 const LazyEmbedApp = lazy(() => import("./embed/EmbedApp"));
 
 const ExcalidrawApp = () => {
+  if (window.location.pathname === "/ai-device") {
+    return (
+      <TopErrorBoundary>
+        <Provider store={appJotaiStore}>
+          <AIDeviceApproval />
+        </Provider>
+      </TopErrorBoundary>
+    );
+  }
+
   if (window.location.pathname === "/embed") {
     return (
       <TopErrorBoundary>

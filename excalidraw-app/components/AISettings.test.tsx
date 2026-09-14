@@ -123,10 +123,12 @@ describe("AISettings", () => {
         localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY) || "{}",
       ),
     ).toEqual({
-      version: 1,
-      enabled: true,
+      version: 2,
+      mode: "byok-proxy",
       endpoint: "https://proxy.example.com/ai-proxy/v1/forward",
       accessToken: "proxy-token",
+      gatewayEndpoint: "",
+      managedRoutes: {},
     });
     expect(screen.getByText("Network settings saved.")).toBeInTheDocument();
   });
@@ -184,7 +186,7 @@ describe("AISettings", () => {
     expect(
       screen.getByRole("radio", { name: /Browser direct \(default\)/ }),
     ).toBeChecked();
-    expect(screen.getByLabelText(/Proxy endpoint/)).toHaveValue("");
+    expect(screen.queryByLabelText(/Proxy endpoint/)).not.toBeInTheDocument();
     expect(
       localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY),
     ).toBeNull();

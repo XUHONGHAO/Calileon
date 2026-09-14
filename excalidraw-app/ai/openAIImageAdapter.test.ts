@@ -868,7 +868,7 @@ describe("OpenAI-compatible image adapter", () => {
 
   it("routes image generation through the configured proxy without changing provider payloads", async () => {
     saveAIProxyConfig({
-      enabled: true,
+      mode: "byok-proxy",
       endpoint: "/ai-proxy/v1/forward",
       accessToken: "proxy-token",
     });

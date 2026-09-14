@@ -31,6 +31,10 @@ RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
   && yarn cache clean
 
 COPY --from=build --chown=node:node /opt/excalidraw-ai-proxy/dist ./dist
+# The one-shot migration command runs from the same immutable image as the
+# gateway. Keep the SQL beside the runtime artifact instead of relying on a
+# host bind mount that could drift from the image being deployed.
+COPY --chown=node:node deploy/ai-proxy/migrations ./migrations
 
 USER node
 EXPOSE 3016

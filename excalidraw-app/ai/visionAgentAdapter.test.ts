@@ -26,7 +26,7 @@ describe("visionAgentAdapter", () => {
 
   it("routes vision requests through the global proxy transport", async () => {
     saveAIProxyConfig({
-      enabled: true,
+      mode: "byok-proxy",
       endpoint: "/ai-proxy/v1/forward",
       accessToken: "proxy-token",
     });

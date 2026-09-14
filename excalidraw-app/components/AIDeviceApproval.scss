@@ -1,0 +1,75 @@
+.AIDeviceApproval {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  background: var(--color-gray-10);
+  color: var(--text-primary-color);
+}
+
+.AIDeviceApproval__card {
+  width: min(28rem, 100%);
+  display: grid;
+  gap: 1rem;
+  padding: 1.5rem;
+  border: 1px solid var(--default-border-color);
+  border-radius: 0.75rem;
+  background: var(--island-bg-color);
+  box-shadow: var(--shadow-island);
+}
+
+.AIDeviceApproval__card h1,
+.AIDeviceApproval__card h2,
+.AIDeviceApproval__card p {
+  margin: 0;
+}
+
+.AIDeviceApproval__form {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.AIDeviceApproval__form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.AIDeviceApproval__form input {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--default-border-color);
+  border-radius: 0.35rem;
+  background: var(--input-bg-color);
+  color: inherit;
+}
+
+.AIDeviceApproval__form button {
+  justify-self: start;
+  padding: 0.55rem 0.9rem;
+  border: 0;
+  border-radius: 0.35rem;
+  background: var(--color-primary);
+  color: var(--color-primary-darker);
+  cursor: pointer;
+}
+
+.AIDeviceApproval__form button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.AIDeviceApproval__message,
+.AIDeviceApproval__error {
+  color: var(--color-danger);
+}
+
+.AIDeviceApproval__success {
+  color: var(--color-green-70);
+  font-weight: 600;
+}
+
+.AIDeviceApproval__signedIn {
+  overflow-wrap: anywhere;
+}

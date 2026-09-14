@@ -64,6 +64,15 @@ export const createSupabaseAuthProvider = (): AuthProvider => {
     return data.user ? toAuthUser(data.user) : null;
   };
 
+  const getAccessToken = async (): Promise<string | null> => {
+    const client = getSupabaseClient();
+    const { data, error } = await client.auth.getSession();
+    if (error) {
+      throw mapAuthError(error);
+    }
+    return data.session?.access_token || null;
+  };
+
   const signIn = async (method: SignInMethod): Promise<AuthUser> => {
     if (method.kind !== "password") {
       // oauth / magic-link signatures are frozen but not implemented yet.
@@ -108,5 +117,11 @@ export const createSupabaseAuthProvider = (): AuthProvider => {
     };
   };
 
-  return { getCurrentUser, signIn, signOut, onAuthStateChange };
+  return {
+    getCurrentUser,
+    getAccessToken,
+    signIn,
+    signOut,
+    onAuthStateChange,
+  };
 };

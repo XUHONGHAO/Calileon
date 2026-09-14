@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from "../app_constants";
 export const AI_PROXY_CONFIG_UPDATED_EVENT = "excalidraw-ai-proxy-config";
 export const AI_PROXY_ENDPOINT_PATH = "/ai-proxy/v1/forward";
 export const AI_PROXY_DEFAULT_READY_PATH = "/ai-proxy/readyz";
+export const AI_GATEWAY_ENDPOINT_PATH = "/ai-gateway/v1";
 
 export type AIProxyConfigV1 = {
   version: 1;
@@ -11,11 +12,24 @@ export type AIProxyConfigV1 = {
   accessToken: string;
 };
 
-export const DEFAULT_AI_PROXY_CONFIG: AIProxyConfigV1 = {
-  version: 1,
-  enabled: false,
+export type AITransportMode = "direct" | "byok-proxy" | "managed-gateway";
+
+export type AIProxyConfigV2 = {
+  version: 2;
+  mode: AITransportMode;
+  endpoint: string;
+  accessToken: string;
+  gatewayEndpoint: string;
+  managedRoutes: Record<string, string>;
+};
+
+export const DEFAULT_AI_PROXY_CONFIG: AIProxyConfigV2 = {
+  version: 2,
+  mode: "direct",
   endpoint: "",
   accessToken: "",
+  gatewayEndpoint: "",
+  managedRoutes: {},
 };
 
 export class AIProxyConfigError extends Error {
@@ -35,9 +49,12 @@ const isProductionBuild = () => {
 };
 
 const getWindowOrigin = () => {
-  return typeof window !== "undefined" && window.location.origin
-    ? window.location.origin
-    : "http://localhost";
+  const origin =
+    typeof window !== "undefined" ? window.location.origin : undefined;
+  // `file://` documents have an opaque `null` origin. It cannot be used as a
+  // URL base for validating relative endpoints; use a harmless synthetic
+  // HTTP origin so validation still runs and relative paths remain relative.
+  return origin && origin !== "null" ? origin : "http://localhost";
 };
 
 const stripTrailingSlashes = (value: string) => value.replace(/\/+$/, "");
@@ -63,7 +80,7 @@ const assertNoUnsafeURLParts = (url: URL) => {
 
 export const validateAIProxyEndpoint = (
   rawEndpoint: string,
-  options: { production?: boolean } = {},
+  options: { production?: boolean; allowQuery?: boolean } = {},
 ) => {
   const endpoint = rawEndpoint.trim();
 
@@ -100,6 +117,12 @@ export const validateAIProxyEndpoint = (
 
   assertNoUnsafeURLParts(url);
 
+  if (options.allowQuery === false && url.search) {
+    throw new AIProxyConfigError(
+      "The AI service endpoint cannot contain a query string.",
+    );
+  }
+
   if (url.protocol !== "https:" && url.protocol !== "http:") {
     throw new AIProxyConfigError(
       "The AI proxy endpoint must use HTTP or HTTPS.",
@@ -128,11 +151,27 @@ export const getRuntimeDefaultAIProxyEndpoint = () => {
   return configured || AI_PROXY_ENDPOINT_PATH;
 };
 
-export const getAIProxyEndpoint = (config: AIProxyConfigV1) => {
+export const getAIProxyEndpoint = (config: AIProxyConfigV2) => {
   const endpoint = config.endpoint.trim() || getRuntimeDefaultAIProxyEndpoint();
 
   return validateAIProxyEndpoint(endpoint);
 };
+
+export const getRuntimeDefaultAIGatewayEndpoint = () => {
+  const configured = String(
+    import.meta.env.VITE_APP_AI_GATEWAY_URL || "",
+  ).trim();
+  return configured || AI_GATEWAY_ENDPOINT_PATH;
+};
+
+export const getAIGatewayEndpoint = (config: AIProxyConfigV2) =>
+  validateAIProxyEndpoint(
+    config.gatewayEndpoint.trim() || getRuntimeDefaultAIGatewayEndpoint(),
+    { allowQuery: false },
+  ).replace(/\/+$/, "");
+
+export const getAIGatewayReadyEndpoint = (config: AIProxyConfigV2) =>
+  `${getAIGatewayEndpoint(config)}/readyz`;
 
 export const getAIProxyReadyEndpoint = (endpoint: string) => {
   const normalizedEndpoint = validateAIProxyEndpoint(endpoint);
@@ -150,46 +189,108 @@ export const getAIProxyReadyEndpoint = (endpoint: string) => {
   return isRelative ? `${url.pathname}${url.search}` : url.toString();
 };
 
-const normalizeAIProxyConfig = (value: unknown): AIProxyConfigV1 => {
+const normalizeManagedRoutes = (value: unknown) => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(
+        ([key, route]) =>
+          /^[a-z0-9-]{1,64}$/i.test(key) &&
+          typeof route === "string" &&
+          /^[a-z0-9._-]{1,128}$/i.test(route.trim()),
+      )
+      .map(([key, route]) => [key, String(route).trim()]),
+  );
+};
+
+const normalizeAIProxyConfig = (
+  value: unknown,
+  options: { production?: boolean } = {},
+): AIProxyConfigV2 => {
   const candidate = value && typeof value === "object" ? value : {};
+  const isV1 = (candidate as any).version === 1;
+  const requestedMode = isV1
+    ? (candidate as any).enabled === true
+      ? "byok-proxy"
+      : "direct"
+    : (candidate as any).mode;
+  const mode: AITransportMode = [
+    "direct",
+    "byok-proxy",
+    "managed-gateway",
+  ].includes(requestedMode)
+    ? requestedMode
+    : "direct";
   const rawEndpoint =
     typeof (candidate as any).endpoint === "string"
       ? (candidate as any).endpoint.trim()
       : "";
   const endpoint = rawEndpoint
-    ? validateAIProxyEndpoint(rawEndpoint, { production: false })
+    ? validateAIProxyEndpoint(rawEndpoint, {
+        production: options.production,
+      })
+    : "";
+
+  const rawGatewayEndpoint =
+    typeof (candidate as any).gatewayEndpoint === "string"
+      ? (candidate as any).gatewayEndpoint.trim()
+      : "";
+  const gatewayEndpoint = rawGatewayEndpoint
+    ? validateAIProxyEndpoint(rawGatewayEndpoint, {
+        production: options.production,
+        allowQuery: false,
+      })
     : "";
 
   return {
-    version: 1,
-    enabled: (candidate as any).enabled === true,
+    version: 2,
+    mode,
     endpoint,
     accessToken:
       typeof (candidate as any).accessToken === "string"
         ? (candidate as any).accessToken.trim()
         : "",
+    gatewayEndpoint,
+    managedRoutes: normalizeManagedRoutes((candidate as any).managedRoutes),
   };
 };
 
-export const loadAIProxyConfig = (): AIProxyConfigV1 => {
+export const loadAIProxyConfig = (): AIProxyConfigV2 => {
   try {
     const raw = localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY);
+    const production = isProductionBuild();
 
     return raw
-      ? normalizeAIProxyConfig(JSON.parse(raw))
+      ? normalizeAIProxyConfig(JSON.parse(raw), { production })
       : DEFAULT_AI_PROXY_CONFIG;
   } catch {
     return DEFAULT_AI_PROXY_CONFIG;
   }
 };
 
-export const saveAIProxyConfig = (config: Partial<AIProxyConfigV1>) => {
-  const normalizedConfig = normalizeAIProxyConfig(config);
+export const saveAIProxyConfig = (config: Partial<AIProxyConfigV2>) => {
+  const current = loadAIProxyConfig();
+  const normalizedConfig = normalizeAIProxyConfig({
+    ...current,
+    ...config,
+    managedRoutes:
+      config.managedRoutes === undefined
+        ? current.managedRoutes
+        : config.managedRoutes,
+  });
   const production = isProductionBuild();
 
   if (normalizedConfig.endpoint) {
     normalizedConfig.endpoint = validateAIProxyEndpoint(
       normalizedConfig.endpoint,
+      { production },
+    );
+  }
+  if (normalizedConfig.gatewayEndpoint) {
+    normalizedConfig.gatewayEndpoint = validateAIProxyEndpoint(
+      normalizedConfig.gatewayEndpoint,
       { production },
     );
   }

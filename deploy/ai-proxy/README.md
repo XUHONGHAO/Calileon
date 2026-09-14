@@ -2,13 +2,20 @@
 
 This directory contains the optional app-only AI forwarding service adopted by ADR 0027. Browser direct remains the default. The proxy exists for providers that cannot be called from a browser because of CORS and does not replace the existing provider adapters.
 
-The service is deliberately thin:
+The service exposes two separate contracts:
+
+- `/ai-proxy/v1/forward` is the existing BYOK thin proxy. It accepts a browser-supplied target and provider credentials for one request only.
+- `/ai-gateway/v1/*` is the optional managed gateway. It accepts only a configured route alias and operation, authenticates a Supabase JWT (or a short-lived paired device token), and keeps provider URLs and credentials server-side.
+
+The service is deliberately thin on the BYOK path and policy-driven on the managed path:
 
 - it forwards the provider method, headers, body, status, and response stream;
 - it validates every target and redirect against the SSRF policy, pins DNS to the actual connection address, and rejects HTTPS downgrades;
 - it never stores provider keys, proxy tokens, prompts, request bodies, responses, images, or videos;
 - production requires both an exact Origin allowlist and a rotatable proxy access token;
 - it is independent of Supabase, the room server, Vault persistence, and the public `@excalidraw/excalidraw` package.
+
+Managed gateway deployments additionally require an independent Postgres `ai_gateway` schema, a reachable JWT JWKS endpoint, and AWS KMS in production. The local-only KEK is accepted solely for non-production development and test environments. Provider credentials are entered through the interactive admin CLI; they are never placed in browser configuration or route catalogs.
 
 ## Local development
 
@@ -41,15 +48,31 @@ Development and production use the same forwarding, streaming, redirect, and SSR
 
 The Compose service is not published on a host port. It exposes port `3016` only on `AI_PROXY_EDGE_NETWORK`; the App-facing Caddy/nginx service must join that network.
 
+For a managed gateway, enable the `ai-gateway` profile and run the explicit one-shot migration before starting the service:
+
+```powershell
+docker compose --profile ai-gateway --env-file deploy/ai-proxy/.env -f deploy/ai-proxy/compose.yml run --rm ai-gateway-migrate
+docker compose --profile ai-gateway --env-file deploy/ai-proxy/.env -f deploy/ai-proxy/compose.yml up -d
+```
+
+Set `AI_GATEWAY_CONFIG_HOST_PATH` in the ignored deployment `.env` to a reviewed route catalog. The checked-in `routes.example.json` is a placeholder for development and must not be used as a production catalog; it contains no usable provider host or model. Route changes are configuration deployments, not browser settings, and should be rolled out together with the corresponding credential version in the admin CLI.
+
 The image is multi-stage, runs as the non-root `node` user, has a read-only root filesystem, drops Linux capabilities, enables `no-new-privileges`, and uses only a small `/tmp` tmpfs. The Node 20 base image is pinned by digest in `.env.example` and the Dockerfile.
 
 ## Caddy routing
 
-Merge `Caddyfile.example` into the existing App site. The `/ai-proxy/*` matcher must appear before the static App fallback:
+Merge `Caddyfile.example` into the existing App site. Both the `/ai-proxy/*` and `/ai-gateway/*` matchers must appear before the static App fallback:
 
 ```caddy
 @ai_proxy path /ai-proxy/*
 handle @ai_proxy {
+  reverse_proxy ai-proxy:3016 {
+    flush_interval -1
+  }
+}
+
+@ai_gateway path /ai-gateway/*
+handle @ai_gateway {
   reverse_proxy ai-proxy:3016 {
     flush_interval -1
   }
@@ -85,4 +108,4 @@ Proxy mode adds a network hop, concentrates traffic on one server IP, and consum
 
 If `/healthz` works but `/readyz` fails, check the exact Origin and proxy token. If forwarding returns a target-blocked error, inspect the provider URL and DNS result; do not weaken the private/reserved-address policy. Provider non-2xx responses are passed through without a proxy error marker and should be debugged as provider failures.
 
-Adding this service or Caddy route does not enable AI in Vault or the P1 single-file runtime. Their existing AI-deny boundaries remain authoritative.
+The host does not need the Caddy CLI installed. Production uses the existing Caddy container/service; the optional `caddy-smoke` Compose profile runs Caddy inside a container for SSE, media, CORS, and route-order checks. Adding this service or Caddy route does not enable AI in Vault or the P1 single-file runtime. Their existing AI-deny boundaries remain authoritative.

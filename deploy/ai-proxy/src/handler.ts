@@ -19,6 +19,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import type { AIProxyConfig } from "./config.js";
 import type { AIProxyLogger } from "./logger.js";
+import type { GatewayHttpHandler } from "./gateway/types.js";
 
 const FORWARD_PATH = "/ai-proxy/v1/forward";
 const HEALTH_PATHS = new Set(["/healthz", "/ai-proxy/healthz"]);
@@ -333,8 +334,17 @@ export const createAIProxyHandler = (
 export const createAIProxyServer = (
   config: AIProxyConfig,
   logger: AIProxyLogger = consoleAIProxyLogger,
+  gatewayHandler?: GatewayHttpHandler,
 ) => {
-  const server = http.createServer(createAIProxyHandler(config, logger));
+  const proxyHandler = createAIProxyHandler(config, logger);
+  const server = http.createServer((request, response) => {
+    const path = new URL(request.url || "/", "http://ai-proxy.local").pathname;
+    if (gatewayHandler && path.startsWith("/ai-gateway/")) {
+      void gatewayHandler(request, response);
+      return;
+    }
+    void proxyHandler(request, response);
+  });
 
   server.on("connect", (_request, socket) => socket.destroy());
   server.on("upgrade", (_request, socket) => socket.destroy());

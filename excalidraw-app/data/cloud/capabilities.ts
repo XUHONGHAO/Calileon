@@ -77,6 +77,8 @@ export const readCapabilities = (): BackendCapabilities => {
     hasSupabase && import.meta.env.VITE_APP_E2E_CLOUD_STORAGE === "true";
   const remoteVideoAssets =
     hasSupabase && import.meta.env.VITE_APP_REMOTE_VIDEO_ASSETS === "true";
+  const aiGateway =
+    hasSupabase && import.meta.env.VITE_APP_AI_GATEWAY_ENABLED === "true";
 
   return {
     tier,
@@ -92,7 +94,7 @@ export const readCapabilities = (): BackendCapabilities => {
     cast: hasSupabase, // Phase 3B: Supabase cast session/export metadata
     embed: hasSupabase, // Phase 3C: Supabase embed token + iframe metadata
     encryptedCloudStorage,
-    aiGateway: false, // Phase 2 (browser-direct AI is the default, not a gateway)
+    aiGateway,
     remoteVideoAssets,
   };
 };

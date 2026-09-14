@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "defaultPolicy": "standard",
+  "policies": [
+    {
+      "id": "standard",
+      "dailyCredits": 100,
+      "monthlyCredits": 2000,
+      "requestsPerMinute": 20,
+      "maxConcurrency": 2
+    }
+  ],
+  "routes": [
+    {
+      "id": "openai-text",
+      "label": "OpenAI-compatible text",
+      "capability": "text-agent",
+      "wireProtocol": "openai-chat-sse",
+      "model": "replace-with-model-id",
+      "costUnits": 1,
+      "operations": {
+        "stream": {
+          "method": "POST",
+          "path": "/v1/chat/completions",
+          "replayable": true,
+          "maxRequestBytes": 2097152
+        }
+      },
+      "candidates": [
+        {
+          "id": "primary",
+          "baseUrl": "https://api.example.invalid",
+          "credentialHeader": "authorization-bearer",
+          "credentialId": "openai-default"
+        }
+      ]
+    }
+  ]
+}

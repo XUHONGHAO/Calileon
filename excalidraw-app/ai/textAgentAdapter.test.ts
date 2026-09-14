@@ -184,7 +184,7 @@ describe("textAgentAdapter", () => {
 
   it("preserves SSE parsing when the request uses the proxy transport", async () => {
     saveAIProxyConfig({
-      enabled: true,
+      mode: "byok-proxy",
       endpoint: "/ai-proxy/v1/forward",
       accessToken: "proxy-token",
     });

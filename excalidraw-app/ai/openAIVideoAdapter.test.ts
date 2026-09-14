@@ -157,7 +157,7 @@ describe("OpenAI-compatible video adapter", () => {
 
   it("routes video submit through the same global proxy switch", async () => {
     saveAIProxyConfig({
-      enabled: true,
+      mode: "byok-proxy",
       endpoint: "/ai-proxy/v1/forward",
       accessToken: "proxy-token",
     });

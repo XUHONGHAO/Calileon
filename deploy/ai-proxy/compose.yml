@@ -1,6 +1,66 @@
 name: excalidraw-ai-proxy
 
 services:
+  ai-gateway-db:
+    image: postgres:16-alpine
+    profiles: ["ai-gateway"]
+    environment:
+      POSTGRES_DB: ${AI_GATEWAY_POSTGRES_DB:-ai_gateway}
+      POSTGRES_USER: ${AI_GATEWAY_POSTGRES_USER:-ai_gateway}
+      POSTGRES_PASSWORD: ${AI_GATEWAY_POSTGRES_PASSWORD:?AI_GATEWAY_POSTGRES_PASSWORD is required}
+    volumes:
+      - ai-gateway-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - ai-proxy-edge
+
+  # Run this one-shot service explicitly after the database is healthy. It is
+  # intentionally separate from the long-running gateway so schema changes
+  # never happen implicitly during an application restart:
+  #   docker compose --profile ai-gateway run --rm ai-gateway-migrate
+  ai-gateway-migrate:
+    profiles: ["ai-gateway"]
+    build:
+      context: ../..
+      dockerfile: deploy/ai-proxy/Dockerfile
+      args:
+        AI_PROXY_NODE_IMAGE: ${AI_PROXY_NODE_IMAGE:-node:20.19.4-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799}
+    environment:
+      NODE_ENV: production
+      AI_GATEWAY_DATABASE_URL: ${AI_GATEWAY_DATABASE_URL:-postgresql://${AI_GATEWAY_POSTGRES_USER:-ai_gateway}:${AI_GATEWAY_POSTGRES_PASSWORD}@ai-gateway-db:5432/${AI_GATEWAY_POSTGRES_DB:-ai_gateway}}
+    command: ["node", "dist/admin.js", "migrate"]
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ai-proxy-edge
+    depends_on:
+      ai-gateway-db:
+        condition: service_healthy
+
+  # Optional local smoke edge. Production should merge Caddyfile.example into
+  # the existing App-facing Caddy service instead of exposing this container.
+  caddy-smoke:
+    profiles: ["smoke"]
+    image: caddy:2.8.4-alpine
+    depends_on:
+      ai-proxy:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${AI_PROXY_CADDY_SMOKE_PORT:-8787}:8080"
+    volumes:
+      - ./Caddyfile.smoke:/etc/caddy/Caddyfile:ro
+    networks:
+      - ai-proxy-edge
+
   ai-proxy:
     build:
       context: ../..
@@ -21,6 +81,21 @@ services:
       AI_PROXY_MAX_REDIRECTS: ${AI_PROXY_MAX_REDIRECTS:-5}
       AI_PROXY_SHUTDOWN_GRACE_MS: ${AI_PROXY_SHUTDOWN_GRACE_MS:-30000}
       AI_PROXY_LOG_TARGET_HOSTNAME: ${AI_PROXY_LOG_TARGET_HOSTNAME:-true}
+      AI_GATEWAY_ENABLED: ${AI_GATEWAY_ENABLED:-false}
+      AI_GATEWAY_DATABASE_URL: ${AI_GATEWAY_DATABASE_URL:-postgresql://${AI_GATEWAY_POSTGRES_USER:-ai_gateway}:${AI_GATEWAY_POSTGRES_PASSWORD}@ai-gateway-db:5432/${AI_GATEWAY_POSTGRES_DB:-ai_gateway}}
+      AI_GATEWAY_ALLOWED_ORIGINS: ${AI_GATEWAY_ALLOWED_ORIGINS:-}
+      AI_GATEWAY_JWKS_URL: ${AI_GATEWAY_JWKS_URL:-}
+      AI_GATEWAY_AUTH_ISSUER: ${AI_GATEWAY_AUTH_ISSUER:-}
+      AI_GATEWAY_AUTH_AUDIENCE: ${AI_GATEWAY_AUTH_AUDIENCE:-}
+      AI_GATEWAY_AUTH_ALGORITHMS: ${AI_GATEWAY_AUTH_ALGORITHMS:-RS256,ES256}
+      AI_GATEWAY_CONFIG_FILE: /opt/excalidraw-ai-proxy/config/routes.json
+      AI_GATEWAY_KMS_PROVIDER: ${AI_GATEWAY_KMS_PROVIDER:-aws-kms}
+      AI_GATEWAY_KMS_KEY_ID: ${AI_GATEWAY_KMS_KEY_ID:-}
+      AI_GATEWAY_LOCAL_KEK: ${AI_GATEWAY_LOCAL_KEK:-}
+      AI_GATEWAY_CONTENT_AUDIT_ENABLED: ${AI_GATEWAY_CONTENT_AUDIT_ENABLED:-false}
+      AI_GATEWAY_DEVICE_VERIFICATION_URI: ${AI_GATEWAY_DEVICE_VERIFICATION_URI:-}
+      AI_GATEWAY_METRICS_TOKEN: ${AI_GATEWAY_METRICS_TOKEN:-}
+      AI_GATEWAY_TRUST_PROXY: ${AI_GATEWAY_TRUST_PROXY:-true}
     expose:
       - "3016"
     init: true
@@ -34,9 +109,20 @@ services:
     pids_limit: 256
     stop_grace_period: 35s
     restart: unless-stopped
+    volumes:
+      # Production must point this at a reviewed, deployment-owned route file;
+      # the checked-in example is intentionally placeholder-only.
+      - ${AI_GATEWAY_CONFIG_HOST_PATH:-./routes.example.json}:/opt/excalidraw-ai-proxy/config/routes.json:ro
     networks:
       - ai-proxy-edge
+    depends_on:
+      ai-gateway-db:
+        condition: service_healthy
+        required: false
 
 networks:
   ai-proxy-edge:
     name: ${AI_PROXY_EDGE_NETWORK:-excalidraw-ai-proxy-edge}
+
+volumes:
+  ai-gateway-db:

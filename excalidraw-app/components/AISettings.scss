@@ -318,6 +318,147 @@
     min-width: 0;
   }
 
+  .AISettings__managedGateway,
+  .AISettings__gatewaySummary,
+  .AISettings__deviceApproval {
+    display: grid;
+    min-width: 0;
+    gap: 0.65rem;
+  }
+
+  .AISettings__gatewaySummary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+
+    strong {
+      grid-column: 1 / -1;
+    }
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-size: 0.76rem;
+    }
+  }
+
+  .AISettings__gatewayToggle {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AISettings__auditRecords {
+    display: grid;
+    min-width: 0;
+    gap: 0.45rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+
+    strong,
+    span,
+    pre {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    > strong {
+      font-size: 0.78rem;
+    }
+  }
+
+  .AISettings__auditRecord {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-top: 1px solid var(--default-border-color);
+    padding-top: 0.45rem;
+    font-size: 0.74rem;
+
+    > span:first-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    > span:last-child {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 0.35rem;
+    }
+
+    button {
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.45rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  .AISettings__auditDetail {
+    display: grid;
+    gap: 0.4rem;
+    border-top: 1px solid var(--default-border-color);
+    padding-top: 0.55rem;
+
+    pre {
+      max-height: 12rem;
+      margin: 0;
+      overflow: auto;
+      white-space: pre-wrap;
+      font: inherit;
+      font-size: 0.75rem;
+    }
+  }
+
+  .AISettings__auditDetailHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+
+    button {
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.45rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  .AISettings__deviceApproval {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+
+    button {
+      min-height: 2rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
   .AISettings__networkMode {
     display: flex;
     min-width: 0;
@@ -1009,6 +1150,11 @@
       button.excalidraw-button {
         width: 100%;
       }
+    }
+
+    .AISettings__gatewaySummary,
+    .AISettings__deviceApproval {
+      grid-template-columns: 1fr;
     }
 
     .AISettings__endpointLabel {

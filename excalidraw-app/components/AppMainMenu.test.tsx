@@ -38,7 +38,8 @@ vi.mock("../data/vault", () => ({
   }),
 }));
 
-vi.mock("../app_constants", () => ({
+vi.mock("../app_constants", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../app_constants")>()),
   isExcalidrawPlusSignedUser: false,
 }));
 

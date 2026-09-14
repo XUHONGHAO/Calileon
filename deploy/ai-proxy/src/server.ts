@@ -2,10 +2,39 @@ import { pathToFileURL } from "node:url";
 
 import { loadAIProxyConfig } from "./config.js";
 import { createAIProxyServer } from "./handler.js";
+import {
+  createGatewayRuntime,
+  createUnavailableGatewayHandler,
+} from "./gateway/runtime.js";
+import { GatewayError } from "./gateway/errors.js";
 
 export const startAIProxyServer = () => {
   const config = loadAIProxyConfig();
-  const server = createAIProxyServer(config);
+  let gateway: ReturnType<typeof createGatewayRuntime>;
+  try {
+    gateway = createGatewayRuntime(config);
+  } catch (error) {
+    // A broken optional gateway must not take the independent BYOK proxy
+    // down. Do not log configuration values (which may contain credentials).
+    console.error(
+      JSON.stringify({
+        event: "ai_gateway_unavailable",
+        code: "AI_GATEWAY_NOT_READY",
+      }),
+    );
+    gateway = {
+      handler: createUnavailableGatewayHandler(config.allowedOrigins),
+      close: async () => {},
+      checkReady: async () => false,
+    };
+  }
+  const gatewayHandler =
+    gateway?.handler ||
+    createUnavailableGatewayHandler(
+      config.allowedOrigins,
+      new GatewayError("AI_GATEWAY_DISABLED", 404, { retryable: false }),
+    );
+  const server = createAIProxyServer(config, undefined, gatewayHandler);
 
   server.listen(config.port, "0.0.0.0", () => {
     console.info(
@@ -20,7 +49,12 @@ export const startAIProxyServer = () => {
 
   const shutdown = (signal: NodeJS.Signals) => {
     console.info(JSON.stringify({ event: "ai_proxy_stopping", signal }));
-    server.close(() => process.exit(0));
+    server.close(() => {
+      void gateway?.close().finally(() => process.exit(0));
+      if (!gateway) {
+        process.exit(0);
+      }
+    });
     setTimeout(() => process.exit(1), config.shutdownGraceMs).unref();
   };
 

@@ -4,21 +4,25 @@ import {
   throwForAIProxyResponse,
 } from "./requestTransport";
 
-import type { AIProxyConfigV1 } from "./proxyConfig";
+import type { AIProxyConfigV2 } from "./proxyConfig";
 import type { AIProxyTransportError } from "./requestTransport";
 
-const directConfig: AIProxyConfigV1 = {
-  version: 1,
-  enabled: false,
+const directConfig: AIProxyConfigV2 = {
+  version: 2,
+  mode: "direct",
   endpoint: "",
   accessToken: "",
+  gatewayEndpoint: "",
+  managedRoutes: {},
 };
 
-const proxyConfig: AIProxyConfigV1 = {
-  version: 1,
-  enabled: true,
+const proxyConfig: AIProxyConfigV2 = {
+  version: 2,
+  mode: "byok-proxy",
   endpoint: "/ai-proxy/v1/forward",
   accessToken: "proxy-token",
+  gatewayEndpoint: "",
+  managedRoutes: {},
 };
 
 describe("AI request transport", () => {
