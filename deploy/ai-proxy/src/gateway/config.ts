@@ -58,6 +58,10 @@ const JWT_ALGORITHMS = new Set(["RS256", "ES256"]);
 const IDENTIFIER_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/;
 const HEADER_NAME_PATTERN = /^[a-z0-9!#$%&'*+.^_`|~-]+$/i;
 const MAX_OPERATION_BODY_BYTES = 64 * 1024 * 1024;
+const MAX_DAILY_CREDITS = 1_000_000_000;
+const MAX_MONTHLY_CREDITS = 1_000_000_000;
+const MAX_REQUESTS_PER_MINUTE = 10_000;
+const MAX_CONCURRENCY = 1_000;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === "object" && !Array.isArray(value);
@@ -211,6 +215,21 @@ const requirePositive = (value: unknown, name: string) => {
   return Number(value);
 };
 
+const requirePositiveBounded = (
+  value: unknown,
+  name: string,
+  maximum: number,
+) => {
+  const result = requirePositive(value, name);
+  if (result > maximum) {
+    throw new GatewayError("AI_GATEWAY_INVALID_REQUEST", 500, {
+      message: `${name} exceeds the configured maximum of ${maximum}.`,
+      retryable: false,
+    });
+  }
+  return result;
+};
+
 const validatePolicy = (value: unknown): GatewayQuotaPolicy => {
   if (!isRecord(value)) {
     throw new GatewayError("AI_GATEWAY_INVALID_REQUEST", 500);
@@ -224,18 +243,25 @@ const validatePolicy = (value: unknown): GatewayQuotaPolicy => {
   }
   return Object.freeze({
     id,
-    dailyCredits: requirePositive(value.dailyCredits, "policy.dailyCredits"),
-    monthlyCredits: requirePositive(
+    dailyCredits: requirePositiveBounded(
+      value.dailyCredits,
+      "policy.dailyCredits",
+      MAX_DAILY_CREDITS,
+    ),
+    monthlyCredits: requirePositiveBounded(
       value.monthlyCredits,
       "policy.monthlyCredits",
+      MAX_MONTHLY_CREDITS,
     ),
-    requestsPerMinute: requirePositive(
+    requestsPerMinute: requirePositiveBounded(
       value.requestsPerMinute,
       "policy.requestsPerMinute",
+      MAX_REQUESTS_PER_MINUTE,
     ),
-    maxConcurrency: requirePositive(
+    maxConcurrency: requirePositiveBounded(
       value.maxConcurrency,
       "policy.maxConcurrency",
+      MAX_CONCURRENCY,
     ),
   });
 };
@@ -673,21 +699,21 @@ export const loadGatewayRuntimeConfig = (
     kmsProvider,
     kmsKeyId: (env.AI_GATEWAY_KMS_KEY_ID || "").trim(),
     localKek: (env.AI_GATEWAY_LOCAL_KEK || "").trim(),
-    credentialCacheMs: readPositiveInteger(
-      env.AI_GATEWAY_CREDENTIAL_CACHE_MS,
-      60_000,
-    ),
-    requestLeaseMs: readPositiveInteger(
-      env.AI_GATEWAY_REQUEST_LEASE_MS,
-      15 * 60_000,
-    ),
-    deviceCodeTtlMs: readPositiveInteger(
-      env.AI_GATEWAY_DEVICE_CODE_TTL_MS,
-      10 * 60_000,
-    ),
-    deviceTokenTtlMs: readPositiveInteger(
-      env.AI_GATEWAY_DEVICE_TOKEN_TTL_MS,
+    credentialCacheMs: Math.min(
       60 * 60_000,
+      readPositiveInteger(env.AI_GATEWAY_CREDENTIAL_CACHE_MS, 60_000),
+    ),
+    requestLeaseMs: Math.min(
+      60 * 60_000,
+      readPositiveInteger(env.AI_GATEWAY_REQUEST_LEASE_MS, 15 * 60_000),
+    ),
+    deviceCodeTtlMs: Math.min(
+      10 * 60_000,
+      readPositiveInteger(env.AI_GATEWAY_DEVICE_CODE_TTL_MS, 10 * 60_000),
+    ),
+    deviceTokenTtlMs: Math.min(
+      60 * 60_000,
+      readPositiveInteger(env.AI_GATEWAY_DEVICE_TOKEN_TTL_MS, 60 * 60_000),
     ),
     devicePollIntervalSeconds: Math.min(
       60,

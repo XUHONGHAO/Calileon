@@ -80,6 +80,21 @@ describe("managed gateway configuration", () => {
         false,
       ).devicePollIntervalSeconds,
     ).toBe(60);
+    expect(
+      loadGatewayRuntimeConfig(
+        {
+          ...baseRuntime,
+          AI_GATEWAY_DEVICE_CODE_TTL_MS: String(60 * 60 * 1000),
+          AI_GATEWAY_DEVICE_TOKEN_TTL_MS: String(2 * 60 * 60 * 1000),
+          AI_GATEWAY_REQUEST_LEASE_MS: String(2 * 60 * 60 * 1000),
+        },
+        false,
+      ),
+    ).toMatchObject({
+      deviceCodeTtlMs: 10 * 60 * 1000,
+      deviceTokenTtlMs: 60 * 60 * 1000,
+      requestLeaseMs: 60 * 60 * 1000,
+    });
   });
 
   it("fails closed for empty policies/routes and unsafe provider literals", () => {
@@ -166,5 +181,21 @@ describe("managed gateway configuration", () => {
         true,
       ),
     ).toThrow(/placeholder/i);
+  });
+
+  it("bounds declarative quota policy values to protect runtime resources", () => {
+    expect(() =>
+      parseGatewayDeclarativeConfig(
+        declarative({
+          policies: [
+            {
+              ...declarative().policies[0],
+              maxConcurrency: 1001,
+            },
+          ],
+        }),
+        false,
+      ),
+    ).toThrow(/maximum/);
   });
 });

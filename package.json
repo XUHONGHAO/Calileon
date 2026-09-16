@@ -67,6 +67,7 @@
     "ai-proxy:build": "yarn --cwd ./deploy/ai-proxy build",
     "ai-proxy:dev": "yarn --cwd ./deploy/ai-proxy dev",
     "ai-proxy:test": "yarn --cwd ./deploy/ai-proxy test",
+    "ai-proxy:smoke": "powershell -NoProfile -ExecutionPolicy Bypass -File ./deploy/ai-proxy/smoke.ps1 -Action smoke",
     "build:preview": "yarn --cwd ./excalidraw-app build:preview",
     "start": "yarn --cwd ./excalidraw-app start",
     "start:with-ai-proxy": "concurrently --kill-others-on-fail \"yarn start\" \"yarn ai-proxy:dev\"",

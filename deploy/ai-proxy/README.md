@@ -33,6 +33,16 @@ In AI Settings → Network, select Backend proxy and leave the endpoint empty to
 
 Development and production use the same forwarding, streaming, redirect, and SSRF implementation. Vite does not proxy provider requests.
 
+## Container smoke
+
+The host does not need Caddy CLI. The checked-in smoke profile starts Caddy and a throwaway upstream inside containers, then verifies health routing, fallback route ordering, CORS preflight, SSE flush behavior, binary media bytes, and the disabled managed-gateway contract:
+
+```powershell
+yarn ai-proxy:smoke
+```
+
+The command requires the Docker Desktop Linux engine, but does not use any deployment `.env`, provider credential, database password, JWT, or KMS key. It builds the proxy image, tears the stack down after assertions, and leaves no host port bound after a successful run. To inspect the stack without running assertions, use `powershell -File deploy/ai-proxy/smoke.ps1 -Action up`; clean it up with `-Action down`.
+
 ## Production configuration
 
 1. Copy `.env.example` to the ignored `.env` file in this directory.

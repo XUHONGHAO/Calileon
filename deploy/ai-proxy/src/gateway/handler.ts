@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import net from "node:net";
 import { Transform } from "node:stream";
 
 import { GatewayAuthenticator, hashOpaqueToken } from "./auth.js";
@@ -172,9 +173,14 @@ const getClientAddress = (
   config: GatewayRuntimeConfig,
 ) => {
   if (config.trustProxy) {
+    // A trusted reverse proxy appends the actual peer to X-Forwarded-For.
+    // Use the last syntactically valid address so a caller-supplied leading
+    // value cannot bypass the device/IP bucket.
     const forwarded = getHeader(request, "x-forwarded-for")
-      .split(",")[0]
-      ?.trim();
+      .split(",")
+      .map((value) => value.trim())
+      .reverse()
+      .find((value) => net.isIP(value) !== 0);
     if (forwarded) {
       return forwarded;
     }
@@ -1051,6 +1057,7 @@ export const createGatewayHandler = (
           });
           const status = providerResponse.response.statusCode || 502;
           if (status >= 500) {
+            metrics.upstreamFailure();
             router.markFailure(route, candidate);
             // The response headers have not been sent to the browser yet. For
             // For an idempotent GET/HEAD or a bounded, replayable JSON request
@@ -1085,6 +1092,9 @@ export const createGatewayHandler = (
           }
           if (gatewayError.code !== "AI_GATEWAY_RESERVATION_EXPIRED") {
             router.markFailure(route, candidate);
+          }
+          if (gatewayError.code === "AI_GATEWAY_UPSTREAM_UNAVAILABLE") {
+            metrics.upstreamFailure();
           }
           if (gatewayError.code === "AI_GATEWAY_RESERVATION_EXPIRED") {
             throw gatewayError;
@@ -1130,6 +1140,7 @@ export const createGatewayHandler = (
           // A ledger failure must not turn a completed provider stream into an
           // unhandled rejection or make the response handler crash.
         }
+        metrics.observeDuration(Date.now() - startedAt);
         metrics.finish(route.id, response.statusCode, responseBytes);
       };
       upstream.on("data", (chunk: Buffer) => {
@@ -1161,6 +1172,9 @@ export const createGatewayHandler = (
       ) {
         metrics.denyQuota();
       }
+      if (error.code === "AI_GATEWAY_UNAUTHORIZED") {
+        metrics.authFailure();
+      }
       if (reservationCreated) {
         if (dispatched) {
           try {
@@ -1176,6 +1190,7 @@ export const createGatewayHandler = (
             // Keep the stable gateway error response even if the ledger is
             // temporarily unavailable while recording the failed request.
           }
+          metrics.observeDuration(Date.now() - startedAt);
           metrics.finish(routeIdForMetrics, error.status, 0);
         } else {
           try {
@@ -1184,6 +1199,7 @@ export const createGatewayHandler = (
             // Releasing a reservation is best effort on an already-failed
             // request; never leak a store rejection to the HTTP server.
           }
+          metrics.observeDuration(Date.now() - startedAt);
           metrics.finish(routeIdForMetrics, error.status, 0);
         }
       }

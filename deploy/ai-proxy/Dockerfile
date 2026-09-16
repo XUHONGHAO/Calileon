@@ -1,5 +1,3 @@
-# syntax=docker/dockerfile:1.7
-
 ARG AI_PROXY_NODE_IMAGE=node:20.19.4-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799
 
 FROM ${AI_PROXY_NODE_IMAGE} AS base
@@ -13,8 +11,7 @@ FROM base AS build
 
 COPY yarn.lock ./yarn.lock
 COPY deploy/ai-proxy/package.json ./package.json
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
-  yarn install --frozen-lockfile --non-interactive --ignore-scripts
+RUN yarn install --frozen-lockfile --non-interactive --ignore-scripts
 
 COPY deploy/ai-proxy/tsconfig.json ./tsconfig.json
 COPY deploy/ai-proxy/src ./src
@@ -26,8 +23,7 @@ ENV NODE_ENV=production
 
 COPY yarn.lock ./yarn.lock
 COPY deploy/ai-proxy/package.json ./package.json
-RUN --mount=type=cache,target=/usr/local/share/.cache/yarn \
-  yarn install --frozen-lockfile --production=true --non-interactive --ignore-scripts \
+RUN yarn install --frozen-lockfile --production=true --non-interactive --ignore-scripts \
   && yarn cache clean
 
 COPY --from=build --chown=node:node /opt/excalidraw-ai-proxy/dist ./dist

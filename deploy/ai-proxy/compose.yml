@@ -54,10 +54,25 @@ services:
     depends_on:
       ai-proxy:
         condition: service_started
+      smoke-upstream:
+        condition: service_started
     ports:
       - "127.0.0.1:${AI_PROXY_CADDY_SMOKE_PORT:-8787}:8080"
     volumes:
       - ./Caddyfile.smoke:/etc/caddy/Caddyfile:ro
+    networks:
+      - ai-proxy-edge
+
+  smoke-upstream:
+    profiles: ["smoke"]
+    image: ${AI_PROXY_NODE_IMAGE:-node:20.19.4-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799}
+    command: ["node", "/opt/ai-proxy-smoke/smoke-server.mjs"]
+    environment:
+      AI_PROXY_SMOKE_UPSTREAM_PORT: "8090"
+    volumes:
+      - ./smoke-server.mjs:/opt/ai-proxy-smoke/smoke-server.mjs:ro
+    expose:
+      - "8090"
     networks:
       - ai-proxy-edge
 
@@ -68,12 +83,12 @@ services:
       args:
         AI_PROXY_NODE_IMAGE: ${AI_PROXY_NODE_IMAGE:-node:20.19.4-alpine@sha256:df02558528d3d3d0d621f112e232611aecfee7cbc654f6b375765f72bb262799}
     environment:
-      NODE_ENV: production
+      NODE_ENV: ${AI_PROXY_NODE_ENV:-production}
       AI_PROXY_PORT: "3016"
       AI_PROXY_ALLOWED_ORIGINS: ${AI_PROXY_ALLOWED_ORIGINS:?AI_PROXY_ALLOWED_ORIGINS is required}
       AI_PROXY_CLIENT_TOKENS: ${AI_PROXY_CLIENT_TOKENS:?AI_PROXY_CLIENT_TOKENS is required}
-      AI_PROXY_REQUIRE_CLIENT_TOKEN: "true"
-      AI_PROXY_ALLOW_HTTP_LOCALHOST: "false"
+      AI_PROXY_REQUIRE_CLIENT_TOKEN: ${AI_PROXY_REQUIRE_CLIENT_TOKEN:-true}
+      AI_PROXY_ALLOW_HTTP_LOCALHOST: ${AI_PROXY_ALLOW_HTTP_LOCALHOST:-false}
       AI_PROXY_CONNECT_TIMEOUT_MS: ${AI_PROXY_CONNECT_TIMEOUT_MS:-10000}
       AI_PROXY_REQUEST_TIMEOUT_MS: ${AI_PROXY_REQUEST_TIMEOUT_MS:-600000}
       AI_PROXY_IDLE_TIMEOUT_MS: ${AI_PROXY_IDLE_TIMEOUT_MS:-120000}
@@ -95,7 +110,9 @@ services:
       AI_GATEWAY_CONTENT_AUDIT_ENABLED: ${AI_GATEWAY_CONTENT_AUDIT_ENABLED:-false}
       AI_GATEWAY_DEVICE_VERIFICATION_URI: ${AI_GATEWAY_DEVICE_VERIFICATION_URI:-}
       AI_GATEWAY_METRICS_TOKEN: ${AI_GATEWAY_METRICS_TOKEN:-}
-      AI_GATEWAY_TRUST_PROXY: ${AI_GATEWAY_TRUST_PROXY:-true}
+      # Keep client IP extraction conservative unless the deployment has a
+      # known trusted reverse proxy that rewrites X-Forwarded-For.
+      AI_GATEWAY_TRUST_PROXY: ${AI_GATEWAY_TRUST_PROXY:-false}
     expose:
       - "3016"
     init: true

@@ -17,6 +17,13 @@
     }
   }
 
+  @smoke path /__smoke__/*
+  handle @smoke {
+    reverse_proxy smoke-upstream:8090 {
+      flush_interval -1
+    }
+  }
+
   handle {
     respond "smoke app" 200
   }
