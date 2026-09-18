@@ -81,6 +81,8 @@ const readTokens = (value: string | undefined) => {
     .filter(Boolean);
 };
 
+const MIN_PRODUCTION_TOKEN_BYTES = 32;
+
 export const loadAIProxyConfig = (
   env: NodeJS.ProcessEnv = process.env,
 ): AIProxyConfig => {
@@ -101,6 +103,19 @@ export const loadAIProxyConfig = (
   if (requireClientToken && clientTokens.length === 0) {
     throw new AIProxyError("AI_PROXY_INTERNAL_ERROR", 500, {
       message: "AI_PROXY_CLIENT_TOKENS is required when tokens are enforced.",
+      retryable: false,
+    });
+  }
+
+  if (
+    production &&
+    clientTokens.some(
+      (token) => Buffer.byteLength(token, "utf8") < MIN_PRODUCTION_TOKEN_BYTES,
+    )
+  ) {
+    throw new AIProxyError("AI_PROXY_INTERNAL_ERROR", 500, {
+      message:
+        "AI_PROXY_CLIENT_TOKENS must contain at least 32-byte tokens in production.",
       retryable: false,
     });
   }

@@ -9,6 +9,10 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "admin": "tsx src/admin.ts",
+    "preflight": "tsx src/productionPreflight.ts",
+    "load-test": "node ops/load-test.mjs",
+    "security-audit": "node ops/security-audit.mjs",
+    "production-acceptance": "node ops/production-acceptance.mjs",
     "dev": "tsx watch src/server.ts",
     "start": "node dist/server.js",
     "test": "vitest run --config vitest.config.mts",

@@ -147,4 +147,26 @@ describe("managed gateway JWT/JWKS authentication", () => {
     );
     await expect(malformed.checkReady()).rejects.toBeInstanceOf(GatewayError);
   });
+
+  it("rejects oversized JWKS documents and follows no redirects", async () => {
+    const fetcher = vi.fn(async (_url: string, init?: RequestInit) => {
+      expect(init?.redirect).toBe("error");
+      return new Response("{}", {
+        status: 200,
+        headers: { "content-length": String(1024 * 1024 + 1) },
+      });
+    });
+    const verifier = new JwksVerifier(
+      {
+        jwksUrl: "https://auth.example.test/jwks",
+        issuer: "issuer",
+        audience: "audience",
+        algorithms: ["RS256"],
+      },
+      fetcher,
+    );
+    await expect(verifier.checkReady()).rejects.toMatchObject({
+      code: "AI_GATEWAY_NOT_READY",
+    });
+  });
 });

@@ -40,15 +40,29 @@ describe("AI proxy config", () => {
       loadAIProxyConfig({
         NODE_ENV: "production",
         AI_PROXY_ALLOWED_ORIGINS: "https://canvas.example.com",
-        AI_PROXY_CLIENT_TOKENS: "current-token, previous-token",
+        AI_PROXY_CLIENT_TOKENS:
+          "current-token-012345678901234567890123456789,previous-token-012345678901234567890123456789",
         AI_PROXY_REQUIRE_CLIENT_TOKEN: "false",
       }),
     ).toMatchObject({
       production: true,
       requireClientToken: true,
-      clientTokens: ["current-token", "previous-token"],
+      clientTokens: [
+        "current-token-012345678901234567890123456789",
+        "previous-token-012345678901234567890123456789",
+      ],
       allowHttpLocalhost: false,
     });
+  });
+
+  it("rejects short production proxy tokens", () => {
+    expect(() =>
+      loadAIProxyConfig({
+        NODE_ENV: "production",
+        AI_PROXY_ALLOWED_ORIGINS: "https://canvas.example.com",
+        AI_PROXY_CLIENT_TOKENS: "short-token",
+      }),
+    ).toThrow(/32-byte tokens/);
   });
 
   it("rejects wildcard and path-bearing Origins", () => {

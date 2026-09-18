@@ -12,6 +12,8 @@ type GatewayJsonWebKey = Record<string, unknown> & {
 
 type JsonWebKeySet = { keys?: GatewayJsonWebKey[] };
 
+const MAX_JWKS_RESPONSE_BYTES = 1024 * 1024;
+
 type CachedSigningKey = {
   key: crypto.KeyObject;
   algorithms: ReadonlySet<string>;
@@ -63,6 +65,7 @@ export class JwksVerifier {
       response = await this.fetcher(this.config.jwksUrl, {
         headers: { Accept: "application/json" },
         signal: AbortSignal.timeout(5_000),
+        redirect: "error",
       });
     } catch (error) {
       throw new GatewayError("AI_GATEWAY_NOT_READY", 503, { cause: error });
@@ -72,7 +75,19 @@ export class JwksVerifier {
     }
     let body: JsonWebKeySet;
     try {
-      body = (await response.json()) as JsonWebKeySet;
+      const declaredLength = response.headers.get("content-length");
+      if (
+        declaredLength &&
+        (!/^\d+$/.test(declaredLength) ||
+          Number(declaredLength) > MAX_JWKS_RESPONSE_BYTES)
+      ) {
+        throw new Error("The JWKS response is too large.");
+      }
+      const bytes = Buffer.from(await response.arrayBuffer());
+      if (bytes.byteLength > MAX_JWKS_RESPONSE_BYTES) {
+        throw new Error("The JWKS response is too large.");
+      }
+      body = JSON.parse(bytes.toString("utf8")) as JsonWebKeySet;
     } catch (error) {
       throw new GatewayError("AI_GATEWAY_NOT_READY", 503, {
         message: "The JWKS endpoint returned invalid JSON.",
