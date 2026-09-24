@@ -30,6 +30,7 @@ meta*.json
 public/single-file-runtime-template.txt
 excalidraw-app/single-file/.runtime-build/
 .claude
+.pi
 .git_disabled/
 .git_empty_backup_*/
 .gitignore.local
