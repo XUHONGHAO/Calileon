@@ -16,6 +16,7 @@ begin
       ('vaults'),
       ('vault_invitations'),
       ('vault_snapshots'),
+      ('vault_snapshot_updates'),
       ('vault_assets')
   ) as required(name)
   where to_regclass('public.' || required.name) is null;
@@ -41,7 +42,7 @@ begin
       ('create_vault_invitation(uuid,text,text,timestamp with time zone)'),
       ('resolve_vault_capability(uuid,text)'),
       ('load_vault_snapshot(uuid,text)'),
-      ('cas_vault_snapshot(uuid,text,bigint,jsonb,bigint)'),
+      ('cas_vault_snapshot(uuid,text,bigint,jsonb,bigint,uuid)'),
       ('register_vault_asset(uuid,text,text,text,bigint)'),
       ('complete_vault_asset(uuid,text,text,text,bigint)'),
       ('resolve_vault_asset(uuid,text,text)'),
@@ -61,7 +62,7 @@ do $$
 declare
   v_table text;
 begin
-  foreach v_table in array array['vault_deployment_metadata','vaults','vault_invitations','vault_snapshots','vault_assets']
+  foreach v_table in array array['vault_deployment_metadata','vaults','vault_invitations','vault_snapshots','vault_snapshot_updates','vault_assets']
   loop
     if not exists (
       select 1 from pg_class c
@@ -71,6 +72,20 @@ begin
       raise exception 'RLS not enabled for public.%', v_table;
     end if;
   end loop;
+end;
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'vault_snapshot_updates'
+      and column_name = 'room_id'
+  ) then
+    raise exception 'vault_snapshot_updates room_id column is missing';
+  end if;
 end;
 $$;
 
@@ -102,6 +117,7 @@ begin
   if has_table_privilege('anon', 'public.vaults', 'SELECT')
     or has_table_privilege('anon', 'public.vault_invitations', 'SELECT')
     or has_table_privilege('anon', 'public.vault_snapshots', 'SELECT')
+    or has_table_privilege('anon', 'public.vault_snapshot_updates', 'SELECT')
     or has_table_privilege('anon', 'public.vault_assets', 'SELECT')
   then
     raise exception 'anon must not enumerate Vault tables';
@@ -109,6 +125,7 @@ begin
   if has_table_privilege('authenticated', 'public.vaults', 'SELECT')
     or has_table_privilege('authenticated', 'public.vault_invitations', 'SELECT')
     or has_table_privilege('authenticated', 'public.vault_snapshots', 'SELECT')
+    or has_table_privilege('authenticated', 'public.vault_snapshot_updates', 'SELECT')
     or has_table_privilege('authenticated', 'public.vault_assets', 'SELECT')
   then
     raise exception 'authenticated must not enumerate Vault tables';
@@ -156,7 +173,7 @@ declare
 begin
   foreach v_role in array array['anon', 'authenticated'] loop
     foreach v_table in array array[
-      'vaults', 'vault_invitations', 'vault_snapshots', 'vault_assets'
+      'vaults', 'vault_invitations', 'vault_snapshots', 'vault_snapshot_updates', 'vault_assets'
     ] loop
       foreach v_privilege in array array[
         'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
@@ -181,7 +198,7 @@ begin
     'create_vault_invitation(uuid,text,text,timestamp with time zone)',
     'resolve_vault_capability(uuid,text)',
     'load_vault_snapshot(uuid,text)',
-    'cas_vault_snapshot(uuid,text,bigint,jsonb,bigint)',
+    'cas_vault_snapshot(uuid,text,bigint,jsonb,bigint,uuid)',
     'register_vault_asset(uuid,text,text,text,bigint)',
     'complete_vault_asset(uuid,text,text,text,bigint)',
     'resolve_vault_asset(uuid,text,text)',
@@ -369,6 +386,7 @@ declare
     'iv', 'AAAAAAAAAAAAAAAA',
     'ciphertext', 'AQ'
   );
+  v_conflict_envelope jsonb;
 begin
   begin
     perform public.load_vault_snapshot(
@@ -430,13 +448,27 @@ begin
   if (v_result ->> 'generation')::bigint <> 1 then
     raise exception 'first editor CAS did not advance generation';
   end if;
+  if v_result ->> 'updateId' <> '10000000-0000-4000-8000-000000000101' then
+    raise exception 'first editor CAS did not return stable update ID';
+  end if;
 
+  v_result := public.cas_vault_snapshot(
+    '10000000-0000-4000-8000-000000000001',
+    repeat('A', 43), 0, v_envelope, 1
+  );
+  if (v_result ->> 'generation')::bigint <> 1
+    or v_result ->> 'updateId' <> '10000000-0000-4000-8000-000000000101'
+  then
+    raise exception 'duplicate editor CAS did not return the original confirmation';
+  end if;
+
+  v_conflict_envelope := jsonb_set(v_envelope, '{ciphertext}', '"Ag"'::jsonb);
   begin
     perform public.cas_vault_snapshot(
       '10000000-0000-4000-8000-000000000001',
-      repeat('A', 43), 0, v_envelope, 1
+      repeat('A', 43), 0, v_conflict_envelope, 1
     );
-    raise exception 'stale editor CAS unexpectedly won';
+    raise exception 'same update ID with different ciphertext unexpectedly succeeded';
   exception when sqlstate 'P0001' then
     if sqlerrm <> 'VAULT_SNAPSHOT_CONFLICT' then raise; end if;
   end;

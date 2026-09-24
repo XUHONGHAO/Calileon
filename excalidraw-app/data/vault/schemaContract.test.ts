@@ -23,6 +23,12 @@ const smoke = readFileSync(
   path.resolve("excalidraw-app/data/cloud/supabase/schema_vault_smoke.sql"),
   "utf8",
 );
+const b2Migration = readFileSync(
+  path.resolve(
+    "supabase/migrations/20260919090000_vault_snapshot_idempotency.sql",
+  ),
+  "utf8",
+);
 const backupScript = readFileSync(
   path.resolve("deploy/vault-self-hosted/scripts/backup.ps1"),
   "utf8",
@@ -63,20 +69,29 @@ describe("Vault Supabase F2 schema contract", () => {
     expect(smoke).toContain("unexpected Vault deployment contract");
   });
 
-  it.each(["vaults", "vault_invitations", "vault_snapshots", "vault_assets"])(
-    "declares and rolls back %s independently",
-    (table) => {
-      expect(schema).toContain(`create table if not exists public.${table}`);
-      expect(rollback).toContain(`drop table if exists public.${table}`);
-      expect(smoke).toContain(`('${table}')`);
-    },
-  );
+  it.each([
+    "vaults",
+    "vault_invitations",
+    "vault_snapshots",
+    "vault_snapshot_updates",
+    "vault_assets",
+  ])("declares and rolls back %s independently", (table) => {
+    expect(schema).toContain(`create table if not exists public.${table}`);
+    expect(rollback).toContain(`drop table if exists public.${table}`);
+    expect(smoke).toContain(`('${table}')`);
+  });
 
   it("keeps the TypeScript RPC registry aligned with SQL", () => {
     for (const rpc of Object.values(VAULT_RPC)) {
       expect(schema).toContain(`function public.${rpc}(`);
       expect(smoke).toContain(`${rpc}(`);
     }
+  });
+
+  it("upgrades an existing B2 ledger to the explicit Vault/room/update scope", () => {
+    expect(b2Migration).toContain("add column if not exists room_id text");
+    expect(b2Migration).toContain("set room_id = v.active_room_id");
+    expect(b2Migration).toContain("primary key (vault_id, room_id, update_id)");
   });
 
   it("does not authorize asset storage by Vault ID alone", () => {
@@ -160,7 +175,12 @@ describe("Vault Supabase F2 schema contract", () => {
     expect(smoke).toContain("viewer unexpectedly wrote snapshot");
     expect(smoke).toContain("expired capability unexpectedly loaded snapshot");
     expect(smoke).toContain("revoked capability unexpectedly loaded snapshot");
-    expect(smoke).toContain("stale editor CAS unexpectedly won");
+    expect(smoke).toContain(
+      "same update ID with different ciphertext unexpectedly succeeded",
+    );
+    expect(smoke).toContain(
+      "duplicate editor CAS did not return the original confirmation",
+    );
     expect(smoke).toContain("new read succeeded after owner revoke");
   });
 
@@ -195,6 +215,7 @@ describe("Vault Supabase F2 schema contract", () => {
       "vaults",
       "vault_invitations",
       "vault_snapshots",
+      "vault_snapshot_updates",
       "vault_assets",
     ]) {
       expect(schema).toContain(

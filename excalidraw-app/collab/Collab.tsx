@@ -72,7 +72,8 @@ import { resetBrowserStateVersions } from "../data/tabSync";
 import {
   VaultError,
   VaultRealtimeTransport,
-  downloadVaultFile,
+  createVaultAttachmentQueue,
+  downloadVaultFileWithReceipt,
   readVaultSessionSecrets,
   uploadVaultFile,
 } from "../data/vault";
@@ -85,9 +86,12 @@ import type {
   SyncableExcalidrawElement,
 } from "../data/cloud";
 import type {
+  VaultAttachmentQueue,
+  VaultAttachmentQueueState,
   VaultClientSession,
-  VaultRealtimeDecodedMessage,
   VaultEncryptedAssetService,
+  VaultLocalStore,
+  VaultRealtimeDecodedMessage,
 } from "../data/vault";
 
 // Phase 0: collaboration persistence/links go through the `data/cloud` adapter
@@ -127,6 +131,8 @@ type StartCollaborationOptions = {
 };
 type StartVaultCollaborationOptions = {
   assetService?: VaultEncryptedAssetService;
+  attachmentStore?: VaultLocalStore;
+  onAttachmentStateChange?(state: VaultAttachmentQueueState): void;
   onError?(error: VaultError): void;
   onDisconnect?(error: VaultError): void;
   onReconnect?(): void | Promise<void>;
@@ -157,6 +163,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   portal: Portal;
   fileManager: FileManager;
   vaultFileManager: FileManager | null;
+  vaultAttachmentQueue: VaultAttachmentQueue | null;
   excalidrawAPI: CollabProps["excalidrawAPI"];
   activeIntervalId: number | null;
   idleTimeoutId: number | null;
@@ -233,6 +240,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       },
     });
     this.vaultFileManager = null;
+    this.vaultAttachmentQueue = null;
     this.excalidrawAPI = props.excalidrawAPI;
     this.activeIntervalId = null;
     this.idleTimeoutId = null;
@@ -424,6 +432,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.loadVaultImageFiles.cancel();
     this.vaultFileManager?.reset();
     this.vaultFileManager = null;
+    this.vaultAttachmentQueue?.dispose();
+    this.vaultAttachmentQueue = null;
     this.resetErrorIndicator(true);
 
     if (this.portal.vaultRealtimeSession || this.vaultTransport) {
@@ -617,6 +627,20 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       return false;
     }
     const secrets = readVaultSessionSecrets(clientSession);
+    this.vaultAttachmentQueue = options.attachmentStore
+      ? createVaultAttachmentQueue({
+          store: options.attachmentStore,
+          service: options.assetService!,
+          vaultId: clientSession.vaultId,
+          roomId: clientSession.admission.activeRoomId,
+          invitationCapability: secrets.invitationCapability,
+          rootKey: secrets.rootKey,
+          role: clientSession.role,
+          isOnline: () => navigator.onLine !== false,
+          onStateChange: options.onAttachmentStateChange,
+        })
+      : null;
+    const attachmentQueue = this.vaultAttachmentQueue;
     this.vaultFileManager = new FileManager({
       onFileStatusChange: FileStatusStore.updateStatuses.bind(FileStatusStore),
       getFiles: async (fileIds) => {
@@ -624,15 +648,19 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         const erroredFiles = new Map<FileId, true>();
         for (const fileId of fileIds) {
           try {
-            loadedFiles.push(
-              await downloadVaultFile({
-                service: options.assetService!,
-                vaultId: clientSession.vaultId,
-                invitationCapability: secrets.invitationCapability,
-                rootKey: secrets.rootKey,
-                fileId,
-              }),
-            );
+            const downloaded = await downloadVaultFileWithReceipt({
+              service: options.assetService!,
+              vaultId: clientSession.vaultId,
+              invitationCapability: secrets.invitationCapability,
+              rootKey: secrets.rootKey,
+              fileId,
+            });
+            await attachmentQueue?.verifyDownloadedFile({
+              fileId,
+              encryptedDigest: downloaded.encryptedDigest,
+              ciphertextBytes: downloaded.ciphertextBytes,
+            });
+            loadedFiles.push(downloaded.file);
           } catch {
             erroredFiles.set(fileId, true);
           }
@@ -644,17 +672,27 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         const erroredFiles = new Map<FileId, BinaryFileData>();
         for (const [fileId, file] of addedFiles) {
           try {
-            await uploadVaultFile({
-              service: options.assetService!,
-              vaultId: clientSession.vaultId,
-              invitationCapability: secrets.invitationCapability,
-              rootKey: secrets.rootKey,
-              file,
-            });
+            if (attachmentQueue) {
+              // Durable path: encrypt and persist the ciphertext task before
+              // any upload. The queue owns retry, crash recovery and receipt
+              // verification, so the file is "saved" once it is local-safe.
+              await attachmentQueue.enqueue({ fileId, file });
+            } else {
+              await uploadVaultFile({
+                service: options.assetService!,
+                vaultId: clientSession.vaultId,
+                invitationCapability: secrets.invitationCapability,
+                rootKey: secrets.rootKey,
+                file,
+              });
+            }
             savedFiles.set(fileId, file);
           } catch {
             erroredFiles.set(fileId, file);
           }
+        }
+        if (attachmentQueue && savedFiles.size > 0) {
+          void attachmentQueue.drain();
         }
         return { savedFiles, erroredFiles };
       },

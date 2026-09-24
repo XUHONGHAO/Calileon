@@ -22,6 +22,16 @@
   &__separator {
     opacity: 0.55;
   }
+
+  &__review {
+    background: transparent;
+    border: 1px solid currentColor;
+    border-radius: var(--border-radius-sm);
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    padding: 0.05rem 0.4rem;
+  }
 }
 
 .VaultStatusControls {

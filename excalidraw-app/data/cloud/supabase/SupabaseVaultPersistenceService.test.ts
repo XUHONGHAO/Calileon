@@ -146,7 +146,12 @@ describe("SupabaseVaultPersistenceService", () => {
 
   it("performs snapshot CAS with the exact frozen parameters", async () => {
     rpc.mockResolvedValue({
-      data: { vaultId: VAULT_ID, generation: 1, updatedAt: TIMESTAMP },
+      data: {
+        vaultId: VAULT_ID,
+        updateId: snapshotEnvelope.messageId,
+        generation: 1,
+        updatedAt: TIMESTAMP,
+      },
       error: null,
     });
     const service = createSupabaseVaultPersistenceService(createReadyToken(), {
@@ -157,18 +162,21 @@ describe("SupabaseVaultPersistenceService", () => {
       service.casSnapshot({
         vaultId: VAULT_ID,
         invitationCapability: CAPABILITY,
+        updateId: snapshotEnvelope.messageId,
         expectedGeneration: 0,
         envelope: snapshotEnvelope,
         ciphertextBytes: 1,
       }),
     ).resolves.toEqual({
       vaultId: VAULT_ID,
+      updateId: snapshotEnvelope.messageId,
       generation: 1,
       updatedAt: Date.parse(TIMESTAMP),
     });
     expect(rpc).toHaveBeenCalledWith(VAULT_RPC.casSnapshot, {
       p_vault_id: VAULT_ID,
       p_capability: CAPABILITY,
+      p_update_id: snapshotEnvelope.messageId,
       p_expected_generation: 0,
       p_encrypted_envelope: snapshotEnvelope,
       p_ciphertext_bytes: 1,
@@ -323,5 +331,91 @@ describe("SupabaseVaultPersistenceService", () => {
       }),
     ).rejects.toMatchObject({ code: "VAULT_CAPABILITY_INVALID" });
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a CAS update ID that does not match the encrypted envelope", async () => {
+    const service = createSupabaseVaultPersistenceService(createReadyToken(), {
+      client,
+    });
+
+    await expect(
+      service.casSnapshot({
+        vaultId: VAULT_ID,
+        invitationCapability: CAPABILITY,
+        updateId: "423e4567-e89b-42d3-a456-426614174000",
+        expectedGeneration: 0,
+        envelope: snapshotEnvelope,
+        ciphertextBytes: 1,
+      }),
+    ).rejects.toMatchObject({ code: "VAULT_ENVELOPE_INVALID" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a non-UUID CAS update ID before invoking Supabase", async () => {
+    const service = createSupabaseVaultPersistenceService(createReadyToken(), {
+      client,
+    });
+
+    await expect(
+      service.casSnapshot({
+        vaultId: VAULT_ID,
+        invitationCapability: CAPABILITY,
+        updateId: "not-a-uuid",
+        expectedGeneration: 0,
+        envelope: { ...snapshotEnvelope, messageId: "not-a-uuid" },
+        ciphertextBytes: 1,
+      }),
+    ).rejects.toMatchObject({ code: "VAULT_ENVELOPE_INVALID" });
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a CAS response whose update ID does not match the request", async () => {
+    rpc.mockResolvedValue({
+      data: {
+        vaultId: VAULT_ID,
+        updateId: "923e4567-e89b-42d3-a456-426614174000",
+        generation: 1,
+        updatedAt: TIMESTAMP,
+      },
+      error: null,
+    });
+    const service = createSupabaseVaultPersistenceService(createReadyToken(), {
+      client,
+    });
+
+    await expect(
+      service.casSnapshot({
+        vaultId: VAULT_ID,
+        invitationCapability: CAPABILITY,
+        updateId: snapshotEnvelope.messageId,
+        expectedGeneration: 0,
+        envelope: snapshotEnvelope,
+        ciphertextBytes: 1,
+      }),
+    ).rejects.toMatchObject({ code: "VAULT_INTERNAL" });
+  });
+
+  it("maps server-side idempotency conflicts to a snapshot conflict error", async () => {
+    rpc.mockResolvedValue({
+      data: null,
+      error: { code: "P0001", message: "VAULT_SNAPSHOT_CONFLICT" },
+    });
+    const service = createSupabaseVaultPersistenceService(createReadyToken(), {
+      client,
+    });
+
+    await expect(
+      service.casSnapshot({
+        vaultId: VAULT_ID,
+        invitationCapability: CAPABILITY,
+        updateId: snapshotEnvelope.messageId,
+        expectedGeneration: 0,
+        envelope: snapshotEnvelope,
+        ciphertextBytes: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: "VAULT_SNAPSHOT_CONFLICT",
+      recoverable: true,
+    });
   });
 });

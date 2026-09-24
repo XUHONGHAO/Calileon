@@ -2,6 +2,8 @@ import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deriveActiveVaultRecoveryState,
+  getVaultRecoveryBlockedCode,
   initializeScene,
   isVaultExternalFeatureDisabled,
   openVaultSceneFromLink,
@@ -327,5 +329,100 @@ describe("Vault route isolation", () => {
     expect(merged.elements).toEqual([]);
     expect(merged.appState).toEqual({ theme: "dark" });
     expect(Object.keys(merged.files).sort()).toEqual(["local", "remote"]);
+  });
+});
+
+describe("Vault recovery derivation", () => {
+  const baseVault = {
+    syncStatus: "synced" as const,
+    autosaveUnsyncedReason: null,
+    autosaveErrorCode: null,
+    autosaveLocalPersistence: "remote-confirmed" as const,
+    localStore: {} as never,
+    attachmentPending: 0,
+    attachmentFailed: 0,
+  };
+
+  it("maps revoked, expired and closed sessions to fail-closed blocked codes", () => {
+    expect(
+      getVaultRecoveryBlockedCode({
+        syncStatus: "revoked",
+        autosaveErrorCode: null,
+      }),
+    ).toBe("VAULT_CAPABILITY_REVOKED");
+    expect(
+      getVaultRecoveryBlockedCode({
+        syncStatus: "expired",
+        autosaveErrorCode: null,
+      }),
+    ).toBe("VAULT_CAPABILITY_EXPIRED");
+    expect(
+      getVaultRecoveryBlockedCode({
+        syncStatus: "closed",
+        autosaveErrorCode: null,
+      }),
+    ).toBe("VAULT_CAPABILITY_FORBIDDEN");
+    expect(
+      getVaultRecoveryBlockedCode({
+        syncStatus: "unsynced",
+        autosaveErrorCode: "VAULT_SNAPSHOT_CONFLICT",
+      }),
+    ).toBe("VAULT_SNAPSHOT_CONFLICT");
+  });
+
+  it("derives offline-safe only with a persisted local copy and IndexedDB", () => {
+    expect(deriveActiveVaultRecoveryState(baseVault, true)).toBe("synced");
+    const offline = {
+      ...baseVault,
+      syncStatus: "unsynced" as const,
+      autosaveUnsyncedReason: "offline" as const,
+      autosaveErrorCode: "VAULT_PERSISTENCE_UNAVAILABLE" as const,
+      autosaveLocalPersistence: "local-persisted" as const,
+    };
+    expect(deriveActiveVaultRecoveryState(offline, false)).toBe(
+      "offline-local-safe",
+    );
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...offline, localStore: undefined },
+        false,
+      ),
+    ).toBe("error");
+  });
+
+  it("reports pending attachments as syncing and failures as error", () => {
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...baseVault, attachmentPending: 2 },
+        true,
+      ),
+    ).toBe("syncing");
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...baseVault, attachmentFailed: 1 },
+        true,
+      ),
+    ).toBe("error");
+  });
+
+  it("reports a preserved CAS fork as conflict, and blocked for revoked", () => {
+    expect(
+      deriveActiveVaultRecoveryState(
+        {
+          ...baseVault,
+          syncStatus: "unsynced",
+          autosaveUnsyncedReason: "conflict",
+          autosaveErrorCode: "VAULT_SNAPSHOT_CONFLICT",
+          autosaveLocalPersistence: "local-persisted",
+        },
+        true,
+      ),
+    ).toBe("conflict");
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...baseVault, syncStatus: "revoked" },
+        true,
+      ),
+    ).toBe("blocked");
   });
 });

@@ -1991,6 +1991,10 @@
       }
     },
     "status": {
+      "localSaved": "Saved on this device",
+      "offlineSafe": "Offline-safe",
+      "blocked": "Blocked",
+      "attachmentsPending": "{{pending}} attachment(s) pending upload",
       "encrypted": "Encrypted",
       "editor": "Editor",
       "viewer": "Viewer",
@@ -1998,9 +2002,27 @@
       "syncing": "Syncing",
       "synced": "Synced",
       "unsynced": "Not synced",
+      "conflict": "Unsynced local branch needs review",
       "revoked": "Access revoked",
       "expired": "Access expired",
       "closed": "Closed"
+    },
+    "conflict": {
+      "title": "Unsynced local branch needs review",
+      "description": "This Vault has a local branch and a remote branch that cannot be merged automatically. Both are preserved; nothing is overwritten or deleted until you choose an action.",
+      "deviceNote": "Your local branch is saved on this device and has not been uploaded.",
+      "localGeneration": "Local generation",
+      "remoteGeneration": "Remote generation",
+      "remoteUnavailable": "Unavailable",
+      "remoteDetail": "The remote branch is kept at generation {{generation}} and will not be overwritten.",
+      "keepLocal": "Keep local version",
+      "viewRemote": "View remote version",
+      "hideRemote": "Hide remote version",
+      "exportLocal": "Export local recovery copy",
+      "later": "Handle later",
+      "exported": "Local recovery copy exported.",
+      "exportFailed": "The local recovery copy could not be exported.",
+      "review": "Review"
     },
     "egress": {
       "denied": "External AI, embedded pages, and remote media are disabled in Vault. No plaintext was sent. (VAULT_EGRESS_DENIED)"

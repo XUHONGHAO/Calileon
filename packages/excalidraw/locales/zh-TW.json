@@ -1698,6 +1698,10 @@
       }
     },
     "status": {
+      "localSaved": "已保存在此裝置",
+      "offlineSafe": "離線安全",
+      "blocked": "已封鎖",
+      "attachmentsPending": "{{pending}} 個附件待上傳",
       "encrypted": "已加密",
       "editor": "編輯者",
       "viewer": "檢視者",
@@ -1705,9 +1709,27 @@
       "syncing": "正在同步",
       "synced": "已同步",
       "unsynced": "未同步",
+      "conflict": "存在未同步本機修改，需要處理分叉",
       "revoked": "存取已撤銷",
       "expired": "存取已過期",
       "closed": "已關閉"
+    },
+    "conflict": {
+      "title": "存在本地分支，需要處理分叉",
+      "description": "此 Vault 的本地分支與遠端分支無法自動合併。兩路資料都會保留，在你選擇操作前不會覆寫或刪除任何一方。",
+      "deviceNote": "本地分支已保存在此裝置，尚未上傳。",
+      "localGeneration": "本地世代",
+      "remoteGeneration": "遠端世代",
+      "remoteUnavailable": "無法取得",
+      "remoteDetail": "遠端分支保留在第 {{generation}} 代，不會被覆寫。",
+      "keepLocal": "繼續保留本地版本",
+      "viewRemote": "檢視遠端版本",
+      "hideRemote": "收合遠端版本",
+      "exportLocal": "匯出本地復原副本",
+      "later": "稍後處理",
+      "exported": "本地復原副本已匯出。",
+      "exportFailed": "無法匯出本地復原副本。",
+      "review": "處理"
     },
     "egress": {
       "denied": "Vault 中已停用外部 AI、嵌入網頁與遠端媒體，未傳送任何明文。（VAULT_EGRESS_DENIED）"
