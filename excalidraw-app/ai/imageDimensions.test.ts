@@ -1,6 +1,8 @@
 import {
   getAIImageAspectRatioOptions,
+  getAIImageQualityOptions,
   getAIImageResolutionOptions,
+  resolveAIImageQuality,
   resolveAIImageSize,
 } from "./imageDimensions";
 
@@ -98,5 +100,102 @@ describe("AI image dimensions", () => {
         resolution: "1k",
       }),
     ).toBe("1080x1920");
+  });
+
+  it("exposes the full gpt-image-2.5 aspect ratios and resolves its sizes", () => {
+    expect(getAIImageAspectRatioOptions("gpt-image-2.5")).toEqual([
+      { value: "auto", label: "AUTO" },
+      { value: "3:1", label: "3:1" },
+      { value: "21:9", label: "21:9" },
+      { value: "16:9", label: "16:9" },
+      { value: "3:2", label: "3:2" },
+      { value: "4:3", label: "4:3" },
+      { value: "1:1", label: "1:1" },
+      { value: "3:4", label: "3:4" },
+      { value: "2:3", label: "2:3" },
+      { value: "9:16", label: "9:16" },
+      { value: "1:3", label: "1:3" },
+    ]);
+    expect(getAIImageResolutionOptions("gpt-image-2.5", "21:9")).toEqual([
+      { value: "auto", label: "AUTO" },
+      { value: "1k", label: "1K" },
+      { value: "2k", label: "2K" },
+      { value: "4k", label: "4K" },
+    ]);
+    expect(
+      resolveAIImageSize({
+        aspectRatio: "3:1",
+        mode: "text-to-image",
+        nativeModel: "gpt-image-2.5",
+        resolution: "1k",
+      }),
+    ).toBe("1536x512");
+    expect(
+      resolveAIImageSize({
+        aspectRatio: "21:9",
+        mode: "text-to-image",
+        nativeModel: "gpt-image-2.5",
+        resolution: "4k",
+      }),
+    ).toBe("3840x1648");
+    expect(
+      resolveAIImageSize({
+        aspectRatio: "1:3",
+        mode: "text-to-image",
+        nativeModel: "gpt-image-2.5",
+        resolution: "2k",
+      }),
+    ).toBe("1024x3072");
+    expect(
+      resolveAIImageSize({
+        aspectRatio: "3:2",
+        mode: "text-to-image",
+        nativeModel: "gpt-image-2.5",
+        resolution: "4k",
+      }),
+    ).toBe("3520x2352");
+  });
+
+  it("exposes the extended gpt-image-2.5 quality ladder defaulting to auto", () => {
+    expect(getAIImageQualityOptions("gpt-image-2.5")).toEqual([
+      { value: "auto", label: "AUTO" },
+      { value: "low", label: "Low" },
+      { value: "medium", label: "Medium" },
+      { value: "high", label: "High" },
+      { value: "xhigh", label: "XHigh" },
+      { value: "max", label: "Max" },
+    ]);
+  });
+
+  it("keeps the generic quality ladder for other native models", () => {
+    expect(getAIImageQualityOptions("gpt-image-2").map((o) => o.value)).toEqual(
+      ["auto", "standard", "hd", "low", "medium", "high"],
+    );
+    expect(getAIImageQualityOptions("other").map((o) => o.value)).toEqual([
+      "auto",
+      "standard",
+      "hd",
+      "low",
+      "medium",
+      "high",
+    ]);
+    expect(getAIImageQualityOptions(undefined).map((o) => o.value)).toEqual([
+      "auto",
+      "standard",
+      "hd",
+      "low",
+      "medium",
+      "high",
+    ]);
+  });
+
+  it("resolves quality against the model ladder, defaulting to auto", () => {
+    expect(resolveAIImageQuality("gpt-image-2.5", undefined)).toBe("auto");
+    expect(resolveAIImageQuality("gpt-image-2.5", "max")).toBe("max");
+    expect(resolveAIImageQuality("gpt-image-2.5", "xhigh")).toBe("xhigh");
+    // `hd`/`standard` belong to the generic ladder only.
+    expect(resolveAIImageQuality("gpt-image-2.5", "hd")).toBe("auto");
+    expect(resolveAIImageQuality("other", "hd")).toBe("hd");
+    expect(resolveAIImageQuality("other", "max")).toBe("auto");
   });
 });

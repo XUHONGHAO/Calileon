@@ -220,6 +220,7 @@
     "drawingCanvas": "繪圖 canvas",
     "clearCanvas": "清除畫布",
     "layers": "圖層",
+    "imageDimensions": "圖片尺寸",
     "actions": "動作",
     "language": "語言",
     "liveCollaboration": "即時協作...",
@@ -369,6 +370,7 @@
     "texts": ""
   },
   "buttons": {
+    "downloadImage": "下載圖片",
     "clearReset": "重設畫布",
     "exportJSON": "匯出至檔案",
     "exportImage": "匯出圖片",
@@ -1161,6 +1163,8 @@
       "low": "低",
       "medium": "中",
       "high": "高",
+      "xhigh": "極高",
+      "max": "最高",
       "style": "風格",
       "mask": "遮罩：{{name}}",
       "clearMask": "清除遮罩",

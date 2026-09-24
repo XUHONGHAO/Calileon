@@ -32,7 +32,9 @@ import { getManagedGatewayForConfig } from "../ai/requestTransport";
 import {
   DEFAULT_AI_IMAGE_NATIVE_MODEL,
   getAIImageAspectRatioOptions,
+  getAIImageQualityOptions,
   getAIImageResolutionOptions,
+  resolveAIImageQuality,
   resolveAIImageSize,
 } from "../ai/imageDimensions";
 import {
@@ -1466,15 +1468,20 @@ export const AIImageWorkbench = ({
       )
         ? current.resolution || "auto"
         : "auto";
+      const quality = resolveAIImageQuality(
+        selectedNativeModel,
+        current.quality,
+      );
 
       if (
         aspectRatio === current.aspectRatio &&
-        resolution === current.resolution
+        resolution === current.resolution &&
+        quality === current.quality
       ) {
         return current;
       }
 
-      return { ...current, aspectRatio, resolution };
+      return { ...current, aspectRatio, resolution, quality };
     });
   }, [mediaType, selectedNativeModel, setParams]);
 
@@ -4307,18 +4314,17 @@ export const AIImageWorkbench = ({
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.quality")}</span>
           <select
-            value={params.quality || ""}
+            value={resolveAIImageQuality(selectedNativeModel, params.quality)}
             disabled={
               !!selectedModel && !supportsAIImageMode(selectedModel, "quality")
             }
             onChange={(event) => updateParams({ quality: event.target.value })}
           >
-            <option value="auto">AUTO</option>
-            <option value="standard">{t("ai.workbench.standard")}</option>
-            <option value="hd">HD</option>
-            <option value="low">{t("ai.workbench.low")}</option>
-            <option value="medium">{t("ai.workbench.medium")}</option>
-            <option value="high">{t("ai.workbench.high")}</option>
+            {getAIImageQualityOptions(selectedNativeModel).map((option) => (
+              <option key={option.value} value={option.value}>
+                {getQualityOptionLabel(option, t)}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -4914,6 +4920,28 @@ const getMediaTypeLabel = (mediaType: AIModelMediaType, t: AIWorkbenchT) => {
     return t("ai.common.audio");
   }
   return t("ai.common.image");
+};
+
+const QUALITY_OPTION_LABEL_KEYS = {
+  auto: "ai.workbench.auto",
+  standard: "ai.workbench.standard",
+  low: "ai.workbench.low",
+  medium: "ai.workbench.medium",
+  high: "ai.workbench.high",
+  xhigh: "ai.workbench.xhigh",
+  max: "ai.workbench.max",
+} as const;
+
+const getQualityOptionLabel = (
+  option: { value: string; label: string },
+  t: AIWorkbenchT,
+) => {
+  const labelKey =
+    QUALITY_OPTION_LABEL_KEYS[
+      option.value as keyof typeof QUALITY_OPTION_LABEL_KEYS
+    ];
+
+  return labelKey ? t(labelKey) : option.label;
 };
 
 const createGeneratedAssetId = (index: number) => {
