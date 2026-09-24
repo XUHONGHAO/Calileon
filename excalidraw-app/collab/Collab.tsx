@@ -164,6 +164,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   fileManager: FileManager;
   vaultFileManager: FileManager | null;
   vaultAttachmentQueue: VaultAttachmentQueue | null;
+  private vaultAttachmentOnlineHandler: (() => void) | null;
   excalidrawAPI: CollabProps["excalidrawAPI"];
   activeIntervalId: number | null;
   idleTimeoutId: number | null;
@@ -241,6 +242,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     });
     this.vaultFileManager = null;
     this.vaultAttachmentQueue = null;
+    this.vaultAttachmentOnlineHandler = null;
     this.excalidrawAPI = props.excalidrawAPI;
     this.activeIntervalId = null;
     this.idleTimeoutId = null;
@@ -434,6 +436,10 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     this.vaultFileManager = null;
     this.vaultAttachmentQueue?.dispose();
     this.vaultAttachmentQueue = null;
+    if (this.vaultAttachmentOnlineHandler) {
+      window.removeEventListener("online", this.vaultAttachmentOnlineHandler);
+      this.vaultAttachmentOnlineHandler = null;
+    }
     this.resetErrorIndicator(true);
 
     if (this.portal.vaultRealtimeSession || this.vaultTransport) {
@@ -641,6 +647,15 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         })
       : null;
     const attachmentQueue = this.vaultAttachmentQueue;
+    if (attachmentQueue) {
+      // Resume any attachment that was queued while offline: once when the
+      // Vault opens/reconnects, and again whenever the browser goes online.
+      this.vaultAttachmentOnlineHandler = () => {
+        void attachmentQueue.drain();
+      };
+      window.addEventListener("online", this.vaultAttachmentOnlineHandler);
+      void attachmentQueue.drain();
+    }
     this.vaultFileManager = new FileManager({
       onFileStatusChange: FileStatusStore.updateStatuses.bind(FileStatusStore),
       getFiles: async (fileIds) => {

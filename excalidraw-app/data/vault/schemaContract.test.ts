@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -23,12 +23,15 @@ const smoke = readFileSync(
   path.resolve("excalidraw-app/data/cloud/supabase/schema_vault_smoke.sql"),
   "utf8",
 );
-const b2Migration = readFileSync(
-  path.resolve(
-    "supabase/migrations/20260919090000_vault_snapshot_idempotency.sql",
-  ),
-  "utf8",
-);
+const b2MigrationDirectory = path.resolve("supabase/migrations");
+// `supabase db reset` replays these migrations *before* the independent Vault
+// schema is installed, so they must never depend on the Vault aggregate.
+const cliMigrations = readdirSync(b2MigrationDirectory)
+  .filter((file) => file.endsWith(".sql"))
+  .map((file) => ({
+    name: file,
+    sql: readFileSync(path.join(b2MigrationDirectory, file), "utf8"),
+  }));
 const backupScript = readFileSync(
   path.resolve("deploy/vault-self-hosted/scripts/backup.ps1"),
   "utf8",
@@ -88,10 +91,24 @@ describe("Vault Supabase F2 schema contract", () => {
     }
   });
 
-  it("upgrades an existing B2 ledger to the explicit Vault/room/update scope", () => {
-    expect(b2Migration).toContain("add column if not exists room_id text");
-    expect(b2Migration).toContain("set room_id = v.active_room_id");
-    expect(b2Migration).toContain("primary key (vault_id, room_id, update_id)");
+  it("scopes the B2 idempotency ledger by Vault, room and update ID", () => {
+    expect(schema).toContain("primary key (vault_id, room_id, update_id)");
+    expect(schema).toContain("vault_snapshot_updates_room_id_check");
+    expect(rollback).toContain(
+      "drop table if exists public.vault_snapshot_updates",
+    );
+  });
+
+  it("keeps CLI migrations independent of the Vault aggregate", () => {
+    // Regression guard: adding a Vault-table dependency to supabase/migrations
+    // breaks `supabase db reset`, which runs them without schema_vault.sql.
+    expect(cliMigrations.length).toBeGreaterThan(0);
+    for (const migration of cliMigrations) {
+      expect(
+        migration.sql,
+        `${migration.name} must not reference public.vaults`,
+      ).not.toMatch(/public\.vaults\b/);
+    }
   });
 
   it("does not authorize asset storage by Vault ID alone", () => {
