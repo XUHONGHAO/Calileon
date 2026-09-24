@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -23,6 +23,15 @@ const smoke = readFileSync(
   path.resolve("excalidraw-app/data/cloud/supabase/schema_vault_smoke.sql"),
   "utf8",
 );
+const b2MigrationDirectory = path.resolve("supabase/migrations");
+// `supabase db reset` replays these migrations *before* the independent Vault
+// schema is installed, so they must never depend on the Vault aggregate.
+const cliMigrations = readdirSync(b2MigrationDirectory)
+  .filter((file) => file.endsWith(".sql"))
+  .map((file) => ({
+    name: file,
+    sql: readFileSync(path.join(b2MigrationDirectory, file), "utf8"),
+  }));
 const backupScript = readFileSync(
   path.resolve("deploy/vault-self-hosted/scripts/backup.ps1"),
   "utf8",
@@ -63,19 +72,42 @@ describe("Vault Supabase F2 schema contract", () => {
     expect(smoke).toContain("unexpected Vault deployment contract");
   });
 
-  it.each(["vaults", "vault_invitations", "vault_snapshots", "vault_assets"])(
-    "declares and rolls back %s independently",
-    (table) => {
-      expect(schema).toContain(`create table if not exists public.${table}`);
-      expect(rollback).toContain(`drop table if exists public.${table}`);
-      expect(smoke).toContain(`('${table}')`);
-    },
-  );
+  it.each([
+    "vaults",
+    "vault_invitations",
+    "vault_snapshots",
+    "vault_snapshot_updates",
+    "vault_assets",
+  ])("declares and rolls back %s independently", (table) => {
+    expect(schema).toContain(`create table if not exists public.${table}`);
+    expect(rollback).toContain(`drop table if exists public.${table}`);
+    expect(smoke).toContain(`('${table}')`);
+  });
 
   it("keeps the TypeScript RPC registry aligned with SQL", () => {
     for (const rpc of Object.values(VAULT_RPC)) {
       expect(schema).toContain(`function public.${rpc}(`);
       expect(smoke).toContain(`${rpc}(`);
+    }
+  });
+
+  it("scopes the B2 idempotency ledger by Vault, room and update ID", () => {
+    expect(schema).toContain("primary key (vault_id, room_id, update_id)");
+    expect(schema).toContain("vault_snapshot_updates_room_id_check");
+    expect(rollback).toContain(
+      "drop table if exists public.vault_snapshot_updates",
+    );
+  });
+
+  it("keeps CLI migrations independent of the Vault aggregate", () => {
+    // Regression guard: adding a Vault-table dependency to supabase/migrations
+    // breaks `supabase db reset`, which runs them without schema_vault.sql.
+    expect(cliMigrations.length).toBeGreaterThan(0);
+    for (const migration of cliMigrations) {
+      expect(
+        migration.sql,
+        `${migration.name} must not reference public.vaults`,
+      ).not.toMatch(/public\.vaults\b/);
     }
   });
 
@@ -160,7 +192,12 @@ describe("Vault Supabase F2 schema contract", () => {
     expect(smoke).toContain("viewer unexpectedly wrote snapshot");
     expect(smoke).toContain("expired capability unexpectedly loaded snapshot");
     expect(smoke).toContain("revoked capability unexpectedly loaded snapshot");
-    expect(smoke).toContain("stale editor CAS unexpectedly won");
+    expect(smoke).toContain(
+      "same update ID with different ciphertext unexpectedly succeeded",
+    );
+    expect(smoke).toContain(
+      "duplicate editor CAS did not return the original confirmation",
+    );
     expect(smoke).toContain("new read succeeded after owner revoke");
   });
 
@@ -195,6 +232,7 @@ describe("Vault Supabase F2 schema contract", () => {
       "vaults",
       "vault_invitations",
       "vault_snapshots",
+      "vault_snapshot_updates",
       "vault_assets",
     ]) {
       expect(schema).toContain(

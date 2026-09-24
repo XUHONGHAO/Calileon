@@ -204,6 +204,8 @@ export const createSupabaseVaultPersistenceService = (
       );
       assertVaultEncryptedEnvelopeV1(input.envelope);
       if (
+        input.updateId !== input.envelope.messageId ||
+        !UUID_RE.test(input.updateId) ||
         input.envelope.purpose !== "snapshot" ||
         input.envelope.vaultId !== input.vaultId ||
         input.envelope.generation !== input.expectedGeneration + 1 ||
@@ -218,6 +220,7 @@ export const createSupabaseVaultPersistenceService = (
       const data = await invoker.invoke(VAULT_RPC.casSnapshot, {
         p_vault_id: input.vaultId,
         p_capability: input.invitationCapability,
+        p_update_id: input.updateId,
         p_expected_generation: input.expectedGeneration,
         p_encrypted_envelope: input.envelope,
         p_ciphertext_bytes: input.ciphertextBytes,
@@ -225,6 +228,7 @@ export const createSupabaseVaultPersistenceService = (
       const result = mapVaultSnapshotCasResult(data);
       if (
         result.vaultId !== input.vaultId ||
+        result.updateId !== input.updateId ||
         result.generation !== input.expectedGeneration + 1
       ) {
         throw new VaultError("VAULT_INTERNAL", "Invalid Vault RPC response.");

@@ -4,8 +4,17 @@ import {
   DEFAULT_VISION_AGENT_SYSTEM_PROMPT,
   getAIAgentProviderPreset,
 } from "./agentProviderPresets";
+import { loadAIProxyConfig } from "./proxyConfig";
+import {
+  AIProxyTransportError,
+  fetchAIRequest,
+  getManagedRouteForCapability,
+  MANAGED_GATEWAY_TARGET,
+} from "./requestTransport";
 
 import type { AIAgent } from "./types";
+import type { AIProxyConfigV2 } from "./proxyConfig";
+import type { AiGatewayCatalogEntry } from "../data/cloud/types";
 
 type VisionAgentRequest = {
   agent: AIAgent | null;
@@ -14,6 +23,47 @@ type VisionAgentRequest = {
   theme: string;
   signal?: AbortSignal;
 };
+
+type VisionAgentExecutionRequest = VisionAgentRequest & {
+  agent: AIAgent;
+  managedRoute?: AiGatewayCatalogEntry;
+  transportConfig?: AIProxyConfigV2;
+};
+
+const getManagedProvider = (
+  route: AiGatewayCatalogEntry,
+): AIAgent["provider"] => {
+  const protocol = route.wireProtocol.toLowerCase();
+  if (protocol.includes("anthropic")) {
+    return "anthropic";
+  }
+  if (protocol.includes("gemini")) {
+    return "gemini";
+  }
+  return "openai-compatible";
+};
+
+const createManagedAgent = (
+  route: AiGatewayCatalogEntry,
+  configured: AIAgent | null,
+): AIAgent => ({
+  id: configured?.id || `managed:${route.id}`,
+  name: configured?.name || route.label,
+  type: configured?.type || "vision",
+  provider: getManagedProvider(route),
+  baseURL: MANAGED_GATEWAY_TARGET,
+  apiKey: "",
+  model: route.model,
+  ...(configured?.systemPrompt
+    ? { systemPrompt: configured.systemPrompt }
+    : {}),
+});
+
+const managedTransportOptions = (request: VisionAgentExecutionRequest) => ({
+  ...(request.managedRoute ? { managedRoute: request.managedRoute } : {}),
+  ...(request.transportConfig ? { config: request.transportConfig } : {}),
+  ...(request.managedRoute ? { managedOperation: "generate" } : {}),
+});
 
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, "");
 
@@ -157,9 +207,9 @@ const assertConfiguredAgent = (agent: AIAgent | null): AIAgent => {
 };
 
 const generateWithOpenAICompatibleVisionAgent = async (
-  request: VisionAgentRequest,
+  request: VisionAgentExecutionRequest,
 ) => {
-  const agent = assertConfiguredAgent(request.agent);
+  const agent = request.agent;
   const headers = new Headers({
     Accept: "application/json",
     "Content-Type": "application/json",
@@ -170,29 +220,38 @@ const generateWithOpenAICompatibleVisionAgent = async (
     headers.set("Authorization", authorizationHeader);
   }
 
-  const response = await fetch(getOpenAIChatEndpoint(agent), {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: agent.model,
-      messages: [
-        { role: "system", content: getSystemPrompt(agent) },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: buildVisionPrompt(request) },
-            {
-              type: "image_url",
-              image_url: {
-                url: request.image,
+  const response = await fetchAIRequest(
+    getOpenAIChatEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        messages: [
+          { role: "system", content: getSystemPrompt(agent) },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: buildVisionPrompt(request) },
+              {
+                type: "image_url",
+                image_url: {
+                  url: request.image,
+                },
               },
-            },
-          ],
-        },
-      ],
-    }),
-    signal: request.signal,
-  });
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    {
+      kind: "vision-agent",
+      signal: request.signal,
+      auditPrompt: buildVisionPrompt(request),
+      ...managedTransportOptions(request),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(await getProviderErrorMessage(response));
@@ -202,40 +261,52 @@ const generateWithOpenAICompatibleVisionAgent = async (
 };
 
 const generateWithAnthropicVisionAgent = async (
-  request: VisionAgentRequest,
+  request: VisionAgentExecutionRequest,
 ) => {
-  const agent = assertConfiguredAgent(request.agent);
-  const response = await fetch(getAnthropicMessagesEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-      "x-api-key": agent.apiKey.trim(),
-    },
-    body: JSON.stringify({
-      model: agent.model,
-      max_tokens: 4096,
-      system: getSystemPrompt(agent),
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "text", text: buildVisionPrompt(request) },
-            {
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: getMimeTypeFromDataURL(request.image),
-                data: dataURLToBase64Payload(request.image),
+  const agent = request.agent;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "anthropic-version": "2023-06-01",
+    "Content-Type": "application/json",
+  };
+  if (!request.managedRoute) {
+    headers["x-api-key"] = agent.apiKey.trim();
+  }
+  const response = await fetchAIRequest(
+    getAnthropicMessagesEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        max_tokens: 4096,
+        system: getSystemPrompt(agent),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: buildVisionPrompt(request) },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: getMimeTypeFromDataURL(request.image),
+                  data: dataURLToBase64Payload(request.image),
+                },
               },
-            },
-          ],
-        },
-      ],
-    }),
-    signal: request.signal,
-  });
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    {
+      kind: "vision-agent",
+      signal: request.signal,
+      auditPrompt: buildVisionPrompt(request),
+      ...managedTransportOptions(request),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(await getProviderErrorMessage(response));
@@ -244,36 +315,50 @@ const generateWithAnthropicVisionAgent = async (
   return extractAnthropicContent(await parseResponseJSON(response));
 };
 
-const generateWithGeminiVisionAgent = async (request: VisionAgentRequest) => {
-  const agent = assertConfiguredAgent(request.agent);
-  const response = await fetch(getGeminiGenerateEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "x-goog-api-key": agent.apiKey.trim(),
-    },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: getSystemPrompt(agent) }],
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: buildVisionPrompt(request) },
-            {
-              inline_data: {
-                mime_type: getMimeTypeFromDataURL(request.image),
-                data: dataURLToBase64Payload(request.image),
-              },
-            },
-          ],
+const generateWithGeminiVisionAgent = async (
+  request: VisionAgentExecutionRequest,
+) => {
+  const agent = request.agent;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (!request.managedRoute) {
+    headers["x-goog-api-key"] = agent.apiKey.trim();
+  }
+  const response = await fetchAIRequest(
+    getGeminiGenerateEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: getSystemPrompt(agent) }],
         },
-      ],
-    }),
-    signal: request.signal,
-  });
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: buildVisionPrompt(request) },
+              {
+                inline_data: {
+                  mime_type: getMimeTypeFromDataURL(request.image),
+                  data: dataURLToBase64Payload(request.image),
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    {
+      kind: "vision-agent",
+      signal: request.signal,
+      auditPrompt: buildVisionPrompt(request),
+      ...managedTransportOptions(request),
+    },
+  );
 
   if (!response.ok) {
     throw new Error(await getProviderErrorMessage(response));
@@ -285,13 +370,33 @@ const generateWithGeminiVisionAgent = async (request: VisionAgentRequest) => {
 export const generateDiagramCodeWithVisionAgent = async (
   request: VisionAgentRequest,
 ) => {
-  const agent = assertConfiguredAgent(request.agent);
+  const transportConfig = loadAIProxyConfig();
+  const managed = transportConfig.mode === "managed-gateway";
+  const managedRoute = managed
+    ? await getManagedRouteForCapability("vision-agent", {
+        config: transportConfig,
+      })
+    : undefined;
+  if (managedRoute && !managedRoute.operations.includes("generate")) {
+    throw new AIProxyTransportError(
+      "proxy-config",
+      t("ai.proxy.errors.managedRouteMissing"),
+    );
+  }
+  const agent = managedRoute
+    ? createManagedAgent(managedRoute, request.agent)
+    : assertConfiguredAgent(request.agent);
+  const executionRequest: VisionAgentExecutionRequest = {
+    ...request,
+    agent,
+    ...(managedRoute ? { managedRoute, transportConfig } : {}),
+  };
   const html =
     agent.provider === "anthropic"
-      ? await generateWithAnthropicVisionAgent(request)
+      ? await generateWithAnthropicVisionAgent(executionRequest)
       : agent.provider === "gemini"
-      ? await generateWithGeminiVisionAgent(request)
-      : await generateWithOpenAICompatibleVisionAgent(request);
+      ? await generateWithGeminiVisionAgent(executionRequest)
+      : await generateWithOpenAICompatibleVisionAgent(executionRequest);
 
   if (!html.trim()) {
     throw new Error(t("ai.assistant.messages.visionEmptyResponse"));

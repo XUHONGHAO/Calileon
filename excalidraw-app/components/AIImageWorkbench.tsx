@@ -24,9 +24,17 @@ import {
   supportsAIImageMode,
 } from "../ai/config";
 import {
+  AI_PROXY_CONFIG_UPDATED_EVENT,
+  loadAIProxyConfig,
+} from "../ai/proxyConfig";
+import { getCloudBackend, type AiGatewayCatalogEntry } from "../data/cloud";
+import { getManagedGatewayForConfig } from "../ai/requestTransport";
+import {
   DEFAULT_AI_IMAGE_NATIVE_MODEL,
   getAIImageAspectRatioOptions,
+  getAIImageQualityOptions,
   getAIImageResolutionOptions,
+  resolveAIImageQuality,
   resolveAIImageSize,
 } from "../ai/imageDimensions";
 import {
@@ -125,6 +133,7 @@ import type {
   AIImageGenerationOutput,
   AIImageGenerationParams,
   AIImageEditableMask,
+  AIImageModel,
   AIImageProviderConfig,
   AIImageSourceEnhanced,
   AIModelMediaType,
@@ -428,6 +437,63 @@ const createGenerationDraftState = (
   params,
 });
 
+/**
+ * Convert the public managed catalog into ephemeral workbench model cards.
+ * These cards are UI descriptors only: they never persist a gateway token or
+ * provider URL, and the managed adapters resolve the route again at request
+ * time. Keeping them separate from the user's BYOK model list preserves the
+ * existing local configuration and makes a managed deployment usable without
+ * requiring a dummy provider entry.
+ */
+const createManagedModelCards = (catalog: readonly AiGatewayCatalogEntry[]) => {
+  return catalog
+    .filter(
+      (route) =>
+        route.capability === "image-generation" ||
+        route.capability === "video-submit",
+    )
+    .map((route): AIImageModel => {
+      const isVideo = route.capability === "video-submit";
+      const supportsEdit =
+        route.operations.includes("edit") ||
+        route.wireProtocol.toLowerCase().includes("image-edit");
+      const capabilities: AIImageModel["capabilities"] = isVideo
+        ? [
+            "text-to-video",
+            "image-to-video",
+            "duration",
+            "resolution",
+            "aspect-ratio",
+          ]
+        : [
+            "text-to-image",
+            ...(supportsEdit ? (["image-to-image", "inpaint"] as const) : []),
+          ];
+      const imageEndpoint = {
+        path: isVideo ? "/videos" : "/images/generations",
+        format: "json" as const,
+        ...(route.operations.includes("poll") ? { async: true } : {}),
+      };
+      return {
+        id: `managed-route-${route.id}`,
+        siteName: "Managed Gateway",
+        baseURL: "",
+        apiKey: "",
+        model: route.model,
+        label: route.label,
+        mediaType: isVideo ? "video" : "image",
+        nativeModel: "other",
+        capabilities,
+        endpoints: {
+          textToImage: imageEndpoint,
+          imageToImage: imageEndpoint,
+          inpaint: imageEndpoint,
+        },
+        requestTimeoutSeconds: DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS,
+      };
+    });
+};
+
 const createImageModeDraftState = (
   selectedModelId: string,
 ): AIImageModeDraftState => ({
@@ -539,6 +605,28 @@ export const AIImageWorkbench = ({
   }));
   const [config, setConfig] = useState<AIImageProviderConfig>(
     initialState.config,
+  );
+  const [proxyConfig, setProxyConfig] = useState(loadAIProxyConfig);
+  const [managedCatalog, setManagedCatalog] = useState<AiGatewayCatalogEntry[]>(
+    [],
+  );
+  const managedModelCards = useMemo(
+    () => createManagedModelCards(managedCatalog),
+    [managedCatalog],
+  );
+  const workbenchModels = useMemo(
+    () =>
+      proxyConfig.mode === "managed-gateway"
+        ? managedModelCards
+        : config.models,
+    [config.models, managedModelCards, proxyConfig.mode],
+  );
+  const workbenchConfig = useMemo(
+    () =>
+      proxyConfig.mode === "managed-gateway"
+        ? { ...config, models: workbenchModels }
+        : config,
+    [config, proxyConfig.mode, workbenchModels],
   );
   const [internalDraftState, setInternalDraftState] =
     useState<AIImageWorkbenchDraftState>(
@@ -866,7 +954,7 @@ export const AIImageWorkbench = ({
   const persistenceScopeIdRef = useRef(persistenceScopeId);
   const excalidrawAPIRef = useRef(excalidrawAPI);
   const generationStateRef = useRef({
-    config,
+    config: workbenchConfig,
     currentSelectedImageSources,
     inpaintDraft,
     mediaType,
@@ -881,7 +969,7 @@ export const AIImageWorkbench = ({
   persistenceScopeIdRef.current = persistenceScopeId;
 
   generationStateRef.current = {
-    config,
+    config: workbenchConfig,
     currentSelectedImageSources,
     inpaintDraft,
     mediaType,
@@ -929,8 +1017,8 @@ export const AIImageWorkbench = ({
   );
 
   const modelsForMediaType = useMemo(
-    () => config.models.filter((model) => model.mediaType === mediaType),
-    [config.models, mediaType],
+    () => workbenchModels.filter((model) => model.mediaType === mediaType),
+    [mediaType, workbenchModels],
   );
 
   const selectedModel = useMemo(
@@ -1106,6 +1194,60 @@ export const AIImageWorkbench = ({
     };
   }, []);
 
+  useEffect(() => {
+    const reloadProxyConfig = () => {
+      setProxyConfig(loadAIProxyConfig());
+    };
+    window.addEventListener(AI_PROXY_CONFIG_UPDATED_EVENT, reloadProxyConfig);
+    window.addEventListener("storage", reloadProxyConfig);
+    return () => {
+      window.removeEventListener(
+        AI_PROXY_CONFIG_UPDATED_EVENT,
+        reloadProxyConfig,
+      );
+      window.removeEventListener("storage", reloadProxyConfig);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (proxyConfig.mode !== "managed-gateway") {
+      setManagedCatalog([]);
+      return;
+    }
+    let cancelled = false;
+    const loadCatalog = async () => {
+      try {
+        const backend = getCloudBackend();
+        const user = await backend.auth.getCurrentUser();
+        if (!user) {
+          if (!cancelled) {
+            setManagedCatalog([]);
+          }
+          return;
+        }
+        const gateway = getManagedGatewayForConfig(proxyConfig);
+        if (!gateway.isEnabled()) {
+          if (!cancelled) {
+            setManagedCatalog([]);
+          }
+          return;
+        }
+        const catalog = await gateway.getCatalog();
+        if (!cancelled) {
+          setManagedCatalog(catalog);
+        }
+      } catch {
+        if (!cancelled) {
+          setManagedCatalog([]);
+        }
+      }
+    };
+    void loadCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, [proxyConfig]);
+
   // The editor registers a native wheel listener on its container that treats
   // any textarea/input as a canvas surface and zooms/pans instead of scrolling
   // the field. Stop wheel events over our form controls from bubbling to that
@@ -1147,14 +1289,14 @@ export const AIImageWorkbench = ({
 
     const nextModelId =
       mediaType === "image"
-        ? getDefaultModelIdForImageMode(config, mode)
-        : getDefaultModelIdForMediaType(config, mediaType);
+        ? getDefaultModelIdForImageMode(workbenchConfig, mode)
+        : getDefaultModelIdForMediaType(workbenchConfig, mediaType);
 
     if (nextModelId !== selectedModelId) {
       setSelectedModelId(nextModelId);
     }
   }, [
-    config,
+    workbenchConfig,
     mediaType,
     mode,
     selectedModel,
@@ -1165,7 +1307,7 @@ export const AIImageWorkbench = ({
   useEffect(() => {
     if (
       mediaType !== "image" ||
-      config.models.some(
+      workbenchModels.some(
         (model) =>
           model.mediaType === "image" && supportsAIImageMode(model, mode),
       )
@@ -1174,7 +1316,7 @@ export const AIImageWorkbench = ({
     }
 
     const nextMode = MODE_OPTIONS.find((option) =>
-      config.models.some(
+      workbenchModels.some(
         (model) =>
           model.mediaType === "image" &&
           supportsAIImageMode(model, option.value),
@@ -1184,7 +1326,7 @@ export const AIImageWorkbench = ({
     if (nextMode && nextMode.value !== mode) {
       setMode(nextMode.value);
     }
-  }, [config.models, mediaType, mode, setMode]);
+  }, [workbenchModels, mediaType, mode, setMode]);
 
   const getSelectedImageSources = useCallback(
     (
@@ -1326,15 +1468,20 @@ export const AIImageWorkbench = ({
       )
         ? current.resolution || "auto"
         : "auto";
+      const quality = resolveAIImageQuality(
+        selectedNativeModel,
+        current.quality,
+      );
 
       if (
         aspectRatio === current.aspectRatio &&
-        resolution === current.resolution
+        resolution === current.resolution &&
+        quality === current.quality
       ) {
         return current;
       }
 
-      return { ...current, aspectRatio, resolution };
+      return { ...current, aspectRatio, resolution, quality };
     });
   }, [mediaType, selectedNativeModel, setParams]);
 
@@ -1342,7 +1489,10 @@ export const AIImageWorkbench = ({
     mediaType !== "image" ||
     !selectedModel ||
     supportsAIImageMode(selectedModel, mode);
-  const hasSelectedModelEndpoint = !!(selectedModel?.baseURL || config.baseURL);
+  const hasSelectedModelEndpoint =
+    proxyConfig.mode === "managed-gateway"
+      ? !!selectedModel
+      : !!(selectedModel?.baseURL || config.baseURL);
   const availableSelectedSources = useMemo(
     () => selectedSources.filter((source) => !source.missingElement),
     [selectedSources],
@@ -2492,6 +2642,11 @@ export const AIImageWorkbench = ({
         });
 
       const currentConfig = generationStateRef.current.config;
+      const currentTransportConfig = loadAIProxyConfig();
+      const taskTransportConfig = task.transportMode
+        ? { ...currentTransportConfig, mode: task.transportMode }
+        : currentTransportConfig;
+      const managed = taskTransportConfig.mode === "managed-gateway";
       const modelCard =
         currentConfig.models.find((model) => model.id === task.modelId) ||
         currentConfig.models.find((model) => model.model === task.model);
@@ -2526,6 +2681,10 @@ export const AIImageWorkbench = ({
                 apiKey,
                 taskId: task.taskId,
                 signal: pollController.signal,
+                ...(task.transportMode ? { config: taskTransportConfig } : {}),
+                ...(managed && task.managedRouteId
+                  ? { managedRouteId: task.managedRouteId }
+                  : {}),
               });
             } catch (error) {
               if (didPollTimeout && !controller.signal.aborted) {
@@ -2759,6 +2918,8 @@ export const AIImageWorkbench = ({
     }
 
     const { config } = generationStateRef.current;
+    const transportConfig = loadAIProxyConfig();
+    const managed = transportConfig.mode === "managed-gateway";
     const videoDraft = activeDraftStateRef.current.video;
     const trimmedPrompt = videoDraft.prompt.trim();
     // Normalize framing so the request reflects what the dropdowns display even
@@ -2788,16 +2949,16 @@ export const AIImageWorkbench = ({
       return;
     }
 
-    if (!modelCard) {
+    if (!modelCard && !managed) {
       setErrorMessage(t("ai.workbench.noMediaModels", { mediaType: "video" }));
       setStatusMessage("");
       setRunStatus("failed");
       return;
     }
 
-    const baseURL = modelCard.baseURL || config.baseURL;
+    const baseURL = modelCard?.baseURL || config.baseURL;
 
-    if (!baseURL) {
+    if (!managed && !baseURL) {
       setErrorMessage(t("ai.workbench.videoTaskFailed"));
       setStatusMessage("");
       setRunStatus("failed");
@@ -2810,13 +2971,13 @@ export const AIImageWorkbench = ({
     );
     const mode: AIVideoGenerationMode =
       videoSources.length > 0 &&
-      supportsAIImageMode(modelCard, "image-to-video")
+      (!modelCard || supportsAIImageMode(modelCard, "image-to-video"))
         ? "image-to-video"
         : "text-to-video";
     const submittedAt = new Date().toISOString();
     const controller = new AbortController();
     const timeoutSeconds =
-      modelCard.requestTimeoutSeconds ||
+      modelCard?.requestTimeoutSeconds ||
       DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS;
     let didTimeout = false;
     const timeoutId = window.setTimeout(() => {
@@ -2833,18 +2994,22 @@ export const AIImageWorkbench = ({
     setErrorMessage("");
 
     try {
-      const { taskId, model } = await submitVideoTask({
+      const { taskId, model, managedRouteId } = await submitVideoTask({
         config: {
           ...config,
-          baseURL: modelCard.baseURL,
-          apiKey: modelCard.apiKey,
-          models: [
-            modelCard,
-            ...config.models.filter((model) => model.id !== modelCard.id),
-          ],
+          ...(modelCard
+            ? {
+                baseURL: modelCard.baseURL,
+                apiKey: modelCard.apiKey,
+                models: [
+                  modelCard,
+                  ...config.models.filter((model) => model.id !== modelCard.id),
+                ],
+              }
+            : {}),
         },
         mode,
-        model: modelCard.model,
+        model: modelCard?.model || videoDraft.selectedModelId,
         prompt: trimmedPrompt,
         params: videoParams,
         sources: mode === "image-to-video" ? videoSources : undefined,
@@ -2862,9 +3027,11 @@ export const AIImageWorkbench = ({
       const task: PendingVideoTask = {
         taskId,
         baseURL,
-        modelId: modelCard.id,
+        transportMode: transportConfig.mode,
+        ...(managedRouteId ? { managedRouteId } : {}),
+        modelId: modelCard?.id || "managed-gateway",
         model,
-        siteName: modelCard.siteName || modelCard.label || "Unknown site",
+        siteName: modelCard?.siteName || modelCard?.label || "Managed Gateway",
         mode,
         prompt: trimmedPrompt,
         params: videoParams,
@@ -2892,9 +3059,10 @@ export const AIImageWorkbench = ({
             mode,
             status: didTimeout ? "failed" : "canceled",
             model: {
-              id: modelCard.id,
-              name: modelCard.model,
-              siteName: modelCard.siteName || modelCard.label || "Unknown site",
+              id: modelCard?.id || "managed-gateway",
+              name: modelCard?.model || videoDraft.selectedModelId,
+              siteName:
+                modelCard?.siteName || modelCard?.label || "Managed Gateway",
             },
             prompt: trimmedPrompt,
             params: videoParams,
@@ -2918,9 +3086,10 @@ export const AIImageWorkbench = ({
           mode,
           status: "failed",
           model: {
-            id: modelCard.id,
-            name: modelCard.model,
-            siteName: modelCard.siteName || modelCard.label || "Unknown site",
+            id: modelCard?.id || "managed-gateway",
+            name: modelCard?.model || videoDraft.selectedModelId,
+            siteName:
+              modelCard?.siteName || modelCard?.label || "Managed Gateway",
           },
           prompt: trimmedPrompt,
           params: videoParams,
@@ -2979,7 +3148,7 @@ export const AIImageWorkbench = ({
     (metadata: AIImageGenerationMetadata, message: string) => {
       const selectedMode = metadata.mode;
       const selectedModelId =
-        config.models.find((model) => model.model === metadata.model)?.id ||
+        workbenchModels.find((model) => model.model === metadata.model)?.id ||
         metadata.model;
 
       setActiveDraftState((current) => ({
@@ -3003,7 +3172,7 @@ export const AIImageWorkbench = ({
       setStatusMessage(message);
       setErrorMessage("");
     },
-    [config.models, setActiveDraftState],
+    [setActiveDraftState, workbenchModels],
   );
 
   const copySelectedPrompt = useCallback(async () => {
@@ -4062,7 +4231,7 @@ export const AIImageWorkbench = ({
                 : "AIImageWorkbench__segment"
             }
             disabled={
-              !config.models.some(
+              !workbenchModels.some(
                 (model) =>
                   model.mediaType === "image" &&
                   supportsAIImageMode(model, option.value),
@@ -4145,18 +4314,17 @@ export const AIImageWorkbench = ({
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.quality")}</span>
           <select
-            value={params.quality || ""}
+            value={resolveAIImageQuality(selectedNativeModel, params.quality)}
             disabled={
               !!selectedModel && !supportsAIImageMode(selectedModel, "quality")
             }
             onChange={(event) => updateParams({ quality: event.target.value })}
           >
-            <option value="auto">AUTO</option>
-            <option value="standard">{t("ai.workbench.standard")}</option>
-            <option value="hd">HD</option>
-            <option value="low">{t("ai.workbench.low")}</option>
-            <option value="medium">{t("ai.workbench.medium")}</option>
-            <option value="high">{t("ai.workbench.high")}</option>
+            {getAIImageQualityOptions(selectedNativeModel).map((option) => (
+              <option key={option.value} value={option.value}>
+                {getQualityOptionLabel(option, t)}
+              </option>
+            ))}
           </select>
         </label>
 
@@ -4752,6 +4920,28 @@ const getMediaTypeLabel = (mediaType: AIModelMediaType, t: AIWorkbenchT) => {
     return t("ai.common.audio");
   }
   return t("ai.common.image");
+};
+
+const QUALITY_OPTION_LABEL_KEYS = {
+  auto: "ai.workbench.auto",
+  standard: "ai.workbench.standard",
+  low: "ai.workbench.low",
+  medium: "ai.workbench.medium",
+  high: "ai.workbench.high",
+  xhigh: "ai.workbench.xhigh",
+  max: "ai.workbench.max",
+} as const;
+
+const getQualityOptionLabel = (
+  option: { value: string; label: string },
+  t: AIWorkbenchT,
+) => {
+  const labelKey =
+    QUALITY_OPTION_LABEL_KEYS[
+      option.value as keyof typeof QUALITY_OPTION_LABEL_KEYS
+    ];
+
+  return labelKey ? t(labelKey) : option.label;
 };
 
 const createGeneratedAssetId = (index: number) => {

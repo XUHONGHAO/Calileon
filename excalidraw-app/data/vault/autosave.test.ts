@@ -7,6 +7,7 @@ import { VaultError } from "./errors";
 import { createVaultPersistenceService } from "./persistence";
 import { createVaultSnapshotAutosaveController } from "./autosave";
 import { decryptVaultSnapshot, encryptVaultSnapshot } from "./snapshot";
+import { VaultLocalStore } from "./local-store/store";
 
 import type { VaultPersistenceServiceImplementation } from "./persistence";
 import type { VaultDeploymentCapabilities } from "./types";
@@ -115,6 +116,7 @@ describe("Vault snapshot autosave controller", () => {
       hasPendingChanges: false,
       unsyncedReason: null,
       errorCode: null,
+      localPersistence: "remote-confirmed",
     });
     expect(controller.shouldWarnBeforeUnload()).toBe(false);
   });
@@ -482,5 +484,340 @@ describe("Vault snapshot autosave controller", () => {
       unsyncedReason: "error",
       errorCode: "VAULT_DECRYPT_FAILED",
     });
+  });
+});
+
+describe("Vault autosave durable local outbox integration", () => {
+  const roomId = "vault_room_1234567890";
+  let databaseCounter = 0;
+  const databaseName = () =>
+    `excalidraw-vault-autosave-b2-${Date.now()}-${databaseCounter++}`;
+  const deleteDatabase = (name: string) =>
+    new Promise<void>((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(name);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => reject(new Error("database deletion blocked"));
+    });
+
+  // Returns a CAS stub that echoes the caller's update ID so the outbox can
+  // verify stable updateId idempotency rather than a rewritten message id.
+  const confirmWith = () =>
+    vi
+      .fn()
+      .mockImplementation(
+        async (input: { updateId: string; expectedGeneration: number }) => ({
+          vaultId,
+          updateId: input.updateId,
+          generation: input.expectedGeneration + 1,
+          updatedAt: 100,
+        }),
+      );
+
+  beforeEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("commits the encrypted local snapshot and durable outbox before the remote CAS", async () => {
+    const name = databaseName();
+    const store = await VaultLocalStore.open({ databaseName: name });
+    const rootKey = generateVaultRootKey();
+    const casSnapshot = confirmWith();
+    const controller = createVaultSnapshotAutosaveController({
+      persistence: createPersistence({ casSnapshot }),
+      vaultId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      initialGeneration: 0,
+      debounceMs: 0,
+      isOnline: () => true,
+      roomId,
+      localStore: store,
+    });
+
+    controller.schedule({ marker: "local" });
+    const state = await controller.flush();
+
+    expect(casSnapshot).toHaveBeenCalledTimes(1);
+    const sent = casSnapshot.mock.calls[0][0];
+    expect(sent.updateId).toBe(sent.envelope.messageId);
+    expect(sent.expectedGeneration).toBe(0);
+    expect(state).toMatchObject({
+      status: "synced",
+      generation: 1,
+      localPersistence: "remote-confirmed",
+    });
+    await expect(store.listOutbox({ vaultId, roomId })).resolves.toEqual([]);
+    await expect(
+      store.getSnapshot<{ marker: string }>({ vaultId, roomId, rootKey }),
+    ).resolves.toMatchObject({ generation: 1, snapshot: { marker: "local" } });
+
+    controller.dispose();
+    store.close();
+    await deleteDatabase(name);
+  });
+
+  it("keeps the encrypted local branch when offline and reports local-persisted", async () => {
+    const name = databaseName();
+    const store = await VaultLocalStore.open({ databaseName: name });
+    const rootKey = generateVaultRootKey();
+    const casSnapshot = confirmWith();
+    const controller = createVaultSnapshotAutosaveController({
+      persistence: createPersistence({ casSnapshot }),
+      vaultId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      initialGeneration: 0,
+      debounceMs: 0,
+      isOnline: () => false,
+      roomId,
+      localStore: store,
+    });
+
+    controller.schedule({ marker: "offline-local" });
+    const state = await controller.flush();
+
+    expect(casSnapshot).not.toHaveBeenCalled();
+    expect(state).toMatchObject({
+      status: "unsynced",
+      unsyncedReason: "offline",
+      localPersistence: "local-persisted",
+    });
+    expect(controller.getBeforeUnloadState()).toBe("local-persisted-unsynced");
+    await expect(store.listOutbox({ vaultId, roomId })).resolves.toMatchObject([
+      { status: "pending", expectedGeneration: 0 },
+    ]);
+    await expect(
+      store.getSnapshot<{ marker: string }>({ vaultId, roomId, rootKey }),
+    ).resolves.toMatchObject({
+      generation: 1,
+      snapshot: { marker: "offline-local" },
+    });
+
+    controller.dispose();
+    store.close();
+
+    // Reopening the database proves the branch survived a crash/refresh.
+    const reopened = await VaultLocalStore.open({ databaseName: name });
+    await expect(
+      reopened.getSnapshot<{ marker: string }>({ vaultId, roomId, rootKey }),
+    ).resolves.toMatchObject({
+      generation: 1,
+      snapshot: { marker: "offline-local" },
+    });
+    reopened.close();
+    await deleteDatabase(name);
+  });
+
+  it("recovers a pending local outbox on start without changing the update ID", async () => {
+    const name = databaseName();
+    const store = await VaultLocalStore.open({ databaseName: name });
+    const rootKey = generateVaultRootKey();
+    const envelope = await encryptVaultSnapshot({
+      vaultId,
+      rootKey,
+      generation: 1,
+      snapshot: { marker: "recovered" },
+    });
+    const record = await store.createSnapshotOutboxRecord({
+      vaultId,
+      roomId,
+      envelope,
+      expectedGeneration: 0,
+    });
+    await store.putSnapshotAndOutbox({
+      vaultId,
+      roomId,
+      rootKey,
+      generation: 1,
+      snapshot: { marker: "recovered" },
+      outbox: record,
+    });
+
+    const casSnapshot = confirmWith();
+    const controller = createVaultSnapshotAutosaveController({
+      persistence: createPersistence({ casSnapshot }),
+      vaultId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      initialGeneration: 1,
+      debounceMs: 0,
+      isOnline: () => true,
+      roomId,
+      localStore: store,
+    });
+
+    const state = await controller.flush();
+
+    expect(casSnapshot).toHaveBeenCalledTimes(1);
+    expect(casSnapshot.mock.calls[0][0]).toMatchObject({
+      updateId: record.updateId,
+      expectedGeneration: 0,
+    });
+    expect(state).toMatchObject({
+      status: "synced",
+      generation: 1,
+      localPersistence: "remote-confirmed",
+    });
+    await expect(store.listOutbox({ vaultId, roomId })).resolves.toEqual([]);
+
+    controller.dispose();
+    store.close();
+    await deleteDatabase(name);
+  });
+
+  it("reuses the same update ID when an offline branch is retried online", async () => {
+    const name = databaseName();
+    const store = await VaultLocalStore.open({ databaseName: name });
+    const rootKey = generateVaultRootKey();
+    const casSnapshot = confirmWith();
+    let online = false;
+    const controller = createVaultSnapshotAutosaveController({
+      persistence: createPersistence({ casSnapshot }),
+      vaultId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      initialGeneration: 0,
+      debounceMs: 0,
+      isOnline: () => online,
+      roomId,
+      localStore: store,
+    });
+
+    controller.schedule({ marker: "queued-offline" });
+    await controller.flush();
+    const queued = await store.listOutbox({ vaultId, roomId });
+    expect(queued).toHaveLength(1);
+    const { updateId } = queued[0];
+
+    online = true;
+    await controller.retry();
+
+    expect(casSnapshot).toHaveBeenCalledTimes(1);
+    expect(casSnapshot.mock.calls[0][0]).toMatchObject({
+      updateId,
+      expectedGeneration: 0,
+    });
+    await expect(store.listOutbox({ vaultId, roomId })).resolves.toEqual([]);
+    expect(controller.getState()).toMatchObject({
+      status: "synced",
+      generation: 1,
+      localPersistence: "remote-confirmed",
+    });
+
+    controller.dispose();
+    store.close();
+    await deleteDatabase(name);
+  });
+
+  it("keeps both branches and never auto-reconciles on a generation conflict", async () => {
+    const name = databaseName();
+    const store = await VaultLocalStore.open({ databaseName: name });
+    const rootKey = generateVaultRootKey();
+    const remoteEnvelope = await encryptVaultSnapshot({
+      vaultId,
+      rootKey,
+      generation: 1,
+      snapshot: { marker: "remote" },
+    });
+    const casSnapshot = vi.fn().mockRejectedValue(
+      new VaultError("VAULT_SNAPSHOT_CONFLICT", "conflict", {
+        recoverable: true,
+      }),
+    );
+    const loadSnapshot = vi.fn().mockResolvedValue({
+      vaultId,
+      generation: 1,
+      encryptedEnvelope: remoteEnvelope,
+      ciphertextBytes: base64UrlToBytes(remoteEnvelope.ciphertext).byteLength,
+      updatedAt: 30,
+    });
+    const reconcileConflict = vi.fn(() => ({ marker: "merged" }));
+    const controller = createVaultSnapshotAutosaveController({
+      persistence: createPersistence({ casSnapshot, loadSnapshot }),
+      vaultId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      initialGeneration: 0,
+      debounceMs: 0,
+      isOnline: () => true,
+      roomId,
+      localStore: store,
+      reconcileConflict,
+    });
+
+    controller.schedule({ marker: "local-branch" });
+    const state = await controller.flush();
+
+    expect(reconcileConflict).not.toHaveBeenCalled();
+    expect(casSnapshot).toHaveBeenCalledTimes(1);
+    expect(state).toMatchObject({
+      status: "unsynced",
+      unsyncedReason: "conflict",
+      errorCode: "VAULT_SNAPSHOT_CONFLICT",
+      localPersistence: "local-persisted",
+    });
+    const outbox = await store.listOutbox({ vaultId, roomId });
+    expect(outbox).toMatchObject([
+      {
+        status: "conflict",
+        conflictReason: "generation",
+        remoteGeneration: 1,
+      },
+    ]);
+    expect(outbox[0].remoteEnvelope).not.toBeNull();
+    await expect(
+      store.getSnapshot<{ marker: string }>({ vaultId, roomId, rootKey }),
+    ).resolves.toMatchObject({ snapshot: { marker: "local-branch" } });
+
+    controller.dispose();
+    store.close();
+    await deleteDatabase(name);
+  });
+
+  it("fails closed on a revoked capability without deleting the local branch", async () => {
+    const name = databaseName();
+    const store = await VaultLocalStore.open({ databaseName: name });
+    const rootKey = generateVaultRootKey();
+    const casSnapshot = vi
+      .fn()
+      .mockRejectedValue(new VaultError("VAULT_CAPABILITY_REVOKED", "revoked"));
+    const controller = createVaultSnapshotAutosaveController({
+      persistence: createPersistence({ casSnapshot }),
+      vaultId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      initialGeneration: 0,
+      debounceMs: 0,
+      isOnline: () => true,
+      roomId,
+      localStore: store,
+    });
+
+    controller.schedule({ marker: "revoked-local" });
+    const state = await controller.flush();
+
+    expect(state).toMatchObject({
+      status: "unsynced",
+      unsyncedReason: "error",
+      errorCode: "VAULT_CAPABILITY_REVOKED",
+      localPersistence: "local-persisted",
+    });
+    await expect(store.listOutbox({ vaultId, roomId })).resolves.toMatchObject([
+      { status: "failed", errorCode: "VAULT_CAPABILITY_REVOKED" },
+    ]);
+    await expect(
+      store.getSnapshot<{ marker: string }>({ vaultId, roomId, rootKey }),
+    ).resolves.toMatchObject({ snapshot: { marker: "revoked-local" } });
+
+    controller.dispose();
+    store.close();
+    await deleteDatabase(name);
   });
 });

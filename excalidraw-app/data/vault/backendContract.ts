@@ -55,6 +55,7 @@ export interface VaultCapabilityDisconnectNotice {
 export interface VaultSnapshotCasInput {
   vaultId: string;
   invitationCapability: string;
+  updateId: string;
   expectedGeneration: number;
   envelope: VaultSnapshotEncryptedEnvelopeV1;
   ciphertextBytes: number;
@@ -62,6 +63,7 @@ export interface VaultSnapshotCasInput {
 
 export interface VaultSnapshotCasResult {
   vaultId: string;
+  updateId?: string;
   generation: number;
   updatedAt: number;
 }

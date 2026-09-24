@@ -102,6 +102,8 @@ export { actionToggleSearchMenu } from "./actionToggleSearchMenu";
 
 export { actionToggleCropEditor } from "./actionCropEditor";
 
+export { actionDownloadImage } from "./actionDownloadImage";
+
 export { actionChangeLineTone } from "./actionLineTone";
 
 export {

@@ -1,0 +1,32 @@
+{$APP_ORIGIN} {
+  encode zstd gzip
+
+  # Keep this route before the static App fallback. The service must share the
+  # AI_PROXY_EDGE_NETWORK network with Caddy.
+  @ai_proxy path /ai-proxy/*
+  handle @ai_proxy {
+    reverse_proxy ai-proxy:3016 {
+      flush_interval -1
+    }
+  }
+
+  # Managed AI Gateway is a separate contract. Keep it ahead of the static
+  # App fallback as well; it must preserve SSE and media streaming.
+  @ai_gateway path /ai-gateway/*
+  handle @ai_gateway {
+    reverse_proxy ai-proxy:3016 {
+      flush_interval -1
+    }
+  }
+
+  # Replace this upstream with the existing static App service.
+  handle {
+    reverse_proxy app:8080
+  }
+
+  # The proxy target is carried in a header. Keep access/header dumps disabled
+  # unless a reviewed redacted log format is installed.
+  log {
+    output discard
+  }
+}

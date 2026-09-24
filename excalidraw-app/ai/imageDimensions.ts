@@ -13,6 +13,11 @@ export type AIImageSizeResolution = {
   label: string;
 };
 
+export type AIImageQualityOption = {
+  value: string;
+  label: string;
+};
+
 export type AIImageAspectRatioOption = {
   value: AIImageAspectRatio;
   label: string;
@@ -32,6 +37,7 @@ export const AI_IMAGE_NATIVE_MODEL_OPTIONS: Array<{
   { value: "nano-banana-pro", label: "Nano Banana Pro" },
   { value: "nano-banana-2", label: "Nano Banana 2" },
   { value: "gpt-image-2", label: "gpt-image-2" },
+  { value: "gpt-image-2.5", label: "gpt-image-2.5" },
   { value: "other", label: "Other" },
 ];
 
@@ -164,11 +170,26 @@ const GPT_IMAGE_2_SIZES: NativeModelSizeMap = {
   "9:16": { "1k": "1080x1920" },
 };
 
+// gpt-image-2.5 全比例 + 1K/2K/4K 尺寸表
+const GPT_IMAGE_2_5_SIZES: NativeModelSizeMap = {
+  "3:1": { "1k": "1536x512", "2k": "3072x1024", "4k": "3840x1280" },
+  "21:9": { "1k": "1344x576", "2k": "2688x1152", "4k": "3840x1648" },
+  "16:9": { "1k": "1280x720", "2k": "2048x1152", "4k": "3840x2160" },
+  "3:2": { "1k": "1152x768", "2k": "2304x1536", "4k": "3520x2352" },
+  "4:3": { "1k": "1024x768", "2k": "2048x1536", "4k": "3312x2480" },
+  "1:1": { "1k": "1024x1024", "2k": "2048x2048", "4k": "2880x2880" },
+  "3:4": { "1k": "768x1024", "2k": "1536x2048", "4k": "2480x3312" },
+  "2:3": { "1k": "768x1152", "2k": "1536x2304", "4k": "2352x3520" },
+  "9:16": { "1k": "720x1280", "2k": "1152x2048", "4k": "2160x3840" },
+  "1:3": { "1k": "512x1536", "2k": "1024x3072", "4k": "1280x3840" },
+};
+
 const NATIVE_MODEL_SIZE_MAPS: Record<AIImageNativeModel, NativeModelSizeMap> = {
   "nano-banana": NANO_BANANA_SIZES,
   "nano-banana-pro": NANO_BANANA_PRO_SIZES,
   "nano-banana-2": NANO_BANANA_2_SIZES,
   "gpt-image-2": GPT_IMAGE_2_SIZES,
+  "gpt-image-2.5": GPT_IMAGE_2_5_SIZES,
   other: OTHER_MODEL_SIZES,
 };
 
@@ -196,6 +217,65 @@ export const getAIImageAspectRatioOptions = (
       label: aspectRatio,
     })),
   ];
+};
+
+export const DEFAULT_AI_IMAGE_QUALITY = "auto";
+
+// Generic quality ladder shared by every native model that has no dedicated
+// ladder of its own (OpenAI-compatible relays, Nano Banana, ...).
+const DEFAULT_QUALITY_OPTIONS: AIImageQualityOption[] = [
+  { value: "auto", label: "AUTO" },
+  { value: "standard", label: "Standard" },
+  { value: "hd", label: "HD" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+];
+
+// gpt-image-2.5 exposes an extended quality ladder; `auto` is the default.
+const GPT_IMAGE_2_5_QUALITY_OPTIONS: AIImageQualityOption[] = [
+  { value: "auto", label: "AUTO" },
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "xhigh", label: "XHigh" },
+  { value: "max", label: "Max" },
+];
+
+const NATIVE_MODEL_QUALITY_OPTIONS: Record<
+  AIImageNativeModel,
+  AIImageQualityOption[]
+> = {
+  "nano-banana": DEFAULT_QUALITY_OPTIONS,
+  "nano-banana-pro": DEFAULT_QUALITY_OPTIONS,
+  "nano-banana-2": DEFAULT_QUALITY_OPTIONS,
+  "gpt-image-2": DEFAULT_QUALITY_OPTIONS,
+  "gpt-image-2.5": GPT_IMAGE_2_5_QUALITY_OPTIONS,
+  other: DEFAULT_QUALITY_OPTIONS,
+};
+
+export const getAIImageQualityOptions = (
+  nativeModel: AIImageNativeModel | undefined,
+): AIImageQualityOption[] => {
+  return (
+    NATIVE_MODEL_QUALITY_OPTIONS[
+      nativeModel || DEFAULT_AI_IMAGE_NATIVE_MODEL
+    ] || DEFAULT_QUALITY_OPTIONS
+  );
+};
+
+/**
+ * The quality value a model should fall back to when its current selection is
+ * not part of that model's ladder (`auto` for every model today).
+ */
+export const resolveAIImageQuality = (
+  nativeModel: AIImageNativeModel | undefined,
+  quality: string | undefined,
+): string => {
+  const options = getAIImageQualityOptions(nativeModel);
+  const available = options.map((option) => option.value);
+
+  return quality && available.includes(quality) ? quality : options[0].value;
 };
 
 export const getAIImageResolutionOptions = (

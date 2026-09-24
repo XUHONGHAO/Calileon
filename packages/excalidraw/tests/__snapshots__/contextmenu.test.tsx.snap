@@ -871,6 +871,52 @@ exports[`contextMenu element > right-clicking on a group should select whole gro
           "category": "element",
         },
       },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <React.Fragment>
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"
+            />
+            <path
+              d="M7 11l5 5l5 -5"
+            />
+            <path
+              d="M12 4l0 12"
+            />
+          </React.Fragment>
+        </svg>,
+        "keywords": [
+          "image",
+          "download",
+          "save",
+          "export",
+        ],
+        "label": "buttons.downloadImage",
+        "name": "downloadImage",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+        "viewMode": true,
+      },
       "separator",
       {
         "PanelComponent": [Function],
@@ -5608,6 +5654,52 @@ exports[`contextMenu element > shows 'Group selection' in context menu for multi
           "category": "element",
         },
       },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <React.Fragment>
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"
+            />
+            <path
+              d="M7 11l5 5l5 -5"
+            />
+            <path
+              d="M12 4l0 12"
+            />
+          </React.Fragment>
+        </svg>,
+        "keywords": [
+          "image",
+          "download",
+          "save",
+          "export",
+        ],
+        "label": "buttons.downloadImage",
+        "name": "downloadImage",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+        "viewMode": true,
+      },
       "separator",
       {
         "PanelComponent": [Function],
@@ -6846,6 +6938,52 @@ exports[`contextMenu element > shows 'Ungroup selection' in context menu for gro
         "trackEvent": {
           "category": "element",
         },
+      },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <React.Fragment>
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"
+            />
+            <path
+              d="M7 11l5 5l5 -5"
+            />
+            <path
+              d="M12 4l0 12"
+            />
+          </React.Fragment>
+        </svg>,
+        "keywords": [
+          "image",
+          "download",
+          "save",
+          "export",
+        ],
+        "label": "buttons.downloadImage",
+        "name": "downloadImage",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+        "viewMode": true,
       },
       "separator",
       {
@@ -8831,6 +8969,52 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
           "category": "element",
         },
       },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <React.Fragment>
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"
+            />
+            <path
+              d="M7 11l5 5l5 -5"
+            />
+            <path
+              d="M12 4l0 12"
+            />
+          </React.Fragment>
+        </svg>,
+        "keywords": [
+          "image",
+          "download",
+          "save",
+          "export",
+        ],
+        "label": "buttons.downloadImage",
+        "name": "downloadImage",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+        "viewMode": true,
+      },
       "separator",
       {
         "PanelComponent": [Function],
@@ -9839,6 +10023,52 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
         "trackEvent": {
           "category": "element",
         },
+      },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <React.Fragment>
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2"
+            />
+            <path
+              d="M7 11l5 5l5 -5"
+            />
+            <path
+              d="M12 4l0 12"
+            />
+          </React.Fragment>
+        </svg>,
+        "keywords": [
+          "image",
+          "download",
+          "save",
+          "export",
+        ],
+        "label": "buttons.downloadImage",
+        "name": "downloadImage",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+        "viewMode": true,
       },
       "separator",
       {

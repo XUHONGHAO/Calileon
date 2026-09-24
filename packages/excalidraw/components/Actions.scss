@@ -231,3 +231,28 @@
     transition: none;
   }
 }
+
+.image-dimension-display {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  // Typography is inherited from `.selected-shape-actions` (legend /
+  // .control-label) so this row matches the rest of the sidebar.
+
+  &__label {
+    flex-shrink: 0;
+    min-width: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  &__value {
+    flex-shrink: 0;
+    // keep digits from reflowing as the selection changes
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+}

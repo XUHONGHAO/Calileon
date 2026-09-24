@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@excalidraw/excalidraw/components/Button";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -51,6 +51,22 @@ import {
   serializePromptTemplates,
   upsertCustomPromptTemplate,
 } from "../ai/promptTemplates";
+import {
+  AIProxyConfigError,
+  AI_PROXY_CONFIG_UPDATED_EVENT,
+  getAIGatewayEndpoint,
+  getRuntimeDefaultAIGatewayEndpoint,
+  getRuntimeDefaultAIProxyEndpoint,
+  loadAIProxyConfig,
+  resetAIProxyConfig,
+  saveAIProxyConfig,
+} from "../ai/proxyConfig";
+import {
+  testAIProxyConnection,
+  AIProxyTransportError,
+} from "../ai/requestTransport";
+import { getCloudBackend } from "../data/cloud";
+import { createHttpAiGateway } from "../data/cloud/HttpAiGateway";
 
 import "./AISettings.scss";
 
@@ -62,6 +78,7 @@ import type {
   AIAgentType,
   AISkill,
 } from "../ai/types";
+import type { AIProxyConfigV2 } from "../ai/proxyConfig";
 import type {
   AIImageEndpointConfig,
   AIImageEndpointMode,
@@ -76,7 +93,54 @@ import type {
   PromptTemplateLanguage,
   AIImageGenerationMode,
 } from "../ai/types";
+import type { AISettingsTab } from "../ai/workflowEvents";
 import type { EndpointPresetId } from "../ai/endpointPresets";
+import type {
+  AiGatewayCatalogEntry,
+  AiGatewayAuditRecord,
+  AiGatewayQuota,
+  AiGatewayUsage,
+  AiGateway,
+} from "../data/cloud";
+
+const MANAGED_ROUTE_CAPABILITIES = [
+  "image-generation",
+  "remote-image",
+  "video-submit",
+  "video-poll",
+  "text-agent",
+  "vision-agent",
+] as const;
+
+const MANAGED_ROUTE_LABELS = {
+  "image-generation": "ai.proxy.managedCapabilities.imageGeneration",
+  "remote-image": "ai.proxy.managedCapabilities.remoteImage",
+  "video-submit": "ai.proxy.managedCapabilities.videoSubmit",
+  "video-poll": "ai.proxy.managedCapabilities.videoPoll",
+  "text-agent": "ai.proxy.managedCapabilities.textAgent",
+  "vision-agent": "ai.proxy.managedCapabilities.visionAgent",
+} as const;
+
+/**
+ * Resolve the managed gateway through the cloud adapter boundary. A custom
+ * endpoint is deliberately constructed with the existing AuthProvider rather
+ * than importing a platform SDK here; the default endpoint continues to use
+ * the assembled adapter so deployments and tests can provide their own
+ * implementation.
+ */
+const getManagedGateway = (config: AIProxyConfigV2): AiGateway => {
+  const backend = getCloudBackend();
+  const runtimeEndpoint = String(
+    import.meta.env.VITE_APP_AI_GATEWAY_URL || "",
+  ).trim();
+  if (!config.gatewayEndpoint.trim() && !runtimeEndpoint) {
+    return backend.ai;
+  }
+  return createHttpAiGateway({
+    auth: backend.auth,
+    baseURL: getAIGatewayEndpoint(config),
+  });
+};
 
 const ENDPOINT_FORM_FIELDS: Array<{
   key: AIImageEndpointMode;
@@ -155,7 +219,6 @@ type AIModelGroup = {
   indexes: number[];
 };
 
-type AISettingsTab = "models" | "agents" | "templates";
 type AgentSettingsSubTab = "base" | "skills";
 
 type AgentEditorState =
@@ -506,11 +569,112 @@ export const AISettings = ({
   const [customTemplates, setCustomTemplates] = useState<PromptTemplate[]>(
     loadCustomPromptTemplates,
   );
+  const [proxyConfig, setProxyConfig] = useState(loadAIProxyConfig);
+  const [isTestingProxy, setIsTestingProxy] = useState(false);
+  const [managedAccountStatus, setManagedAccountStatus] = useState<
+    "idle" | "loading" | "signed-out" | "ready" | "unavailable"
+  >("idle");
+  const [managedCatalog, setManagedCatalog] = useState<AiGatewayCatalogEntry[]>(
+    [],
+  );
+  const [managedQuota, setManagedQuota] = useState<AiGatewayQuota | null>(null);
+  const [managedUsage, setManagedUsage] = useState<AiGatewayUsage[]>([]);
+  const [managedAuditConsent, setManagedAuditConsent] = useState(false);
+  const [managedAuditAvailable, setManagedAuditAvailable] = useState(false);
+  const [managedAudits, setManagedAudits] = useState<AiGatewayAuditRecord[]>(
+    [],
+  );
+  const [managedAuditDetail, setManagedAuditDetail] =
+    useState<AiGatewayAuditRecord | null>(null);
+  const [deviceUserCode, setDeviceUserCode] = useState("");
   const [setAsDefault, setSetAsDefault] = useState(false);
   const [setAgentAsDefault, setSetAgentAsDefault] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const templateImportInputRef = useRef<HTMLInputElement | null>(null);
+
+  const managedGateway = useMemo(() => {
+    try {
+      return getManagedGateway(proxyConfig);
+    } catch {
+      return null;
+    }
+  }, [proxyConfig]);
+
+  useEffect(() => {
+    const handleProxyConfigUpdated = () => {
+      setProxyConfig(loadAIProxyConfig());
+    };
+
+    window.addEventListener(
+      AI_PROXY_CONFIG_UPDATED_EVENT,
+      handleProxyConfigUpdated,
+    );
+
+    return () => {
+      window.removeEventListener(
+        AI_PROXY_CONFIG_UPDATED_EVENT,
+        handleProxyConfigUpdated,
+      );
+    };
+  }, []);
+
+  useEffect(() => {
+    if (proxyConfig.mode !== "managed-gateway") {
+      setManagedAccountStatus("idle");
+      setManagedCatalog([]);
+      setManagedQuota(null);
+      setManagedUsage([]);
+      setManagedAuditAvailable(false);
+      setManagedAuditConsent(false);
+      setManagedAudits([]);
+      setManagedAuditDetail(null);
+      return;
+    }
+    let cancelled = false;
+    const load = async () => {
+      setManagedAccountStatus("loading");
+      const backend = getCloudBackend();
+      const user = await backend.auth.getCurrentUser();
+      if (!user) {
+        if (!cancelled) {
+          setManagedAccountStatus("signed-out");
+        }
+        return;
+      }
+      if (!managedGateway?.isEnabled()) {
+        if (!cancelled) {
+          setManagedAccountStatus("unavailable");
+        }
+        return;
+      }
+      const [catalog, quota, usage, consent, audits] = await Promise.all([
+        managedGateway.getCatalog(),
+        managedGateway.getQuota(),
+        managedGateway.getUsage({ limit: 10 }),
+        managedGateway.getAuditConsent(),
+        managedGateway.listAudits({ limit: 20 }),
+      ]);
+      if (!cancelled) {
+        setManagedCatalog(catalog);
+        setManagedQuota(quota);
+        setManagedUsage(usage);
+        setManagedAuditAvailable(consent.deploymentEnabled);
+        setManagedAuditConsent(consent.enabled);
+        setManagedAudits(audits);
+        setManagedAuditDetail(null);
+        setManagedAccountStatus("ready");
+      }
+    };
+    load().catch(() => {
+      if (!cancelled) {
+        setManagedAccountStatus("unavailable");
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [managedGateway, proxyConfig.mode]);
 
   const visibleModelGroups = useMemo(
     () => groupModelsByProvider(config.models, activeMediaType),
@@ -558,6 +722,135 @@ export const AISettings = ({
     },
     [],
   );
+
+  const persistProxyConfig = useCallback(() => {
+    try {
+      const savedConfig = saveAIProxyConfig(proxyConfig);
+      setProxyConfig(savedConfig);
+      setStatusMessage(t("ai.proxy.saved"));
+      setErrorMessage("");
+    } catch (error: any) {
+      setErrorMessage(
+        error instanceof AIProxyConfigError
+          ? t("ai.proxy.errors.invalidEndpoint")
+          : error?.message || t("ai.proxy.errors.invalidEndpoint"),
+      );
+      setStatusMessage("");
+    }
+  }, [proxyConfig]);
+
+  const testProxy = useCallback(async () => {
+    if (proxyConfig.mode !== "byok-proxy") {
+      setErrorMessage(t("ai.proxy.errors.tryDirect"));
+      setStatusMessage("");
+      return;
+    }
+
+    setIsTestingProxy(true);
+    setErrorMessage("");
+    setStatusMessage("");
+
+    try {
+      await testAIProxyConnection(proxyConfig);
+      setStatusMessage(t("ai.proxy.testSuccess"));
+    } catch (error: any) {
+      setErrorMessage(
+        error instanceof AIProxyTransportError
+          ? error.message
+          : t("ai.proxy.errors.server"),
+      );
+    } finally {
+      setIsTestingProxy(false);
+    }
+  }, [proxyConfig]);
+
+  const approveDeviceCode = useCallback(async () => {
+    const code = deviceUserCode.trim();
+    if (!code) {
+      return;
+    }
+    try {
+      if (!managedGateway) {
+        throw new Error("Managed gateway is unavailable.");
+      }
+      await managedGateway.approveDeviceAuthorization(code);
+      setDeviceUserCode("");
+      setStatusMessage(t("ai.proxy.deviceApproved"));
+      setErrorMessage("");
+    } catch {
+      setStatusMessage("");
+      setErrorMessage(t("ai.proxy.errors.deviceApproval"));
+    }
+  }, [deviceUserCode, managedGateway]);
+
+  const updateManagedAuditConsent = useCallback(
+    async (enabled: boolean) => {
+      try {
+        if (!managedGateway) {
+          throw new Error("Managed gateway is unavailable.");
+        }
+        await managedGateway.setAuditConsent(enabled);
+        setManagedAuditConsent(enabled);
+        setStatusMessage(t("ai.proxy.auditUpdated"));
+        setErrorMessage("");
+      } catch {
+        setStatusMessage("");
+        setErrorMessage(t("ai.proxy.errors.managedGateway"));
+      }
+    },
+    [managedGateway],
+  );
+
+  const viewManagedAudit = useCallback(
+    async (auditId: string) => {
+      try {
+        if (!managedGateway) {
+          throw new Error("Managed gateway is unavailable.");
+        }
+        setManagedAuditDetail(await managedGateway.getAudit(auditId));
+        setStatusMessage("");
+        setErrorMessage("");
+      } catch {
+        setManagedAuditDetail(null);
+        setStatusMessage("");
+        setErrorMessage(t("ai.proxy.errors.managedGateway"));
+      }
+    },
+    [managedGateway],
+  );
+
+  const deleteManagedAudit = useCallback(
+    async (auditId: string) => {
+      if (!managedGateway) {
+        return;
+      }
+      if (!window.confirm(t("ai.proxy.auditDeleteConfirm"))) {
+        return;
+      }
+      try {
+        await managedGateway.deleteAudit(auditId);
+        setManagedAudits((current) =>
+          current.filter((audit) => audit.id !== auditId),
+        );
+        setManagedAuditDetail((current) =>
+          current?.id === auditId ? null : current,
+        );
+        setStatusMessage(t("ai.proxy.auditDeleted"));
+        setErrorMessage("");
+      } catch {
+        setStatusMessage("");
+        setErrorMessage(t("ai.proxy.errors.managedGateway"));
+      }
+    },
+    [managedGateway],
+  );
+
+  const restoreProxyDefaults = useCallback(() => {
+    const restored = resetAIProxyConfig();
+    setProxyConfig(restored);
+    setStatusMessage(t("ai.proxy.restored"));
+    setErrorMessage("");
+  }, []);
 
   const openCreateModel = useCallback(() => {
     setEditorState({
@@ -2625,6 +2918,332 @@ export const AISettings = ({
     return renderAgentsList();
   };
 
+  const renderNetworkSettings = () => {
+    const runtimeDefaultEndpoint = getRuntimeDefaultAIProxyEndpoint();
+    const runtimeDefaultGatewayEndpoint = getRuntimeDefaultAIGatewayEndpoint();
+
+    return (
+      <div className="AISettings__network">
+        <div
+          className="AISettings__networkModes"
+          role="radiogroup"
+          aria-label={t("ai.proxy.networkTitle")}
+        >
+          <label
+            className={
+              proxyConfig.mode === "direct"
+                ? "AISettings__networkMode is-selected"
+                : "AISettings__networkMode"
+            }
+          >
+            <input
+              type="radio"
+              name="ai-network-mode"
+              checked={proxyConfig.mode === "direct"}
+              onChange={() =>
+                setProxyConfig((current) => ({
+                  ...current,
+                  mode: "direct",
+                }))
+              }
+            />
+            <span>
+              <strong>{t("ai.proxy.directTitle")}</strong>
+              <small>{t("ai.proxy.directDescription")}</small>
+            </span>
+          </label>
+
+          <label
+            className={
+              proxyConfig.mode === "byok-proxy"
+                ? "AISettings__networkMode is-selected"
+                : "AISettings__networkMode"
+            }
+          >
+            <input
+              type="radio"
+              name="ai-network-mode"
+              checked={proxyConfig.mode === "byok-proxy"}
+              onChange={() =>
+                setProxyConfig((current) => ({
+                  ...current,
+                  mode: "byok-proxy",
+                }))
+              }
+            />
+            <span>
+              <strong>{t("ai.proxy.backendTitle")}</strong>
+              <small>{t("ai.proxy.backendDescription")}</small>
+            </span>
+          </label>
+
+          <label
+            className={
+              proxyConfig.mode === "managed-gateway"
+                ? "AISettings__networkMode is-selected"
+                : "AISettings__networkMode"
+            }
+          >
+            <input
+              type="radio"
+              name="ai-network-mode"
+              checked={proxyConfig.mode === "managed-gateway"}
+              onChange={() =>
+                setProxyConfig((current) => ({
+                  ...current,
+                  mode: "managed-gateway",
+                }))
+              }
+            />
+            <span>
+              <strong>{t("ai.proxy.managedTitle")}</strong>
+              <small>{t("ai.proxy.managedDescription")}</small>
+            </span>
+          </label>
+        </div>
+
+        {proxyConfig.mode === "byok-proxy" && (
+          <div className="AISettings__networkFields">
+            <label className="AISettings__field">
+              <span>{t("ai.proxy.endpoint")}</span>
+              <input
+                value={proxyConfig.endpoint}
+                placeholder={t("ai.proxy.endpointPlaceholder")}
+                onChange={(event) =>
+                  setProxyConfig((current) => ({
+                    ...current,
+                    endpoint: event.target.value,
+                  }))
+                }
+              />
+              <span className="AISettings__fieldHint">
+                {t("ai.proxy.endpointHint")}
+              </span>
+              <span className="AISettings__fieldHint">
+                {t("ai.proxy.runtimeDefault", {
+                  endpoint: runtimeDefaultEndpoint,
+                })}
+              </span>
+            </label>
+
+            <label className="AISettings__field">
+              <span>{t("ai.proxy.accessToken")}</span>
+              <input
+                type="password"
+                autoComplete="off"
+                value={proxyConfig.accessToken}
+                onChange={(event) =>
+                  setProxyConfig((current) => ({
+                    ...current,
+                    accessToken: event.target.value,
+                  }))
+                }
+              />
+              <span className="AISettings__fieldHint">
+                {t("ai.proxy.accessTokenHint")}
+              </span>
+            </label>
+          </div>
+        )}
+
+        {proxyConfig.mode === "managed-gateway" && (
+          <div className="AISettings__managedGateway">
+            <label className="AISettings__field">
+              <span>{t("ai.proxy.gatewayEndpoint")}</span>
+              <input
+                value={proxyConfig.gatewayEndpoint}
+                placeholder="/ai-gateway/v1"
+                onChange={(event) =>
+                  setProxyConfig((current) => ({
+                    ...current,
+                    gatewayEndpoint: event.target.value,
+                  }))
+                }
+              />
+              <span className="AISettings__fieldHint">
+                {t("ai.proxy.runtimeDefault", {
+                  endpoint: runtimeDefaultGatewayEndpoint,
+                })}
+              </span>
+            </label>
+
+            {managedAccountStatus === "loading" && (
+              <div className="AISettings__networkWarning">
+                {t("ai.proxy.managedLoading")}
+              </div>
+            )}
+            {managedAccountStatus === "signed-out" && (
+              <div className="AISettings__networkWarning" role="alert">
+                {t("ai.proxy.managedSignInRequired")}
+              </div>
+            )}
+            {managedAccountStatus === "unavailable" && (
+              <div className="AISettings__networkWarning" role="alert">
+                {t("ai.proxy.managedUnavailable")}
+              </div>
+            )}
+
+            {managedAccountStatus === "ready" && (
+              <>
+                <div className="AISettings__networkFields">
+                  {MANAGED_ROUTE_CAPABILITIES.map((capability) => {
+                    const routes = managedCatalog.filter(
+                      (entry) => entry.capability === capability,
+                    );
+                    return (
+                      <label className="AISettings__field" key={capability}>
+                        <span>{t(MANAGED_ROUTE_LABELS[capability])}</span>
+                        <select
+                          value={proxyConfig.managedRoutes[capability] || ""}
+                          onChange={(event) =>
+                            setProxyConfig((current) => ({
+                              ...current,
+                              managedRoutes: {
+                                ...current.managedRoutes,
+                                [capability]: event.target.value,
+                              },
+                            }))
+                          }
+                        >
+                          <option value="">{t("ai.proxy.selectRoute")}</option>
+                          {routes.map((route) => (
+                            <option value={route.id} key={route.id}>
+                              {route.label} ({route.model})
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {managedQuota && (
+                  <div className="AISettings__gatewaySummary">
+                    <strong>{t("ai.proxy.quotaTitle")}</strong>
+                    <span>
+                      {t("ai.proxy.quotaDaily", {
+                        used: managedQuota.daily.used,
+                        limit: managedQuota.daily.limit,
+                      })}
+                    </span>
+                    <span>
+                      {t("ai.proxy.quotaMonthly", {
+                        used: managedQuota.monthly.used,
+                        limit: managedQuota.monthly.limit,
+                      })}
+                    </span>
+                    <span>
+                      {t("ai.proxy.recentUsage", {
+                        count: managedUsage.length,
+                      })}
+                    </span>
+                  </div>
+                )}
+
+                {managedAuditAvailable && (
+                  <>
+                    <label className="AISettings__gatewayToggle">
+                      <input
+                        type="checkbox"
+                        checked={managedAuditConsent}
+                        onChange={(event) =>
+                          updateManagedAuditConsent(event.target.checked)
+                        }
+                      />
+                      <span>{t("ai.proxy.auditConsent")}</span>
+                    </label>
+                    <div className="AISettings__auditRecords">
+                      <strong>{t("ai.proxy.auditRecords")}</strong>
+                      {!managedAudits.length && (
+                        <span className="AISettings__fieldHint">
+                          {t("ai.proxy.auditEmpty")}
+                        </span>
+                      )}
+                      {managedAudits.map((audit) => (
+                        <div className="AISettings__auditRecord" key={audit.id}>
+                          <span>
+                            {audit.routeId} ·{" "}
+                            {new Date(audit.createdAt).toLocaleString()}
+                          </span>
+                          <span>
+                            <button
+                              type="button"
+                              onClick={() => void viewManagedAudit(audit.id)}
+                            >
+                              {t("ai.proxy.auditView")}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void deleteManagedAudit(audit.id)}
+                            >
+                              {t("ai.proxy.auditDelete")}
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                      {managedAuditDetail && (
+                        <div className="AISettings__auditDetail">
+                          <div className="AISettings__auditDetailHeader">
+                            <strong>{t("ai.proxy.auditPrompt")}</strong>
+                            <button
+                              type="button"
+                              onClick={() => setManagedAuditDetail(null)}
+                            >
+                              {t("buttons.close")}
+                            </button>
+                          </div>
+                          <pre>{managedAuditDetail.prompt || ""}</pre>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <div className="AISettings__deviceApproval">
+                  <label className="AISettings__field">
+                    <span>{t("ai.proxy.deviceCode")}</span>
+                    <input
+                      value={deviceUserCode}
+                      autoComplete="off"
+                      onChange={(event) =>
+                        setDeviceUserCode(event.target.value)
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={!deviceUserCode.trim()}
+                    onClick={approveDeviceCode}
+                  >
+                    {t("ai.proxy.approveDevice")}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="AISettings__networkWarning">
+          {t("ai.proxy.videoWarning")}
+        </div>
+
+        <div className="AISettings__networkActions">
+          <button type="button" onClick={restoreProxyDefaults}>
+            {t("ai.proxy.restoreDefaults")}
+          </button>
+          <button
+            type="button"
+            disabled={proxyConfig.mode !== "byok-proxy" || isTestingProxy}
+            onClick={testProxy}
+          >
+            {isTestingProxy ? t("ai.proxy.testing") : t("ai.proxy.test")}
+          </button>
+          <Button onSelect={persistProxyConfig}>{t("ai.proxy.save")}</Button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="AISettings">
       <div
@@ -2671,6 +3290,19 @@ export const AISettings = ({
         >
           {t("ai.settings.tabs.templates")}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeSettingsTab === "network"}
+          className={
+            activeSettingsTab === "network"
+              ? "AISettings__tab is-selected"
+              : "AISettings__tab"
+          }
+          onClick={() => setActiveSettingsTab("network")}
+        >
+          {t("ai.proxy.networkTitle")}
+        </button>
       </div>
 
       {activeSettingsTab === "models" &&
@@ -2680,6 +3312,7 @@ export const AISettings = ({
         (templateEditorState.mode === "list"
           ? renderTemplatesList()
           : renderTemplateEditor())}
+      {activeSettingsTab === "network" && renderNetworkSettings()}
 
       {(statusMessage || errorMessage) && (
         <div

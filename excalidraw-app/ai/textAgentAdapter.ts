@@ -6,8 +6,17 @@ import {
   getAIAgentProviderPreset,
 } from "./agentProviderPresets";
 import { cleanMermaidCode } from "./mermaidCleaner";
+import { loadAIProxyConfig } from "./proxyConfig";
+import {
+  AIProxyTransportError,
+  fetchAIRequest,
+  getManagedRouteForCapability,
+  MANAGED_GATEWAY_TARGET,
+} from "./requestTransport";
 
 import type { AIAgent } from "./types";
+import type { AIProxyConfigV2 } from "./proxyConfig";
+import type { AiGatewayCatalogEntry } from "../data/cloud/types";
 
 type LLMMessage = {
   role: "user" | "assistant";
@@ -20,6 +29,11 @@ type TextAgentSubmitOptions = {
   onChunk?: (chunk: string) => void;
   onStreamCreated?: () => void;
   signal?: AbortSignal;
+};
+
+type TextAgentExecutionOptions = TextAgentSubmitOptions & {
+  managedRoute?: AiGatewayCatalogEntry;
+  transportConfig?: AIProxyConfigV2;
 };
 
 type TextAgentSubmitResult =
@@ -35,6 +49,48 @@ type TextAgentSubmitResult =
       rateLimit?: null;
       rateLimitRemaining?: null;
     };
+
+const getAuditPrompt = (messages: readonly LLMMessage[]) =>
+  messages
+    .filter((message) => message.role === "user")
+    .map((message) => message.content)
+    .join("\n\n")
+    .trim();
+
+const getManagedProvider = (
+  route: AiGatewayCatalogEntry,
+): AIAgent["provider"] => {
+  const protocol = route.wireProtocol.toLowerCase();
+  if (protocol.includes("anthropic")) {
+    return "anthropic";
+  }
+  if (protocol.includes("gemini")) {
+    return "gemini";
+  }
+  return "openai-compatible";
+};
+
+const createManagedAgent = (
+  route: AiGatewayCatalogEntry,
+  configured: AIAgent | null,
+): AIAgent => ({
+  id: configured?.id || `managed:${route.id}`,
+  name: configured?.name || route.label,
+  type: configured?.type || "text",
+  provider: getManagedProvider(route),
+  baseURL: MANAGED_GATEWAY_TARGET,
+  apiKey: "",
+  model: route.model,
+  ...(configured?.systemPrompt
+    ? { systemPrompt: configured.systemPrompt }
+    : {}),
+});
+
+const managedTransportOptions = (options: TextAgentExecutionOptions) => ({
+  ...(options.managedRoute ? { managedRoute: options.managedRoute } : {}),
+  ...(options.transportConfig ? { config: options.transportConfig } : {}),
+  ...(options.managedRoute ? { managedOperation: "stream" } : {}),
+});
 
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, "");
 
@@ -266,7 +322,7 @@ const streamResponse = async (
 
 const submitOpenAICompatibleTextAgent = async (
   agent: AIAgent,
-  options: TextAgentSubmitOptions,
+  options: TextAgentExecutionOptions,
 ) => {
   const headers = new Headers({
     Accept: "text/event-stream",
@@ -278,19 +334,28 @@ const submitOpenAICompatibleTextAgent = async (
     headers.set("Authorization", authorizationHeader);
   }
 
-  const response = await fetch(getOpenAIChatEndpoint(agent), {
-    method: "POST",
-    headers,
-    body: JSON.stringify({
-      model: agent.model,
-      stream: true,
-      messages: [
-        { role: "system", content: getSystemPrompt(agent) },
-        ...options.messages,
-      ],
-    }),
-    signal: options.signal,
-  });
+  const response = await fetchAIRequest(
+    getOpenAIChatEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        stream: true,
+        messages: [
+          { role: "system", content: getSystemPrompt(agent) },
+          ...options.messages,
+        ],
+      }),
+      signal: options.signal,
+    },
+    {
+      kind: "text-agent",
+      signal: options.signal,
+      auditPrompt: getAuditPrompt(options.messages),
+      ...managedTransportOptions(options),
+    },
+  );
 
   if (!response.ok) {
     throw new RequestError({
@@ -308,25 +373,37 @@ const submitOpenAICompatibleTextAgent = async (
 
 const submitAnthropicTextAgent = async (
   agent: AIAgent,
-  options: TextAgentSubmitOptions,
+  options: TextAgentExecutionOptions,
 ) => {
-  const response = await fetch(getAnthropicMessagesEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "text/event-stream",
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-      "x-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
+  const headers: Record<string, string> = {
+    Accept: "text/event-stream",
+    "anthropic-version": "2023-06-01",
+    "Content-Type": "application/json",
+  };
+  if (!options.managedRoute) {
+    headers["x-api-key"] = getRawAPIKeyHeaderValue(agent.apiKey);
+  }
+  const response = await fetchAIRequest(
+    getAnthropicMessagesEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        max_tokens: 4096,
+        stream: true,
+        system: getSystemPrompt(agent),
+        messages: options.messages,
+      }),
+      signal: options.signal,
     },
-    body: JSON.stringify({
-      model: agent.model,
-      max_tokens: 4096,
-      stream: true,
-      system: getSystemPrompt(agent),
-      messages: options.messages,
-    }),
-    signal: options.signal,
-  });
+    {
+      kind: "text-agent",
+      signal: options.signal,
+      auditPrompt: getAuditPrompt(options.messages),
+      ...managedTransportOptions(options),
+    },
+  );
 
   if (!response.ok) {
     throw new RequestError({
@@ -348,26 +425,38 @@ const toGeminiRole = (role: LLMMessage["role"]) => {
 
 const submitGeminiTextAgent = async (
   agent: AIAgent,
-  options: TextAgentSubmitOptions,
+  options: TextAgentExecutionOptions,
 ) => {
-  const response = await fetch(getGeminiStreamEndpoint(agent), {
-    method: "POST",
-    headers: {
-      Accept: "text/event-stream",
-      "Content-Type": "application/json",
-      "x-goog-api-key": getRawAPIKeyHeaderValue(agent.apiKey),
+  const headers: Record<string, string> = {
+    Accept: "text/event-stream",
+    "Content-Type": "application/json",
+  };
+  if (!options.managedRoute) {
+    headers["x-goog-api-key"] = getRawAPIKeyHeaderValue(agent.apiKey);
+  }
+  const response = await fetchAIRequest(
+    getGeminiStreamEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: getSystemPrompt(agent) }],
+        },
+        contents: options.messages.map((message) => ({
+          role: toGeminiRole(message.role),
+          parts: [{ text: message.content }],
+        })),
+      }),
+      signal: options.signal,
     },
-    body: JSON.stringify({
-      systemInstruction: {
-        parts: [{ text: getSystemPrompt(agent) }],
-      },
-      contents: options.messages.map((message) => ({
-        role: toGeminiRole(message.role),
-        parts: [{ text: message.content }],
-      })),
-    }),
-    signal: options.signal,
-  });
+    {
+      kind: "text-agent",
+      signal: options.signal,
+      auditPrompt: getAuditPrompt(options.messages),
+      ...managedTransportOptions(options),
+    },
+  );
 
   if (!response.ok) {
     throw new RequestError({
@@ -387,8 +476,10 @@ export const submitTextAgent = async (
   options: TextAgentSubmitOptions,
 ): Promise<TextAgentSubmitResult> => {
   const { agent } = options;
+  const transportConfig = loadAIProxyConfig();
+  const managed = transportConfig.mode === "managed-gateway";
 
-  if (!agent) {
+  if (!managed && !agent) {
     return {
       error: new RequestError({
         message: t("ai.assistant.messages.textAgentNotConfigured"),
@@ -397,11 +488,11 @@ export const submitTextAgent = async (
     };
   }
 
-  if (!agent.baseURL.trim() || !agent.model.trim()) {
+  if (!managed && (!agent?.baseURL.trim() || !agent.model.trim())) {
     return {
       error: new RequestError({
         message:
-          agent.type === "llm"
+          agent?.type === "llm"
             ? t("ai.assistant.messages.generalAgentIncomplete")
             : t("ai.assistant.messages.textAgentIncomplete"),
         status: 400,
@@ -410,12 +501,33 @@ export const submitTextAgent = async (
   }
 
   try {
+    const managedRoute = managed
+      ? await getManagedRouteForCapability("text-agent", {
+          config: transportConfig,
+        })
+      : undefined;
+    if (managedRoute && !managedRoute.operations.includes("stream")) {
+      throw new AIProxyTransportError(
+        "proxy-config",
+        t("ai.proxy.errors.managedRouteMissing"),
+      );
+    }
+    const effectiveAgent = managedRoute
+      ? createManagedAgent(managedRoute, agent)
+      : (agent as AIAgent);
+    const executionOptions: TextAgentExecutionOptions = {
+      ...options,
+      ...(managedRoute ? { managedRoute, transportConfig } : {}),
+    };
     const generatedResponse =
-      agent.provider === "anthropic"
-        ? await submitAnthropicTextAgent(agent, options)
-        : agent.provider === "gemini"
-        ? await submitGeminiTextAgent(agent, options)
-        : await submitOpenAICompatibleTextAgent(agent, options);
+      effectiveAgent.provider === "anthropic"
+        ? await submitAnthropicTextAgent(effectiveAgent, executionOptions)
+        : effectiveAgent.provider === "gemini"
+        ? await submitGeminiTextAgent(effectiveAgent, executionOptions)
+        : await submitOpenAICompatibleTextAgent(
+            effectiveAgent,
+            executionOptions,
+          );
     const cleanedResponse = cleanMermaidCode(generatedResponse);
 
     return {
@@ -428,6 +540,20 @@ export const submitTextAgent = async (
     if (error.name === "AbortError") {
       return {
         error: new RequestError({ message: "Request aborted", status: 499 }),
+      };
+    }
+
+    if (error instanceof AIProxyTransportError) {
+      return {
+        error: new RequestError({
+          message: error.message,
+          status: error.details?.status || 502,
+          data: {
+            code: error.code,
+            proxyErrorCode: error.details?.proxyErrorCode,
+            requestId: error.details?.requestId,
+          },
+        }),
       };
     }
 

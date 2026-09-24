@@ -13,6 +13,7 @@ import {
   isCanonicalBase64Url,
 } from "../../vault/encoding";
 import { isVaultErrorCode, VaultError } from "../../vault/errors";
+import { serializeVaultAssetEnvelopeV1 } from "../../vault/fileAssets";
 import { assertVaultEncryptedEnvelopeV1 } from "../../vault/protocol";
 
 import { getSupabaseClient } from "./client";
@@ -104,25 +105,9 @@ const assertAssetInput = (input: VaultEncryptedAssetInput) => {
   }
 };
 
-export const serializeVaultAssetEnvelope = (
-  envelope: VaultAssetEncryptedEnvelopeV1,
-): Uint8Array<ArrayBuffer> => {
-  assertVaultEncryptedEnvelopeV1(envelope);
-  if (envelope.purpose !== "asset") {
-    throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault asset.");
-  }
-  return new TextEncoder().encode(
-    JSON.stringify({
-      version: envelope.version,
-      vaultId: envelope.vaultId,
-      purpose: envelope.purpose,
-      messageType: envelope.messageType,
-      messageId: envelope.messageId,
-      iv: envelope.iv,
-      ciphertext: envelope.ciphertext,
-    }),
-  );
-};
+// Kept as a named alias so cloud callers and tests share the single canonical
+// serializer defined in the Vault domain.
+export const serializeVaultAssetEnvelope = serializeVaultAssetEnvelopeV1;
 
 const equalBytes = (left: Uint8Array, right: Uint8Array): boolean => {
   if (left.byteLength !== right.byteLength) {

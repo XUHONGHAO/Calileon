@@ -14,6 +14,7 @@ import { readCapabilities } from "./capabilities";
 import { readCollabPersistenceBackend } from "./capabilities";
 import { createCloudEncryptionService } from "./CloudEncryptionService";
 import { createFirebaseCollabPersistenceService } from "./FirebaseCollabPersistenceService";
+import { createHttpAiGateway } from "./HttpAiGateway";
 import {
   createLocalAITaskService,
   createLocalAiGateway,
@@ -87,31 +88,38 @@ const assembleLocalBackend = (): CloudBackend => ({
  */
 const assembleSupabaseBackend = (
   capabilities: BackendCapabilities,
-): CloudBackend => ({
-  capabilities,
-  auth: createSupabaseAuthProvider(),
-  scenes: createSupabaseSceneStorage(),
-  assets: createSupabaseAssetStorage(),
-  videoAssets: capabilities.remoteVideoAssets
-    ? createSupabaseVideoAssetService()
-    : createLocalVideoAssetService(),
-  shares: createSupabaseShareService(),
-  aiTasks: createSupabaseAITaskService(),
-  activity: createSupabaseSceneActivityService(),
-  realtime: createLocalRealtimeService(),
-  collabRooms: capabilities.collabRoomBinding
-    ? createSupabaseCollabRoomService()
-    : createLocalCollabRoomService(),
-  collabPersistence: capabilities.collabPersistence
-    ? readCollabPersistenceBackend() === "firebase"
-      ? createFirebaseCollabPersistenceService()
-      : createSupabaseCollabPersistenceService()
-    : createLocalCollabPersistenceService(),
-  encryption: createCloudEncryptionService(capabilities.encryptedCloudStorage),
-  cast: createSupabaseCastService(),
-  embed: createSupabaseEmbedService(),
-  ai: createLocalAiGateway(),
-});
+): CloudBackend => {
+  const auth = createSupabaseAuthProvider();
+  return {
+    capabilities,
+    auth,
+    scenes: createSupabaseSceneStorage(),
+    assets: createSupabaseAssetStorage(),
+    videoAssets: capabilities.remoteVideoAssets
+      ? createSupabaseVideoAssetService()
+      : createLocalVideoAssetService(),
+    shares: createSupabaseShareService(),
+    aiTasks: createSupabaseAITaskService(),
+    activity: createSupabaseSceneActivityService(),
+    realtime: createLocalRealtimeService(),
+    collabRooms: capabilities.collabRoomBinding
+      ? createSupabaseCollabRoomService()
+      : createLocalCollabRoomService(),
+    collabPersistence: capabilities.collabPersistence
+      ? readCollabPersistenceBackend() === "firebase"
+        ? createFirebaseCollabPersistenceService()
+        : createSupabaseCollabPersistenceService()
+      : createLocalCollabPersistenceService(),
+    encryption: createCloudEncryptionService(
+      capabilities.encryptedCloudStorage,
+    ),
+    cast: createSupabaseCastService(),
+    embed: createSupabaseEmbedService(),
+    ai: capabilities.aiGateway
+      ? createHttpAiGateway({ auth })
+      : createLocalAiGateway(),
+  };
+};
 
 /**
  * Returns the active cloud backend singleton. Selects the Supabase assembly

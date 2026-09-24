@@ -1,0 +1,30 @@
+:8080 {
+  log {
+    output discard
+  }
+
+  @ai_proxy path /ai-proxy/*
+  handle @ai_proxy {
+    reverse_proxy ai-proxy:3016 {
+      flush_interval -1
+    }
+  }
+
+  @ai_gateway path /ai-gateway/*
+  handle @ai_gateway {
+    reverse_proxy ai-proxy:3016 {
+      flush_interval -1
+    }
+  }
+
+  @smoke path /__smoke__/*
+  handle @smoke {
+    reverse_proxy smoke-upstream:8090 {
+      flush_interval -1
+    }
+  }
+
+  handle {
+    respond "smoke app" 200
+  }
+}

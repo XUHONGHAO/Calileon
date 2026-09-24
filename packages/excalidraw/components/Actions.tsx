@@ -59,6 +59,8 @@ import {
   shouldShowLuminaGameEditorControls,
 } from "../renderer/lumina/game";
 
+import { ImageDimensionDisplay } from "./ImageDimensionDisplay";
+
 import { getToolbarTools } from "./shapes";
 
 import "./Actions.scss";
@@ -190,6 +192,14 @@ export const SelectedShapeActions = ({
     !appState.croppingElementId &&
     targetElements.length === 1 &&
     isImageElement(targetElements[0]);
+
+  // A single image selection (not a multi-selection, and not an image with
+  // bound text, since bound text counts as a target element) drives both the
+  // download action and the pixel-dimension readout.
+  const singleImageElement =
+    targetElements.length === 1 && isImageElement(targetElements[0])
+      ? targetElements[0]
+      : null;
 
   const showAlignActions =
     !isSingleElementBoundContainer && alignActionsPredicate(appState, app);
@@ -331,10 +341,15 @@ export const SelectedShapeActions = ({
             {renderAction("group")}
             {renderAction("ungroup")}
             {showLinkIcon && renderAction("hyperlink")}
+            {singleImageElement && renderAction("downloadImage")}
             {showCropEditorAction && renderAction("cropEditor")}
             {showLineEditorAction && renderAction("toggleLinearEditor")}
           </div>
         </fieldset>
+      )}
+
+      {singleImageElement && (
+        <ImageDimensionDisplay element={singleImageElement} files={app.files} />
       )}
     </div>
   );

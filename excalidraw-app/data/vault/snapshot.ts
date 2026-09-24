@@ -11,6 +11,7 @@ import {
   createVaultMessageId,
 } from "./protocol";
 
+import type { VaultSnapshotCasResult } from "./backendContract";
 import type { VaultRole, VaultSnapshotEncryptedEnvelopeV1 } from "./types";
 
 export interface VaultSnapshotLoadInput {
@@ -87,6 +88,7 @@ export const encryptVaultSnapshot = async <TSnapshot>(input: {
   rootKey: string;
   generation: number;
   snapshot: TSnapshot;
+  messageId?: string;
 }): Promise<VaultSnapshotEncryptedEnvelopeV1> => {
   assertGeneration(input.generation, 1);
   try {
@@ -104,7 +106,7 @@ export const encryptVaultSnapshot = async <TSnapshot>(input: {
         vaultId: input.vaultId,
         purpose: "snapshot",
         messageType: "snapshot.scene",
-        messageId: createVaultMessageId(),
+        messageId: input.messageId ?? createVaultMessageId(),
         generation: input.generation,
       },
       new TextEncoder().encode(serialized),
@@ -118,6 +120,40 @@ export const encryptVaultSnapshot = async <TSnapshot>(input: {
       "Vault snapshot is not JSON serializable.",
     );
   }
+};
+
+export const saveVaultSnapshotEnvelope = async (input: {
+  persistence: VaultPersistenceService;
+  vaultId: string;
+  invitationCapability: string;
+  updateId: string;
+  expectedGeneration: number;
+  envelope: VaultSnapshotEncryptedEnvelopeV1;
+  ciphertextBytes: number;
+}): Promise<VaultSnapshotCasResult> => {
+  assertVaultPersistenceService(input.persistence);
+  if (input.envelope.messageId !== input.updateId) {
+    throw new VaultError(
+      "VAULT_ENVELOPE_INVALID",
+      "Vault snapshot update ID does not match the envelope.",
+    );
+  }
+  const result = await input.persistence.casSnapshot({
+    vaultId: input.vaultId,
+    invitationCapability: input.invitationCapability,
+    updateId: input.updateId,
+    expectedGeneration: input.expectedGeneration,
+    envelope: input.envelope,
+    ciphertextBytes: input.ciphertextBytes,
+  });
+  if (
+    result.vaultId !== input.vaultId ||
+    (result.updateId !== undefined && result.updateId !== input.updateId) ||
+    result.generation !== input.expectedGeneration + 1
+  ) {
+    throw new VaultError("VAULT_INTERNAL", "Invalid Vault CAS response.");
+  }
+  return { ...result, updateId: result.updateId ?? input.updateId };
 };
 
 export const decryptVaultSnapshot = async <TSnapshot>(input: {
@@ -185,16 +221,15 @@ export const saveVaultSnapshot = async <TSnapshot>(
   });
 
   try {
-    const result = await input.persistence.casSnapshot({
+    const result = await saveVaultSnapshotEnvelope({
+      persistence: input.persistence,
       vaultId: input.vaultId,
       invitationCapability: input.invitationCapability,
+      updateId: envelope.messageId,
       expectedGeneration: input.expectedGeneration,
       envelope,
       ciphertextBytes: base64UrlToBytes(envelope.ciphertext).byteLength,
     });
-    if (result.vaultId !== input.vaultId || result.generation !== generation) {
-      throw new VaultError("VAULT_INTERNAL", "Invalid Vault CAS response.");
-    }
     return {
       status: "synced",
       snapshot: input.snapshot,

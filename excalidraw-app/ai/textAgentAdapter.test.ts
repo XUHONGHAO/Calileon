@@ -1,6 +1,10 @@
 import { vi } from "vitest";
 
+import { STORAGE_KEYS } from "../app_constants";
+
 import { submitTextAgent } from "./textAgentAdapter";
+
+import { saveAIProxyConfig } from "./proxyConfig";
 
 import type { AIAgent } from "./types";
 
@@ -39,6 +43,7 @@ const createChunkedSSEBody = (chunks: readonly string[]) => {
 
 describe("textAgentAdapter", () => {
   beforeEach(() => {
+    localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY);
     vi.stubGlobal("fetch", vi.fn());
   });
 
@@ -175,5 +180,43 @@ describe("textAgentAdapter", () => {
     expect(vi.mocked(fetch).mock.calls[0][1]?.headers).toMatchObject({
       "x-api-key": "anthropic-key",
     });
+  });
+
+  it("preserves SSE parsing when the request uses the proxy transport", async () => {
+    saveAIProxyConfig({
+      mode: "byok-proxy",
+      endpoint: "/ai-proxy/v1/forward",
+      accessToken: "proxy-token",
+    });
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        createSSEBody(
+          'data: {"choices":[{"delta":{"content":"proxied"}}]}\n\ndata: [DONE]\n\n',
+        ),
+        {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        },
+      ),
+    );
+
+    await expect(
+      submitTextAgent({
+        agent: createAgent(),
+        messages: [{ role: "user", content: "Say hi" }],
+      }),
+    ).resolves.toMatchObject({ generatedResponse: "proxied", error: null });
+
+    const [endpoint, init] = vi.mocked(fetch).mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(endpoint).toBe("/ai-proxy/v1/forward");
+    expect((init.headers as Headers).get("X-Excalidraw-AI-Target")).toBe(
+      "https://api.example.com/v1/chat/completions",
+    );
+    expect((init.headers as Headers).get("X-Excalidraw-AI-Proxy-Token")).toBe(
+      "proxy-token",
+    );
   });
 });

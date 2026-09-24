@@ -23,6 +23,7 @@ import type {
 
 import { LanguageList } from "../app-language/LanguageList";
 import { AI_OPEN_SETTINGS_EVENT } from "../ai/workflowEvents";
+
 import { useCloudAuth } from "../auth/useCloudAuth";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 import { readVaultClientConfig } from "../data/vault";
@@ -33,6 +34,8 @@ import { ManyMindsDialog } from "./ManyMindsDialog";
 import { CastDialog } from "./CastDialog";
 import { saveDebugState } from "./DebugCanvas";
 import { VaultDependencyDialog } from "./VaultDependencyDialog";
+
+import type { AISettingsTab } from "../ai/workflowEvents";
 
 import type { ActiveCloudSceneInfo } from "./AuthDialog";
 
@@ -59,9 +62,8 @@ export const AppMainMenu: React.FC<{
   const [isManyMindsOpen, setIsManyMindsOpen] = React.useState(false);
   const [isVaultDependencyDialogOpen, setIsVaultDependencyDialogOpen] =
     React.useState(false);
-  const [initialAISettingsTab, setInitialAISettingsTab] = React.useState<
-    "models" | "agents" | "templates"
-  >("models");
+  const [initialAISettingsTab, setInitialAISettingsTab] =
+    React.useState<AISettingsTab>("models");
 
   const { isAuthAvailable, isSignedIn } = useCloudAuth();
   const vaultEnabled = readVaultClientConfig().enabled;

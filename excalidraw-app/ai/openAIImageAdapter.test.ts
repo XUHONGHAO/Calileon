@@ -1,6 +1,8 @@
 import type { DataURL } from "@excalidraw/excalidraw/types";
 import type { FileId } from "@excalidraw/element/types";
 
+import { STORAGE_KEYS } from "../app_constants";
+
 import {
   AIImageGenerationError,
   buildEndpointURL,
@@ -21,6 +23,8 @@ import {
   RIGHT_CODE_ENDPOINTS,
   UNIFIED_JSON_ENDPOINTS,
 } from "./endpointPresets";
+
+import { saveAIProxyConfig } from "./proxyConfig";
 
 import type { AIImageGenerationRequest, AIImageSourceEnhanced } from "./types";
 
@@ -45,6 +49,10 @@ const baseRequest: AIImageGenerationRequest = {
 };
 
 describe("OpenAI-compatible image adapter", () => {
+  beforeEach(() => {
+    localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY);
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -856,6 +864,38 @@ describe("OpenAI-compatible image adapter", () => {
         },
       ),
     );
+  });
+
+  it("routes image generation through the configured proxy without changing provider payloads", async () => {
+    saveAIProxyConfig({
+      mode: "byok-proxy",
+      endpoint: "/ai-proxy/v1/forward",
+      accessToken: "proxy-token",
+    });
+    const fetchMock = vi.fn(async () => {
+      return new Response(
+        JSON.stringify({ data: [{ b64_json: "UFJPWFk=" }] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(generateImagesWithOpenAIAdapter(baseRequest)).resolves.toEqual(
+      [{ dataURL: "data:image/png;base64,UFJPWFk=", mimeType: "image/png" }],
+    );
+
+    const [endpoint, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    const headers = init.headers as Headers;
+    expect(endpoint).toBe("/ai-proxy/v1/forward");
+    expect(headers.get("X-Excalidraw-AI-Target")).toBe(
+      "https://api.example.com/v1/images/generations",
+    );
+    expect(headers.get("X-Excalidraw-AI-Proxy-Token")).toBe("proxy-token");
+    expect(headers.get("Authorization")).toBe("Bearer sk-local-only");
+    expect(JSON.parse(init.body as string).prompt).toBe("a small library");
   });
 
   it("normalizes provider error objects returned with HTTP 200", async () => {

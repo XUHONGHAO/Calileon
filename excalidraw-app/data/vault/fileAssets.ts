@@ -2,6 +2,7 @@ import type { FileId } from "@excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 
 import { decryptVaultJson, encryptVaultJson } from "./crypto";
+import { bytesToBase64Url } from "./encoding";
 import {
   assertVaultEncryptedEnvelopeV1,
   createVaultMessageId,
@@ -9,7 +10,10 @@ import {
 import { VaultError } from "./errors";
 
 import type { VaultEncryptedAssetService } from "./assets";
-import type { VaultAssetEncryptedEnvelopeV1 } from "./types";
+import type {
+  VaultAssetEncryptedEnvelopeV1,
+  VaultEncryptedEnvelopeV1,
+} from "./types";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -59,6 +63,72 @@ export const encryptVaultFile = async (input: {
   )) as VaultAssetEncryptedEnvelopeV1;
 };
 
+/**
+ * Canonical byte serialization of an encrypted asset envelope. Upload,
+ * download and durable attachment records must hash exactly these bytes so the
+ * client digest always matches the server receipts and stored ciphertext.
+ */
+export const serializeVaultAssetEnvelopeV1 = (
+  envelope: VaultEncryptedEnvelopeV1,
+): Uint8Array<ArrayBuffer> => {
+  assertVaultEncryptedEnvelopeV1(envelope);
+  if (envelope.purpose !== "asset") {
+    throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault asset.");
+  }
+  return new TextEncoder().encode(
+    JSON.stringify({
+      version: envelope.version,
+      vaultId: envelope.vaultId,
+      purpose: envelope.purpose,
+      messageType: envelope.messageType,
+      messageId: envelope.messageId,
+      iv: envelope.iv,
+      ciphertext: envelope.ciphertext,
+    }),
+  );
+};
+
+export const digestVaultAssetEnvelope = async (
+  envelope: VaultEncryptedEnvelopeV1,
+): Promise<{ encryptedDigest: string; ciphertextBytes: number }> => {
+  if (!globalThis.crypto?.subtle) {
+    throw new VaultError(
+      "VAULT_CRYPTO_UNAVAILABLE",
+      "WebCrypto is unavailable.",
+    );
+  }
+  const bytes = serializeVaultAssetEnvelopeV1(envelope);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return {
+    encryptedDigest: bytesToBase64Url(new Uint8Array(digest)),
+    ciphertextBytes: bytes.byteLength,
+  };
+};
+
+export const assertVaultAssetReceipt = (input: {
+  vaultId: string;
+  fileId: string;
+  task: { encryptedDigest: string; ciphertextBytes: number };
+  receipt: {
+    vaultId: string;
+    fileId: string;
+    encryptedDigest: string;
+    ciphertextBytes: number;
+  };
+}) => {
+  if (
+    input.receipt.vaultId !== input.vaultId ||
+    input.receipt.fileId !== input.fileId ||
+    input.receipt.encryptedDigest !== input.task.encryptedDigest ||
+    input.receipt.ciphertextBytes !== input.task.ciphertextBytes
+  ) {
+    throw new VaultError(
+      "VAULT_ASSET_CONFLICT",
+      "Vault asset receipt does not match the pending upload.",
+    );
+  }
+};
+
 export const uploadVaultFile = async (input: {
   service: VaultEncryptedAssetService;
   vaultId: string;
@@ -75,13 +145,17 @@ export const uploadVaultFile = async (input: {
   });
 };
 
-export const downloadVaultFile = async (input: {
+export const downloadVaultFileWithReceipt = async (input: {
   service: VaultEncryptedAssetService;
   vaultId: string;
   invitationCapability: string;
   rootKey: string;
   fileId: FileId;
-}): Promise<BinaryFileData> => {
+}): Promise<{
+  file: BinaryFileData;
+  encryptedDigest: string;
+  ciphertextBytes: number;
+}> => {
   const downloaded = await input.service.download({
     vaultId: input.vaultId,
     invitationCapability: input.invitationCapability,
@@ -99,5 +173,17 @@ export const downloadVaultFile = async (input: {
     input.rootKey,
     downloaded.envelope,
   );
-  return assertBinaryFileData(file, input.fileId);
+  return {
+    file: assertBinaryFileData(file, input.fileId),
+    encryptedDigest: downloaded.encryptedDigest,
+    ciphertextBytes: downloaded.ciphertextBytes,
+  };
 };
+
+export const downloadVaultFile = async (input: {
+  service: VaultEncryptedAssetService;
+  vaultId: string;
+  invitationCapability: string;
+  rootKey: string;
+  fileId: FileId;
+}): Promise<BinaryFileData> => (await downloadVaultFileWithReceipt(input)).file;

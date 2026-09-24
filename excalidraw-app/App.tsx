@@ -125,7 +125,10 @@ import {
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
 import { VaultStatus } from "./components/VaultStatus";
+import { VaultConflictDialog } from "./components/VaultConflictDialog";
 import { VaultShareDialog } from "./components/VaultShareDialog";
+import { VaultManagedAI } from "./components/VaultManagedAI";
+import { AIDeviceApproval } from "./components/AIDeviceApproval";
 import {
   AI_AGENT_CONFIG_UPDATED_EVENT,
   loadAIAgentConfig,
@@ -189,12 +192,14 @@ import {
   assertVaultClientConfig,
   createVaultSnapshotAutosaveController,
   createHttpVaultDeploymentDiscoveryTransport,
+  deriveVaultRecoveryState,
   discoverVaultDeployment,
   getVaultLinkData,
   hasVaultUrlMarker,
   openVault,
   readVaultClientConfig,
   readVaultSessionSecrets,
+  VaultLocalStore,
   VaultError,
 } from "./data/vault";
 
@@ -275,8 +280,10 @@ import type {
 } from "./data/cloud";
 import type { CloudAITaskRun } from "./data/cloud/cloudAITasks";
 import type { VaultBackend } from "./data/cloud";
+import type { VaultConflictInfo } from "./components/VaultConflictDialog";
 import type {
   OpenedVault,
+  VaultAttachmentQueueState,
   VaultClientConfig,
   VaultClientSession,
   VaultDeploymentDiscoveryTransport,
@@ -287,7 +294,9 @@ import type {
   VaultAutosaveUnsyncedReason,
   VaultEncryptedAssetService,
   VaultErrorCode,
+  VaultRecoveryState,
   VaultSnapshotAutosaveController,
+  VaultSnapshotAutosaveState,
   VaultSyncStatus,
 } from "./data/vault";
 
@@ -331,10 +340,21 @@ export type ActiveVault = {
   readonly owner: VaultOwnerService;
   readonly persistence: VaultPersistenceService;
   readonly assets: VaultEncryptedAssetService;
+  readonly localStore?: VaultLocalStore;
   readonly generation: number;
   readonly syncStatus: VaultSyncStatus;
   readonly autosaveErrorCode?: VaultErrorCode | null;
   readonly autosaveUnsyncedReason?: VaultAutosaveUnsyncedReason | null;
+  readonly autosaveLocalPersistence?:
+    | "not-persisted"
+    | "local-persisted"
+    | "remote-confirmed";
+  readonly autosaveBeforeUnloadState?:
+    | "none"
+    | "local-persistence-pending"
+    | "local-persisted-unsynced";
+  readonly attachmentPending?: number;
+  readonly attachmentFailed?: number;
 };
 
 const createVaultAutosaveSnapshot = (
@@ -370,11 +390,73 @@ export const reconcileVaultAutosaveSnapshots = (
   files: { ...latestSnapshot.files, ...pendingSnapshot.files },
 });
 
+/**
+ * Fail-closed codes that must surface as `blocked` (never as merely unsynced)
+ * for the current Vault session.
+ */
+export const getVaultRecoveryBlockedCode = (
+  vault: Pick<ActiveVault, "syncStatus" | "autosaveErrorCode">,
+): VaultErrorCode | null => {
+  if (vault.syncStatus === "revoked") {
+    return "VAULT_CAPABILITY_REVOKED";
+  }
+  if (vault.syncStatus === "expired") {
+    return "VAULT_CAPABILITY_EXPIRED";
+  }
+  if (vault.syncStatus === "closed") {
+    return "VAULT_CAPABILITY_FORBIDDEN";
+  }
+  return vault.autosaveErrorCode ?? null;
+};
+
+/** Derived recovery state shared by the status UI and the conflict dialog. */
+export const deriveActiveVaultRecoveryState = (
+  vault: Pick<
+    ActiveVault,
+    | "syncStatus"
+    | "autosaveUnsyncedReason"
+    | "autosaveErrorCode"
+    | "autosaveLocalPersistence"
+    | "localStore"
+    | "attachmentPending"
+    | "attachmentFailed"
+  >,
+  isOnline: boolean,
+): VaultRecoveryState =>
+  deriveVaultRecoveryState({
+    opening: vault.syncStatus === "loading",
+    snapshot: {
+      status:
+        vault.syncStatus === "synced"
+          ? "synced"
+          : vault.syncStatus === "syncing"
+          ? "syncing"
+          : "unsynced",
+      unsyncedReason: vault.autosaveUnsyncedReason ?? null,
+      errorCode: vault.autosaveErrorCode ?? null,
+      localPersistence: vault.autosaveLocalPersistence ?? "not-persisted",
+    },
+    attachments: {
+      pending: vault.attachmentPending ?? 0,
+      failed: vault.attachmentFailed ?? 0,
+    },
+    isOnline,
+    localStorageAvailable: Boolean(vault.localStore),
+    blockedCode: getVaultRecoveryBlockedCode(vault),
+  });
+
+// Only the persisted-state fields matter for room recovery: a reconnect may
+// proceed once the local snapshot is fully flushed and nothing is pending.
+// Narrowing here keeps the contract honest and lets callers (incl. tests) pass
+// minimal flush results without the full VaultSnapshotAutosaveState.
+export type VaultRoomRecoveryAutosave = {
+  flush(): Promise<
+    Pick<VaultSnapshotAutosaveState, "status" | "hasPendingChanges">
+  >;
+};
+
 export const recoverVaultAfterRoomReconnect = async (
-  autosave: Pick<
-    VaultSnapshotAutosaveController<VaultAutosaveSnapshot>,
-    "flush"
-  > | null,
+  autosave: VaultRoomRecoveryAutosave | null,
   reload: () => void,
 ) => {
   if (autosave) {
@@ -564,7 +646,9 @@ export interface VaultSceneRouteDependencies {
     persistence: VaultPersistenceService;
     link: VaultLinkData;
     createEmptySnapshot: () => unknown;
+    localStore?: VaultLocalStore;
   }): Promise<OpenedVault<unknown>>;
+  openLocalStore?: () => Promise<VaultLocalStore>;
 }
 
 const defaultVaultSceneRouteDependencies: VaultSceneRouteDependencies = {
@@ -573,6 +657,7 @@ const defaultVaultSceneRouteDependencies: VaultSceneRouteDependencies = {
   discover: discoverVaultDeployment,
   createBackend: createSupabaseVaultBackend,
   open: openVault,
+  openLocalStore: () => VaultLocalStore.open(),
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -657,13 +742,29 @@ export const openVaultSceneFromLink = async (
   });
   const { ready } = await dependencies.discover(transport);
   const backend = dependencies.createBackend(ready);
-  const opened = await dependencies.open({
-    deployment: ready,
-    persistence: backend.persistence,
-    link,
-    createEmptySnapshot: () => ({ elements: [], appState: {}, files: {} }),
-  });
-  const scene = assertVaultSceneSnapshot(opened.snapshot, opened.session.role);
+  const localStore = dependencies.openLocalStore
+    ? await dependencies.openLocalStore()
+    : undefined;
+  let opened: OpenedVault<unknown>;
+  try {
+    opened = await dependencies.open({
+      deployment: ready,
+      persistence: backend.persistence,
+      link,
+      createEmptySnapshot: () => ({ elements: [], appState: {}, files: {} }),
+      localStore,
+    });
+  } catch (error) {
+    localStore?.close();
+    throw error;
+  }
+  let scene: ExcalidrawInitialDataState;
+  try {
+    scene = assertVaultSceneSnapshot(opened.snapshot, opened.session.role);
+  } catch (error) {
+    opened.localStore?.close();
+    throw error;
+  }
   return {
     scene,
     activeVault: Object.freeze({
@@ -673,6 +774,7 @@ export const openVaultSceneFromLink = async (
       assets: backend.assets,
       generation: opened.generation,
       syncStatus: opened.syncStatus,
+      localStore: opened.localStore,
     }),
     isExternalScene: true as const,
     id: link.vaultId,
@@ -1181,7 +1283,19 @@ const ExcalidrawWrapper = () => {
   const lastVaultSerializedSnapshotRef = useRef<string | null>(null);
   const vaultAutosaveRef =
     useRef<VaultSnapshotAutosaveController<VaultAutosaveSnapshot> | null>(null);
+  const vaultLocalStoreRef = useRef<Promise<VaultLocalStore> | null>(null);
   const vaultRealtimeAvailableRef = useRef(true);
+  const vaultAttachmentStateRef = useRef<VaultAttachmentQueueState>({
+    status: "idle",
+    pending: 0,
+    failed: 0,
+    total: 0,
+  });
+  const [isVaultConflictDialogOpen, setIsVaultConflictDialogOpen] =
+    useState(false);
+  const [vaultConflictInfo, setVaultConflictInfo] =
+    useState<VaultConflictInfo | null>(null);
+  const vaultConflictPromptedRef = useRef<string | null>(null);
   const lastCloudLocalPayloadHashRef = useRef<string | null>(null);
   const lastCloudSavedPayloadHashRef = useRef<string | null>(null);
   const lastSharedSavedPayloadHashRef = useRef<string | null>(null);
@@ -1502,6 +1616,8 @@ const ExcalidrawWrapper = () => {
       vaultRealtimeAvailableRef.current = true;
       vaultAutosaveRef.current?.dispose();
       vaultAutosaveRef.current = null;
+      void vaultLocalStoreRef.current?.then((store) => store.close());
+      vaultLocalStoreRef.current = null;
       lastVaultSerializedSnapshotRef.current = serializedSnapshot;
       activeVaultRef.current = next;
       setActiveVault(next);
@@ -1510,6 +1626,10 @@ const ExcalidrawWrapper = () => {
         return;
       }
       const secrets = readVaultSessionSecrets(next.session);
+      const localStorePromise = next.localStore
+        ? Promise.resolve(next.localStore)
+        : VaultLocalStore.open();
+      vaultLocalStoreRef.current = localStorePromise;
       vaultAutosaveRef.current = createVaultSnapshotAutosaveController({
         persistence: next.persistence,
         vaultId: next.session.vaultId,
@@ -1517,6 +1637,8 @@ const ExcalidrawWrapper = () => {
         rootKey: secrets.rootKey,
         role: next.session.role,
         initialGeneration: next.generation,
+        roomId: next.session.admission.activeRoomId,
+        localStore: localStorePromise,
         isOnline: () => navigator.onLine !== false,
         reconcileConflict: ({ pendingSnapshot, latestSnapshot }) => {
           if (!excalidrawAPI) {
@@ -1544,6 +1666,9 @@ const ExcalidrawWrapper = () => {
               : "unsynced",
             autosaveErrorCode: state.errorCode,
             autosaveUnsyncedReason: state.unsyncedReason,
+            autosaveLocalPersistence: state.localPersistence,
+            autosaveBeforeUnloadState:
+              vaultAutosaveRef.current?.getBeforeUnloadState() ?? "none",
           });
           activeVaultRef.current = updated;
           setActiveVault(updated);
@@ -1570,6 +1695,24 @@ const ExcalidrawWrapper = () => {
     [],
   );
 
+  const setVaultAttachmentState = useCallback(
+    (session: VaultClientSession, state: VaultAttachmentQueueState) => {
+      vaultAttachmentStateRef.current = state;
+      const current = activeVaultRef.current;
+      if (!current || current.session !== session) {
+        return;
+      }
+      const updated = Object.freeze({
+        ...current,
+        attachmentPending: state.pending,
+        attachmentFailed: state.failed,
+      });
+      activeVaultRef.current = updated;
+      setActiveVault(updated);
+    },
+    [],
+  );
+
   const recoverVaultRoomConnection = useCallback(
     async (session: VaultClientSession) => {
       const current = activeVaultRef.current;
@@ -1586,10 +1729,100 @@ const ExcalidrawWrapper = () => {
     [],
   );
 
+  const exportVaultLocalCopy = useCallback(async () => {
+    const vault = activeVaultRef.current;
+    if (!vault) {
+      throw new VaultError("VAULT_INTERNAL", "No active Vault to export.");
+    }
+    const secrets = readVaultSessionSecrets(vault.session);
+    const store = vault.localStore ?? (await vaultLocalStoreRef.current);
+    if (!store) {
+      throw new VaultError(
+        "VAULT_LOCAL_STORAGE_UNAVAILABLE",
+        "Vault local store is unavailable.",
+      );
+    }
+    const local = await store.getSnapshot<VaultAutosaveSnapshot>({
+      vaultId: vault.session.vaultId,
+      roomId: vault.session.admission.activeRoomId,
+      rootKey: secrets.rootKey,
+    });
+    const payload = {
+      vaultId: vault.session.vaultId,
+      generation: local?.generation ?? vault.generation,
+      updatedAt: local?.updatedAt ?? null,
+      exportedAt: new Date().toISOString(),
+      snapshot: local?.snapshot ?? null,
+    };
+    const blob = new Blob([JSON.stringify(payload)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `vault-local-recovery-${vault.session.vaultId}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  const vaultRecoveryState = activeVault
+    ? deriveActiveVaultRecoveryState(activeVault, navigator.onLine !== false)
+    : null;
+
+  useEffect(() => {
+    if (vaultRecoveryState !== "conflict") {
+      vaultConflictPromptedRef.current = null;
+      return;
+    }
+    const vault = activeVaultRef.current;
+    if (!vault) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const store = vault.localStore ?? (await vaultLocalStoreRef.current);
+        if (!store) {
+          return;
+        }
+        const records = await store.listOutbox({
+          vaultId: vault.session.vaultId,
+          roomId: vault.session.admission.activeRoomId,
+        });
+        const conflicted = records.find(
+          (record) => record.status === "conflict",
+        );
+        if (cancelled || !conflicted) {
+          return;
+        }
+        setVaultConflictInfo({
+          localUpdateId: conflicted.updateId,
+          localGeneration:
+            conflicted.envelope.purpose === "snapshot"
+              ? conflicted.envelope.generation
+              : vault.generation,
+          remoteGeneration: conflicted.remoteGeneration,
+          conflictReason: conflicted.conflictReason,
+        });
+        if (vaultConflictPromptedRef.current !== conflicted.updateId) {
+          vaultConflictPromptedRef.current = conflicted.updateId;
+          setIsVaultConflictDialogOpen(true);
+        }
+      } catch {
+        // Keep the conflict state; the review dialog is optional.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vaultRecoveryState]);
+
   useEffect(
     () => () => {
       vaultAutosaveRef.current?.dispose();
       vaultAutosaveRef.current = null;
+      void vaultLocalStoreRef.current?.then((store) => store.close());
+      vaultLocalStoreRef.current = null;
     },
     [],
   );
@@ -1793,6 +2026,9 @@ const ExcalidrawWrapper = () => {
           data.activeVault.session,
           {
             assetService: data.activeVault.assets,
+            attachmentStore: data.activeVault.localStore,
+            onAttachmentStateChange: (state) =>
+              setVaultAttachmentState(data.activeVault!.session, state),
             onError: () =>
               setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
             onDisconnect: () =>
@@ -1906,6 +2142,9 @@ const ExcalidrawWrapper = () => {
               data.activeVault.session,
               {
                 assetService: data.activeVault.assets,
+                attachmentStore: data.activeVault.localStore,
+                onAttachmentStateChange: (state) =>
+                  setVaultAttachmentState(data.activeVault!.session, state),
                 onError: () =>
                   setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
                 onDisconnect: () =>
@@ -1999,6 +2238,12 @@ const ExcalidrawWrapper = () => {
       }
     };
 
+    const onVaultOnline = () => {
+      if (isCurrentVaultRoute()) {
+        void vaultAutosaveRef.current?.retry();
+      }
+    };
+
     const visibilityChange = (event: FocusEvent | Event) => {
       if (
         isCurrentVaultRoute() &&
@@ -2018,12 +2263,14 @@ const ExcalidrawWrapper = () => {
 
     window.addEventListener(EVENT.HASHCHANGE, onHashChange, false);
     window.addEventListener(EVENT.UNLOAD, onUnload, false);
+    window.addEventListener("online", onVaultOnline, false);
     window.addEventListener(EVENT.BLUR, visibilityChange, false);
     document.addEventListener(EVENT.VISIBILITY_CHANGE, visibilityChange, false);
     window.addEventListener(EVENT.FOCUS, visibilityChange, false);
     return () => {
       window.removeEventListener(EVENT.HASHCHANGE, onHashChange, false);
       window.removeEventListener(EVENT.UNLOAD, onUnload, false);
+      window.removeEventListener("online", onVaultOnline, false);
       window.removeEventListener(EVENT.BLUR, visibilityChange, false);
       window.removeEventListener(EVENT.FOCUS, visibilityChange, false);
       document.removeEventListener(
@@ -2042,14 +2289,30 @@ const ExcalidrawWrapper = () => {
     commitNewAIWorkbenchLocalDocumentId,
     recoverVaultRoomConnection,
     setVaultRealtimeStatus,
+    setVaultAttachmentState,
     setActiveVaultSession,
   ]);
 
   useEffect(() => {
     const unloadHandler = (event: BeforeUnloadEvent) => {
       if (isCurrentVaultRoute()) {
-        if (vaultAutosaveRef.current?.shouldWarnBeforeUnload()) {
+        const autosave = vaultAutosaveRef.current;
+        let beforeUnloadState = autosave?.getBeforeUnloadState() ?? "none";
+        // Attachments that are already enqueued are encrypted and persisted
+        // locally, but not yet uploaded: report them as local-persisted/unsynced
+        // rather than as a local-persistence-pending risk.
+        if (
+          beforeUnloadState === "none" &&
+          vaultAttachmentStateRef.current.pending > 0
+        ) {
+          beforeUnloadState = "local-persisted-unsynced";
+        }
+        if (beforeUnloadState !== "none") {
           preventUnload(event);
+          event.returnValue =
+            beforeUnloadState === "local-persisted-unsynced"
+              ? "Vault changes are saved locally but not uploaded."
+              : "Vault changes are not yet saved locally.";
         }
         return;
       }
@@ -4494,7 +4757,18 @@ const ExcalidrawWrapper = () => {
                     syncStatus={activeVault.syncStatus}
                     autosaveErrorCode={activeVault.autosaveErrorCode}
                     autosaveUnsyncedReason={activeVault.autosaveUnsyncedReason}
+                    autosaveLocalPersistence={
+                      activeVault.autosaveLocalPersistence
+                    }
+                    autosaveBeforeUnloadState={
+                      activeVault.autosaveBeforeUnloadState
+                    }
+                    recoveryState={vaultRecoveryState ?? undefined}
+                    attachmentPending={activeVault.attachmentPending}
+                    attachmentFailed={activeVault.attachmentFailed}
+                    onReviewConflict={() => setIsVaultConflictDialogOpen(true)}
                   />
+                  <VaultManagedAI excalidrawAPI={excalidrawAPI} />
                   {canManageVault && (
                     <Button
                       className="VaultStatusControls__share"
@@ -4510,6 +4784,14 @@ const ExcalidrawWrapper = () => {
                   open={isVaultShareDialogOpen}
                   onClose={() => setIsVaultShareDialogOpen(false)}
                   activeVault={activeVault}
+                />
+              )}
+              {activeVault && (
+                <VaultConflictDialog
+                  open={isVaultConflictDialogOpen}
+                  conflict={vaultConflictInfo}
+                  onClose={() => setIsVaultConflictDialogOpen(false)}
+                  onExportLocal={exportVaultLocalCopy}
                 />
               )}
               {showCollaborationControls && (
@@ -5006,6 +5288,16 @@ const ExcalidrawWrapper = () => {
 const LazyEmbedApp = lazy(() => import("./embed/EmbedApp"));
 
 const ExcalidrawApp = () => {
+  if (window.location.pathname === "/ai-device") {
+    return (
+      <TopErrorBoundary>
+        <Provider store={appJotaiStore}>
+          <AIDeviceApproval />
+        </Provider>
+      </TopErrorBoundary>
+    );
+  }
+
   if (window.location.pathname === "/embed") {
     return (
       <TopErrorBoundary>

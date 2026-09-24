@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { build } from "vite";
+import { build, loadEnv } from "vite";
 
 const repoRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -16,8 +16,49 @@ const publicOutput = path.join(
   "single-file-runtime-template.txt",
 );
 
+const normalizePublicGatewayURL = (rawValue) => {
+  const value = String(rawValue || "").trim();
+  if (!value) {
+    return "";
+  }
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(
+      "VITE_APP_AI_GATEWAY_URL must be an absolute HTTPS URL without credentials, query, or fragment.",
+    );
+  }
+  if (
+    url.protocol !== "https:" ||
+    !url.hostname ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      "VITE_APP_AI_GATEWAY_URL must be an absolute HTTPS URL without credentials, query, or fragment.",
+    );
+  }
+  return url.toString().replace(/\/+$/, "");
+};
+
+// A single-file document is portable and may be opened from file://. Only a
+// deployment-owned public HTTPS endpoint may be compiled into it. Inject the
+// validated value explicitly so an invalid/raw environment value cannot be
+// preserved as a literal in the generated bundle.
+const loadedEnv = loadEnv("production", repoRoot, "VITE_");
+const configuredGatewayURL = normalizePublicGatewayURL(
+  process.env.VITE_APP_AI_GATEWAY_URL ?? loadedEnv.VITE_APP_AI_GATEWAY_URL,
+);
+
 await build({
   configFile: path.join(runtimeDir, "vite.config.mts"),
+  define: {
+    "import.meta.env.VITE_APP_AI_GATEWAY_URL":
+      JSON.stringify(configuredGatewayURL),
+  },
 });
 
 const javascript = await fs.readFile(

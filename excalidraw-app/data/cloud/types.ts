@@ -355,6 +355,7 @@ export type SignInMethod =
 
 export interface AuthProvider {
   getCurrentUser(): Promise<AuthUser | null>;
+  getAccessToken(): Promise<string | null>;
   signIn(method: SignInMethod): Promise<AuthUser>;
   signOut(): Promise<void>;
   onAuthStateChange(cb: (user: AuthUser | null) => void): () => void; // returns unsubscribe
@@ -569,9 +570,112 @@ export interface EmbedService {
   }): Promise<AssetRef>;
 }
 
-// —— AiGateway: Phase 0 only declares placeholders. ——
+export type AiGatewayCapability =
+  | "image-generation"
+  | "remote-image"
+  | "video-submit"
+  | "video-poll"
+  | "text-agent"
+  | "vision-agent";
+
+export type AiGatewayCatalogEntry = {
+  id: string;
+  label: string;
+  capability: AiGatewayCapability;
+  wireProtocol: string;
+  model: string;
+  costUnits: number;
+  operations: string[];
+};
+
+export type AiGatewayQuota = {
+  policyId: string;
+  daily: { used: number; limit: number };
+  monthly: { used: number; limit: number };
+  activeRequests: number;
+  maxConcurrency: number;
+};
+
+export type AiGatewayUsage = {
+  requestId: string;
+  routeId: string;
+  operation: string;
+  status: string;
+  costUnits: number;
+  providerAttempts: number;
+  responseBytes: number;
+  durationMs: number;
+  errorCode: string | null;
+  createdAt: number;
+};
+
+export type AiGatewayAuditRecord = {
+  id: string;
+  requestId: string | null;
+  routeId: string;
+  contentBytes: number;
+  createdAt: number;
+  expiresAt: number;
+  prompt?: string;
+};
+
 export interface AiGateway {
   isEnabled(): boolean;
+  getCatalog(options?: {
+    accessToken?: string;
+  }): Promise<AiGatewayCatalogEntry[]>;
+  invoke(input: {
+    routeId: string;
+    operation: string;
+    method?: string;
+    body?: BodyInit | null;
+    headers?: HeadersInit;
+    query?: Record<string, string>;
+    signal?: AbortSignal;
+    accessToken?: string;
+    auditDraftId?: string;
+  }): Promise<Response>;
+  getQuota(options?: { accessToken?: string }): Promise<AiGatewayQuota>;
+  getUsage(options?: {
+    accessToken?: string;
+    limit?: number;
+  }): Promise<AiGatewayUsage[]>;
+  getAuditConsent(options?: { accessToken?: string }): Promise<{
+    deploymentEnabled: boolean;
+    enabled: boolean;
+  }>;
+  setAuditConsent(
+    enabled: boolean,
+    options?: { accessToken?: string },
+  ): Promise<void>;
+  createAuditDraft(input: {
+    routeId: string;
+    prompt: string;
+    accessToken?: string;
+  }): Promise<string>;
+  listAudits(options?: {
+    accessToken?: string;
+    limit?: number;
+  }): Promise<AiGatewayAuditRecord[]>;
+  getAudit(
+    id: string,
+    options?: { accessToken?: string },
+  ): Promise<AiGatewayAuditRecord>;
+  deleteAudit(id: string, options?: { accessToken?: string }): Promise<void>;
+  /** Deletes account-owned gateway usage, audit, consent, and device data. */
+  deleteAccountData(options?: { accessToken?: string }): Promise<void>;
+  createDeviceAuthorization(): Promise<{
+    deviceCode: string;
+    userCode: string;
+    verificationUri: string;
+    expiresAt: number;
+    intervalSeconds: number;
+  }>;
+  exchangeDeviceAuthorization(deviceCode: string): Promise<{
+    accessToken: string;
+    expiresAt: number;
+  }>;
+  approveDeviceAuthorization(userCode: string): Promise<void>;
 }
 
 // —— Assembly entry (upper layers import only this) ——

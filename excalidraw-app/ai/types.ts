@@ -16,6 +16,7 @@ export type AIImageNativeModel =
   | "nano-banana-pro"
   | "nano-banana-2"
   | "gpt-image-2"
+  | "gpt-image-2.5"
   | "other";
 
 export type AIImageModelCapability =
@@ -411,6 +412,10 @@ export type AIVideoGenerationMetadata =
 export type PendingVideoTask = {
   taskId: string;
   baseURL: string;
+  /** Transport used when the task was submitted; absent means legacy direct/BYOK. */
+  transportMode?: "direct" | "byok-proxy" | "managed-gateway";
+  /** Managed catalog route retained so a refresh can poll the same contract. */
+  managedRouteId?: string;
   // Which model card the task was submitted with, so the resumed poll can look
   // up its apiKey from the current config rather than persisting the secret.
   modelId: string;

@@ -91,7 +91,7 @@
   }
 
   .AISettings__tabs--top {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .AISettings__tabs--agents {
@@ -297,6 +297,255 @@
     line-height: 1.35;
     opacity: 0.72;
     overflow-wrap: anywhere;
+  }
+
+  .AISettings__network {
+    display: grid;
+    min-width: 0;
+    max-height: min(31rem, 58vh);
+    gap: 0.75rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 0.125rem;
+  }
+
+  .AISettings__networkModes,
+  .AISettings__networkFields {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    min-width: 0;
+  }
+
+  .AISettings__managedGateway,
+  .AISettings__gatewaySummary,
+  .AISettings__deviceApproval {
+    display: grid;
+    min-width: 0;
+    gap: 0.65rem;
+  }
+
+  .AISettings__gatewaySummary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+
+    strong {
+      grid-column: 1 / -1;
+    }
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      font-size: 0.76rem;
+    }
+  }
+
+  .AISettings__gatewayToggle {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.78rem;
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .AISettings__auditRecords {
+    display: grid;
+    min-width: 0;
+    gap: 0.45rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.65rem;
+    background: var(--default-bg-color);
+
+    strong,
+    span,
+    pre {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    > strong {
+      font-size: 0.78rem;
+    }
+  }
+
+  .AISettings__auditRecord {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    border-top: 1px solid var(--default-border-color);
+    padding-top: 0.45rem;
+    font-size: 0.74rem;
+
+    > span:first-child {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    > span:last-child {
+      display: flex;
+      flex: 0 0 auto;
+      gap: 0.35rem;
+    }
+
+    button {
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.45rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  .AISettings__auditDetail {
+    display: grid;
+    gap: 0.4rem;
+    border-top: 1px solid var(--default-border-color);
+    padding-top: 0.55rem;
+
+    pre {
+      max-height: 12rem;
+      margin: 0;
+      overflow: auto;
+      white-space: pre-wrap;
+      font: inherit;
+      font-size: 0.75rem;
+    }
+  }
+
+  .AISettings__auditDetailHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+
+    button {
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.35rem;
+      padding: 0.25rem 0.45rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  .AISettings__deviceApproval {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+
+    button {
+      min-height: 2rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      cursor: pointer;
+    }
+  }
+
+  .AISettings__networkMode {
+    display: flex;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 0.55rem;
+    border: 1px solid var(--default-border-color);
+    border-radius: 0.5rem;
+    padding: 0.7rem;
+    background: var(--default-bg-color);
+    cursor: pointer;
+
+    &.is-selected {
+      border-color: var(--color-primary);
+      background: var(--color-surface-primary-container);
+      color: var(--color-on-primary-container);
+      box-shadow: 0 0 0 1px var(--color-primary);
+    }
+
+    input {
+      flex: 0 0 auto;
+      margin: 0.15rem 0 0;
+    }
+
+    span {
+      display: grid;
+      min-width: 0;
+      gap: 0.25rem;
+    }
+
+    strong,
+    small {
+      min-width: 0;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    strong {
+      font-size: 0.82rem;
+    }
+
+    small {
+      font-size: 0.74rem;
+      opacity: 0.8;
+    }
+  }
+
+  .AISettings__networkWarning {
+    border: 1px solid var(--color-warning);
+    border-radius: 0.5rem;
+    padding: 0.65rem 0.75rem;
+    background: var(--color-warning-background);
+    color: var(--text-primary-color);
+    font-size: 0.76rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+
+  .AISettings__networkActions {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+
+    button {
+      flex: 0 0 auto;
+      width: auto;
+      height: auto;
+      min-height: 2rem;
+      border: 1px solid var(--default-border-color);
+      border-radius: 0.4rem;
+      padding: 0.4rem 0.75rem;
+      background: var(--app-sidebar-control-bg, var(--island-bg-color));
+      color: var(--text-primary-color);
+      font: inherit;
+      white-space: nowrap;
+      cursor: pointer;
+
+      &:hover:not(:disabled) {
+        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+      }
+
+      &:disabled {
+        cursor: default;
+        opacity: 0.5;
+      }
+    }
   }
 
   .AISettings__visuallyHidden {
@@ -879,10 +1128,32 @@
     .AISettings__presetField,
     .AISettings__providerPresetList,
     .AISettings__providerPresetList--agents,
+    .AISettings__tabs--top,
     .AISettings__tabs--agents,
+    .AISettings__networkModes,
+    .AISettings__networkFields,
     .AISettings__endpointRow,
     .AISettings__fieldMappingGrid,
     .AISettings__capabilities {
+      grid-template-columns: 1fr;
+    }
+
+    .AISettings__networkActions {
+      display: grid;
+      grid-template-columns: 1fr;
+
+      button {
+        width: 100%;
+        white-space: normal;
+      }
+
+      button.excalidraw-button {
+        width: 100%;
+      }
+    }
+
+    .AISettings__gatewaySummary,
+    .AISettings__deviceApproval {
       grid-template-columns: 1fr;
     }
 

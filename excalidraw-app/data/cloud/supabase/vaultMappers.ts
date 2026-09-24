@@ -151,9 +151,17 @@ export const mapVaultSnapshotRecord = (value: unknown): VaultSnapshotRecord => {
 export const mapVaultSnapshotCasResult = (
   value: unknown,
 ): VaultSnapshotCasResult => {
-  const row = assertExactKeys(value, ["vaultId", "generation", "updatedAt"]);
+  const row = assertExactKeys(value, [
+    "vaultId",
+    "updateId",
+    "generation",
+    "updatedAt",
+  ]);
   return {
     vaultId: requireString(row.vaultId, (candidate) => UUID_RE.test(candidate)),
+    updateId: requireString(row.updateId, (candidate) =>
+      UUID_RE.test(candidate),
+    ),
     generation: requireSafeInteger(row.generation, 1),
     updatedAt: requireTimestamp(row.updatedAt),
   };

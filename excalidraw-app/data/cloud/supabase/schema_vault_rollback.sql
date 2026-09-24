@@ -9,6 +9,7 @@ drop function if exists public.resolve_vault_asset(uuid, text, text);
 drop function if exists public.complete_vault_asset(uuid, text, text, text, bigint);
 drop function if exists public.register_vault_asset(uuid, text, text, text, bigint);
 drop function if exists public.cas_vault_snapshot(uuid, text, bigint, jsonb, bigint);
+drop function if exists public.cas_vault_snapshot(uuid, text, bigint, jsonb, bigint, uuid);
 drop function if exists public.load_vault_snapshot(uuid, text);
 drop function if exists public.resolve_vault_capability(uuid, text);
 drop function if exists public.create_vault_invitation(uuid, text, text, timestamptz);
@@ -22,6 +23,7 @@ drop function if exists public.vault_base64url_decode(text);
 
 drop table if exists public.vault_assets;
 drop table if exists public.vault_snapshots;
+drop table if exists public.vault_snapshot_updates;
 drop table if exists public.vault_invitations;
 drop table if exists public.vaults;
 drop table if exists public.vault_deployment_metadata;

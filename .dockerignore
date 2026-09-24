@@ -7,6 +7,7 @@
 !.prettierrc
 !excalidraw-app/
 !deploy/
+!deploy/ai-proxy/
 !deploy/vault-self-hosted/
 !deploy/vault-self-hosted/nginx.conf
 !package.json
@@ -21,3 +22,14 @@
 **/build
 **/dist
 **/node_modules
+
+# Never send deployment secrets, local credentials, or backups into any build
+# context. Keep the checked-in examples explicitly available below.
+**/.env
+**/.env.*
+**/*backup*
+**/backups
+**/keys
+**/*.key
+**/*.pem
+!deploy/ai-proxy/.env.example

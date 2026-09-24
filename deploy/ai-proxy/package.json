@@ -1,0 +1,33 @@
+{
+  "name": "@excalidraw/ai-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "admin": "tsx src/admin.ts",
+    "preflight": "tsx src/productionPreflight.ts",
+    "load-test": "node ops/load-test.mjs",
+    "security-audit": "node ops/security-audit.mjs",
+    "production-acceptance": "node ops/production-acceptance.mjs",
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "test": "vitest run --config vitest.config.mts",
+    "test:watch": "vitest --config vitest.config.mts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-kms": "3.637.0",
+    "pg": "8.13.1",
+    "ipaddr.js": "2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.10",
+    "@types/pg": "8.11.10",
+    "tsx": "4.23.1",
+    "typescript": "5.9.3",
+    "vitest": "3.0.6"
+  }
+}

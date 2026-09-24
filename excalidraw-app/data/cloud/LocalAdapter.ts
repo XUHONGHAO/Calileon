@@ -34,6 +34,7 @@ import type {
 
 export const createLocalAuthProvider = (): AuthProvider => ({
   getCurrentUser: async () => null,
+  getAccessToken: async () => null,
   signIn: async () => notConfigured(),
   signOut: async () => {},
   onAuthStateChange: (cb) => {
@@ -150,4 +151,18 @@ export const createLocalEmbedService = (): EmbedService => ({
 
 export const createLocalAiGateway = (): AiGateway => ({
   isEnabled: () => false,
+  getCatalog: async () => notConfigured(),
+  invoke: async () => notConfigured(),
+  getQuota: async () => notConfigured(),
+  getUsage: async () => notConfigured(),
+  getAuditConsent: async () => notConfigured(),
+  setAuditConsent: async () => notConfigured(),
+  createAuditDraft: async () => notConfigured(),
+  listAudits: async () => notConfigured(),
+  getAudit: async () => notConfigured(),
+  deleteAudit: async () => notConfigured(),
+  deleteAccountData: async () => notConfigured(),
+  createDeviceAuthorization: async () => notConfigured(),
+  exchangeDeviceAuthorization: async () => notConfigured(),
+  approveDeviceAuthorization: async () => notConfigured(),
 });

@@ -151,6 +151,7 @@ export type ActionName =
   | "linkToElement"
   | "inviteInput"
   | "cropEditor"
+  | "downloadImage"
   | "wrapSelectionInFrame"
   | "addSelectionToAIReference"
   | "toggleLassoTool"

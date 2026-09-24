@@ -10,6 +10,7 @@ import {
   encryptVaultSnapshot,
   loadVaultSnapshot,
   saveVaultSnapshot,
+  saveVaultSnapshotEnvelope,
 } from "./snapshot";
 
 import type { VaultPersistenceServiceImplementation } from "./persistence";
@@ -238,5 +239,59 @@ describe("Vault snapshot CAS", () => {
       expectedGeneration: 9,
     });
     expect(result.snapshot).toBe(snapshot);
+  });
+
+  it("rejects an update ID that does not match the encrypted envelope", async () => {
+    const envelope = await encryptVaultSnapshot({
+      vaultId,
+      rootKey: generateVaultRootKey(),
+      generation: 8,
+      snapshot: { marker: "local" },
+    });
+    const casSnapshot = vi.fn();
+
+    await expect(
+      saveVaultSnapshotEnvelope({
+        persistence: createPersistence({ casSnapshot }),
+        vaultId,
+        invitationCapability,
+        updateId: "123e4567-e89b-42d3-a456-426614174999",
+        expectedGeneration: 7,
+        envelope,
+        ciphertextBytes: base64UrlToBytes(envelope.ciphertext).byteLength,
+      }),
+    ).rejects.toMatchObject({ code: "VAULT_ENVELOPE_INVALID" });
+    expect(casSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("fills in the update ID when the persistence result omits it", async () => {
+    const envelope = await encryptVaultSnapshot({
+      vaultId,
+      rootKey: generateVaultRootKey(),
+      generation: 8,
+      snapshot: { marker: "local" },
+    });
+    const result = await saveVaultSnapshotEnvelope({
+      persistence: createPersistence({
+        casSnapshot: vi.fn().mockResolvedValue({
+          vaultId,
+          generation: 8,
+          updatedAt: 5678,
+        }),
+      }),
+      vaultId,
+      invitationCapability,
+      updateId: envelope.messageId,
+      expectedGeneration: 7,
+      envelope,
+      ciphertextBytes: base64UrlToBytes(envelope.ciphertext).byteLength,
+    });
+
+    expect(result).toEqual({
+      vaultId,
+      updateId: envelope.messageId,
+      generation: 8,
+      updatedAt: 5678,
+    });
   });
 });

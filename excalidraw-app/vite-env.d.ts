@@ -24,6 +24,9 @@ interface ImportMetaEnv {
   VITE_APP_SUPABASE_URL: string;
   VITE_APP_SUPABASE_ANON_KEY: string;
   VITE_APP_REMOTE_VIDEO_ASSETS: string;
+  VITE_APP_AI_PROXY_URL: string;
+  VITE_APP_AI_GATEWAY_ENABLED: string;
+  VITE_APP_AI_GATEWAY_URL: string;
 
   // whether to disable live reload / HMR. Usuaully what you want to do when
   // debugging Service Workers.
