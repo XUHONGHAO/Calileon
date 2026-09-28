@@ -114,6 +114,32 @@ describe("single-file payload", () => {
     expect(isSingleFilePayload(payload)).toBe(true);
   });
 
+  it("records the export language without requiring it", () => {
+    const localized = createSingleFilePayload({
+      elements: [],
+      appState: {},
+      files: {},
+      name: "Localized board",
+      generatorVersion: "test",
+      language: "zh-CN",
+    });
+    expect(localized.document).toEqual({
+      name: "Localized board",
+      language: "zh-CN",
+    });
+    expect(isSingleFilePayload(localized)).toBe(true);
+
+    const legacy = createSingleFilePayload({
+      elements: [],
+      appState: {},
+      files: {},
+      name: "Legacy board",
+      generatorVersion: "test",
+    });
+    expect(legacy.document).toEqual({ name: "Legacy board" });
+    expect(isSingleFilePayload(legacy)).toBe(true);
+  });
+
   it("rejects payloads that enable private runtime capabilities", () => {
     expect(
       isSingleFilePayload({

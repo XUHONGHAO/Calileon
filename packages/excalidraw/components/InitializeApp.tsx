@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 
 import type { Theme } from "@excalidraw/element/types";
 
-import { defaultLang, languages, setLanguage } from "../i18n";
+import { resolveLanguage, setLanguage } from "../i18n";
 
 import { LoadingMessage } from "./LoadingMessage";
 
@@ -22,8 +22,7 @@ export const InitializeApp = (props: Props) => {
       await setLanguage(currentLang);
       setLoading(false);
     };
-    const currentLang =
-      languages.find((lang) => lang.code === props.langCode) || defaultLang;
+    const currentLang = resolveLanguage(props.langCode);
     updateLang();
   }, [props.langCode]);
 

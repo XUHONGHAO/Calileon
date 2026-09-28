@@ -366,7 +366,7 @@ import Library, { distributeLibraryItemsOnSquareGrid } from "../data/library";
 import { restoreAppState, restoreElements } from "../data/restore";
 import { getCenter, getDistance } from "../gesture";
 import { History } from "../history";
-import { defaultLang, getLanguage, languages, setLanguage, t } from "../i18n";
+import { getLanguage, resolveLanguage, setLanguage, t } from "../i18n";
 
 import {
   calculateScrollCenter,
@@ -13363,9 +13363,7 @@ class App extends React.Component<AppProps, AppState> {
   watchState = () => {};
 
   private async updateLanguage() {
-    const currentLang =
-      languages.find((lang) => lang.code === this.props.langCode) ||
-      defaultLang;
+    const currentLang = resolveLanguage(this.props.langCode);
     await setLanguage(currentLang);
     this.setAppState({});
   }

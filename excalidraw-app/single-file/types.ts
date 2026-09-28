@@ -16,6 +16,11 @@ export type SingleFilePayloadV1 = {
   };
   document: {
     name: string;
+    /**
+     * Language the board was exported in. Optional for boards exported before
+     * language support was added; readers fall back to the browser language.
+     */
+    language?: string;
   };
   scene: {
     elements: readonly ExcalidrawElement[];

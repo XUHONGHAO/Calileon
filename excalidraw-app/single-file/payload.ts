@@ -31,6 +31,7 @@ export const createSingleFilePayload = ({
   files,
   name,
   generatorVersion,
+  language,
   createdAt = Date.now(),
   updatedAt = createdAt,
 }: {
@@ -39,6 +40,7 @@ export const createSingleFilePayload = ({
   files: BinaryFiles;
   name: string;
   generatorVersion: string;
+  language?: string;
   createdAt?: number;
   updatedAt?: number;
 }): SingleFilePayloadV1 => ({
@@ -51,6 +53,7 @@ export const createSingleFilePayload = ({
   },
   document: {
     name,
+    ...(language ? { language } : {}),
   },
   scene: {
     elements,

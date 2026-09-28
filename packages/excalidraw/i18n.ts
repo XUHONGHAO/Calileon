@@ -18,61 +18,67 @@ export type TranslationKeys = NestedKeyOf<typeof fallbackLangData>;
 
 export const defaultLang = { code: "en", label: "English" };
 
-export const languages: Language[] = [
+/**
+ * Every locale that ships with the package, including ones below the
+ * translation-completeness threshold. `languages` (the list the app advertises)
+ * is derived from it, while embedders and self-contained exports can still
+ * resolve any of these codes to their label and writing direction.
+ */
+export const localeCatalog: Language[] = [
   defaultLang,
-  ...[
-    { code: "ar-SA", label: "العربية", rtl: true },
-    { code: "bg-BG", label: "Български" },
-    { code: "ca-ES", label: "Català" },
-    { code: "cs-CZ", label: "Česky" },
-    { code: "de-DE", label: "Deutsch" },
-    { code: "el-GR", label: "Ελληνικά" },
-    { code: "es-ES", label: "Español" },
-    { code: "eu-ES", label: "Euskara" },
-    { code: "fa-IR", label: "فارسی", rtl: true },
-    { code: "fi-FI", label: "Suomi" },
-    { code: "fr-FR", label: "Français" },
-    { code: "gl-ES", label: "Galego" },
-    { code: "he-IL", label: "עברית", rtl: true },
-    { code: "hi-IN", label: "हिन्दी" },
-    { code: "hu-HU", label: "Magyar" },
-    { code: "id-ID", label: "Bahasa Indonesia" },
-    { code: "it-IT", label: "Italiano" },
-    { code: "ja-JP", label: "日本語" },
-    { code: "kab-KAB", label: "Taqbaylit" },
-    { code: "kk-KZ", label: "Қазақ тілі" },
-    { code: "ko-KR", label: "한국어" },
-    { code: "ku-TR", label: "Kurdî" },
-    { code: "lt-LT", label: "Lietuvių" },
-    { code: "lv-LV", label: "Latviešu" },
-    { code: "my-MM", label: "Burmese" },
-    { code: "nb-NO", label: "Norsk bokmål" },
-    { code: "nl-NL", label: "Nederlands" },
-    { code: "nn-NO", label: "Norsk nynorsk" },
-    { code: "oc-FR", label: "Occitan" },
-    { code: "pa-IN", label: "ਪੰਜਾਬੀ" },
-    { code: "pl-PL", label: "Polski" },
-    { code: "pt-BR", label: "Português Brasileiro" },
-    { code: "pt-PT", label: "Português" },
-    { code: "ro-RO", label: "Română" },
-    { code: "ru-RU", label: "Русский" },
-    { code: "sk-SK", label: "Slovenčina" },
-    { code: "sv-SE", label: "Svenska" },
-    { code: "sl-SI", label: "Slovenščina" },
-    { code: "tr-TR", label: "Türkçe" },
-    { code: "uk-UA", label: "Українська" },
-    { code: "zh-CN", label: "简体中文" },
-    { code: "zh-TW", label: "繁體中文" },
-    { code: "vi-VN", label: "Tiếng Việt" },
-    { code: "mr-IN", label: "मराठी" },
-  ]
-    .filter(
-      (lang) =>
-        (percentages as Record<string, number>)[lang.code] >=
-        COMPLETION_THRESHOLD,
-    )
-    .sort((left, right) => (left.label > right.label ? 1 : -1)),
+  { code: "ar-SA", label: "العربية", rtl: true },
+  { code: "bg-BG", label: "Български" },
+  { code: "ca-ES", label: "Català" },
+  { code: "cs-CZ", label: "Česky" },
+  { code: "de-DE", label: "Deutsch" },
+  { code: "el-GR", label: "Ελληνικά" },
+  { code: "es-ES", label: "Español" },
+  { code: "eu-ES", label: "Euskara" },
+  { code: "fa-IR", label: "فارسی", rtl: true },
+  { code: "fi-FI", label: "Suomi" },
+  { code: "fr-FR", label: "Français" },
+  { code: "gl-ES", label: "Galego" },
+  { code: "he-IL", label: "עברית", rtl: true },
+  { code: "hi-IN", label: "हिन्दी" },
+  { code: "hu-HU", label: "Magyar" },
+  { code: "id-ID", label: "Bahasa Indonesia" },
+  { code: "it-IT", label: "Italiano" },
+  { code: "ja-JP", label: "日本語" },
+  { code: "kab-KAB", label: "Taqbaylit" },
+  { code: "kk-KZ", label: "Қазақ тілі" },
+  { code: "ko-KR", label: "한국어" },
+  { code: "ku-TR", label: "Kurdî" },
+  { code: "lt-LT", label: "Lietuvių" },
+  { code: "lv-LV", label: "Latviešu" },
+  { code: "my-MM", label: "Burmese" },
+  { code: "nb-NO", label: "Norsk bokmål" },
+  { code: "nl-NL", label: "Nederlands" },
+  { code: "nn-NO", label: "Norsk nynorsk" },
+  { code: "oc-FR", label: "Occitan" },
+  { code: "pa-IN", label: "ਪੰਜਾਬੀ" },
+  { code: "pl-PL", label: "Polski" },
+  { code: "pt-BR", label: "Português Brasileiro" },
+  { code: "pt-PT", label: "Português" },
+  { code: "ro-RO", label: "Română" },
+  { code: "ru-RU", label: "Русский" },
+  { code: "sk-SK", label: "Slovenčina" },
+  { code: "sv-SE", label: "Svenska" },
+  { code: "sl-SI", label: "Slovenščina" },
+  { code: "tr-TR", label: "Türkçe" },
+  { code: "uk-UA", label: "Українська" },
+  { code: "zh-CN", label: "简体中文" },
+  { code: "zh-TW", label: "繁體中文" },
+  { code: "vi-VN", label: "Tiếng Việt" },
+  { code: "mr-IN", label: "मराठी" },
 ];
+
+export const languages: Language[] = localeCatalog
+  .filter(
+    (lang) =>
+      (percentages as Record<string, number>)[lang.code] >=
+      COMPLETION_THRESHOLD,
+  )
+  .sort((left, right) => (left.label > right.label ? 1 : -1));
 
 const TEST_LANG_CODE = "__test__";
 if (isDevEnv()) {
@@ -88,6 +94,34 @@ if (isDevEnv()) {
 
 let currentLang: Language = defaultLang;
 let currentLangData = {};
+
+/**
+ * Resolves a language code into a `Language` descriptor.
+ *
+ * Anything in `localeCatalog` keeps its label and `rtl` metadata, including
+ * locales below the completeness threshold that `languages` does not advertise.
+ * Any other well-formed code is accepted as-is: `setLanguage` gracefully falls
+ * back to English data when a locale file is missing.
+ */
+export const resolveLanguage = (
+  code: Language["code"] | undefined,
+): Language => {
+  const normalized = code?.trim();
+  if (!normalized) {
+    return defaultLang;
+  }
+  const lowered = normalized.toLowerCase();
+  const known = localeCatalog.find(
+    (lang) => lang.code.toLowerCase() === lowered,
+  );
+  if (known) {
+    return known;
+  }
+  if (!/^[a-z]{2,3}(-[a-z0-9]{2,8})*$/i.test(normalized)) {
+    return defaultLang;
+  }
+  return { code: normalized, label: normalized };
+};
 
 export const setLanguage = async (lang: Language) => {
   currentLang = lang;

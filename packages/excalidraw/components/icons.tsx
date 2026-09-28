@@ -592,6 +592,16 @@ export const HelpIcon = createIcon(
   tablerIconProps,
 );
 
+export const LanguageIcon = createIcon(
+  <g strokeWidth="1.5">
+    <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+    <circle cx="12" cy="12" r="9"></circle>
+    <line x1="3" y1="12" x2="21" y2="12"></line>
+    <path d="M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0 -18"></path>
+  </g>,
+  tablerIconProps,
+);
+
 export const HelpIconThin = createIcon(
   <g strokeWidth="1.25">
     <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>

@@ -55,6 +55,7 @@ const createPayload = () => {
     },
     name: "Round trip",
     generatorVersion: "test",
+    language: "zh-CN",
     createdAt: 10,
     updatedAt: 20,
   });
@@ -105,5 +106,38 @@ describe("single-file HTML", () => {
     expect(serialized).toContain("\\u003c/script>");
     expect(serialized).toContain("\\u2028");
     expect(serialized).toContain("\\u2029");
+  });
+
+  it("stamps the board language and direction onto the template", () => {
+    const payload = createSingleFilePayload({
+      elements: [],
+      appState: {},
+      files: {},
+      name: "Localized",
+      generatorVersion: "test",
+      language: "ar-SA",
+    });
+    const template = `<!doctype html><html lang="en"><body><div id="root"></div><script id="${SINGLE_FILE_PAYLOAD_SCRIPT_ID}" type="application/json">${SINGLE_FILE_PAYLOAD_PLACEHOLDER}</script></body></html>`;
+
+    const html = injectSingleFilePayload(template, payload);
+
+    expect(html).toContain('<html lang="ar-SA" dir="rtl">');
+    expect(parseSingleFilePayload(html).document.language).toBe("ar-SA");
+  });
+
+  it("keeps the template language when the board has none", () => {
+    const payload = createSingleFilePayload({
+      elements: [],
+      appState: {},
+      files: {},
+      name: "Plain",
+      generatorVersion: "test",
+    });
+    const template = `<!doctype html><html lang="en"><body><div id="root"></div><script id="${SINGLE_FILE_PAYLOAD_SCRIPT_ID}" type="application/json">${SINGLE_FILE_PAYLOAD_PLACEHOLDER}</script></body></html>`;
+
+    const html = injectSingleFilePayload(template, payload);
+
+    expect(html).toContain('<html lang="en">');
+    expect(parseSingleFilePayload(html).document.language).toBeUndefined();
   });
 });

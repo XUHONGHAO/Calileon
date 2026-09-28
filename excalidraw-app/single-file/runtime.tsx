@@ -8,12 +8,15 @@ import {
 } from "@excalidraw/excalidraw/index";
 import {
   ExportIcon,
+  LanguageIcon,
   MagicIcon,
   save,
 } from "@excalidraw/excalidraw/components/icons";
-import { t } from "@excalidraw/excalidraw/i18n";
+import { localeCatalog, setLanguage, t } from "@excalidraw/excalidraw/i18n";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
+
+import type { Language } from "@excalidraw/excalidraw/i18n";
 
 import {
   createHttpAiGateway,
@@ -23,6 +26,10 @@ import {
 import { createSingleFilePayload } from "./payload";
 import { normalizeDevicePollIntervalSeconds } from "./devicePairing";
 import { serializeRuntimeDocument } from "./html";
+import {
+  persistSingleFileLanguage,
+  resolveSingleFileLanguage,
+} from "./language";
 import { saveSingleFile, saveSingleFileAs } from "./saveSingleFile";
 import { SINGLE_FILE_PAYLOAD_SCRIPT_ID, type SingleFilePayload } from "./types";
 import { normalizeSingleFileName } from "./exportSingleFile";
@@ -61,6 +68,19 @@ const readInitialPayload = (): SingleFilePayload => {
 };
 
 const initialPayload = readInitialPayload();
+const initialLanguage = resolveSingleFileLanguage({
+  payloadLanguage: initialPayload.document.language,
+});
+
+const selectableLanguages = (current: Language): Language[] => {
+  const sorted = [...localeCatalog].sort((left, right) =>
+    left.label > right.label ? 1 : -1,
+  );
+  return sorted.some((lang) => lang.code === current.code)
+    ? sorted
+    : [current, ...sorted];
+};
+
 const singleFileGatewayURL = normalizeSingleFileGatewayURL(
   String(import.meta.env.VITE_APP_AI_GATEWAY_URL || ""),
 );
@@ -127,6 +147,9 @@ const buildManagedTextBody = (route: AiGatewayCatalogEntry, prompt: string) => {
 
 const RuntimeApp = () => {
   const [api, setApi] = React.useState<ExcalidrawImperativeAPI | null>(null);
+  const [language, setLanguageState] =
+    React.useState<Language>(initialLanguage);
+  const userSelectedLanguage = React.useRef(false);
   const currentHandle = React.useRef<FileSystemFileHandle | null>(null);
   const [aiOpen, setAiOpen] = React.useState(false);
   const [deviceAuthorization, setDeviceAuthorization] = React.useState<Awaited<
@@ -138,6 +161,26 @@ const RuntimeApp = () => {
   const [aiPrompt, setAiPrompt] = React.useState("");
   const [aiStatus, setAiStatus] = React.useState("");
   const [aiBusy, setAiBusy] = React.useState(false);
+
+  /**
+   * `setLanguage` swaps the module-level translation data used by `t()`, so it
+   * must resolve before the re-render that repaints the UI in the new locale.
+   * The `<Excalidraw>` component handles its own internals from `langCode`.
+   *
+   * Only explicit picks are stored: an auto-detected language stays scoped to
+   * the current page, so opening another board still honours its own language.
+   */
+  React.useEffect(() => {
+    let cancelled = false;
+    void setLanguage(language).then(() => {
+      if (!cancelled && userSelectedLanguage.current) {
+        persistSingleFileLanguage(language.code);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [language]);
 
   const gateway = React.useMemo(
     () =>
@@ -205,13 +248,14 @@ const RuntimeApp = () => {
       files: api.getFiles(),
       name: api.getName() || initialPayload.document.name,
       generatorVersion: initialPayload.generator.version,
+      language: language.code,
       createdAt: initialPayload.createdAt,
       updatedAt: Date.now(),
     });
     return new Blob([serializeRuntimeDocument(document, payload)], {
       type: "text/html;charset=utf-8",
     });
-  }, [api]);
+  }, [api, language]);
 
   const filename = normalizeSingleFileName(
     api?.getName() || initialPayload.document.name,
@@ -345,6 +389,7 @@ const RuntimeApp = () => {
     <Excalidraw
       onExcalidrawAPI={setApi}
       initialData={initialPayload.scene}
+      langCode={language.code}
       aiEnabled={false}
       isCollaborating={false}
       UIOptions={{ canvasActions: { export: {} } }}
@@ -381,6 +426,26 @@ const RuntimeApp = () => {
         <MainMenu.Separator />
         <MainMenu.DefaultItems.ToggleTheme allowSystemTheme={false} />
         <MainMenu.DefaultItems.ChangeCanvasBackground />
+        <MainMenu.Sub>
+          <MainMenu.Sub.Trigger icon={LanguageIcon}>
+            {t("buttons.selectLanguage")}
+          </MainMenu.Sub.Trigger>
+          <MainMenu.Sub.Content>
+            {selectableLanguages(language).map((lang) => (
+              <MainMenu.Item
+                key={lang.code}
+                selected={lang.code === language.code}
+                onSelect={() => {
+                  userSelectedLanguage.current = true;
+                  setLanguageState(lang);
+                }}
+                data-testid={`single-file-language-${lang.code}`}
+              >
+                {lang.label}
+              </MainMenu.Item>
+            ))}
+          </MainMenu.Sub.Content>
+        </MainMenu.Sub>
       </MainMenu>
       {aiOpen && (
         <div

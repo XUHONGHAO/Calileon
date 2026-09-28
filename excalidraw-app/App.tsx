@@ -4896,6 +4896,7 @@ const ExcalidrawWrapper = () => {
           open={isSingleFileDialogOpen}
           onClose={() => setIsSingleFileDialogOpen(false)}
           excalidrawAPI={excalidrawAPI}
+          langCode={langCode}
         />
         <AuthDialog
           open={isCloudAccountOpen}

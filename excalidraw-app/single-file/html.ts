@@ -1,3 +1,5 @@
+import { resolveLanguage } from "@excalidraw/excalidraw/i18n";
+
 import {
   SINGLE_FILE_PAYLOAD_PLACEHOLDER,
   SINGLE_FILE_PAYLOAD_SCRIPT_ID,
@@ -13,6 +15,38 @@ export const serializeSingleFilePayload = (
     .replace(/\u2028/g, "\\u2028")
     .replace(/\u2029/g, "\\u2029");
 
+/**
+ * Stamps the board language on the document element so the offline page
+ * announces the right language (and writing direction) to assistive tech and
+ * browsers even before the runtime boots.
+ */
+export const applyLanguageToTemplate = (
+  template: string,
+  language: string | undefined,
+): string => {
+  if (!language?.trim()) {
+    return template;
+  }
+  const languageMeta = resolveLanguage(language);
+  const direction = languageMeta.rtl ? "rtl" : "ltr";
+  if (/<html[^>]*\slang=/i.test(template)) {
+    const withLang = template.replace(
+      /(<html[^>]*\slang=")([^"]*)(")/i,
+      `$1${languageMeta.code}$3`,
+    );
+    return /<html[^>]*\sdir=/i.test(withLang)
+      ? withLang.replace(/(<html[^>]*\sdir=")([^"]*)(")/i, `$1${direction}$3`)
+      : withLang.replace(
+          /(<html[^>]*\slang="[^"]*")/i,
+          `$1 dir="${direction}"`,
+        );
+  }
+  return template.replace(
+    /<html(\s|>)/i,
+    `<html lang="${languageMeta.code}" dir="${direction}"$1`,
+  );
+};
+
 export const injectSingleFilePayload = (
   template: string,
   payload: SingleFilePayload,
@@ -23,7 +57,7 @@ export const injectSingleFilePayload = (
     );
   }
 
-  return template.replace(
+  return applyLanguageToTemplate(template, payload.document.language).replace(
     SINGLE_FILE_PAYLOAD_PLACEHOLDER,
     serializeSingleFilePayload(payload),
   );

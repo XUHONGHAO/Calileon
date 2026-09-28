@@ -24,10 +24,12 @@ export const SingleFileDialog = ({
   open,
   onClose,
   excalidrawAPI,
+  langCode,
 }: {
   open: boolean;
   onClose: () => void;
   excalidrawAPI: ExcalidrawImperativeAPI | null;
+  langCode?: string;
 }) => {
   const [isExporting, setIsExporting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -76,6 +78,7 @@ export const SingleFileDialog = ({
         files: excalidrawAPI.getFiles(),
         name,
         generatorVersion: import.meta.env.VITE_APP_GIT_SHA || "development",
+        language: langCode || document.documentElement.lang || undefined,
       });
       const blob = createSingleFileBlob(runtimeTemplate, payload);
 

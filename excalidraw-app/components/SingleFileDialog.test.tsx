@@ -143,6 +143,7 @@ describe("SingleFileDialog", () => {
         open={true}
         onClose={onClose}
         excalidrawAPI={excalidrawAPI}
+        langCode="zh-CN"
       />,
     );
 
@@ -167,6 +168,7 @@ describe("SingleFileDialog", () => {
         appState,
         files,
         name: "Board",
+        language: "zh-CN",
       }),
     );
     expect(createSingleFileBlob).toHaveBeenCalledWith("template", payload);
