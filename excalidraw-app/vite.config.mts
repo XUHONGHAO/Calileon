@@ -120,7 +120,15 @@ export default defineConfig(({ mode }) => {
           },
         },
       },
-      sourcemap: true,
+      // Self-hosted production publishes this bundle on a public origin, where
+      // sourcemaps are ~26 MB of static files that any client can request.
+      // Disable them by default. Use "hidden" when you need to symbolicate a
+      // specific build: it emits the maps without a sourceMappingURL comment, so
+      // browsers never fetch them automatically.
+      // Note: "hidden" and false differ only in the emitted .map files, not in
+      // the JS bundle itself, so switching between them keeps bundle hashes
+      // comparable when reproducing a build for symbolication.
+      sourcemap: false,
       // don't auto-inline small assets (i.e. fonts hosted on CDN)
       assetsInlineLimit: 0,
     },
