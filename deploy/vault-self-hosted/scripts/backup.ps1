@@ -3,6 +3,10 @@ param(
   [string]$EnvFile = (Join-Path $PSScriptRoot "..\.env"),
   [string]$StorageRoot,
   [string]$StorageDockerVolume,
+  # Docker network that can resolve the host in VAULT_DATABASE_URL. Required when
+  # that URL uses an internal Compose service name (e.g. `db`), because a plain
+  # `docker run` lands on the default bridge, which has no Docker DNS.
+  [string]$DatabaseNetwork,
   [string]$OutputDirectory = (Join-Path $PSScriptRoot "..\backups"),
   [string]$PostgresImage = "postgres:17-alpine"
 )
@@ -32,6 +36,11 @@ if ($StorageDockerVolume) {
   }
 }
 
+$networkArgs = @()
+if ($DatabaseNetwork) {
+  $networkArgs = @("--network", $DatabaseNetwork)
+}
+
 $databaseUrl = Read-EnvValue $EnvFile "VAULT_DATABASE_URL"
 $stamp = (Get-Date).ToUniversalTime().ToString("yyyyMMddTHHmmssZ")
 if (-not (Test-Path -LiteralPath $OutputDirectory -PathType Container)) {
@@ -43,7 +52,7 @@ New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
 $previousDatabaseUrl = $env:VAULT_DATABASE_URL
 try {
   $env:VAULT_DATABASE_URL = $databaseUrl
-  docker run --rm --env VAULT_DATABASE_URL `
+  docker run --rm @networkArgs --env VAULT_DATABASE_URL `
     -v "${backupRoot}:/backup" `
     $PostgresImage `
     sh -c 'pg_dump "$VAULT_DATABASE_URL" --format=custom --file=/backup/database.dump'

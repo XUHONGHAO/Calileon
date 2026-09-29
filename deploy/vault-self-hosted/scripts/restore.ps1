@@ -5,6 +5,10 @@ param(
   [string]$EnvFile = (Join-Path $PSScriptRoot "..\.env"),
   [string]$StorageRoot,
   [string]$StorageDockerVolume,
+  # Docker network that can resolve the host in VAULT_DATABASE_URL. Required when
+  # that URL uses an internal Compose service name (e.g. `db`), because a plain
+  # `docker run` lands on the default bridge, which has no Docker DNS.
+  [string]$DatabaseNetwork,
   [string]$PostgresImage = "postgres:17-alpine",
   [string]$DatabaseRestoreRole,
   [switch]$ConfirmDestructiveRestore
@@ -17,6 +21,11 @@ if (-not $ConfirmDestructiveRestore) {
 }
 if ([bool]$StorageRoot -eq [bool]$StorageDockerVolume) {
   throw "Specify exactly one of -StorageRoot or -StorageDockerVolume"
+}
+
+$networkArgs = @()
+if ($DatabaseNetwork) {
+  $networkArgs = @("--network", $DatabaseNetwork)
 }
 
 function Set-DatabaseUrlUser(
@@ -111,7 +120,7 @@ $databaseUrl = Set-DatabaseUrlUser $databaseUrl $DatabaseRestoreRole
 $previousDatabaseUrl = $env:VAULT_DATABASE_URL
 try {
   $env:VAULT_DATABASE_URL = $databaseUrl
-  $databaseOccupied = docker run --rm --env VAULT_DATABASE_URL `
+  $databaseOccupied = docker run --rm @networkArgs --env VAULT_DATABASE_URL `
     -v "${PSScriptRoot}:/scripts:ro" `
     $PostgresImage `
     sh -c 'psql "$VAULT_DATABASE_URL" -Atqf /scripts/restore-preflight.sql'
@@ -125,7 +134,7 @@ try {
     default { throw "Database restore target preflight returned an invalid result" }
   }
 
-  docker run --rm --env VAULT_DATABASE_URL `
+  docker run --rm @networkArgs --env VAULT_DATABASE_URL `
     -v "${PSScriptRoot}:/scripts:ro" `
     $PostgresImage `
     sh -c 'psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /scripts/restore-disable-event-triggers.sql'
@@ -133,7 +142,7 @@ try {
     throw "Failed to disable target event triggers before restore"
   }
 
-  docker run --rm --env VAULT_DATABASE_URL `
+  docker run --rm @networkArgs --env VAULT_DATABASE_URL `
     -v "${backupRoot}:/backup:ro" `
     $PostgresImage `
     sh -c 'pg_restore --dbname="$VAULT_DATABASE_URL" --clean --if-exists --exit-on-error /backup/database.dump'
@@ -141,7 +150,7 @@ try {
     throw "Database restore failed"
   }
 
-  docker run --rm --env VAULT_DATABASE_URL `
+  docker run --rm @networkArgs --env VAULT_DATABASE_URL `
     -v "${schemaRoot}:/schema:ro" `
     -v "${migrationRoot}:/migrations:ro" `
     -v "${PSScriptRoot}:/ops:ro" `
@@ -151,7 +160,7 @@ try {
     throw "Vault schema reconciliation after restore failed"
   }
 
-  docker run --rm --env VAULT_DATABASE_URL `
+  docker run --rm @networkArgs --env VAULT_DATABASE_URL `
     -v "${schemaRoot}:/schema:ro" `
     -v "${PSScriptRoot}:/ops:ro" `
     $PostgresImage `
