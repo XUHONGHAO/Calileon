@@ -12,7 +12,12 @@
     Referrer-Policy "no-referrer"
     Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
     X-Frame-Options "SAMEORIGIN"
-    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; frame-src 'self' https:; worker-src 'self' blob:; connect-src 'self' {$SUPABASE_PUBLIC_URL}"
+    # `connect-src` has to stay open to `https:`: the App talks to user-configured
+    # BYOK AI providers straight from the browser, so the set of origins is not
+    # knowable at deploy time. A host-source (`https://host`) does NOT authorise
+    # WebSockets on the same host, hence the explicit `wss:` for Supabase Realtime;
+    # `'self'` already covers the room server's `wss://` on this origin.
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; frame-src 'self' https:; worker-src 'self' blob:; connect-src 'self' https: wss:"
   }
 
   log {
