@@ -8,7 +8,13 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$curl = Get-Command curl.exe -ErrorAction Stop
+# `curl.exe` is the Windows executable name; on Linux the same binary is `curl`.
+# Kept symmetric with the `$env:OS -eq "Windows_NT"` check used for the null device below.
+$curl = if ($env:OS -eq "Windows_NT") {
+  Get-Command curl.exe -ErrorAction Stop
+} else {
+  Get-Command curl -ErrorAction Stop
+}
 $tlsArgs = @()
 if ($AllowUntrustedCertificate) {
   $tlsArgs += "--insecure"
