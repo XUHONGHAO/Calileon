@@ -47,6 +47,7 @@ services:
       - /tmp:size=64m,mode=1777
     networks:
       - vault-edge
+      - vault-supabase
 
   proxy:
     image: ${CADDY_IMAGE:-caddy:2.10.2-alpine}
@@ -69,6 +70,7 @@ services:
     restart: unless-stopped
     networks:
       - vault-edge
+      - vault-supabase
 
   migrate:
     image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.6-alpine}
@@ -80,6 +82,8 @@ services:
       - ../../supabase/migrations:/migrations:ro
       - ./scripts:/ops:ro
     entrypoint: ["/bin/sh", "/ops/install-schema.sh"]
+    networks:
+      - vault-supabase
 
   schema-smoke:
     image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.6-alpine}
@@ -90,6 +94,8 @@ services:
       - ../../excalidraw-app/data/cloud/supabase:/schema:ro
       - ./scripts:/ops:ro
     entrypoint: ["/bin/sh", "/ops/schema-smoke.sh"]
+    networks:
+      - vault-supabase
 
   rollback-schema:
     image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.6-alpine}
@@ -101,9 +107,18 @@ services:
       - ../../excalidraw-app/data/cloud/supabase:/schema:ro
       - ./scripts:/ops:ro
     entrypoint: ["/bin/sh", "/ops/rollback-schema.sh"]
+    networks:
+      - vault-supabase
 
 networks:
   vault-edge:
+  # Shared with the official Supabase self-hosted stack so that Caddy can reach
+  # the API gateway by its `kong` network alias, room-server can resolve
+  # VAULT_SUPABASE_URL, and the ops jobs can reach `db:5432` directly.
+  # Created by the operator: docker network create vault-supabase
+  # External networks are not prefixed with the Compose project name.
+  vault-supabase:
+    external: true
 
 volumes:
   caddy_data:
