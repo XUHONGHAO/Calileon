@@ -28,6 +28,17 @@ fi
 
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_smoke.sql
 
+# The retention job is what keeps `vault_snapshot_updates` bounded; a missing job
+# would silently restore the unbounded growth it exists to prevent, so its
+# absence fails the smoke rather than passing unnoticed.
+retention_jobs=$(psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -At \
+  -c "select count(*) from cron.job where jobname = 'vault-snapshot-updates-retention'")
+if [ "$retention_jobs" != "1" ]; then
+  echo "FATAL: the vault snapshot-update retention job is not scheduled" >&2
+  exit 1
+fi
+echo "retention job: scheduled"
+
 # schema_vault_storage_smoke.sql asserts that the database has no client
 # `storage.objects` policy at all, which only holds for an isolated Vault
 # deployment: the ordinary cloud backend needs those policies so browsers can

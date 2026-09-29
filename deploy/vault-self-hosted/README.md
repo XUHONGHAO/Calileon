@@ -85,6 +85,34 @@ Restores follow the same variable: `restore.ps1` reads it from `-EnvFile` so a
 restored database is reconciled and checked against the shape it was backed up
 from.
 
+## Vault snapshot-update retention
+
+`public.vault_snapshot_updates` is an idempotency ledger, not an archive: before
+inserting, `cas_vault_snapshot` looks a row up by
+`(vault_id, room_id, update_id)` so that a retried update returns success
+instead of creating a second generation. Without a policy it grows without
+bound -- one full encrypted envelope per autosave, up to 50 MiB per row.
+
+The `migrate` profile therefore installs
+`scripts/vault-snapshot-retention.sql`, which schedules a daily `pg_cron` job.
+Per `(vault_id, room_id)` it keeps the newest 50 rows, plus older rows while
+their cumulative ciphertext stays under 256 MiB. Capping bytes rather than rows
+matters because a single row may be up to 50 MiB.
+
+Deleting an old ledger row cannot lose data: a retry that no longer finds its
+row either runs as a benign duplicate (same content, newer generation) or fails
+the generation check with `VAULT_SNAPSHOT_CONFLICT`, which the client resolves by
+re-reading and merging.
+
+`pg_cron` must be listed in `shared_preload_libraries`; the official Supabase
+self-hosted image ships it preloaded and sets `cron.database_name`.
+`schema-smoke` fails when the job is missing, so a silently absent retention
+policy cannot pass acceptance.
+
+To change the thresholds, edit the two literals in
+`scripts/vault-snapshot-retention.sql` and re-run the `migrate` profile; the job
+is upserted by name.
+
 ## First deployment
 
 1. Copy `.env.example` to the ignored `.env` file and replace every placeholder.

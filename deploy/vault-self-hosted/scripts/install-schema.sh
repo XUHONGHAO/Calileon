@@ -72,3 +72,10 @@ for migration in /migrations/*.sql; do
     psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f "$migration"
   fi
 done
+
+# Retention for the Vault idempotency ledger, which would otherwise grow without
+# bound (one full encrypted envelope per autosave). Adds nothing to the `public`
+# schema -- it schedules a daily pg_cron job. See the file's own header for why
+# deleting old ledger rows cannot lose data.
+psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f /ops/vault-snapshot-retention.sql
