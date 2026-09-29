@@ -77,6 +77,7 @@ services:
     profiles: ["ops"]
     environment:
       VAULT_DATABASE_URL: ${VAULT_DATABASE_URL:?VAULT_DATABASE_URL is required}
+      VAULT_DEPLOYMENT_SCOPE: ${VAULT_DEPLOYMENT_SCOPE:-vault-only}
     volumes:
       - ../../excalidraw-app/data/cloud/supabase:/schema:ro
       - ../../supabase/migrations:/migrations:ro
@@ -90,6 +91,7 @@ services:
     profiles: ["ops"]
     environment:
       VAULT_DATABASE_URL: ${VAULT_DATABASE_URL:?VAULT_DATABASE_URL is required}
+      VAULT_DEPLOYMENT_SCOPE: ${VAULT_DEPLOYMENT_SCOPE:-vault-only}
     volumes:
       - ../../excalidraw-app/data/cloud/supabase:/schema:ro
       - ./scripts:/ops:ro

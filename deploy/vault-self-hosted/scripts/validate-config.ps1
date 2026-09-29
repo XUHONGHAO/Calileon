@@ -79,6 +79,12 @@ if (
   throw "VAULT_ALLOW_DOCKER_HOST_HTTP is allowed only for local smoke"
 }
 if (
+  $envValues.ContainsKey("VAULT_DEPLOYMENT_SCOPE") -and
+  $envValues.VAULT_DEPLOYMENT_SCOPE -notin @("vault-only", "full")
+) {
+  throw "VAULT_DEPLOYMENT_SCOPE must be vault-only or full"
+}
+if (
   $envValues.SUPABASE_ANON_KEY.StartsWith("replace-") -or
   $envValues.VAULT_DATABASE_URL.Contains("replace-") -or
   $envValues.VAULT_CONTROL_PLANE_TOKEN.StartsWith("replace-")

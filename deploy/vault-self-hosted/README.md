@@ -57,9 +57,38 @@ Configure the Edge Runtime with:
 
 Do not expose service-role keys to the App or room-server. Only the Edge Runtime receives the service-role key through the official Supabase environment.
 
+## Deployment scope
+
+`VAULT_DEPLOYMENT_SCOPE` selects which database shape the `migrate` and
+`schema-smoke` profiles work with. It is read from the deployment env file and
+defaults to `vault-only` when absent.
+
+| Value | Installs | Storage smoke |
+| --- | --- | --- |
+| `vault-only` (default) | Only the Vault schema, matching the frozen F4 acceptance for an isolated Vault deployment. | `schema_vault_storage_smoke.sql`, which requires that no client `storage.objects` policy exists. |
+| `full` | The Vault schema **and** the ordinary cloud backend (cloud scenes, assets, shares, embeds, activity log, Cast, collab rooms/persistence, AI tasks, AI video assets). | `vault-storage-smoke-full-scope.sql`, which keeps the Vault bucket and RLS assertions and replaces the isolation assertion with the property that actually protects the Vault. |
+
+The two shapes are mutually exclusive in the database: the ordinary backend needs
+client `storage.objects` policies so browsers can upload assets to
+`excalidraw-assets`, while the isolated Vault acceptance forbids any client
+policy on `storage.objects`. Both the ordinary backend's policies and the Vault
+bucket are bucket-scoped (`bucket_id = 'excalidraw-assets'`), so the Vault's own
+bucket stays unreachable either way.
+
+**Choose `full` when the App build enables those features** -- that is the case
+for a build with this repository's default `VITE_APP_*` values. With
+`vault-only` those features fail at runtime even though the App is compiled to
+use them (starting a collaboration session reports "couldn't save to the backend
+database").
+
+Restores follow the same variable: `restore.ps1` reads it from `-EnvFile` so a
+restored database is reconciled and checked against the shape it was backed up
+from.
+
 ## First deployment
 
 1. Copy `.env.example` to the ignored `.env` file and replace every placeholder.
+   Set `VAULT_DEPLOYMENT_SCOPE` as described above.
 2. Keep `VAULT_ENABLED=false` while installing Supabase, Edge Functions, schema, TLS, and origin rules.
 3. Validate configuration:
 
@@ -67,7 +96,7 @@ Do not expose service-role keys to the App or room-server. Only the Edge Runtime
    ./scripts/validate-config.ps1 -EnvFile ./.env
    ```
 
-4. Install the independent Vault schema and run smoke tests:
+4. Install the schema selected by `VAULT_DEPLOYMENT_SCOPE` and run smoke tests:
 
    ```powershell
    docker compose --env-file versions.env --env-file .env -f compose.yml --profile ops run --rm migrate

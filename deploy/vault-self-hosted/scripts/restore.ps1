@@ -117,9 +117,25 @@ if (-not $databaseLine) {
 }
 $databaseUrl = $databaseLine.Split("=", 2)[1].Trim()
 $databaseUrl = Set-DatabaseUrlUser $databaseUrl $DatabaseRestoreRole
+
+# The restored database must be reconciled with the same deployment shape it was
+# backed up from, otherwise install-schema.sh would install the wrong half and
+# schema-smoke.sh would assert the wrong invariant. Absent means the frozen
+# vault-only shape, matching the default in both scripts.
+$scopeLine = Get-Content -LiteralPath $EnvFile -Encoding UTF8 |
+  Where-Object { $_ -match '^VAULT_DEPLOYMENT_SCOPE=' } |
+  Select-Object -Last 1
+$deploymentScope = if ($scopeLine) {
+  $scopeLine.Split("=", 2)[1].Trim()
+} else {
+  "vault-only"
+}
+
 $previousDatabaseUrl = $env:VAULT_DATABASE_URL
+$previousDeploymentScope = $env:VAULT_DEPLOYMENT_SCOPE
 try {
   $env:VAULT_DATABASE_URL = $databaseUrl
+  $env:VAULT_DEPLOYMENT_SCOPE = $deploymentScope
   $databaseOccupied = docker run --rm @networkArgs --env VAULT_DATABASE_URL `
     -v "${PSScriptRoot}:/scripts:ro" `
     $PostgresImage `
@@ -150,7 +166,7 @@ try {
     throw "Database restore failed"
   }
 
-  docker run --rm @networkArgs --env VAULT_DATABASE_URL `
+  docker run --rm @networkArgs --env VAULT_DATABASE_URL --env VAULT_DEPLOYMENT_SCOPE `
     -v "${schemaRoot}:/schema:ro" `
     -v "${migrationRoot}:/migrations:ro" `
     -v "${PSScriptRoot}:/ops:ro" `
@@ -160,7 +176,7 @@ try {
     throw "Vault schema reconciliation after restore failed"
   }
 
-  docker run --rm @networkArgs --env VAULT_DATABASE_URL `
+  docker run --rm @networkArgs --env VAULT_DATABASE_URL --env VAULT_DEPLOYMENT_SCOPE `
     -v "${schemaRoot}:/schema:ro" `
     -v "${PSScriptRoot}:/ops:ro" `
     $PostgresImage `
@@ -170,6 +186,7 @@ try {
   }
 } finally {
   $env:VAULT_DATABASE_URL = $previousDatabaseUrl
+  $env:VAULT_DEPLOYMENT_SCOPE = $previousDeploymentScope
 }
 
 if ($StorageRoot) {
