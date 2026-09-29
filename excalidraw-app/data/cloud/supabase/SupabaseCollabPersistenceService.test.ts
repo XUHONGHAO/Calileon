@@ -79,4 +79,40 @@ describe("SupabaseCollabPersistenceService", () => {
       4, 5, 6,
     ]);
   });
+
+  const saveSceneInput = () => ({
+    roomId: "room-1",
+    roomKey: "sTdLvMC_M3V8_vGa3UVRDg",
+    socket: { id: "socket-1" } as any,
+    elements: [] as any,
+    appState: {} as any,
+  });
+
+  const mockSnapshotRpc = (saveError: unknown) => {
+    mockRpc.mockImplementation((name: string) => {
+      if (name === "load_collab_room_snapshot") {
+        return Promise.resolve({ data: null, error: null });
+      }
+      return Promise.resolve({ data: null, error: saveError });
+    });
+  };
+
+  it("skips persistence for ordinary rooms that have no cloud binding", async () => {
+    mockSnapshotRpc({
+      code: "P0001",
+      message: "cloud-collab-room-not-found",
+    });
+
+    await expect(
+      createSupabaseCollabPersistenceService().saveScene(saveSceneInput()),
+    ).resolves.toBeNull();
+  });
+
+  it("still reports snapshot writes that fail for other reasons", async () => {
+    mockSnapshotRpc({ code: "42501", message: "permission denied" });
+
+    await expect(
+      createSupabaseCollabPersistenceService().saveScene(saveSceneInput()),
+    ).rejects.toThrow();
+  });
 });

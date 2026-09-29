@@ -54,6 +54,21 @@ interface SnapshotRpcResult {
   updated_at: string;
 }
 
+/**
+ * Raised by `save_collab_room_snapshot` when the room has no active cloud
+ * binding, i.e. the session was started as an ordinary realtime room instead of
+ * from a cloud scene. Ordinary rooms keep syncing over the room server; there
+ * is simply nothing to persist, so this must not surface as a save failure.
+ * `isRoomActive` already treats such rooms as usable on purpose.
+ */
+const CLOUD_ROOM_NOT_FOUND = "cloud-collab-room-not-found";
+
+const isUnboundRoomError = (error: unknown) => {
+  return (
+    (error as { message?: string } | null)?.message === CLOUD_ROOM_NOT_FOUND
+  );
+};
+
 const bytesToBase64 = (bytes: Uint8Array): string => {
   let binary = "";
   for (const byte of bytes) {
@@ -139,9 +154,13 @@ export const createSupabaseCollabPersistenceService =
       return data !== "revoked";
     };
 
-    const saveSnapshot = async (
+    /**
+     * Stores one encrypted snapshot. Returns `false` when the room has no cloud
+     * binding, in which case there is nothing to persist.
+     */
+    const writeSnapshot = async (
       input: CollabPersistenceSnapshot,
-    ): Promise<void> => {
+    ): Promise<boolean> => {
       const client = getSupabaseClient();
       const { error } = await client.rpc("save_collab_room_snapshot", {
         p_room_id: input.roomId,
@@ -152,8 +171,18 @@ export const createSupabaseCollabPersistenceService =
         },
       });
       if (error) {
+        if (isUnboundRoomError(error)) {
+          return false;
+        }
         throw mapDataError(error);
       }
+      return true;
+    };
+
+    const saveSnapshot = async (
+      input: CollabPersistenceSnapshot,
+    ): Promise<void> => {
+      await writeSnapshot(input);
     };
 
     const loadSnapshot = async (
@@ -232,12 +261,18 @@ export const createSupabaseCollabPersistenceService =
       }
 
       const encrypted = await encryptElements(roomKey, elementsToStore);
-      await saveSnapshot({
+      const persisted = await writeSnapshot({
         roomId,
         encryptedData: encrypted.encryptedData,
         iv: encrypted.iv,
         updatedAt: Date.now(),
       });
+
+      if (!persisted) {
+        // Ordinary room: nothing was stored, so report "no remote change"
+        // rather than handing our own elements back as a remote update.
+        return null;
+      }
 
       sceneVersionCache.set(socket, getSceneVersion(elementsToStore));
       return toBrandedType<RemoteExcalidrawElement[]>(elementsToStore);
