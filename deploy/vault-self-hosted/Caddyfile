@@ -19,3 +19,34 @@
     output discard
   }
 }
+
+# Supabase API origin. P7 decision (§2.6): a separate HTTPS origin served by this
+# same Caddy, because only one process can bind 443 and the official Supabase
+# distribution ships a self-signed certificate on its gateway.
+#
+# Only the API surfaces the App actually uses are exposed. The gateway root
+# (`/`, which serves Studio) is deliberately NOT proxied, so the admin UI is
+# never publicly reachable. To use Studio, open an SSH tunnel:
+#   ssh -L 8000:127.0.0.1:8000 <host>   then browse http://127.0.0.1:8000
+{$SUPABASE_PUBLIC_URL} {
+  encode zstd gzip
+
+  # Wrapped in `route` so the matcher, the proxy and the catch-all execute in
+  # the written order regardless of Caddy's default directive ordering.
+  route {
+    @supabase_api path /auth/v1/* /rest/v1/* /storage/v1/* /functions/v1/* /realtime/v1/*
+    reverse_proxy @supabase_api kong:8000
+    respond 404
+  }
+
+  header {
+    -Server
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+  }
+
+  log {
+    output discard
+  }
+}
