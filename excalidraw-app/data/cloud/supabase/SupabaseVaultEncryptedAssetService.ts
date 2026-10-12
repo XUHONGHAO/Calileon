@@ -141,6 +141,73 @@ const assertAssetSize = (bytes: number) => {
   }
 };
 
+const readErrorStatus = (error: unknown): number => {
+  if (!isRecord(error)) {
+    return NaN;
+  }
+  const status = Number(error.status ?? error.statusCode);
+  if (Number.isFinite(status)) {
+    return status;
+  }
+  // FunctionsHttpError keeps the raw Response in `context`.
+  return isRecord(error.context) ? Number(error.context.status) : NaN;
+};
+
+/**
+ * Transport failures that never produced a stable Vault error body: the
+ * request did not reach the service (network abort, relay/fetch failure) or a
+ * gateway/upstream answered 408/5xx. These are safe to retry with the same
+ * ciphertext because create-upload is digest-idempotent and complete-upload
+ * re-verifies the stored bytes server-side.
+ */
+const isTransientTransportError = (error: unknown): boolean => {
+  if (error instanceof TypeError) {
+    return true;
+  }
+  if (!isRecord(error)) {
+    return false;
+  }
+  if (
+    error.name === "StorageUnknownError" ||
+    error.name === "FunctionsFetchError" ||
+    error.name === "FunctionsRelayError"
+  ) {
+    return true;
+  }
+  const status = readErrorStatus(error);
+  return status === 408 || (status >= 500 && status <= 599);
+};
+
+const mapAssetTransportError = (error: unknown): VaultError => {
+  if (error instanceof VaultError) {
+    return error;
+  }
+  if (isTransientTransportError(error)) {
+    return new VaultError(
+      "VAULT_PERSISTENCE_UNAVAILABLE",
+      "Vault persistence operation failed.",
+      { recoverable: true },
+    );
+  }
+  return mapSupabaseVaultError(error);
+};
+
+/**
+ * storage-js reports an existing object (upsert: false) as 409, or as 400 with
+ * a "409"/"Duplicate" body on older Storage versions. This happens when a
+ * previous PUT stored the bytes but its response was lost.
+ */
+const isDuplicateObjectError = (error: unknown): boolean => {
+  if (!isRecord(error)) {
+    return false;
+  }
+  return (
+    Number(error.status) === 409 ||
+    String(error.statusCode) === "409" ||
+    error.message === "The resource already exists"
+  );
+};
+
 const mapStableFunctionErrorBody = (value: unknown): VaultError | null => {
   if (!isRecord(value) || Object.keys(value).length !== 1) {
     return null;
@@ -176,7 +243,7 @@ const mapFunctionError = async (
       // Only the stable JSON error field is accepted.
     }
   }
-  return mapSupabaseVaultError(error);
+  return mapAssetTransportError(error);
 };
 
 const mapCreateUploadResponse = (
@@ -337,10 +404,7 @@ export const createSupabaseVaultEncryptedAssetService = (
       }
       return data;
     } catch (error) {
-      if (error instanceof VaultError) {
-        throw error;
-      }
-      throw mapSupabaseVaultError(error);
+      throw mapAssetTransportError(error);
     }
   };
 
@@ -370,23 +434,24 @@ export const createSupabaseVaultEncryptedAssetService = (
         input.fileId,
       );
       if (createUpload.state === "pending") {
+        let uploadError: unknown = null;
         try {
-          const { error } = await getClient()
+          ({ error: uploadError } = await getClient()
             .storage.from(VAULT_ASSET_BUCKET)
             .uploadToSignedUrl(
               createUpload.storagePath,
               createUpload.token as string,
               bytes,
               { upsert: false },
-            );
-          if (error) {
-            throw mapSupabaseVaultError(error);
-          }
+            ));
         } catch (error) {
-          if (error instanceof VaultError) {
-            throw error;
-          }
-          throw mapSupabaseVaultError(error);
+          uploadError = error;
+        }
+        // A duplicate object means an earlier attempt already stored bytes
+        // for this path; complete-upload verifies them against the registered
+        // digest/size and rejects any mismatch, so nothing is overwritten.
+        if (uploadError && !isDuplicateObjectError(uploadError)) {
+          throw mapAssetTransportError(uploadError);
         }
         mapCompleteUploadResponse(
           await invoke({

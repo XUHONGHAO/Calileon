@@ -219,6 +219,118 @@ describe("Vault durable attachment queue", () => {
     store.close();
   });
 
+  it("resumes a transiently failed task on the next drain with the same ciphertext", async () => {
+    const databaseName = nextDatabaseName();
+    const store = await VaultLocalStore.open({ databaseName });
+    let outage = true;
+    const { service, upload } = makeService(
+      async ({ vaultId: s, fileId: id, envelope }) => {
+        if (outage) {
+          throw new VaultError(
+            "VAULT_PERSISTENCE_UNAVAILABLE",
+            "signed upload aborted",
+          );
+        }
+        const digest = await digestVaultAssetEnvelope(envelope);
+        return { vaultId: s, fileId: id, ...digest };
+      },
+    );
+    const queue = createVaultAttachmentQueue({
+      store,
+      service,
+      vaultId,
+      roomId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      isOnline: () => true,
+      maxAttempts: 2,
+    });
+    const task = await queue.enqueue({ fileId, file: binaryFile() });
+
+    const first = await queue.drain();
+    expect(first[0]).toMatchObject({
+      status: "failed",
+      errorCode: "VAULT_PERSISTENCE_UNAVAILABLE",
+    });
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(queue.getState()).toMatchObject({ pending: 0, failed: 1 });
+
+    // Still down: a later drain retries again with a fresh per-drain budget.
+    const second = await queue.drain();
+    expect(second[0]).toMatchObject({ status: "failed" });
+    expect(upload).toHaveBeenCalledTimes(4);
+
+    outage = false;
+    const third = await queue.drain();
+    expect(third[0]).toMatchObject({ status: "complete" });
+    expect(upload).toHaveBeenCalledTimes(5);
+    for (const call of upload.mock.calls) {
+      expect(call[0].envelope).toEqual(task.envelope);
+    }
+    const [stored] = await queue.listTasks();
+    expect(stored).toMatchObject({
+      taskId: task.taskId,
+      fileId,
+      status: "complete",
+      attempts: 5,
+      errorCode: null,
+    });
+    expect(queue.getState()).toMatchObject({ pending: 0, failed: 0 });
+    store.close();
+  });
+
+  it("never resumes a task that failed on a terminal error", async () => {
+    const databaseName = nextDatabaseName();
+    const store = await VaultLocalStore.open({ databaseName });
+    const { service, upload } = makeService(async () => {
+      throw new VaultError("VAULT_CAPABILITY_EXPIRED", "expired");
+    });
+    const queue = createVaultAttachmentQueue({
+      store,
+      service,
+      vaultId,
+      roomId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      isOnline: () => true,
+    });
+    await queue.enqueue({ fileId, file: binaryFile() });
+
+    await queue.drain();
+    expect(await queue.drain()).toEqual([]);
+    expect(upload).toHaveBeenCalledTimes(1);
+    const [stored] = await queue.listTasks();
+    expect(stored).toMatchObject({
+      status: "failed",
+      errorCode: "VAULT_CAPABILITY_EXPIRED",
+    });
+    store.close();
+  });
+
+  it("reads back only not-yet-acknowledged attachments from local ciphertext", async () => {
+    const { store, queue } = await newQueue({ isOnline: () => false });
+    const file = binaryFile();
+    await queue.enqueue({ fileId, file });
+
+    await expect(
+      queue.readUnacknowledgedFile(fileId as never),
+    ).resolves.toEqual(file);
+    await expect(
+      queue.readUnacknowledgedFile(otherFileId as never),
+    ).resolves.toBeNull();
+    store.close();
+
+    const online = await newQueue();
+    await online.queue.enqueue({ fileId, file });
+    await online.queue.drain();
+    await expect(
+      online.queue.readUnacknowledgedFile(fileId as never),
+    ).resolves.toBeNull();
+    online.store.close();
+  });
+
   it("fails closed when the upload receipt does not match the task", async () => {
     const databaseName = nextDatabaseName();
     const store = await VaultLocalStore.open({ databaseName });

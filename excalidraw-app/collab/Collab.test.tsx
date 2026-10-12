@@ -10,8 +10,11 @@ import {
   assertVaultDeploymentReady,
   createVaultEncryptedAssetService,
   createVaultPersistenceService,
+  encryptVaultFile,
   openVaultClientSession,
   VAULT_SOCKET_EVENTS,
+  VaultError,
+  VaultLocalStore,
   VaultRealtimeSession,
 } from "../data/vault";
 
@@ -272,6 +275,160 @@ describe("Collab Vault persistence isolation", () => {
     socket.emit("connect");
     await vi.waitFor(() => expect(onReconnect).toHaveBeenCalledOnce());
     await vi.waitFor(() => expect(socket.closed).toBe(true));
+  });
+
+  it("fetches snapshot images on open without waiting for a peer broadcast", async () => {
+    const socket = new FakeVaultSocket();
+    socketClient.mockReturnValue(socket);
+    const fileId = "vault_image_file_0001";
+    const file = {
+      id: fileId,
+      mimeType: "image/png",
+      dataURL: "data:image/png;base64,c25hcHNob3QtaW1hZ2U=",
+      created: 1,
+    };
+    const imageEnvelope = await encryptVaultFile({
+      vaultId,
+      rootKey: "A".repeat(43),
+      file: file as never,
+    });
+    const download = vi.fn(async () => ({
+      vaultId,
+      fileId,
+      encryptedDigest: "A".repeat(43),
+      ciphertextBytes: 1,
+      envelope: imageEnvelope,
+    }));
+    const assetService = createVaultEncryptedAssetService(
+      assertVaultDeploymentReady(
+        {
+          enabled: true,
+          protocolVersions: [1],
+          roomProtocolVersions: [1],
+          invitationService: true,
+          encryptedSnapshotPersistence: true,
+          encryptedAssetPersistence: true,
+        },
+        { isSecureContext: true, hasWebCrypto: true },
+      ),
+      { upload: vi.fn(), download },
+    );
+    const addFiles = vi.fn();
+    const collab = new Collab({
+      excalidrawAPI: {
+        getSceneElementsIncludingDeleted: () => [],
+        getAppState: () => ({}),
+        getFiles: () => ({}),
+        addFiles,
+        updateScene: vi.fn(),
+      },
+    } as never);
+    vi.spyOn(collab, "setActiveRoomLink").mockImplementation(() => {});
+    vi.spyOn(collab, "resetErrorIndicator").mockImplementation(() => {});
+
+    await expect(
+      collab.startVaultCollaboration(await createVaultSession(), {
+        assetService,
+        initialElements: [
+          {
+            id: "image-element",
+            type: "image",
+            fileId,
+            status: "saved",
+            isDeleted: false,
+            updated: Date.now(),
+          } as never,
+        ],
+      }),
+    ).resolves.toBe(true);
+
+    await vi.waitFor(() => expect(addFiles).toHaveBeenCalledWith([file]));
+    expect(download).toHaveBeenCalledOnce();
+    expect(download).toHaveBeenCalledWith(
+      expect.objectContaining({ vaultId, fileId }),
+    );
+  });
+
+  it("renders the author's unacknowledged attachment from local ciphertext", async () => {
+    const socket = new FakeVaultSocket();
+    socketClient.mockReturnValue(socket);
+    const fileId = "vault_image_file_0002";
+    const file = {
+      id: fileId,
+      mimeType: "image/png",
+      dataURL: "data:image/png;base64,cGVuZGluZy1pbWFnZQ==",
+      created: 1,
+    };
+    const store = await VaultLocalStore.open({
+      databaseName: `collab-vault-local-${Date.now()}`,
+    });
+    await store.enqueueAttachmentTask({
+      vaultId,
+      roomId: resolution.activeRoomId,
+      fileId,
+      envelope: await encryptVaultFile({
+        vaultId,
+        rootKey: "A".repeat(43),
+        file: file as never,
+      }),
+    });
+    const download = vi.fn(async () => {
+      throw new Error("not uploaded yet");
+    });
+    const assetService = createVaultEncryptedAssetService(
+      assertVaultDeploymentReady(
+        {
+          enabled: true,
+          protocolVersions: [1],
+          roomProtocolVersions: [1],
+          invitationService: true,
+          encryptedSnapshotPersistence: true,
+          encryptedAssetPersistence: true,
+        },
+        { isSecureContext: true, hasWebCrypto: true },
+      ),
+      {
+        upload: vi.fn(async () => {
+          throw new VaultError("VAULT_PERSISTENCE_UNAVAILABLE", "offline");
+        }),
+        download,
+      },
+    );
+    const addFiles = vi.fn();
+    const updateScene = vi.fn();
+    const collab = new Collab({
+      excalidrawAPI: {
+        getSceneElementsIncludingDeleted: () => [],
+        getAppState: () => ({}),
+        getFiles: () => ({}),
+        addFiles,
+        updateScene,
+      },
+    } as never);
+    vi.spyOn(collab, "setActiveRoomLink").mockImplementation(() => {});
+    vi.spyOn(collab, "resetErrorIndicator").mockImplementation(() => {});
+
+    await expect(
+      collab.startVaultCollaboration(await createVaultSession(), {
+        assetService,
+        attachmentStore: store,
+        initialElements: [
+          {
+            id: "image-element",
+            type: "image",
+            fileId,
+            status: "saved",
+            isDeleted: false,
+            updated: Date.now(),
+          } as never,
+        ],
+      }),
+    ).resolves.toBe(true);
+
+    await vi.waitFor(() => expect(addFiles).toHaveBeenCalledWith([file]));
+    expect(download).not.toHaveBeenCalled();
+    collab.vaultAttachmentQueue?.dispose();
+    store.close();
   });
 
   it("does not broadcast content from a Vault viewer", () => {

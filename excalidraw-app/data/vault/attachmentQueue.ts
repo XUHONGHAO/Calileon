@@ -1,8 +1,13 @@
+import type { FileId } from "@excalidraw/element/types";
 import type { BinaryFileData } from "@excalidraw/excalidraw/types";
 
 import { VaultError, type VaultErrorCode } from "./errors";
 import { assertVaultEncryptedAssetService } from "./assets";
-import { assertVaultAssetReceipt, encryptVaultFile } from "./fileAssets";
+import {
+  assertVaultAssetReceipt,
+  decryptVaultFile,
+  encryptVaultFile,
+} from "./fileAssets";
 import {
   assertVaultLocalAttachmentTaskRecord,
   type VaultLocalAttachmentTaskRecord,
@@ -58,6 +63,13 @@ export interface VaultAttachmentQueue {
     ciphertextBytes: number;
   }): Promise<void>;
   /**
+   * Decrypts the locally persisted ciphertext of an attachment that has not
+   * been acknowledged by the server yet (queued/retrying/failed), so its
+   * author can render it without a remote download. Returns null when there
+   * is no such task; completed tasks are always loaded from the server.
+   */
+  readUnacknowledgedFile(fileId: FileId): Promise<BinaryFileData | null>;
+  /**
    * Removes only completed tasks whose file is no longer referenced by the
    * scene. Pending/failed tasks are always retained so recovery stays possible.
    */
@@ -86,15 +98,26 @@ const wait = async (delayMs: number) => {
   await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
 };
 
+const isRetryableCode = (code: VaultErrorCode | null) =>
+  code === "VAULT_PERSISTENCE_UNAVAILABLE" || code === "VAULT_RATE_LIMITED";
+
 const isRetryable = (error: unknown) =>
-  error instanceof VaultError &&
-  (error.code === "VAULT_PERSISTENCE_UNAVAILABLE" ||
-    error.code === "VAULT_RATE_LIMITED");
+  error instanceof VaultError && isRetryableCode(error.code);
 
 const isPending = (task: VaultLocalAttachmentTaskRecord) =>
   task.status === "queued" ||
   task.status === "uploading" ||
   task.status === "retry";
+
+/**
+ * A task that exhausted its per-drain retry budget on a transient error
+ * (network/5xx/rate limit) is resumed by the next drain (open, reconnect,
+ * `online`, new attachment) with the same taskId and ciphertext. Capability,
+ * integrity and validation failures stay terminal.
+ */
+const isResumable = (task: VaultLocalAttachmentTaskRecord) =>
+  isPending(task) ||
+  (task.status === "failed" && isRetryableCode(task.errorCode));
 
 export const createVaultAttachmentQueue = (
   input: VaultAttachmentQueueInput,
@@ -167,10 +190,14 @@ export const createVaultAttachmentQueue = (
       });
       await input.store.updateAttachmentTask(task);
     }
+    // `attempts` is the lifetime counter persisted on the task; the retry
+    // budget below is per drain so a resumed task gets fresh retries.
+    let attemptsThisDrain = 0;
     while (!disposed) {
       if (!input.isOnline()) {
         return { status: "offline", task };
       }
+      attemptsThisDrain += 1;
       const attempt: VaultLocalAttachmentTaskRecord = Object.freeze({
         ...task,
         status: "uploading" as const,
@@ -209,7 +236,7 @@ export const createVaultAttachmentQueue = (
           error instanceof VaultError
             ? error.code
             : "VAULT_PERSISTENCE_UNAVAILABLE";
-        if (isRetryable(error) && attempt.attempts < maxAttempts) {
+        if (isRetryable(error) && attemptsThisDrain < maxAttempts) {
           task = Object.freeze({
             ...attempt,
             status: "retry" as const,
@@ -218,7 +245,7 @@ export const createVaultAttachmentQueue = (
           });
           await input.store.updateAttachmentTask(task);
           await wait(
-            retryBaseDelayMs * Math.min(2 ** (attempt.attempts - 1), 16),
+            retryBaseDelayMs * Math.min(2 ** (attemptsThisDrain - 1), 16),
           );
           continue;
         }
@@ -245,9 +272,7 @@ export const createVaultAttachmentQueue = (
         roomId,
       });
       cache = [...tasks];
-      const pending = tasks.filter(
-        (task) => task.status !== "complete" && task.status !== "failed",
-      );
+      const pending = tasks.filter(isResumable);
       const results: VaultAttachmentUploadResult[] = [];
       for (const task of pending) {
         if (disposed) {
@@ -327,6 +352,25 @@ export const createVaultAttachmentQueue = (
     }
   };
 
+  const readUnacknowledgedFile = async (
+    fileId: FileId,
+  ): Promise<BinaryFileData | null> => {
+    const task = await input.store.getAttachmentTaskByFileId({
+      vaultId,
+      roomId,
+      fileId,
+    });
+    if (!task || task.status === "complete") {
+      return null;
+    }
+    return await decryptVaultFile({
+      vaultId,
+      rootKey: input.rootKey,
+      fileId,
+      envelope: task.envelope,
+    });
+  };
+
   const pruneOrphans = async (pruneInput: {
     referencedFileIds: Iterable<string>;
   }): Promise<number> => {
@@ -357,6 +401,7 @@ export const createVaultAttachmentQueue = (
       ...(await input.store.listAttachmentTasks({ vaultId, roomId })),
     ],
     verifyDownloadedFile,
+    readUnacknowledgedFile,
     pruneOrphans,
     dispose() {
       disposed = true;

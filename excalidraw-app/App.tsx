@@ -2027,6 +2027,7 @@ const ExcalidrawWrapper = () => {
           {
             assetService: data.activeVault.assets,
             attachmentStore: data.activeVault.localStore,
+            initialElements: data.scene?.elements ?? undefined,
             onAttachmentStateChange: (state) =>
               setVaultAttachmentState(data.activeVault!.session, state),
             onError: () =>
@@ -2143,6 +2144,7 @@ const ExcalidrawWrapper = () => {
               {
                 assetService: data.activeVault.assets,
                 attachmentStore: data.activeVault.localStore,
+                initialElements: data.scene?.elements ?? undefined,
                 onAttachmentStateChange: (state) =>
                   setVaultAttachmentState(data.activeVault!.session, state),
                 onError: () =>

@@ -137,6 +137,8 @@ type StartVaultCollaborationOptions = {
   onDisconnect?(error: VaultError): void;
   onReconnect?(): void | Promise<void>;
   onTeardown?(error: VaultError): void;
+  /** Elements of the opened snapshot; defaults to the current scene. */
+  initialElements?: readonly ExcalidrawElement[];
 };
 
 export interface CollabAPI {
@@ -663,6 +665,15 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         const erroredFiles = new Map<FileId, true>();
         for (const fileId of fileIds) {
           try {
+            // The author's own not-yet-acknowledged upload renders from its
+            // durable local ciphertext; the server copy may not exist yet.
+            const localFile = await attachmentQueue?.readUnacknowledgedFile(
+              fileId,
+            );
+            if (localFile) {
+              loadedFiles.push(localFile);
+              continue;
+            }
             const downloaded = await downloadVaultFileWithReceipt({
               service: options.assetService!,
               vaultId: clientSession.vaultId,
@@ -762,6 +773,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       this.setIsCollaborating(true);
       this.setActiveRoomLink(window.location.href);
       this.initializeIdleDetector();
+      // Snapshot images are not embedded in the scene: fetch them now instead
+      // of waiting for a peer broadcast to trigger loadVaultImageFiles.
+      void this.fetchVaultImageFiles(this.vaultFileManager, {
+        elements: options.initialElements,
+        forceFetchFiles: true,
+      });
       return true;
     } catch (error) {
       transport.dispose();
@@ -1142,7 +1159,21 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   }, LOAD_IMAGES_TIMEOUT);
 
   private loadVaultImageFiles = throttle(async () => {
-    const fileManager = this.vaultFileManager;
+    await this.fetchVaultImageFiles(this.vaultFileManager);
+  }, LOAD_IMAGES_TIMEOUT);
+
+  private fetchVaultImageFiles = async (
+    fileManager: FileManager | null,
+    opts: {
+      elements?: readonly ExcalidrawElement[];
+      /**
+       * Initial open: also fetch images whose status was never flipped to
+       * "saved" (mirrors fetchImageFilesFromFirebase) and skip files that are
+       * already loaded in the scene.
+       */
+      forceFetchFiles?: boolean;
+    } = {},
+  ) => {
     if (!fileManager) {
       this.excalidrawAPI.updateScene({
         appState: {
@@ -1152,18 +1183,30 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       });
       return;
     }
-    const elements = this.excalidrawAPI.getSceneElementsIncludingDeleted();
-    const fileIds = elements.reduce((ids, element) => {
+    const elements =
+      opts.elements ?? this.excalidrawAPI.getSceneElementsIncludingDeleted();
+    const candidateIds = elements.reduce((ids, element) => {
       if (
         isInitializedImageElement(element) &&
         !element.isDeleted &&
-        element.status === "saved" &&
+        (opts.forceFetchFiles
+          ? element.status !== "pending" || Date.now() - element.updated > 10000
+          : element.status === "saved") &&
         !fileManager.isFileTracked(element.fileId)
       ) {
         ids.push(element.fileId);
       }
       return ids;
     }, [] as FileId[]);
+    if (!candidateIds.length) {
+      return;
+    }
+    const sceneFiles = opts.forceFetchFiles
+      ? this.excalidrawAPI.getFiles()
+      : null;
+    const fileIds = sceneFiles
+      ? candidateIds.filter((fileId) => !sceneFiles[fileId])
+      : candidateIds;
     if (!fileIds.length) {
       return;
     }
@@ -1185,7 +1228,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         },
       });
     }
-  }, LOAD_IMAGES_TIMEOUT);
+  };
 
   private handleRemoteSceneUpdate = (
     elements: ReconciledExcalidrawElement[],

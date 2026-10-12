@@ -161,23 +161,38 @@ export const downloadVaultFileWithReceipt = async (input: {
     invitationCapability: input.invitationCapability,
     fileId: input.fileId,
   });
-  assertVaultEncryptedEnvelopeV1(downloaded.envelope);
-  if (
-    downloaded.envelope.purpose !== "asset" ||
-    downloaded.envelope.messageType !== "asset.content" ||
-    downloaded.envelope.vaultId !== input.vaultId
-  ) {
-    throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault asset.");
-  }
-  const file = await decryptVaultJson<unknown>(
-    input.rootKey,
-    downloaded.envelope,
-  );
   return {
-    file: assertBinaryFileData(file, input.fileId),
+    file: await decryptVaultFile({
+      vaultId: input.vaultId,
+      rootKey: input.rootKey,
+      fileId: input.fileId,
+      envelope: downloaded.envelope,
+    }),
     encryptedDigest: downloaded.encryptedDigest,
     ciphertextBytes: downloaded.ciphertextBytes,
   };
+};
+
+/**
+ * Decrypts an asset envelope (downloaded or locally queued) and binds the
+ * plaintext to the expected Vault and fileId.
+ */
+export const decryptVaultFile = async (input: {
+  vaultId: string;
+  rootKey: string;
+  fileId: FileId;
+  envelope: unknown;
+}): Promise<BinaryFileData> => {
+  assertVaultEncryptedEnvelopeV1(input.envelope);
+  if (
+    input.envelope.purpose !== "asset" ||
+    input.envelope.messageType !== "asset.content" ||
+    input.envelope.vaultId !== input.vaultId
+  ) {
+    throw new VaultError("VAULT_ENVELOPE_INVALID", "Invalid Vault asset.");
+  }
+  const file = await decryptVaultJson<unknown>(input.rootKey, input.envelope);
+  return assertBinaryFileData(file, input.fileId);
 };
 
 export const downloadVaultFile = async (input: {

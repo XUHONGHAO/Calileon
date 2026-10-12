@@ -346,6 +346,150 @@ describe("SupabaseVaultEncryptedAssetService", () => {
     );
   });
 
+  const pendingRegistration = () => ({
+    data: {
+      storagePath: STORAGE_PATH,
+      token: "signed-upload-token",
+      state: "pending",
+    },
+    error: null,
+  });
+
+  const uploadOnce = () =>
+    createSupabaseVaultEncryptedAssetService(deployment(), {
+      client,
+    }).upload({
+      vaultId: VAULT_ID,
+      invitationCapability: CAPABILITY,
+      fileId: FILE_ID,
+      envelope,
+    });
+
+  it.each([
+    [
+      "network abort",
+      {
+        name: "StorageUnknownError",
+        message: "Failed to fetch",
+        status: undefined,
+      },
+    ],
+    [
+      "gateway 503",
+      {
+        name: "StorageApiError",
+        message: "upstream",
+        status: 503,
+        statusCode: "503",
+      },
+    ],
+    [
+      "gateway 504",
+      {
+        name: "StorageApiError",
+        message: "timeout",
+        status: 504,
+        statusCode: "504",
+      },
+    ],
+  ])(
+    "maps a signed-upload %s to a retryable persistence error",
+    async (_label, error) => {
+      invoke.mockResolvedValueOnce(pendingRegistration());
+      uploadToSignedUrl.mockResolvedValueOnce({ data: null, error });
+
+      await expect(uploadOnce()).rejects.toMatchObject({
+        code: "VAULT_PERSISTENCE_UNAVAILABLE",
+        recoverable: true,
+      });
+      expect(invoke).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("maps a thrown signed-upload fetch failure to a retryable persistence error", async () => {
+    invoke.mockResolvedValueOnce(pendingRegistration());
+    uploadToSignedUrl.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(uploadOnce()).rejects.toMatchObject({
+      code: "VAULT_PERSISTENCE_UNAVAILABLE",
+    });
+  });
+
+  it("keeps signed-upload authorization failures terminal", async () => {
+    invoke.mockResolvedValueOnce(pendingRegistration());
+    uploadToSignedUrl.mockResolvedValueOnce({
+      data: null,
+      error: { name: "StorageApiError", message: "denied", status: 403 },
+    });
+
+    await expect(uploadOnce()).rejects.toMatchObject({
+      code: "VAULT_CAPABILITY_FORBIDDEN",
+    });
+    expect(invoke).toHaveBeenCalledTimes(1);
+  });
+
+  it("completes through server verification when an earlier PUT already stored the object", async () => {
+    invoke.mockResolvedValueOnce(pendingRegistration()).mockResolvedValueOnce({
+      data: { vaultId: VAULT_ID, fileId: FILE_ID, state: "ready" },
+      error: null,
+    });
+    uploadToSignedUrl.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: "StorageApiError",
+        message: "The resource already exists",
+        status: 409,
+        statusCode: "409",
+      },
+    });
+
+    await expect(uploadOnce()).resolves.toMatchObject({ fileId: FILE_ID });
+    expect(invoke.mock.calls[1][1].body.action).toBe("complete-upload");
+  });
+
+  it("maps Edge Function transport failures, but not stable error bodies, to retryable", async () => {
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: { name: "FunctionsFetchError", message: "Failed to send" },
+    });
+    await expect(uploadOnce()).rejects.toMatchObject({
+      code: "VAULT_PERSISTENCE_UNAVAILABLE",
+    });
+
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: "FunctionsHttpError",
+        message: "non-2xx",
+        context: {
+          status: 502,
+          json: async () => {
+            throw new SyntaxError("html gateway page");
+          },
+        },
+      },
+    });
+    await expect(uploadOnce()).rejects.toMatchObject({
+      code: "VAULT_PERSISTENCE_UNAVAILABLE",
+    });
+
+    invoke.mockResolvedValueOnce({
+      data: null,
+      error: {
+        name: "FunctionsHttpError",
+        message: "non-2xx",
+        context: {
+          status: 500,
+          json: async () => ({ error: "VAULT_CAPABILITY_EXPIRED" }),
+        },
+      },
+    });
+    await expect(uploadOnce()).rejects.toMatchObject({
+      code: "VAULT_CAPABILITY_EXPIRED",
+    });
+    expect(uploadToSignedUrl).not.toHaveBeenCalled();
+  });
+
   it("rejects cross-Vault upload envelopes before external calls", async () => {
     const service = createSupabaseVaultEncryptedAssetService(deployment(), {
       client,
