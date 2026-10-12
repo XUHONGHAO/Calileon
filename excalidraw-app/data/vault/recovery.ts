@@ -56,6 +56,11 @@ export interface VaultRecoveryInput {
   readonly isOnline: boolean;
   readonly localStorageAvailable: boolean;
   readonly blockedCode: VaultErrorCode | null;
+  /**
+   * Viewer sessions never write, so they keep no local copy by design: the
+   * remote snapshot is the only state and "not persisted locally" is expected.
+   */
+  readonly readOnly?: boolean;
 }
 
 /**
@@ -106,11 +111,12 @@ export const deriveVaultRecoveryState = (
   if (attachments.failed > 0 && attachments.pending === 0) {
     return "error";
   }
-  // Without IndexedDB we must never claim the local copy is safe.
+  // Without IndexedDB we must never claim the local copy is safe. A read-only
+  // session has no local copy to protect, so only an unsynced snapshot counts.
   if (
     !input.localStorageAvailable &&
     (snapshot.status === "unsynced" ||
-      snapshot.localPersistence === "not-persisted")
+      (!input.readOnly && snapshot.localPersistence === "not-persisted"))
   ) {
     return "error";
   }

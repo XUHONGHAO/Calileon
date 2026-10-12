@@ -143,6 +143,31 @@ describe("Vault recovery state machine", () => {
     ).toBe("local-restored");
   });
 
+  it("does not treat a read-only session's missing local copy as an error", () => {
+    const viewer = {
+      localStorageAvailable: false,
+      readOnly: true,
+      snapshot: {
+        status: "synced" as const,
+        unsyncedReason: null,
+        errorCode: null,
+        localPersistence: "not-persisted" as const,
+      },
+    };
+    expect(deriveVaultRecoveryState(input(viewer))).toBe("synced");
+    expect(
+      deriveVaultRecoveryState(input({ ...viewer, readOnly: false })),
+    ).toBe("error");
+    expect(
+      deriveVaultRecoveryState(
+        input({
+          ...viewer,
+          snapshot: { ...viewer.snapshot, status: "unsynced" },
+        }),
+      ),
+    ).toBe("error");
+  });
+
   it("surfaces failed attachments as an error, not as synced", () => {
     expect(
       deriveVaultRecoveryState(

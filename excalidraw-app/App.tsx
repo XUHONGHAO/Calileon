@@ -413,6 +413,7 @@ export const getVaultRecoveryBlockedCode = (
 export const deriveActiveVaultRecoveryState = (
   vault: Pick<
     ActiveVault,
+    | "session"
     | "syncStatus"
     | "autosaveUnsyncedReason"
     | "autosaveErrorCode"
@@ -443,6 +444,7 @@ export const deriveActiveVaultRecoveryState = (
     isOnline,
     localStorageAvailable: Boolean(vault.localStore),
     blockedCode: getVaultRecoveryBlockedCode(vault),
+    readOnly: vault.session.role !== "editor",
   });
 
 // Only the persisted-state fields matter for room recovery: a reconnect may

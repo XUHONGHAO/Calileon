@@ -334,6 +334,7 @@ describe("Vault route isolation", () => {
 
 describe("Vault recovery derivation", () => {
   const baseVault = {
+    session: { role: "editor" } as never,
     syncStatus: "synced" as const,
     autosaveUnsyncedReason: null,
     autosaveErrorCode: null,
@@ -342,6 +343,42 @@ describe("Vault recovery derivation", () => {
     attachmentPending: 0,
     attachmentFailed: 0,
   };
+
+  // A viewer never gets a local store or autosave state (open.ts drops it).
+  const viewerVault = {
+    ...baseVault,
+    session: { role: "viewer" } as never,
+    autosaveLocalPersistence: undefined,
+    localStore: undefined,
+  };
+
+  it("reports a synced viewer without local storage as synced", () => {
+    expect(deriveActiveVaultRecoveryState(viewerVault, true)).toBe("synced");
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...viewerVault, syncStatus: "syncing" },
+        true,
+      ),
+    ).toBe("syncing");
+    // A viewer whose realtime link dropped is still honestly not synced.
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...viewerVault, syncStatus: "unsynced" },
+        true,
+      ),
+    ).toBe("error");
+    // An editor without IndexedDB must still never be presented as synced.
+    expect(
+      deriveActiveVaultRecoveryState(
+        {
+          ...baseVault,
+          localStore: undefined,
+          autosaveLocalPersistence: undefined,
+        },
+        true,
+      ),
+    ).toBe("error");
+  });
 
   it("maps revoked, expired and closed sessions to fail-closed blocked codes", () => {
     expect(
