@@ -59,6 +59,40 @@ const getRecoveryLabel = (state: VaultRecoveryState): string => {
   }
 };
 
+// The colour must match the label. When a recovery state is shown it wins over
+// the raw snapshot status, which ignores pending attachments and reload state;
+// terminal session states keep their own styling.
+const getStatusTone = (
+  syncStatus: VaultSyncStatus,
+  recoveryState?: VaultRecoveryState,
+): VaultSyncStatus | "local" => {
+  if (
+    !recoveryState ||
+    syncStatus === "revoked" ||
+    syncStatus === "expired" ||
+    syncStatus === "closed"
+  ) {
+    return syncStatus;
+  }
+  switch (recoveryState) {
+    case "opening":
+    case "recovering-local":
+      return "loading";
+    case "syncing":
+      return "syncing";
+    case "synced":
+      return "synced";
+    // Kept on this device: not synced yet, but not a failure either.
+    case "local-restored":
+    case "offline-local-safe":
+      return "local";
+    case "conflict":
+    case "blocked":
+    case "error":
+      return "unsynced";
+  }
+};
+
 export const VaultStatus = ({
   role,
   syncStatus,
@@ -91,8 +125,12 @@ export const VaultStatus = ({
   const pendingAttachments = attachmentPending ?? 0;
   return (
     <div
-      className={`VaultStatus VaultStatus--${syncStatus}`}
+      className={`VaultStatus VaultStatus--${getStatusTone(
+        syncStatus,
+        recoveryState,
+      )}`}
       data-testid="vault-status"
+      data-sync-status={syncStatus}
       data-autosave-error-code={autosaveErrorCode ?? undefined}
       data-autosave-unsynced-reason={autosaveUnsyncedReason ?? undefined}
       data-autosave-local-persistence={autosaveLocalPersistence ?? undefined}
