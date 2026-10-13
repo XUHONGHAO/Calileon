@@ -355,6 +355,8 @@ export type ActiveVault = {
     | "local-persisted-unsynced";
   readonly attachmentPending?: number;
   readonly attachmentFailed?: number;
+  /** False once the realtime room link dropped; reset by reopening the Vault. */
+  readonly realtimeAvailable?: boolean;
 };
 
 const createVaultAutosaveSnapshot = (
@@ -421,6 +423,7 @@ export const deriveActiveVaultRecoveryState = (
     | "localStore"
     | "attachmentPending"
     | "attachmentFailed"
+    | "realtimeAvailable"
   >,
   isOnline: boolean,
 ): VaultRecoveryState =>
@@ -445,6 +448,7 @@ export const deriveActiveVaultRecoveryState = (
     localStorageAvailable: Boolean(vault.localStore),
     blockedCode: getVaultRecoveryBlockedCode(vault),
     readOnly: vault.session.role !== "editor",
+    realtimeAvailable: vault.realtimeAvailable ?? true,
   });
 
 // Only the persisted-state fields matter for room recovery: a reconnect may
@@ -1692,6 +1696,7 @@ const ExcalidrawWrapper = () => {
       const updated = Object.freeze({
         ...current,
         syncStatus,
+        realtimeAvailable: vaultRealtimeAvailableRef.current,
       });
       activeVaultRef.current = updated;
       setActiveVault(updated);

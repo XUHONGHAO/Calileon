@@ -12,6 +12,8 @@ import type { VaultErrorCode } from "./errors";
  * - `synced`: snapshot and all attachments are confirmed remotely.
  * - `offline-local-safe`: encrypted local copy persisted, uploads deferred.
  * - `conflict`: local and remote branches cannot be merged automatically.
+ * - `realtime-lost`: the realtime room link dropped and will not recover in
+ *   this page; snapshots are not live-synced until the Vault is reopened.
  * - `blocked`: fail-closed condition (revoked, tampered, wrong key, ...).
  * - `error`: recoverable operational failure without local persistence.
  */
@@ -23,6 +25,7 @@ export type VaultRecoveryState =
   | "synced"
   | "offline-local-safe"
   | "conflict"
+  | "realtime-lost"
   | "blocked"
   | "error";
 
@@ -61,6 +64,11 @@ export interface VaultRecoveryInput {
    * remote snapshot is the only state and "not persisted locally" is expected.
    */
   readonly readOnly?: boolean;
+  /**
+   * False once the realtime room link has dropped for this session. Defaults
+   * to available so callers that do not track realtime keep their behaviour.
+   */
+  readonly realtimeAvailable?: boolean;
 }
 
 /**
@@ -110,6 +118,18 @@ export const deriveVaultRecoveryState = (
   // a transient retry. Surface it once nothing else is pending.
   if (attachments.failed > 0 && attachments.pending === 0) {
     return "error";
+  }
+  // A dropped realtime link is not re-established until the Vault is reopened,
+  // so the snapshot must not be presented as syncing or synced. Offline is
+  // reported separately because the local copy is the honest status there. An
+  // editor without IndexedDB falls through to `error`: reloading could lose
+  // edits.
+  if (
+    input.realtimeAvailable === false &&
+    input.isOnline &&
+    (input.readOnly || input.localStorageAvailable)
+  ) {
+    return "realtime-lost";
   }
   // Without IndexedDB we must never claim the local copy is safe. A read-only
   // session has no local copy to protect, so only an unsynced snapshot counts.

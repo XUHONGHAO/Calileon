@@ -1713,6 +1713,7 @@
       "syncing": "正在同步",
       "synced": "已同步",
       "unsynced": "未同步",
+      "realtimeLost": "未同步 · 即時連線已中斷，請重新載入頁面",
       "conflict": "存在未同步本機修改，需要處理分叉",
       "revoked": "存取已撤銷",
       "expired": "存取已過期",

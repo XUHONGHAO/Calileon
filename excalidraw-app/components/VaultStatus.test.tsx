@@ -158,4 +158,19 @@ describe("VaultStatus", () => {
       /Saved on this device/i,
     );
   });
+
+  it("labels a lost realtime link as not synced with a reload hint", () => {
+    render(
+      <VaultStatus
+        role="editor"
+        syncStatus="unsynced"
+        recoveryState="realtime-lost"
+      />,
+    );
+    const status = screen.getByTestId("vault-status");
+    expect(status).toHaveTextContent(/Not synced.*Realtime connection lost/i);
+    expect(status).toHaveTextContent(/reload/i);
+    expect(status).not.toHaveTextContent(/Syncing/i);
+    expect(status).toHaveClass("VaultStatus--unsynced");
+  });
 });

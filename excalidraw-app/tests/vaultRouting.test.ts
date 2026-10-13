@@ -410,6 +410,12 @@ describe("Vault recovery derivation", () => {
         true,
       ),
     ).toBe("error");
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...viewerVault, syncStatus: "unsynced", realtimeAvailable: false },
+        true,
+      ),
+    ).toBe("realtime-lost");
     // An editor without IndexedDB must still never be presented as synced.
     expect(
       deriveActiveVaultRecoveryState(
@@ -468,6 +474,23 @@ describe("Vault recovery derivation", () => {
         false,
       ),
     ).toBe("error");
+  });
+
+  it("reports an editor whose realtime link dropped as realtime-lost", () => {
+    // The autosave keeps reporting remote-confirmed, but the room link is gone;
+    // previously this fell through to "syncing" indefinitely.
+    const lost = {
+      ...baseVault,
+      syncStatus: "unsynced" as const,
+      realtimeAvailable: false,
+    };
+    expect(deriveActiveVaultRecoveryState(lost, true)).toBe("realtime-lost");
+    expect(
+      deriveActiveVaultRecoveryState(
+        { ...lost, realtimeAvailable: true },
+        true,
+      ),
+    ).toBe("syncing");
   });
 
   it("reports pending attachments as syncing and failures as error", () => {

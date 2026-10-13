@@ -176,6 +176,95 @@ describe("Vault recovery state machine", () => {
     ).toBe("error");
   });
 
+  it("reports a dropped realtime link instead of syncing", () => {
+    // Observed stuck state: snapshot remote-confirmed, nothing pending, but the
+    // room link is gone. It must not be shown as syncing (or synced).
+    const stuck = input({
+      realtimeAvailable: false,
+      snapshot: {
+        status: "unsynced",
+        unsyncedReason: null,
+        errorCode: null,
+        localPersistence: "remote-confirmed",
+      },
+    });
+    expect(deriveVaultRecoveryState(stuck)).toBe("realtime-lost");
+    expect(deriveVaultRecoveryState(input({ realtimeAvailable: false }))).toBe(
+      "realtime-lost",
+    );
+    // Viewers have no local copy; realtime loss is still reported as such.
+    expect(
+      deriveVaultRecoveryState(
+        input({
+          realtimeAvailable: false,
+          readOnly: true,
+          localStorageAvailable: false,
+          snapshot: { ...stuck.snapshot!, localPersistence: "not-persisted" },
+        }),
+      ),
+    ).toBe("realtime-lost");
+    // Default (not tracked) keeps the previous behaviour.
+    expect(deriveVaultRecoveryState(input({}))).toBe("synced");
+  });
+
+  it("keeps stronger states ahead of a dropped realtime link", () => {
+    const lost = { realtimeAvailable: false } as const;
+    expect(
+      deriveVaultRecoveryState(
+        input({ ...lost, blockedCode: "VAULT_CAPABILITY_REVOKED" }),
+      ),
+    ).toBe("blocked");
+    expect(
+      deriveVaultRecoveryState(
+        input({
+          ...lost,
+          snapshot: {
+            status: "unsynced",
+            unsyncedReason: "conflict",
+            errorCode: "VAULT_SNAPSHOT_CONFLICT",
+            localPersistence: "local-persisted",
+          },
+        }),
+      ),
+    ).toBe("conflict");
+    expect(
+      deriveVaultRecoveryState(
+        input({ ...lost, attachments: { pending: 0, failed: 1 } }),
+      ),
+    ).toBe("error");
+    // An editor without IndexedDB must not be told to reload: edits could be
+    // lost, so it stays a plain error.
+    expect(
+      deriveVaultRecoveryState(
+        input({
+          ...lost,
+          localStorageAvailable: false,
+          snapshot: {
+            status: "unsynced",
+            unsyncedReason: "pending",
+            errorCode: null,
+            localPersistence: "not-persisted",
+          },
+        }),
+      ),
+    ).toBe("error");
+    // Offline keeps reporting the local copy.
+    expect(
+      deriveVaultRecoveryState(
+        input({
+          ...lost,
+          isOnline: false,
+          snapshot: {
+            status: "unsynced",
+            unsyncedReason: "offline",
+            errorCode: "VAULT_PERSISTENCE_UNAVAILABLE",
+            localPersistence: "local-persisted",
+          },
+        }),
+      ),
+    ).toBe("offline-local-safe");
+  });
+
   it("drives subscribers from a reporter", () => {
     const reporter = createVaultRecoveryReporter(base);
     const listener = vi.fn();

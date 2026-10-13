@@ -2006,6 +2006,7 @@
       "syncing": "Syncing",
       "synced": "Synced",
       "unsynced": "Not synced",
+      "realtimeLost": "Not synced · Realtime connection lost, reload to reconnect",
       "conflict": "Unsynced local branch needs review",
       "revoked": "Access revoked",
       "expired": "Access expired",

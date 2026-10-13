@@ -52,6 +52,8 @@ const getRecoveryLabel = (state: VaultRecoveryState): string => {
       return t("vault.status.offlineSafe");
     case "conflict":
       return t("vault.status.conflict");
+    case "realtime-lost":
+      return t("vault.status.realtimeLost");
     case "blocked":
       return t("vault.status.blocked");
     case "error":
@@ -87,6 +89,7 @@ const getStatusTone = (
     case "offline-local-safe":
       return "local";
     case "conflict":
+    case "realtime-lost":
     case "blocked":
     case "error":
       return "unsynced";

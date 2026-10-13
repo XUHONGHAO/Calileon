@@ -1974,6 +1974,7 @@
       "syncing": "正在同步",
       "synced": "已同步",
       "unsynced": "未同步",
+      "realtimeLost": "未同步 · 实时连接已断开，请重新加载页面",
       "conflict": "存在未同步本地修改，需要处理分叉",
       "revoked": "访问已撤销",
       "expired": "访问已过期",
