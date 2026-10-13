@@ -2007,6 +2007,7 @@
       "expired": "此 Vault 访问链接已过期。（VAULT_CAPABILITY_EXPIRED）",
       "revoked": "此 Vault 访问链接已被撤销。（VAULT_CAPABILITY_REVOKED）",
       "accessDenied": "此 Vault 访问链接无效或没有访问权限。（VAULT_CAPABILITY_FORBIDDEN）",
+      "localStorageUnavailable": "此浏览器的本地存储（IndexedDB）不可用（例如部分隐私浏览模式），无法打开 Vault。请使用普通窗口或允许网站存储。未加载也未保存任何内容。（VAULT_LOCAL_STORAGE_UNAVAILABLE）",
       "unavailable": "缺少安全 room 或密文持久化服务，无法打开 Vault。系统未使用明文或旧版存储进行降级。"
     }
   }

@@ -1746,6 +1746,7 @@
       "expired": "此 Vault 存取連結已過期。（VAULT_CAPABILITY_EXPIRED）",
       "revoked": "此 Vault 存取連結已遭撤銷。（VAULT_CAPABILITY_REVOKED）",
       "accessDenied": "此 Vault 存取連結無效或沒有存取權限。（VAULT_CAPABILITY_FORBIDDEN）",
+      "localStorageUnavailable": "此瀏覽器的本機儲存空間（IndexedDB）無法使用（例如部分隱私瀏覽模式），無法開啟 Vault。請使用一般視窗或允許網站儲存資料。未載入也未儲存任何內容。（VAULT_LOCAL_STORAGE_UNAVAILABLE）",
       "unavailable": "缺少安全 room 或密文持久化服務，無法開啟 Vault。系統未使用明文或舊版儲存進行降級。"
     }
   }

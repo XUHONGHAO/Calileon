@@ -591,6 +591,8 @@ const getVaultRouteErrorMessage = (code: VaultError["code"]) => {
     case "VAULT_CAPABILITY_INVALID":
     case "VAULT_CAPABILITY_FORBIDDEN":
       return t("vault.errors.accessDenied");
+    case "VAULT_LOCAL_STORAGE_UNAVAILABLE":
+      return t("vault.errors.localStorageUnavailable");
     default:
       return t("vault.errors.unavailable");
   }

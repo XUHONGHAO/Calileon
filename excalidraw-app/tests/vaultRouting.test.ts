@@ -13,6 +13,7 @@ import {
   type VaultSceneRouteDependencies,
 } from "../App";
 import { VaultError } from "../data/vault/errors";
+import { VaultLocalStore } from "../data/vault/local-store";
 
 const vaultId = "123e4567-e89b-42d3-a456-426614174000";
 const rootKey = "A".repeat(43);
@@ -212,6 +213,48 @@ describe("Vault route isolation", () => {
     expect(result.scene?.elements).toEqual([]);
     expect(result.scene?.appState?.viewModeEnabled).toBe(true);
     expect(result.scene?.appState?.errorMessage).toContain("Vault");
+    expect(result.activeVault).toBeUndefined();
+  });
+
+  it("tells the user local storage is unavailable when IndexedDB cannot open", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      `/#vault=1&id=${vaultId}&key=${rootKey}&cap=${capability}`,
+    );
+    const open = vi.fn();
+    const throwingIndexedDb = {
+      open: () => {
+        throw new DOMException("IndexedDB disabled", "InvalidStateError");
+      },
+    } as unknown as IDBFactory;
+
+    const result = await initializeScene({
+      collabAPI: null,
+      excalidrawAPI: {} as never,
+      openVaultRoute: async (link) =>
+        await openVaultSceneFromLink(link, {
+          readConfig: () => ({
+            enabled: true,
+            persistenceCapabilitiesUrl: "https://vault.example/capabilities",
+            roomCapabilitiesUrl: "https://room.example/capabilities",
+            roomProvisionUrl: "https://room.example/vault/rooms",
+          }),
+          createDiscoveryTransport: () => ({} as never),
+          discover: async () => ({ ready: {} as never }),
+          createBackend: () => ({ persistence: {} } as never),
+          open,
+          openLocalStore: () =>
+            VaultLocalStore.open({ indexedDB: throwingIndexedDb }),
+        }),
+    });
+
+    expect(open).not.toHaveBeenCalled();
+    expect(result.scene?.elements).toEqual([]);
+    expect(result.scene?.appState?.viewModeEnabled).toBe(true);
+    expect(result.scene?.appState?.errorMessage).toContain(
+      "VAULT_LOCAL_STORAGE_UNAVAILABLE",
+    );
     expect(result.activeVault).toBeUndefined();
   });
 

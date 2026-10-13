@@ -2039,6 +2039,7 @@
       "expired": "This Vault access link has expired. (VAULT_CAPABILITY_EXPIRED)",
       "revoked": "This Vault access link has been revoked. (VAULT_CAPABILITY_REVOKED)",
       "accessDenied": "This Vault access link is invalid or is not authorized. (VAULT_CAPABILITY_FORBIDDEN)",
+      "localStorageUnavailable": "Vault cannot be opened because this browser's local storage (IndexedDB) is unavailable, for example in some private browsing modes. Use a normal window or allow site storage. Nothing was loaded or saved. (VAULT_LOCAL_STORAGE_UNAVAILABLE)",
       "unavailable": "Vault cannot be opened because the required secure room and encrypted persistence services are unavailable. No plain or legacy fallback was used."
     }
   }
