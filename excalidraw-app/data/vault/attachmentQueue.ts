@@ -272,6 +272,9 @@ export const createVaultAttachmentQueue = (
         roomId,
       });
       cache = [...tasks];
+      // Publish the persisted backlog before uploading so a reopened tab
+      // reports pending attachments instead of "synced" while they drain.
+      input.onStateChange?.(computeState());
       const pending = tasks.filter(isResumable);
       const results: VaultAttachmentUploadResult[] = [];
       for (const task of pending) {

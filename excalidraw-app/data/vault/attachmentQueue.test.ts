@@ -179,6 +179,62 @@ describe("Vault durable attachment queue", () => {
     store.close();
   });
 
+  it("reports a persisted backlog as pending before the upload resolves", async () => {
+    const databaseName = nextDatabaseName();
+    const store = await VaultLocalStore.open({ databaseName });
+    // A previous session queued the task and went away before uploading.
+    const previous = createVaultAttachmentQueue({
+      store,
+      service: makeService().service,
+      vaultId,
+      roomId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      isOnline: () => true,
+    });
+    await previous.enqueue({ fileId, file: binaryFile() });
+
+    let releaseUpload!: () => void;
+    const uploadHeld = new Promise<void>((resolve) => {
+      releaseUpload = resolve;
+    });
+    const { service } = makeService(
+      async ({ vaultId: s, fileId: id, envelope }) => {
+        await uploadHeld;
+        const digest = await digestVaultAssetEnvelope(envelope);
+        return { vaultId: s, fileId: id, ...digest };
+      },
+    );
+    const onStateChange = vi.fn();
+    const reopened = createVaultAttachmentQueue({
+      store,
+      service,
+      vaultId,
+      roomId,
+      invitationCapability,
+      rootKey,
+      role: "editor",
+      isOnline: () => true,
+      onStateChange,
+    });
+
+    const draining = reopened.drain();
+    await vi.waitFor(() => expect(onStateChange).toHaveBeenCalled());
+    expect(onStateChange.mock.calls[0][0]).toMatchObject({
+      status: "queued",
+      pending: 1,
+    });
+
+    releaseUpload();
+    const results = await draining;
+    expect(results[0]).toMatchObject({ status: "complete" });
+    expect(onStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: "idle", pending: 0 }),
+    );
+    store.close();
+  });
+
   it("keeps queued tasks and never uploads while offline", async () => {
     const { store, queue, upload } = await newQueue({ isOnline: () => false });
     await queue.enqueue({ fileId, file: binaryFile() });
