@@ -194,6 +194,7 @@ import {
   createHttpVaultDeploymentDiscoveryTransport,
   deriveVaultRecoveryState,
   discoverVaultDeployment,
+  isVaultRecoveryBlockedCode,
   getVaultLinkData,
   hasVaultUrlMarker,
   openVault,
@@ -357,7 +358,23 @@ export type ActiveVault = {
   readonly attachmentFailed?: number;
   /** False once the realtime room link dropped; reset by reopening the Vault. */
   readonly realtimeAvailable?: boolean;
+  /**
+   * Non-secret diagnostic trail of why the realtime link was lost, e.g.
+   * "disconnected>reconnect-failed". Error codes only, never messages.
+   */
+  readonly realtimeLostReason?: string;
+  readonly realtimeLostCode?: VaultErrorCode | null;
 };
+
+/** Why the realtime room link stopped being available (diagnostics only). */
+export type VaultRealtimeLostReason =
+  | "join-failed"
+  | "disconnected"
+  | "reconnect-failed"
+  | "message-error"
+  | "teardown";
+
+const VAULT_REALTIME_LOST_TRAIL_MAX = 4;
 
 const createVaultAutosaveSnapshot = (
   elements: readonly ExcalidrawElement[],
@@ -450,6 +467,52 @@ export const deriveActiveVaultRecoveryState = (
     readOnly: vault.session.role !== "editor",
     realtimeAvailable: vault.realtimeAvailable ?? true,
   });
+
+/**
+ * Status after the realtime transport tore down. Only fail-closed codes may
+ * present the session as revoked or expired; a transient failure such as an
+ * admission timeout is a lost realtime link, not lost access.
+ */
+export const getVaultRealtimeTeardownStatus = (
+  code: VaultErrorCode,
+): VaultSyncStatus => {
+  if (code === "VAULT_CAPABILITY_EXPIRED") {
+    return "expired";
+  }
+  return isVaultRecoveryBlockedCode(code) ? "revoked" : "unsynced";
+};
+
+/**
+ * Applies a realtime status change. Terminal session states are never
+ * downgraded to a mere realtime loss, and the first loss reason and code are
+ * kept while later steps are appended to a bounded diagnostic trail.
+ */
+export const applyVaultRealtimeStatus = (
+  vault: ActiveVault,
+  syncStatus: VaultSyncStatus,
+  lost?: { reason: VaultRealtimeLostReason; code: VaultErrorCode | null },
+): ActiveVault => {
+  const terminal =
+    vault.syncStatus === "revoked" ||
+    vault.syncStatus === "expired" ||
+    vault.syncStatus === "closed";
+  const trail = vault.realtimeLostReason?.split(">") ?? [];
+  if (
+    lost &&
+    trail[trail.length - 1] !== lost.reason &&
+    trail.length < VAULT_REALTIME_LOST_TRAIL_MAX
+  ) {
+    trail.push(lost.reason);
+  }
+  return Object.freeze({
+    ...vault,
+    syncStatus:
+      terminal && syncStatus === "unsynced" ? vault.syncStatus : syncStatus,
+    realtimeAvailable: syncStatus === "synced",
+    realtimeLostReason: trail.length ? trail.join(">") : undefined,
+    realtimeLostCode: vault.realtimeLostCode ?? lost?.code ?? null,
+  });
+};
 
 // Only the persisted-state fields matter for room recovery: a reconnect may
 // proceed once the local snapshot is fully flushed and nothing is pending.
@@ -1687,17 +1750,17 @@ const ExcalidrawWrapper = () => {
   );
 
   const setVaultRealtimeStatus = useCallback(
-    (session: VaultClientSession, syncStatus: VaultSyncStatus) => {
+    (
+      session: VaultClientSession,
+      syncStatus: VaultSyncStatus,
+      lost?: { reason: VaultRealtimeLostReason; code: VaultErrorCode | null },
+    ) => {
       const current = activeVaultRef.current;
       if (!current || current.session !== session) {
         return;
       }
-      vaultRealtimeAvailableRef.current = syncStatus === "synced";
-      const updated = Object.freeze({
-        ...current,
-        syncStatus,
-        realtimeAvailable: vaultRealtimeAvailableRef.current,
-      });
+      const updated = applyVaultRealtimeStatus(current, syncStatus, lost);
+      vaultRealtimeAvailableRef.current = updated.realtimeAvailable ?? true;
       activeVaultRef.current = updated;
       setActiveVault(updated);
     },
@@ -1736,6 +1799,40 @@ const ExcalidrawWrapper = () => {
       );
     },
     [],
+  );
+
+  // Shared by the initial open and hash-change reopen paths so both record
+  // the same non-secret realtime-loss diagnostics.
+  const createVaultRealtimeCallbacks = useCallback(
+    (session: VaultClientSession) => {
+      let reconnecting = false;
+      return {
+        onError: (error: VaultError) =>
+          setVaultRealtimeStatus(session, "unsynced", {
+            reason: reconnecting ? "reconnect-failed" : "message-error",
+            code: error.code,
+          }),
+        onDisconnect: (error: VaultError) =>
+          setVaultRealtimeStatus(session, "unsynced", {
+            reason: "disconnected",
+            code: error.code,
+          }),
+        onReconnect: async () => {
+          reconnecting = true;
+          await recoverVaultRoomConnection(session);
+        },
+        onTeardown: (error: VaultError) => {
+          vaultAutosaveRef.current?.dispose();
+          vaultAutosaveRef.current = null;
+          setVaultRealtimeStatus(
+            session,
+            getVaultRealtimeTeardownStatus(error.code),
+            { reason: "teardown", code: error.code },
+          );
+        },
+      };
+    },
+    [recoverVaultRoomConnection, setVaultRealtimeStatus],
   );
 
   const exportVaultLocalCopy = useCallback(async () => {
@@ -2039,26 +2136,14 @@ const ExcalidrawWrapper = () => {
             initialElements: data.scene?.elements ?? undefined,
             onAttachmentStateChange: (state) =>
               setVaultAttachmentState(data.activeVault!.session, state),
-            onError: () =>
-              setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
-            onDisconnect: () =>
-              setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
-            onReconnect: async () =>
-              await recoverVaultRoomConnection(data.activeVault!.session),
-            onTeardown: (error) => {
-              vaultAutosaveRef.current?.dispose();
-              vaultAutosaveRef.current = null;
-              setVaultRealtimeStatus(
-                data.activeVault!.session,
-                error.code === "VAULT_CAPABILITY_EXPIRED"
-                  ? "expired"
-                  : "revoked",
-              );
-            },
+            ...createVaultRealtimeCallbacks(data.activeVault.session),
           },
         );
         if (!connected) {
-          setVaultRealtimeStatus(data.activeVault.session, "unsynced");
+          setVaultRealtimeStatus(data.activeVault.session, "unsynced", {
+            reason: "join-failed",
+            code: null,
+          });
         }
       }
       if (data.isExternalScene && isCollaborationLink(window.location.href)) {
@@ -2156,26 +2241,14 @@ const ExcalidrawWrapper = () => {
                 initialElements: data.scene?.elements ?? undefined,
                 onAttachmentStateChange: (state) =>
                   setVaultAttachmentState(data.activeVault!.session, state),
-                onError: () =>
-                  setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
-                onDisconnect: () =>
-                  setVaultRealtimeStatus(data.activeVault!.session, "unsynced"),
-                onReconnect: async () =>
-                  await recoverVaultRoomConnection(data.activeVault!.session),
-                onTeardown: (error) => {
-                  vaultAutosaveRef.current?.dispose();
-                  vaultAutosaveRef.current = null;
-                  setVaultRealtimeStatus(
-                    data.activeVault!.session,
-                    error.code === "VAULT_CAPABILITY_EXPIRED"
-                      ? "expired"
-                      : "revoked",
-                  );
-                },
+                ...createVaultRealtimeCallbacks(data.activeVault.session),
               },
             );
             if (!connected) {
-              setVaultRealtimeStatus(data.activeVault.session, "unsynced");
+              setVaultRealtimeStatus(data.activeVault.session, "unsynced", {
+                reason: "join-failed",
+                code: null,
+              });
             }
           }
         });
@@ -2298,7 +2371,7 @@ const ExcalidrawWrapper = () => {
     loadImages,
     openCollaborationInputTarget,
     commitNewAIWorkbenchLocalDocumentId,
-    recoverVaultRoomConnection,
+    createVaultRealtimeCallbacks,
     setVaultRealtimeStatus,
     setVaultAttachmentState,
     setActiveVaultSession,
@@ -4775,6 +4848,8 @@ const ExcalidrawWrapper = () => {
                       activeVault.autosaveBeforeUnloadState
                     }
                     recoveryState={vaultRecoveryState ?? undefined}
+                    realtimeLostReason={activeVault.realtimeLostReason}
+                    realtimeLostCode={activeVault.realtimeLostCode}
                     attachmentPending={activeVault.attachmentPending}
                     attachmentFailed={activeVault.attachmentFailed}
                     onReviewConflict={() => setIsVaultConflictDialogOpen(true)}

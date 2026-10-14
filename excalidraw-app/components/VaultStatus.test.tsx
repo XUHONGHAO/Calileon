@@ -173,4 +173,25 @@ describe("VaultStatus", () => {
     expect(status).not.toHaveTextContent(/Syncing/i);
     expect(status).toHaveClass("VaultStatus--unsynced");
   });
+
+  it("exposes non-secret realtime-loss diagnostics", () => {
+    render(
+      <VaultStatus
+        role="editor"
+        syncStatus="unsynced"
+        recoveryState="realtime-lost"
+        realtimeLostReason="teardown>join-failed"
+        realtimeLostCode="VAULT_PERSISTENCE_UNAVAILABLE"
+      />,
+    );
+    const status = screen.getByTestId("vault-status");
+    expect(status).toHaveAttribute(
+      "data-realtime-lost-reason",
+      "teardown>join-failed",
+    );
+    expect(status).toHaveAttribute(
+      "data-realtime-lost-code",
+      "VAULT_PERSISTENCE_UNAVAILABLE",
+    );
+  });
 });

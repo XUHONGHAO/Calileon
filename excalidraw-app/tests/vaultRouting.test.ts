@@ -2,7 +2,9 @@ import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  applyVaultRealtimeStatus,
   deriveActiveVaultRecoveryState,
+  getVaultRealtimeTeardownStatus,
   getVaultRecoveryBlockedCode,
   initializeScene,
   isVaultExternalFeatureDisabled,
@@ -491,6 +493,75 @@ describe("Vault recovery derivation", () => {
         true,
       ),
     ).toBe("syncing");
+  });
+
+  it("only presents fail-closed teardown codes as revoked or expired", () => {
+    expect(getVaultRealtimeTeardownStatus("VAULT_CAPABILITY_EXPIRED")).toBe(
+      "expired",
+    );
+    expect(getVaultRealtimeTeardownStatus("VAULT_CAPABILITY_REVOKED")).toBe(
+      "revoked",
+    );
+    expect(getVaultRealtimeTeardownStatus("VAULT_DECRYPT_FAILED")).toBe(
+      "revoked",
+    );
+    // An admission timeout is a lost link, not lost access.
+    expect(
+      getVaultRealtimeTeardownStatus("VAULT_PERSISTENCE_UNAVAILABLE"),
+    ).toBe("unsynced");
+  });
+
+  it("keeps terminal states and records a bounded realtime-loss trail", () => {
+    const vault = baseVault as never as Parameters<
+      typeof applyVaultRealtimeStatus
+    >[0];
+    // Join timeout: teardown first, then the failed connect.
+    const timedOut = applyVaultRealtimeStatus(
+      applyVaultRealtimeStatus(vault, "unsynced", {
+        reason: "teardown",
+        code: "VAULT_PERSISTENCE_UNAVAILABLE",
+      }),
+      "unsynced",
+      { reason: "join-failed", code: null },
+    );
+    expect(timedOut.syncStatus).toBe("unsynced");
+    expect(timedOut.realtimeAvailable).toBe(false);
+    expect(timedOut.realtimeLostReason).toBe("teardown>join-failed");
+    expect(timedOut.realtimeLostCode).toBe("VAULT_PERSISTENCE_UNAVAILABLE");
+    expect(deriveActiveVaultRecoveryState(timedOut, true)).toBe(
+      "realtime-lost",
+    );
+
+    // A genuine revocation must not be downgraded by the failed connect.
+    const revoked = applyVaultRealtimeStatus(
+      applyVaultRealtimeStatus(vault, "revoked", {
+        reason: "teardown",
+        code: "VAULT_CAPABILITY_REVOKED",
+      }),
+      "unsynced",
+      { reason: "join-failed", code: null },
+    );
+    expect(revoked.syncStatus).toBe("revoked");
+    expect(deriveActiveVaultRecoveryState(revoked, true)).toBe("blocked");
+
+    // Repeated steps are collapsed and the trail stays bounded.
+    let lost = vault;
+    for (const reason of [
+      "disconnected",
+      "disconnected",
+      "reconnect-failed",
+      "message-error",
+      "teardown",
+      "join-failed",
+    ] as const) {
+      lost = applyVaultRealtimeStatus(lost, "unsynced", {
+        reason,
+        code: "VAULT_PERSISTENCE_UNAVAILABLE",
+      });
+    }
+    expect(lost.realtimeLostReason).toBe(
+      "disconnected>reconnect-failed>message-error>teardown",
+    );
   });
 
   it("reports pending attachments as syncing and failures as error", () => {

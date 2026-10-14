@@ -104,6 +104,8 @@ export const VaultStatus = ({
   autosaveLocalPersistence,
   autosaveBeforeUnloadState,
   recoveryState,
+  realtimeLostReason,
+  realtimeLostCode,
   attachmentPending,
   attachmentFailed,
   onReviewConflict,
@@ -121,6 +123,9 @@ export const VaultStatus = ({
     | "local-persistence-pending"
     | "local-persisted-unsynced";
   recoveryState?: VaultRecoveryState;
+  /** Non-secret diagnostics: loss reason trail and first error code. */
+  realtimeLostReason?: string;
+  realtimeLostCode?: VaultErrorCode | null;
   attachmentPending?: number;
   attachmentFailed?: number;
   onReviewConflict?: () => void;
@@ -139,6 +144,8 @@ export const VaultStatus = ({
       data-autosave-local-persistence={autosaveLocalPersistence ?? undefined}
       data-autosave-before-unload-state={autosaveBeforeUnloadState ?? undefined}
       data-recovery-state={recoveryState ?? undefined}
+      data-realtime-lost-reason={realtimeLostReason ?? undefined}
+      data-realtime-lost-code={realtimeLostCode ?? undefined}
       data-attachment-pending={attachmentPending ?? undefined}
       data-attachment-failed={attachmentFailed ?? undefined}
       role="status"
