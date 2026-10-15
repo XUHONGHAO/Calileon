@@ -41,6 +41,8 @@ interface ImportMetaEnv {
   // Enable eslint in dev server
   VITE_APP_ENABLE_ESLINT: string;
   VITE_APP_ENABLE_TRACKING: string;
+  // set by self-hosted builds that serve all bundled assets from their own origin
+  VITE_APP_SELF_HOSTED: string;
 
   PKG_NAME: string;
   PKG_VERSION: string;

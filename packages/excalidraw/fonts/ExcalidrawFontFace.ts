@@ -163,8 +163,11 @@ export class ExcalidrawFontFace {
       });
     }
 
-    // fallback url for bundled fonts
-    urls.push(new URL(assetUrl, ExcalidrawFontFace.ASSETS_FALLBACK_URL));
+    // fallback url for bundled fonts; self-hosted builds serve every bundled
+    // font from their own origin and their CSP blocks the esm.sh fallback
+    if (import.meta.env.VITE_APP_SELF_HOSTED !== "true" || !urls.length) {
+      urls.push(new URL(assetUrl, ExcalidrawFontFace.ASSETS_FALLBACK_URL));
+    }
 
     return urls;
   }
