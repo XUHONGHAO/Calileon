@@ -5,9 +5,14 @@ const OSS_FONTS_FALLBACK = "/";
 /**
  * Custom vite plugin for auto-prefixing `EXCALIDRAW_ASSET_PATH` woff2 fonts in `excalidraw-app`.
  *
+ * Self-hosted builds keep `fonts.css` as authored so Vite emits the Assistant
+ * UI fonts next to the other bundled fonts; the CDN rewrite would point at
+ * files that are never emitted (and at an origin a strict CSP blocks).
+ *
+ * @param {{ selfHosted?: boolean }} [options]
  * @returns {import("vite").PluginOption}
  */
-module.exports.woff2BrowserPlugin = () => {
+module.exports.woff2BrowserPlugin = ({ selfHosted = false } = {}) => {
   let isDev;
 
   return {
@@ -19,7 +24,7 @@ module.exports.woff2BrowserPlugin = () => {
     transform(code, id) {
       // using copy / replace as fonts defined in the `.css` don't have to be manually copied over (vite/rollup does this automatically),
       // but at the same time can't be easily prefixed with the `EXCALIDRAW_ASSET_PATH` only for the `excalidraw-app`
-      if (!isDev && id.endsWith("/excalidraw/fonts/fonts.css")) {
+      if (!isDev && !selfHosted && id.endsWith("/excalidraw/fonts/fonts.css")) {
         return `/* WARN: The following content is generated during excalidraw-app build */
 
       @font-face {

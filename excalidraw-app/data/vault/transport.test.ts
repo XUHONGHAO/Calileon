@@ -46,6 +46,9 @@ class FakeSocket {
   joinAck: unknown = { ok: true, resolution };
   joinCount = 0;
   lastJoinRequest: unknown = null;
+  // When set, the join ack is held until the test releases it.
+  deferJoinAck = false;
+  pendingJoinAck: (() => void) | null = null;
 
   on(event: string, listener: (...args: any[]) => void) {
     const listeners = this.listeners.get(event) ?? new Set();
@@ -64,6 +67,10 @@ class FakeSocket {
       this.joinCount += 1;
       this.lastJoinRequest = args[0];
       const ack = args[1] as (value: unknown) => void;
+      if (this.deferJoinAck) {
+        this.pendingJoinAck = () => ack(this.joinAck);
+        return;
+      }
       ack(this.joinAck);
       return;
     }
@@ -162,6 +169,47 @@ describe("Vault realtime transport", () => {
       code: "VAULT_CAPABILITY_INVALID",
     });
     expect(socket.closed).toBe(true);
+  });
+
+  it("waits longer than the room server's 5 s capability resolve before giving up", async () => {
+    const clientSession = await createClientSession();
+    vi.useFakeTimers();
+    try {
+      // A resolve that takes as long as the server's own timeout still admits.
+      const slow = new FakeSocket();
+      slow.deferJoinAck = true;
+      const admitted = new VaultRealtimeTransport({
+        clientSession,
+        socket: slow,
+        callbacks: { onMessage: vi.fn() },
+      });
+      const joined = admitted.connect();
+      await vi.advanceTimersByTimeAsync(5_500);
+      expect(slow.closed).toBe(false);
+      slow.pendingJoinAck!();
+      await expect(joined).resolves.toBe(admitted);
+      admitted.dispose();
+
+      // No ack at all still fails closed once the client timeout elapses.
+      const silent = new FakeSocket();
+      silent.deferJoinAck = true;
+      const onTeardown = vi.fn();
+      const timedOut = new VaultRealtimeTransport({
+        clientSession,
+        socket: silent,
+        callbacks: { onMessage: vi.fn(), onTeardown },
+      });
+      const failed = timedOut.connect();
+      const assertion = expect(failed).rejects.toMatchObject({
+        code: "VAULT_PERSISTENCE_UNAVAILABLE",
+      });
+      await vi.advanceTimersByTimeAsync(8_000);
+      await assertion;
+      expect(silent.closed).toBe(true);
+      expect(onTeardown).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("fails closed and reopens from persistence after a socket reconnect", async () => {

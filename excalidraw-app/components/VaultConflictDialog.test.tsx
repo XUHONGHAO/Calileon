@@ -53,6 +53,16 @@ describe("VaultConflictDialog", () => {
 
     fireEvent.click(screen.getByText("Keep local version"));
     expect(onClose).toHaveBeenCalledTimes(1);
+
+    // Actions are styled, accessible buttons (the bare Button rendered
+    // unstyled, wrapping labels that overlapped each other).
+    const actions = screen.getAllByRole("button", {
+      name: /Keep local version|View remote version|Export local recovery copy|Handle later/,
+    });
+    expect(actions).toHaveLength(4);
+    for (const action of actions) {
+      expect(action).toHaveClass("ExcButton");
+    }
   });
 
   it("reveals remote metadata and exports a local recovery copy", async () => {

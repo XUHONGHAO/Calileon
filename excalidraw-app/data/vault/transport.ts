@@ -32,7 +32,11 @@ const BROADCAST_KEYS = [
 ] as const;
 const JOIN_SUCCESS_KEYS = ["ok", "resolution"] as const;
 const JOIN_FAILURE_KEYS = ["ok", "code"] as const;
-const DEFAULT_JOIN_TIMEOUT_MS = 5_000;
+// Must exceed the room server's capability resolve timeout
+// (VAULT_CAPABILITY_RESOLVE_TIMEOUT_MS, default 5000 ms) plus a round trip:
+// with equal timeouts a slow resolve made the client give up first and tear
+// the realtime link down although admission would have succeeded.
+export const DEFAULT_JOIN_TIMEOUT_MS = 8_000;
 
 export interface VaultRealtimeTransportSocket {
   on(

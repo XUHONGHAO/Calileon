@@ -1,7 +1,7 @@
 import React from "react";
 
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
+import { FilledButton } from "@excalidraw/excalidraw/components/FilledButton";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import "./VaultConflictDialog.scss";
@@ -111,16 +111,33 @@ export const VaultConflictDialog = ({
         )}
 
         <div className="VaultConflictDialog__actions">
-          <Button onSelect={onClose}>{t("vault.conflict.keepLocal")}</Button>
-          <Button onSelect={() => setShowRemote((value) => !value)}>
-            {showRemote
-              ? t("vault.conflict.hideRemote")
-              : t("vault.conflict.viewRemote")}
-          </Button>
-          <Button onSelect={exportLocal} disabled={exportState === "exporting"}>
-            {t("vault.conflict.exportLocal")}
-          </Button>
-          <Button onSelect={onClose}>{t("vault.conflict.later")}</Button>
+          <FilledButton
+            label={t("vault.conflict.keepLocal")}
+            onClick={onClose}
+          />
+          <FilledButton
+            variant="outlined"
+            color="muted"
+            label={
+              showRemote
+                ? t("vault.conflict.hideRemote")
+                : t("vault.conflict.viewRemote")
+            }
+            onClick={() => setShowRemote((value) => !value)}
+          />
+          <FilledButton
+            variant="outlined"
+            color="muted"
+            label={t("vault.conflict.exportLocal")}
+            onClick={exportLocal}
+            disabled={exportState === "exporting"}
+          />
+          <FilledButton
+            variant="outlined"
+            color="muted"
+            label={t("vault.conflict.later")}
+            onClick={onClose}
+          />
         </div>
       </div>
     </Dialog>

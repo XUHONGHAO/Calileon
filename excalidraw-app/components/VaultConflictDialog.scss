@@ -42,5 +42,11 @@
     gap: 0.5rem;
     justify-content: flex-end;
     margin-top: 0.25rem;
+
+    // Labels stay on one line; the row wraps instead of squeezing buttons.
+    .ExcButton {
+      flex: 0 0 auto;
+      white-space: nowrap;
+    }
   }
 }
