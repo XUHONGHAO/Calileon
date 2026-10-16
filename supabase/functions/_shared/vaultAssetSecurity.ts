@@ -77,6 +77,40 @@ const fail = (code: VaultAssetErrorCode): never => {
   throw new VaultAssetSecurityError(code);
 };
 
+// The service client may use a Docker-only API origin. Return the configured
+// browser origin while preserving the signed object path and token verbatim.
+export const toPublicVaultAssetDownloadUrl = (
+  signedUrl: string,
+  publicApiUrl: string | undefined,
+): string => {
+  try {
+    const source = new URL(signedUrl);
+    const target = new URL(publicApiUrl || "");
+    if (
+      !["http:", "https:"].includes(source.protocol) ||
+      source.username ||
+      source.password ||
+      source.hash ||
+      !source.pathname.startsWith("/storage/v1/object/sign/") ||
+      (target.protocol !== "https:" &&
+        !(
+          target.protocol === "http:" &&
+          ["localhost", "127.0.0.1", "[::1]"].includes(target.hostname)
+        )) ||
+      target.username ||
+      target.password ||
+      target.pathname !== "/" ||
+      target.search ||
+      target.hash
+    ) {
+      return fail("VAULT_PERSISTENCE_UNAVAILABLE");
+    }
+    return `${target.origin}${source.pathname}${source.search}`;
+  } catch {
+    return fail("VAULT_PERSISTENCE_UNAVAILABLE");
+  }
+};
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 

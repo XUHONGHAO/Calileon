@@ -6,6 +6,7 @@ import {
   assertVaultAssetRegistration,
   parseVaultAssetAccessRequest,
   sha256Base64Url,
+  toPublicVaultAssetDownloadUrl,
   toStableVaultAssetErrorCode,
   VAULT_ASSET_DOWNLOAD_TTL_SECONDS,
 } from "./vaultAssetSecurity";
@@ -27,6 +28,59 @@ const getCode = (callback: () => unknown) => {
 };
 
 describe("Vault asset Edge security", () => {
+  it("returns a browser-reachable URL without changing signed path or token", () => {
+    const path = `/storage/v1/object/sign/vault-assets/vault/${VAULT_ID}/${FILE_ID}?token=a.b-c_d&download=`;
+    expect(
+      toPublicVaultAssetDownloadUrl(
+        `http://api-gw:8000${path}`,
+        "https://storage.example.test",
+      ),
+    ).toBe(`https://storage.example.test${path}`);
+    for (const origin of [
+      "https://project.supabase.co",
+      "http://127.0.0.1:54321",
+      "http://[::1]:54321",
+    ]) {
+      expect(toPublicVaultAssetDownloadUrl(`${origin}${path}`, origin)).toBe(
+        `${origin}${path}`,
+      );
+    }
+  });
+
+  it("fails closed on absent, internal or malformed public API configuration", () => {
+    const signed = `http://api-gw:8000/storage/v1/object/sign/vault-assets/vault/${VAULT_ID}/${FILE_ID}?token=secret`;
+    for (const origin of [
+      undefined,
+      "",
+      "http://api-gw:8000",
+      "http://storage.example.test",
+      "https://user:password@storage.example.test",
+      "https://storage.example.test/prefix",
+      "https://storage.example.test?token=secret",
+      "https://storage.example.test#secret",
+      "ftp://storage.example.test",
+    ]) {
+      expect(getCode(() => toPublicVaultAssetDownloadUrl(signed, origin))).toBe(
+        "VAULT_PERSISTENCE_UNAVAILABLE",
+      );
+    }
+  });
+
+  it("rejects invalid signed URLs without exposing their token", () => {
+    for (const signed of [
+      "not-a-url?token=secret",
+      "http://api-gw:8000/other?token=secret",
+      "http://user:secret@api-gw:8000/storage/v1/object/sign/file",
+      "http://api-gw:8000/storage/v1/object/sign/file#secret",
+    ]) {
+      expect(
+        getCode(() =>
+          toPublicVaultAssetDownloadUrl(signed, "https://storage.example.test"),
+        ),
+      ).toBe("VAULT_PERSISTENCE_UNAVAILABLE");
+    }
+  });
+
   it("limits signed downloads to a 60-second revoke residual window", () => {
     expect(VAULT_ASSET_DOWNLOAD_TTL_SECONDS).toBe(60);
   });

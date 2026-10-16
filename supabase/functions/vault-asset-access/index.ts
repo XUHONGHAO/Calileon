@@ -15,6 +15,7 @@ import {
   getVaultAssetStoragePath,
   parseVaultAssetAccessRequest,
   sha256Base64Url,
+  toPublicVaultAssetDownloadUrl,
   toStableVaultAssetErrorCode,
   VaultAssetSecurityError,
   VAULT_ASSET_DOWNLOAD_TTL_SECONDS,
@@ -174,7 +175,10 @@ Deno.serve(async (request) => {
       throw new VaultAssetSecurityError("VAULT_PERSISTENCE_UNAVAILABLE");
     }
     return jsonResponse(request, 200, {
-      url: data.signedUrl,
+      url: toPublicVaultAssetDownloadUrl(
+        data.signedUrl,
+        Deno.env.get("SUPABASE_PUBLIC_URL") ?? Deno.env.get("SUPABASE_URL"),
+      ),
       expiresAt,
       encryptedDigest: resolution.encryptedDigest,
       ciphertextBytes: resolution.ciphertextBytes,

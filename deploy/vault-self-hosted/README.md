@@ -51,6 +51,10 @@ Pin the official self-hosted images to `versions.env`, then add these repository
 
 Configure the Edge Runtime with:
 
+- `SUPABASE_PUBLIC_URL=<browser-reachable HTTPS Supabase origin>`; signed Vault
+  downloads use this origin. Keep `SUPABASE_URL` on the internal Docker API
+  origin for server-side requests. Hosted Supabase and loopback development
+  may omit the public override when `SUPABASE_URL` is already browser-reachable.
 - `APP_ALLOWED_ORIGINS=<APP_ORIGIN>`;
 - `VAULT_ROOM_CONTROL_PLANE_URL=<APP_ORIGIN>/vault/control-plane/disconnect`;
 - `VAULT_ROOM_CONTROL_PLANE_TOKEN=<same random token as room-server>`.

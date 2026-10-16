@@ -44,6 +44,10 @@ describe("vault-asset-access Edge Function contract", () => {
     );
     expect(source).toContain("upsert: false");
     expect(source).toContain("createSignedUrl(");
+    expect(source).toContain("url: toPublicVaultAssetDownloadUrl(");
+    expect(source).toContain(
+      'Deno.env.get("SUPABASE_PUBLIC_URL") ?? Deno.env.get("SUPABASE_URL")',
+    );
     expect(source).not.toMatch(/create policy|storage\.objects/i);
   });
 
