@@ -90,10 +90,12 @@ export class VaultV2UiStore {
     ) {
       next.conflictElementIds = this.state.conflictElementIds;
     }
-    // a blocked session stays blocked (status events may still trickle in)
+    // a blocked session stays blocked (status events may still trickle in).
+    // The engine reports "blocked" before the transport's onBlocked carries
+    // the reason, so the first code still lands; later ones never replace it.
     if (this.state.status === "blocked") {
       next.status = "blocked";
-      next.blockedCode = this.state.blockedCode;
+      next.blockedCode = this.state.blockedCode ?? patch.blockedCode ?? null;
     }
     const changed = (Object.keys(next) as (keyof VaultV2UiState)[]).some(
       (key) => next[key] !== this.state[key],

@@ -47,6 +47,19 @@ describe("Vault v2 UI state (W6)", () => {
     expect(store.get().blockedCode).toBe("VAULT_CAPABILITY_REVOKED");
   });
 
+  it("keeps the reason that arrives after the engine already reported blocked", () => {
+    const store = new VaultV2UiStore();
+    // engine.block() → onStatus("blocked") first, transport onBlocked second
+    store.update({ status: "blocked" });
+    store.update({
+      status: "blocked",
+      blockedCode: "VAULT_CAPABILITY_REVOKED",
+    });
+    expect(store.get().blockedCode).toBe("VAULT_CAPABILITY_REVOKED");
+    store.update({ status: "blocked", blockedCode: "VAULT_INTERNAL" });
+    expect(store.get().blockedCode).toBe("VAULT_CAPABILITY_REVOKED");
+  });
+
   it("delivers notices to subscribers until they unsubscribe", () => {
     const store = new VaultV2UiStore();
     const listener = vi.fn();

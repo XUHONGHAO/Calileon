@@ -317,6 +317,14 @@ describe("SupabaseVaultPersistenceService", () => {
     });
     expect(unknown).toMatchObject({ code: "VAULT_INTERNAL" });
     expect(unknown.message).not.toContain(CAPABILITY);
+
+    // anonymous caller of an owner-only RPC: PostgREST gives the SQLSTATE only
+    const noGrant = mapSupabaseVaultError({
+      code: "42501",
+      message: "permission denied for function create_vault_invitation",
+    });
+    expect(noGrant).toMatchObject({ code: "VAULT_CAPABILITY_FORBIDDEN" });
+    expect(noGrant.message).not.toContain("create_vault_invitation");
   });
 
   it("rejects invalid inputs without invoking Supabase", async () => {

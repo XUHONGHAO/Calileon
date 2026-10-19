@@ -86,7 +86,9 @@ export const mapSupabaseVaultError = (error: unknown): VaultError => {
     return toStableVaultError("VAULT_PERSISTENCE_UNAVAILABLE");
   }
   const status = Number(candidate?.statusCode ?? candidate?.status);
-  if (status === 401 || status === 403) {
+  // 42501: no EXECUTE grant (e.g. an anonymous caller of an owner-only RPC);
+  // PostgREST errors carry the SQLSTATE but not the HTTP status
+  if (status === 401 || status === 403 || candidate?.code === "42501") {
     return toStableVaultError("VAULT_CAPABILITY_FORBIDDEN");
   }
   if (status === 413) {
