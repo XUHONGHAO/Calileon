@@ -144,6 +144,8 @@ is upserted by name.
    ./scripts/deployment-smoke.ps1 -AppOrigin https://vault.example.com -HttpOrigin http://vault.example.com -PersistenceCapabilitiesUrl https://supabase.example.com/functions/v1/vault-control-plane
    ```
 
+7. Optional, Vault v2 (CRDT): install `excalidraw-app/data/cloud/supabase/schema_vault_v2.sql` (additive; run `schema_vault_v2_smoke.sql` first in a rolled-back transaction), deploy the room server and the `vault-control-plane` function from the same commit, and check that both `/vault/capabilities` and the persistence capability endpoint report `protocolVersions` `[1, 2]`. Then set `VAULT_V2_ENABLED=true` and rebuild the App. To turn it off, set it back to `false` and rebuild; existing v2 Vaults stay in the database but cannot be opened until it is enabled again.
+
 Caddy obtains and renews public certificates through ACME. Port 80 must remain available for redirect/challenge traffic unless DNS challenge configuration is added by the operator.
 
 ## Local production-like TLS smoke

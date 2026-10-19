@@ -72,6 +72,15 @@ if ($envValues.VAULT_ENABLED -notin @("true", "false")) {
   throw "VAULT_ENABLED must be true or false"
 }
 if (
+  $envValues.ContainsKey("VAULT_V2_ENABLED") -and
+  $envValues.VAULT_V2_ENABLED -notin @("true", "false")
+) {
+  throw "VAULT_V2_ENABLED must be true or false"
+}
+if ($envValues.VAULT_V2_ENABLED -eq "true" -and $envValues.VAULT_ENABLED -ne "true") {
+  throw "VAULT_V2_ENABLED requires VAULT_ENABLED=true"
+}
+if (
   $envValues.ContainsKey("VAULT_ALLOW_DOCKER_HOST_HTTP") -and
   $envValues.VAULT_ALLOW_DOCKER_HOST_HTTP -eq "true" -and
   -not $Local
