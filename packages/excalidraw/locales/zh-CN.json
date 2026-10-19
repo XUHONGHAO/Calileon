@@ -1980,6 +1980,43 @@
       "expired": "访问已过期",
       "closed": "已关闭"
     },
+    "v2": {
+      "create": "创建空 Vault v2",
+      "createHint": "Vault v2 会自动合并不同人的同时编辑。",
+      "conflicts": "{{count}} 个元素被同时编辑",
+      "conflictsHint": "选中发生过同时编辑并已合并的元素；保留的是较新的修改。",
+      "showConflicts": "查看",
+      "conflictToast": "有人同时编辑了同一个元素，已保留较新的修改。",
+      "deletedEditsToast": "你编辑过的元素已被他人删除。你的修改已记录，但不会显示。",
+      "attachmentsRetry": "{{failed}} 个附件尚未上传，正在自动重试",
+      "attachmentsAction": "{{failed}} 个附件无法上传（权限或文件问题），请删除后重新添加"
+    },
+    "migration": {
+      "start": "迁移到 Vault v2",
+      "title": "将此 Vault 迁移到 Vault v2",
+      "description": "会新建一个 Vault v2，并复制当前场景。Vault v2 能自动合并多人同时进行的编辑。",
+      "noteOldKept": "此 Vault 不会被修改，原链接仍然可用，随时可以回退。",
+      "noteOthers": "你分享过的协作者需要新链接，可在新 Vault 中重新分享。",
+      "noteImages": "图片会用新 Vault 的密钥重新加密，上传完成后才会生成新 Vault 的内容。",
+      "confirm": "创建 Vault v2",
+      "retry": "重试",
+      "cancel": "取消",
+      "running": "正在创建新 Vault…",
+      "doneTitle": "Vault v2 已就绪",
+      "doneDescription": "新 Vault 中是此场景的副本。旧 Vault 在本设备上将以只读方式显示。",
+      "openNew": "打开 Vault v2",
+      "stay": "留在此页",
+      "migratedNotice": "已迁移到 Vault v2，此处为只读。",
+      "errors": {
+        "unsupported": "场景包含 Vault v2 暂不支持的元素，未创建任何内容。",
+        "tooLarge": "场景过大，无法存入 Vault v2，未创建任何内容。",
+        "conflict": "新 Vault 中已有其他内容，或另一个标签页正在迁移，未覆盖任何数据。",
+        "forbidden": "只有编辑者可以迁移 Vault。",
+        "imagesMissing": "场景中有图片尚未加载完成，请等图片显示后再重试。",
+        "assetConflict": "新 Vault 中已有同名但内容不同的图片，未覆盖任何数据。",
+        "failed": "迁移未完成。此 Vault 未被修改，可以重试。"
+      }
+    },
     "conflict": {
       "title": "存在本地分支，需要处理分叉",
       "description": "此 Vault 的本地分支与远端分支无法自动合并。两路数据都会保留，在你选择操作前不会覆盖或删除任何一方。",

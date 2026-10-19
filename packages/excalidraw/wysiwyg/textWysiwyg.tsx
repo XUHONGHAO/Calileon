@@ -206,6 +206,7 @@ export const textWysiwyg = ({
   app,
   autoSelect = true,
   initialCaretSceneCoords = null,
+  onMount,
 }: {
   id: ExcalidrawElement["id"];
   /**
@@ -223,6 +224,8 @@ export const textWysiwyg = ({
   app: App;
   autoSelect?: boolean;
   initialCaretSceneCoords?: { x: number; y: number } | null;
+  /** see `ExcalidrawProps.onTextEditorMount` */
+  onMount?: (textarea: HTMLTextAreaElement) => (() => void) | void;
 }): SubmitHandler => {
   let currentTextLayout: {
     angle: Radians;
@@ -857,6 +860,8 @@ export const textWysiwyg = ({
     unbindUpdate();
     unsubOnChange();
     unbindOnScroll();
+    unmountHost?.();
+    unmountHost = undefined;
 
     editable.remove();
   };
@@ -1017,6 +1022,8 @@ export const textWysiwyg = ({
   excalidrawContainer
     ?.querySelector(".excalidraw-textEditorContainer")!
     .appendChild(editable);
+
+  let unmountHost = onMount?.(editable) || undefined;
 
   return handleSubmit;
 };

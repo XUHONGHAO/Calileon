@@ -87,6 +87,8 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "vault.creation.create": "Create empty Vault",
       "vault.creation.creating": "Creating...",
       "vault.creation.error": "Vault creation failed safely.",
+      "vault.v2.create": "Create empty Vault v2",
+      "vault.v2.createHint": "Vault v2 merges concurrent edits.",
     }[key] ?? key),
 }));
 
@@ -184,6 +186,67 @@ describe("VaultDependencyDialog", () => {
     expect(onClose.mock.invocationCallOrder[0]).toBeLessThan(
       onCreated.mock.invocationCallOrder[0],
     );
+  });
+
+  it("offers Vault v2 only when the App passes a v2 creator", async () => {
+    vaultMock.discover.mockResolvedValue({ ready: {}, capabilities: {} });
+    const { unmount } = render(
+      <VaultDependencyDialog open={true} onClose={vi.fn()} canCreate={true} />,
+    );
+    await screen.findByRole("button", { name: "Create empty Vault" });
+    expect(
+      screen.queryByRole("button", { name: "Create empty Vault v2" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    const onClose = vi.fn();
+    const onCreated = vi.fn();
+    const onCreateV2 = vi
+      .fn()
+      .mockResolvedValue("https://app.example/#vault=2,bearer-secret");
+    render(
+      <VaultDependencyDialog
+        open={true}
+        onClose={onClose}
+        canCreate={true}
+        onCreated={onCreated}
+        onCreateV2={onCreateV2}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Create empty Vault v2" }),
+    );
+    await waitFor(() =>
+      expect(onCreated).toHaveBeenCalledWith(
+        "https://app.example/#vault=2,bearer-secret",
+      ),
+    );
+    expect(onCreateV2).toHaveBeenCalledTimes(1);
+    expect(vaultMock.createVault).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a stable error when Vault v2 creation fails", async () => {
+    vaultMock.discover.mockResolvedValue({ ready: {}, capabilities: {} });
+    render(
+      <VaultDependencyDialog
+        open={true}
+        onClose={vi.fn()}
+        canCreate={true}
+        onCreateV2={vi
+          .fn()
+          .mockRejectedValue(
+            new VaultError("VAULT_PROTOCOL_UNSUPPORTED", "no protocol 2"),
+          )}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Create empty Vault v2" }),
+    );
+    expect(
+      await screen.findByText("VAULT_PROTOCOL_UNSUPPORTED"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("no protocol 2")).not.toBeInTheDocument();
   });
 
   it("routes signed-out users to the existing account UI without creating", async () => {

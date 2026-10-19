@@ -27,6 +27,7 @@ if [ "$VAULT_DEPLOYMENT_SCOPE" = "full" ]; then
 fi
 
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_smoke.sql
+psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_v2_smoke.sql
 
 # The retention job is what keeps `vault_snapshot_updates` bounded; a missing job
 # would silently restore the unbounded growth it exists to prevent, so its

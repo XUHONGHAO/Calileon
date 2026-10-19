@@ -11,6 +11,7 @@ import {
 } from "../_shared/supabase.ts";
 
 const PROTOCOL_VERSION = 1 as const;
+const PROTOCOL_VERSION_V2 = 2 as const;
 const DEPLOYMENT_VERSION = "p4a-f4-v1" as const;
 const SCHEMA_VERSION = 1 as const;
 const CORS_METHODS = "GET, POST, OPTIONS";
@@ -86,15 +87,42 @@ const getSchemaVersion = async () => {
   }
 };
 
+// P4c Vault v2 (CRDT) is additive: `schema_vault_v2.sql` may or may not be
+// installed. Any probe failure only withholds v2; the v1 contract above stays
+// the sole gate for `enabled`, and v1 clients test `protocolVersions` with
+// `includes(1)`, so advertising [1, 2] is backwards compatible.
+const hasProtocolV2 = async () => {
+  try {
+    const { data, error } = await createServiceClient().rpc(
+      "get_vault_v2_contract",
+    );
+    return (
+      !error &&
+      isRecord(data) &&
+      Array.isArray(data.protocolVersions) &&
+      data.protocolVersions.includes(PROTOCOL_VERSION_V2)
+    );
+  } catch {
+    return false;
+  }
+};
+
 const getCapabilities = async () => {
-  const schemaVersion = await getSchemaVersion();
+  const [schemaVersion, protocolV2] = await Promise.all([
+    getSchemaVersion(),
+    hasProtocolV2(),
+  ]);
   const enabled =
     getRoomControlPlane() !== null && schemaVersion === SCHEMA_VERSION;
   return {
     deploymentVersion: DEPLOYMENT_VERSION,
     schemaVersion,
     enabled,
-    protocolVersions: enabled ? [PROTOCOL_VERSION] : [],
+    protocolVersions: enabled
+      ? protocolV2
+        ? [PROTOCOL_VERSION, PROTOCOL_VERSION_V2]
+        : [PROTOCOL_VERSION]
+      : [],
     invitationService: enabled,
     encryptedSnapshotPersistence: enabled,
     encryptedAssetPersistence: enabled,

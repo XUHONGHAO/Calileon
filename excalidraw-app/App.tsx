@@ -43,6 +43,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { loadFromBlob } from "@excalidraw/excalidraw/data/blob";
 import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
@@ -125,9 +126,11 @@ import {
 } from "./components/ExportToExcalidrawPlus";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
 import { VaultStatus } from "./components/VaultStatus";
+import { VaultV2Status } from "./components/VaultV2Status";
 import { VaultConflictDialog } from "./components/VaultConflictDialog";
 import { VaultShareDialog } from "./components/VaultShareDialog";
 import { VaultManagedAI } from "./components/VaultManagedAI";
+import { VaultMigrationControl } from "./components/VaultMigrationControl";
 import { AIDeviceApproval } from "./components/AIDeviceApproval";
 import {
   AI_AGENT_CONFIG_UPDATED_EVENT,
@@ -257,6 +260,8 @@ import {
   persistLocalAIVideoURL,
 } from "./data/AIVideoURLVault";
 
+import { isVaultV2Enabled, isVaultV2Route } from "./data/vault/v2/flag";
+
 import type { CollabAPI } from "./collab/Collab";
 import type {
   AIGenerationLogEntry,
@@ -300,6 +305,11 @@ import type {
   VaultSnapshotAutosaveState,
   VaultSyncStatus,
 } from "./data/vault";
+
+import type { VaultMigrationApi } from "./components/VaultMigrationControl";
+// type-only: erased, so the v2 code stays in its lazy chunk
+import type { VaultV2AppSession as VaultV2Session } from "./data/vault/v2/appBinding";
+import type { VaultV2UiState } from "./data/vault/v2/uiState";
 
 polyfill();
 
@@ -665,6 +675,17 @@ const getVaultRouteErrorMessage = (code: VaultError["code"]) => {
   }
 };
 
+const subscribeNothing = () => () => {};
+
+/** W6: the v2 session's pill state (null without a v2 session) */
+const useVaultV2UiState = (
+  session: VaultV2Session | null,
+): VaultV2UiState | null =>
+  useSyncExternalStore(
+    session?.ui.subscribe ?? subscribeNothing,
+    () => session?.ui.get() ?? null,
+  );
+
 const getBlockedVaultScene = (code: VaultError["code"], vaultId?: string) => ({
   scene: {
     elements: [],
@@ -853,6 +874,42 @@ export const openVaultSceneFromLink = async (
   };
 };
 
+/**
+ * P4c W4: migration of the open v1 Vault (flag on only). The v2 code is
+ * loaded on demand, so the main bundle stays free of Yjs.
+ */
+const createVaultMigrationApi = (
+  vault: ActiveVault,
+  excalidrawAPI: ExcalidrawImperativeAPI,
+): VaultMigrationApi => {
+  const { rootKey } = readVaultSessionSecrets(vault.session);
+  const source = {
+    vaultId: vault.session.vaultId,
+    rootKey,
+    role: vault.session.role,
+    readScene: () => ({
+      elements: excalidrawAPI.getSceneElementsIncludingDeleted(),
+      appState: excalidrawAPI.getAppState(),
+    }),
+    readFiles: () => excalidrawAPI.getFiles(),
+  };
+  return {
+    readMigratedLink: async () =>
+      (
+        await import("./data/vault/v2/appBinding")
+      ).readVaultV2MigratedLinkForApp(source),
+    migrate: async () =>
+      (await import("./data/vault/v2/appBinding")).migrateVaultToV2ForApp(
+        source,
+        { owner: vault.owner, assets: vault.assets },
+      ),
+    // the old Vault is now a pointer: read-only on this device (a prompt,
+    // not enforcement — the server does not mark v1 Vaults)
+    onMigrated: () =>
+      excalidrawAPI.updateScene({ appState: { viewModeEnabled: true } }),
+  };
+};
+
 export const initializeScene = async (opts: {
   collabAPI: CollabAPI | null;
   excalidrawAPI: ExcalidrawImperativeAPI;
@@ -865,6 +922,7 @@ export const initializeScene = async (opts: {
     activeSharedScene?: ActiveSharedScene | null;
     activeEmbeddedScene?: ActiveEmbeddedScene | null;
     activeVault?: ActiveVault | null;
+    vaultV2Session?: VaultV2Session | null;
     isCloudShareScene?: boolean;
     isCloudEmbedScene?: boolean;
   } & (
@@ -872,6 +930,46 @@ export const initializeScene = async (opts: {
     | { isExternalScene: false; id?: null; key?: null }
   )
 > => {
+  // P4c Vault v2: only with the flag on; otherwise a `vault=2` link falls
+  // through to the v1 parser below, which refuses it (fail closed)
+  if (isVaultV2Route(window.location.href)) {
+    try {
+      const { openVaultV2ForApp } = await import("./data/vault/v2/appBinding");
+      const { session } = await openVaultV2ForApp(window.location.href, {
+        onBlocked: (error) =>
+          opts.excalidrawAPI.updateScene({
+            appState: {
+              viewModeEnabled: true,
+              errorMessage: getVaultRouteErrorMessage(error.code),
+            },
+          }),
+        onError: (error) => {
+          if (import.meta.env.DEV) {
+            console.error(error);
+          }
+        },
+      });
+      return {
+        scene: {
+          elements: [],
+          files: {},
+          appState: restoreAppState(
+            { isLoading: false, viewModeEnabled: session.role === "viewer" },
+            null,
+          ),
+        },
+        vaultV2Session: session,
+        isExternalScene: true as const,
+        id: session.vaultId,
+        key: "",
+      };
+    } catch (error) {
+      return getBlockedVaultScene(
+        error instanceof VaultError ? error.code : "VAULT_INTERNAL",
+      );
+    }
+  }
+
   if (hasVaultUrlMarker(window.location.href)) {
     let vaultId: string | undefined;
     try {
@@ -1354,6 +1452,11 @@ const ExcalidrawWrapper = () => {
   const lastVaultSerializedSnapshotRef = useRef<string | null>(null);
   const vaultAutosaveRef =
     useRef<VaultSnapshotAutosaveController<VaultAutosaveSnapshot> | null>(null);
+  // P4c Vault v2 (CRDT), behind VITE_APP_VAULT_V2_ENABLED (default off)
+  const vaultV2SessionRef = useRef<VaultV2Session | null>(null);
+  const [vaultV2Session, setVaultV2Session] = useState<VaultV2Session | null>(
+    null,
+  );
   const vaultLocalStoreRef = useRef<Promise<VaultLocalStore> | null>(null);
   const vaultRealtimeAvailableRef = useRef(true);
   const vaultAttachmentStateRef = useRef<VaultAttachmentQueueState>({
@@ -1681,6 +1784,67 @@ const ExcalidrawWrapper = () => {
   const refreshApp = useCallback(() => {
     forceRefresh((prev) => !prev);
   }, []);
+
+  const setVaultV2SessionState = useCallback((next: VaultV2Session | null) => {
+    if (vaultV2SessionRef.current !== next) {
+      vaultV2SessionRef.current?.dispose();
+    }
+    vaultV2SessionRef.current = next;
+    setVaultV2Session(next);
+  }, []);
+
+  useEffect(
+    () => () => {
+      vaultV2SessionRef.current?.dispose();
+      vaultV2SessionRef.current = null;
+    },
+    [],
+  );
+
+  const vaultV2UiState = useVaultV2UiState(vaultV2Session);
+
+  // W6: one-off merge notices (2a-2 concurrent edits, 2d-1 tombstone-wins)
+  useEffect(() => {
+    if (!vaultV2Session || !excalidrawAPI) {
+      return;
+    }
+    return vaultV2Session.ui.onNotice((notice) => {
+      excalidrawAPI.setToast({
+        message:
+          notice.kind === "conflict"
+            ? t("vault.v2.conflictToast")
+            : t("vault.v2.deletedEditsToast"),
+        duration: 6000,
+        closable: true,
+      });
+    });
+  }, [excalidrawAPI, vaultV2Session]);
+
+  const showVaultV2Conflicts = useCallback(
+    (elementIds: readonly string[]) => {
+      if (!excalidrawAPI) {
+        return;
+      }
+      const ids = new Set(elementIds);
+      const elements = excalidrawAPI
+        .getSceneElements()
+        .filter((element) => ids.has(element.id));
+      if (elements.length === 0) {
+        return;
+      }
+      // selection is local appState (never converged), so this stays on this device
+      excalidrawAPI.updateScene({
+        appState: {
+          selectedElementIds: Object.fromEntries(
+            elements.map((element) => [element.id, true as const]),
+          ),
+        },
+        captureUpdate: CaptureUpdateAction.NEVER,
+      });
+      excalidrawAPI.scrollToContent(elements, { fitToContent: true });
+    },
+    [excalidrawAPI],
+  );
 
   const setActiveVaultSession = useCallback(
     (next: ActiveVault | null, serializedSnapshot: string | null = null) => {
@@ -2127,6 +2291,12 @@ const ExcalidrawWrapper = () => {
       }
       loadImages(data, /* isInitialLoad */ true);
       initialStatePromiseRef.current.promise.resolve(data.scene);
+      if (data.vaultV2Session) {
+        setVaultV2SessionState(data.vaultV2Session);
+        // start() loads the snapshot over the network, so the doc reaches
+        // the editor after the (empty) initial data has been applied
+        data.vaultV2Session.attach(excalidrawAPI);
+      }
       if (data.activeVault && collabAPI) {
         const connected = await collabAPI.startVaultCollaboration(
           data.activeVault.session,
@@ -2161,6 +2331,8 @@ const ExcalidrawWrapper = () => {
         ) {
           collabAPI.stopCollaboration(false);
         }
+        // a v2 session never survives a route change
+        setVaultV2SessionState(null);
         excalidrawAPI.updateScene({ appState: { isLoading: true } });
 
         initializeScene({ collabAPI, excalidrawAPI }).then(async (data) => {
@@ -2231,6 +2403,10 @@ const ExcalidrawWrapper = () => {
             ) {
               openCollaborationInputTarget();
             }
+          }
+          if (data.vaultV2Session) {
+            setVaultV2SessionState(data.vaultV2Session);
+            data.vaultV2Session.attach(excalidrawAPI);
           }
           if (data.activeVault && collabAPI) {
             const connected = await collabAPI.startVaultCollaboration(
@@ -2375,6 +2551,7 @@ const ExcalidrawWrapper = () => {
     setVaultRealtimeStatus,
     setVaultAttachmentState,
     setActiveVaultSession,
+    setVaultV2SessionState,
   ]);
 
   useEffect(() => {
@@ -3619,6 +3796,7 @@ const ExcalidrawWrapper = () => {
     files: BinaryFiles,
   ) => {
     const isVaultRoute = isCurrentVaultRoute();
+    vaultV2SessionRef.current?.onChange(elements, appState);
     if (isVaultRoute && activeVaultRef.current?.session.role === "editor") {
       const prepared = prepareVaultAutosaveSnapshot(
         lastVaultSerializedSnapshotRef.current,
@@ -4770,6 +4948,7 @@ const ExcalidrawWrapper = () => {
       <Excalidraw
         aiEnabled={!isVaultMode}
         onChange={onChange}
+        onTextEditorMount={vaultV2Session?.onTextEditorMount}
         onSceneReplace={handleLocalSceneReplace}
         onExport={onExport}
         initialData={initialStatePromiseRef.current.promise}
@@ -4828,12 +5007,25 @@ const ExcalidrawWrapper = () => {
           const showCollaborationControls =
             !isMobile && !!collabAPI && !isCollabDisabled;
 
-          if (!activeVault && !showCollaborationControls) {
+          if (
+            !activeVault &&
+            !(vaultV2Session && vaultV2UiState) &&
+            !showCollaborationControls
+          ) {
             return null;
           }
 
           return (
             <div className="excalidraw-ui-top-right">
+              {vaultV2Session && vaultV2UiState && (
+                <div className="VaultStatusControls">
+                  <VaultV2Status
+                    role={vaultV2Session.role}
+                    state={vaultV2UiState}
+                    onShowConflicts={showVaultV2Conflicts}
+                  />
+                </div>
+              )}
               {activeVault && (
                 <div className="VaultStatusControls">
                   <VaultStatus
@@ -4855,6 +5047,13 @@ const ExcalidrawWrapper = () => {
                     onReviewConflict={() => setIsVaultConflictDialogOpen(true)}
                   />
                   <VaultManagedAI excalidrawAPI={excalidrawAPI} />
+                  {isVaultV2Enabled() && excalidrawAPI && (
+                    <VaultMigrationControl
+                      key={activeVault.session.vaultId}
+                      role={activeVault.session.role}
+                      api={createVaultMigrationApi(activeVault, excalidrawAPI)}
+                    />
+                  )}
                   {canManageVault && (
                     <Button
                       className="VaultStatusControls__share"

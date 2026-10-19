@@ -63,12 +63,15 @@ export const VaultDependencyDialog = ({
   canCreate,
   onSignIn,
   onCreated,
+  onCreateV2,
 }: {
   open: boolean;
   onClose: () => void;
   canCreate: boolean;
   onSignIn?: () => void;
   onCreated?: (editorLink: string) => void;
+  /** P4c W6: only passed when Vault v2 is enabled; resolves to the editor link */
+  onCreateV2?: () => Promise<string>;
 }) => {
   const [status, setStatus] = React.useState<VaultDependencyStatus>({
     kind: "idle",
@@ -141,6 +144,26 @@ export const VaultDependencyDialog = ({
     }
   }, [canCreate, isCreating, onClose, onCreated, status]);
 
+  const createEmptyVaultV2 = React.useCallback(async () => {
+    if (status.kind !== "ready" || !canCreate || isCreating || !onCreateV2) {
+      return;
+    }
+    setCreationError(null);
+    setIsCreating(true);
+    try {
+      const editorLink = await onCreateV2();
+      onClose();
+      if (onCreated) {
+        onCreated(editorLink);
+      } else {
+        window.location.assign(editorLink);
+      }
+    } catch (error) {
+      setCreationError(getStableDependencyError(error));
+      setIsCreating(false);
+    }
+  }, [canCreate, isCreating, onClose, onCreateV2, onCreated, status]);
+
   if (!open) {
     return null;
   }
@@ -172,6 +195,11 @@ export const VaultDependencyDialog = ({
             <div className="VaultDependencyDialog__notice">
               {t("vault.creation.emptyNotice")}
             </div>
+            {canCreate && onCreateV2 && (
+              <div className="VaultDependencyDialog__notice">
+                {t("vault.v2.createHint")}
+              </div>
+            )}
             {!canCreate && (
               <div
                 className="VaultDependencyDialog__status VaultDependencyDialog__status--warning"
@@ -220,6 +248,14 @@ export const VaultDependencyDialog = ({
               {isCreating
                 ? t("vault.creation.creating")
                 : t("vault.creation.create")}
+            </Button>
+          )}
+          {status.kind === "ready" && canCreate && onCreateV2 && (
+            <Button
+              onSelect={() => void createEmptyVaultV2()}
+              disabled={isCreating}
+            >
+              {isCreating ? t("vault.creation.creating") : t("vault.v2.create")}
             </Button>
           )}
           <Button onSelect={onClose}>{t("buttons.close")}</Button>

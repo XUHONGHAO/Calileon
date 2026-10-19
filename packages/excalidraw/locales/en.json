@@ -2012,6 +2012,43 @@
       "expired": "Access expired",
       "closed": "Closed"
     },
+    "v2": {
+      "create": "Create empty Vault v2",
+      "createHint": "Vault v2 merges concurrent edits of different people automatically.",
+      "conflicts": "{{count}} element(s) edited at the same time",
+      "conflictsHint": "Select the elements where concurrent edits were merged; the newer edit was kept.",
+      "showConflicts": "Show",
+      "conflictToast": "Someone edited the same element at the same time. The newer edit was kept.",
+      "deletedEditsToast": "An element you edited was deleted by someone else. Your edit is recorded but not shown.",
+      "attachmentsRetry": "{{failed}} attachment(s) not uploaded yet, retrying automatically",
+      "attachmentsAction": "{{failed}} attachment(s) could not be uploaded (access or file problem), remove or re-add them"
+    },
+    "migration": {
+      "start": "Move to Vault v2",
+      "title": "Move this Vault to Vault v2",
+      "description": "A new Vault v2 is created with a copy of the current scene. Vault v2 merges concurrent edits of different people automatically.",
+      "noteOldKept": "This Vault is not changed. Its link keeps working, so you can always go back.",
+      "noteOthers": "People you shared this Vault with need the new link; you can share it from the new Vault.",
+      "noteImages": "Images are encrypted again for the new Vault and uploaded before it is created.",
+      "confirm": "Create Vault v2",
+      "retry": "Try again",
+      "cancel": "Cancel",
+      "running": "Creating the new Vault…",
+      "doneTitle": "Vault v2 is ready",
+      "doneDescription": "The new Vault holds a copy of this scene. This old Vault is now shown read-only on this device.",
+      "openNew": "Open Vault v2",
+      "stay": "Stay here",
+      "migratedNotice": "Moved to Vault v2 — this copy is read-only here.",
+      "errors": {
+        "unsupported": "This scene contains elements that Vault v2 cannot store yet. Nothing was created.",
+        "tooLarge": "This scene is too large for Vault v2. Nothing was created.",
+        "conflict": "The new Vault already holds other content, or a move is running in another tab. Nothing was overwritten.",
+        "forbidden": "Only editors can move a Vault.",
+        "imagesMissing": "Some images of this scene have not loaded yet. Wait until they show, then try again.",
+        "assetConflict": "An image already exists in the new Vault with different content. Nothing was overwritten.",
+        "failed": "The move did not finish. This Vault is unchanged; you can try again."
+      }
+    },
     "conflict": {
       "title": "Unsynced local branch needs review",
       "description": "This Vault has a local branch and a remote branch that cannot be merged automatically. Both are preserved; nothing is overwritten or deleted until you choose an action.",

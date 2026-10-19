@@ -14,6 +14,8 @@ interface ImportMetaEnv {
   VITE_APP_VAULT_PERSISTENCE_CAPABILITIES_URL: string;
   VITE_APP_VAULT_ROOM_CAPABILITIES_URL: string;
   VITE_APP_VAULT_ROOM_PROVISION_URL: string;
+  // P4c Vault v2 (CRDT); "true" enables `#vault=2` links. Default off.
+  VITE_APP_VAULT_V2_ENABLED?: string;
 
   // set this only if using the collaboration workflow we use on excalidraw.com
   VITE_APP_PORTAL_URL: string;

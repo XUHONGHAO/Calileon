@@ -27,6 +27,7 @@ import { AI_OPEN_SETTINGS_EVENT } from "../ai/workflowEvents";
 import { useCloudAuth } from "../auth/useCloudAuth";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
 import { readVaultClientConfig } from "../data/vault";
+import { isVaultV2Enabled } from "../data/vault/v2/flag";
 
 import { AISettings } from "./AISettings";
 import { ManyMindsDialog } from "./ManyMindsDialog";
@@ -316,6 +317,14 @@ export const AppMainMenu: React.FC<{
           setIsVaultDependencyDialogOpen(false);
           props.onCloudAccountOpen?.();
         }}
+        onCreateV2={
+          isVaultV2Enabled()
+            ? async () =>
+                (
+                  await import("../data/vault/v2/appBinding")
+                ).createVaultV2ForApp()
+            : undefined
+        }
       />
     </>
   );

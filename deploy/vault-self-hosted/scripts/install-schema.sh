@@ -66,6 +66,8 @@ fi
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_prerequisites.sql
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault.sql
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_storage.sql
+# P4c Vault v2 (CRDT): additive, v1 Vaults/clients/room server unaffected
+psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_v2.sql
 
 for migration in /migrations/*.sql; do
   if [ -f "$migration" ]; then

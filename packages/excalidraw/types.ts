@@ -647,6 +647,19 @@ export interface ExcalidrawProps {
     /** excludes the duplicated elements */
     prevElements: readonly ExcalidrawElement[],
   ) => ExcalidrawElement[] | void;
+  /**
+   * Called when the text editor (wysiwyg textarea) opens for an element.
+   * Lets a host bind the textarea to an external text model (e.g. a CRDT):
+   * the host may patch `textarea.value` and must then dispatch an `input`
+   * event so the editor picks the change up.
+   *
+   * The returned function is called when the editor closes, *before* the
+   * text is submitted.
+   */
+  onTextEditorMount?: (payload: {
+    elementId: ExcalidrawElement["id"];
+    textarea: HTMLTextAreaElement;
+  }) => (() => void) | void;
   renderTopLeftUI?: (
     isMobile: boolean,
     appState: UIAppState,
