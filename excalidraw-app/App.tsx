@@ -1457,6 +1457,8 @@ const ExcalidrawWrapper = () => {
   const [vaultV2Session, setVaultV2Session] = useState<VaultV2Session | null>(
     null,
   );
+  const [isVaultV2ShareDialogOpen, setIsVaultV2ShareDialogOpen] =
+    useState(false);
   const vaultLocalStoreRef = useRef<Promise<VaultLocalStore> | null>(null);
   const vaultRealtimeAvailableRef = useRef(true);
   const vaultAttachmentStateRef = useRef<VaultAttachmentQueueState>({
@@ -1791,6 +1793,7 @@ const ExcalidrawWrapper = () => {
     }
     vaultV2SessionRef.current = next;
     setVaultV2Session(next);
+    setIsVaultV2ShareDialogOpen(false);
   }, []);
 
   useEffect(
@@ -1802,6 +1805,22 @@ const ExcalidrawWrapper = () => {
   );
 
   const vaultV2UiState = useVaultV2UiState(vaultV2Session);
+  // stable per session, so the share dialog keeps its list across renders
+  const vaultV2ShareTarget = useMemo(
+    () =>
+      vaultV2Session?.share
+        ? {
+            vaultId: vaultV2Session.vaultId,
+            role: vaultV2Session.role,
+            share: vaultV2Session.share,
+          }
+        : null,
+    [vaultV2Session],
+  );
+  const canManageVaultV2 =
+    !!vaultV2ShareTarget &&
+    vaultV2ShareTarget.role === "editor" &&
+    vaultV2UiState?.status !== "blocked";
 
   // W6: one-off merge notices (2a-2 concurrent edits, 2d-1 tombstone-wins)
   useEffect(() => {
@@ -5024,7 +5043,22 @@ const ExcalidrawWrapper = () => {
                     state={vaultV2UiState}
                     onShowConflicts={showVaultV2Conflicts}
                   />
+                  {canManageVaultV2 && (
+                    <Button
+                      className="VaultStatusControls__share"
+                      onSelect={() => setIsVaultV2ShareDialogOpen(true)}
+                    >
+                      {t("vault.share.manage")}
+                    </Button>
+                  )}
                 </div>
+              )}
+              {canManageVaultV2 && vaultV2ShareTarget && (
+                <VaultShareDialog
+                  open={isVaultV2ShareDialogOpen}
+                  onClose={() => setIsVaultV2ShareDialogOpen(false)}
+                  activeVault={vaultV2ShareTarget}
+                />
               )}
               {activeVault && (
                 <div className="VaultStatusControls">

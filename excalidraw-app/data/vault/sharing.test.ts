@@ -11,6 +11,7 @@ import {
   revokeVaultShareInvitation,
 } from "./sharing";
 import { getVaultLinkData } from "./url";
+import { getVaultV2LinkData } from "./v2/link";
 
 import type { VaultDeploymentCapabilities } from "./types";
 
@@ -102,6 +103,37 @@ describe("Vault sharing orchestration", () => {
       link?.invitationCapability,
     );
     expect(Object.isFrozen(result.metadata)).toBe(true);
+  });
+
+  it("returns a vault=2 link for P4c v2 Vaults over the same owner RPC", async () => {
+    const implementation = createImplementation();
+    const owner = createVaultOwnerService(deployment(), implementation);
+
+    const result = await createVaultShareInvitation({
+      owner,
+      vaultId: VAULT_ID,
+      rootKey: ROOT_KEY,
+      role: "viewer",
+      expiresAt: EXPIRES_AT,
+      baseUrl: "https://vault.example/board",
+      linkVersion: 2,
+    });
+
+    const link = getVaultV2LinkData(result.link);
+    expect(link).toMatchObject({
+      version: 2,
+      vaultId: VAULT_ID,
+      rootKey: ROOT_KEY,
+    });
+    // a v1 client must not open it through the v1 path
+    expect(() => getVaultLinkData(result.link)).toThrow();
+    expect(implementation.createInvitation).toHaveBeenCalledWith({
+      vaultId: VAULT_ID,
+      role: "viewer",
+      invitationCapability: link?.invitationCapability,
+      expiresAt: EXPIRES_AT,
+    });
+    expect(JSON.stringify(result.metadata)).not.toContain(ROOT_KEY);
   });
 
   it("supports editor invitations without exposing a normal share surface", async () => {

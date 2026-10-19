@@ -221,6 +221,70 @@ describe("VaultShareDialog", () => {
     expect(screen.getByRole("button", { name: "Copy link" })).toBeDisabled();
   });
 
+  it("drives a v2 target through its own actions without reading v1 session secrets", async () => {
+    const share = {
+      createInvitation: vi.fn().mockResolvedValue({
+        link: "https://app.example/#vault=2&v2-bearer-secret",
+        metadata: {
+          vaultId: activeVault.session.vaultId,
+          invitationId,
+          role: "viewer",
+          authorizationVersion: 1,
+          expiresAt: null,
+        },
+      }),
+      revokeInvitation: vi.fn().mockResolvedValue({}),
+    };
+    const target = {
+      vaultId: activeVault.session.vaultId,
+      role: "editor" as const,
+      share,
+    };
+
+    render(
+      <VaultShareDialog open={true} onClose={vi.fn()} activeVault={target} />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create and copy link" }),
+    );
+    await screen.findByText("Invitation created and copied.");
+    expect(share.createInvitation).toHaveBeenCalledWith({
+      role: "viewer",
+      expiresAt: null,
+    });
+    expect(vaultMock.readSecrets).not.toHaveBeenCalled();
+    expect(vaultMock.createInvitation).not.toHaveBeenCalled();
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      "https://app.example/#vault=2&v2-bearer-secret",
+    );
+    expect(document.body.textContent).not.toContain("v2-bearer-secret");
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    expect(await screen.findAllByText("Revoked")).toHaveLength(2);
+    expect(share.revokeInvitation).toHaveBeenCalledWith(invitationId);
+    expect(vaultMock.revokeInvitation).not.toHaveBeenCalled();
+  });
+
+  it("does not create invitations for a v2 viewer target", () => {
+    const share = { createInvitation: vi.fn(), revokeInvitation: vi.fn() };
+    render(
+      <VaultShareDialog
+        open={true}
+        onClose={vi.fn()}
+        activeVault={{
+          vaultId: activeVault.session.vaultId,
+          role: "viewer",
+          share,
+        }}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create and copy link" }),
+    );
+    expect(share.createInvitation).not.toHaveBeenCalled();
+  });
+
   it("shows only a stable owner error without exposing the raw backend failure", async () => {
     vaultMock.createInvitation.mockRejectedValue(
       new VaultError(

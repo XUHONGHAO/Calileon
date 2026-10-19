@@ -26,6 +26,10 @@ import {
 } from "../deploymentDiscovery";
 import { VaultLocalStore } from "../local-store/store";
 import { createHttpVaultRoomProvisionTransport } from "../roomProvision";
+import {
+  createVaultShareInvitation,
+  revokeVaultShareInvitation,
+} from "../sharing";
 
 import { VaultV2Assets } from "./assets";
 import { VaultV2LocalStore } from "./localStore";
@@ -40,6 +44,7 @@ import { VaultV2UiStore } from "./uiState";
 
 import type { VaultEncryptedAssetService } from "../assets";
 import type { VaultOwnerService } from "../owner";
+import type { VaultShareActions } from "../sharing";
 import type { VaultV2EditorApi } from "./controller";
 import type { VaultV2AssetEditorApi } from "./assets";
 import type { VaultV2MigrationJournal } from "./localStore";
@@ -54,6 +59,8 @@ import type { VaultV2Session, VaultV2SessionSocket } from "./session";
 export type VaultV2AppSession = Omit<VaultV2Session, "attach"> & {
   attach: (api: VaultV2EditorApi & VaultV2AssetEditorApi) => void;
   readonly ui: VaultV2UiStore;
+  /** invitation management; editors only (the owner RPCs enforce ownership) */
+  readonly share: VaultShareActions | null;
 };
 
 const discoverForApp = async () => {
@@ -223,9 +230,37 @@ export const openVaultV2ForApp = async (
     onError: callbacks.onError,
   });
 
+  // invitations: the same owner RPCs and rows as v1; only the link says vault=2.
+  // The root key stays in this closure (the App never reads it).
+  const owner =
+    session.role === "editor"
+      ? createSupabaseVaultBackend(discovered!.ready).owner
+      : null;
+  const share: VaultShareActions | null = owner
+    ? {
+        createInvitation: ({ role, expiresAt }) =>
+          createVaultShareInvitation({
+            owner,
+            vaultId: link.vaultId,
+            rootKey: link.rootKey,
+            role,
+            expiresAt,
+            baseUrl: window.location.href,
+            linkVersion: 2,
+          }),
+        revokeInvitation: (invitationId) =>
+          revokeVaultShareInvitation({
+            owner,
+            vaultId: link.vaultId,
+            invitationId,
+          }),
+      }
+    : null;
+
   const appSession: VaultV2AppSession = Object.freeze({
     ...session,
     ui,
+    share,
     attach: (api: VaultV2EditorApi & VaultV2AssetEditorApi) => {
       session.attach(api);
       assets.attach(api);

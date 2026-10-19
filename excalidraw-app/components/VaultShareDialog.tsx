@@ -19,6 +19,8 @@ import type {
   VaultOwnerService,
   VaultRole,
   VaultShareInvitationMetadata,
+  VaultShareActions,
+  VaultShareInvitationResult,
 } from "../data/vault";
 
 type VaultShareExpiry = "never" | "day" | "week";
@@ -34,6 +36,20 @@ export interface VaultShareTarget {
   readonly session: VaultClientSession;
   readonly owner: VaultOwnerService;
 }
+
+/**
+ * P4c Vault v2: the session keeps its root key in a closure, so it hands the
+ * dialog ready-made actions instead (invitations are the same rows as v1).
+ */
+export interface VaultV2ShareTarget {
+  readonly vaultId: string;
+  readonly role: VaultRole;
+  readonly share: VaultShareActions;
+}
+
+const isV1Target = (
+  target: VaultShareTarget | VaultV2ShareTarget,
+): target is VaultShareTarget => "session" in target;
 
 const getStableShareError = (error: unknown): VaultErrorCode =>
   error instanceof VaultError ? error.code : "VAULT_INTERNAL";
@@ -82,8 +98,15 @@ export const VaultShareDialog = ({
 }: {
   open: boolean;
   onClose: () => void;
-  activeVault: VaultShareTarget;
+  activeVault: VaultShareTarget | VaultV2ShareTarget;
 }) => {
+  // a new session (or v2 target) starts with an empty, secret-free list
+  const sessionKey = isV1Target(activeVault)
+    ? activeVault.session
+    : activeVault;
+  const sessionRole = isV1Target(activeVault)
+    ? activeVault.session.role
+    : activeVault.role;
   const [role, setRole] = React.useState<VaultRole>("viewer");
   const [expiry, setExpiry] = React.useState<VaultShareExpiry>("never");
   const [isCreating, setIsCreating] = React.useState(false);
@@ -98,7 +121,7 @@ export const VaultShareDialog = ({
     setInvitations([]);
     setFeedback({ kind: "idle" });
     setIsCreating(false);
-  }, [activeVault.session]);
+  }, [sessionKey]);
 
   const copyInvitation = React.useCallback(async (invitationId: string) => {
     const link = bearerLinksRef.current.get(invitationId);
@@ -118,21 +141,29 @@ export const VaultShareDialog = ({
   }, []);
 
   const createInvitation = React.useCallback(async () => {
-    if (isCreating || activeVault.session.role !== "editor") {
+    if (isCreating || sessionRole !== "editor") {
       return;
     }
     setIsCreating(true);
     setFeedback({ kind: "idle" });
     try {
-      const { rootKey } = readVaultSessionSecrets(activeVault.session);
-      const result = await createVaultShareInvitation({
-        owner: activeVault.owner,
-        vaultId: activeVault.session.vaultId,
-        rootKey,
-        role,
-        expiresAt: getExpiresAt(expiry),
-        baseUrl: window.location.href,
-      });
+      let result: VaultShareInvitationResult;
+      if (isV1Target(activeVault)) {
+        const { rootKey } = readVaultSessionSecrets(activeVault.session);
+        result = await createVaultShareInvitation({
+          owner: activeVault.owner,
+          vaultId: activeVault.session.vaultId,
+          rootKey,
+          role,
+          expiresAt: getExpiresAt(expiry),
+          baseUrl: window.location.href,
+        });
+      } else {
+        result = await activeVault.share.createInvitation({
+          role,
+          expiresAt: getExpiresAt(expiry),
+        });
+      }
       bearerLinksRef.current.set(result.metadata.invitationId, result.link);
       setInvitations((current) => [
         ...current,
@@ -148,7 +179,7 @@ export const VaultShareDialog = ({
     } finally {
       setIsCreating(false);
     }
-  }, [activeVault, expiry, isCreating, role]);
+  }, [activeVault, expiry, isCreating, role, sessionRole]);
 
   const revokeInvitation = React.useCallback(
     async (invitationId: string) => {
@@ -161,11 +192,15 @@ export const VaultShareDialog = ({
         ),
       );
       try {
-        await revokeVaultShareInvitation({
-          owner: activeVault.owner,
-          vaultId: activeVault.session.vaultId,
-          invitationId,
-        });
+        if (isV1Target(activeVault)) {
+          await revokeVaultShareInvitation({
+            owner: activeVault.owner,
+            vaultId: activeVault.session.vaultId,
+            invitationId,
+          });
+        } else {
+          await activeVault.share.revokeInvitation(invitationId);
+        }
         bearerLinksRef.current.delete(invitationId);
         setInvitations((current) =>
           current.map((invitation) =>

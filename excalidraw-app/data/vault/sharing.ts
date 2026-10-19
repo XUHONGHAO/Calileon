@@ -2,6 +2,7 @@ import { generateVaultInvitationCapability } from "./crypto";
 import { VaultError } from "./errors";
 import { assertVaultOwnerService } from "./owner";
 import { getVaultLink } from "./url";
+import { getVaultV2Link } from "./v2/link";
 
 import type { VaultErrorCode } from "./errors";
 import type { VaultOwnerService } from "./owner";
@@ -39,6 +40,18 @@ export interface VaultShareInvitationResult {
   readonly metadata: VaultShareInvitationMetadata;
 }
 
+/**
+ * Invitation management bound to one open Vault, for sessions that keep the
+ * root key in a closure (P4c v2) instead of an opaque v1 session.
+ */
+export interface VaultShareActions {
+  createInvitation(input: {
+    role: VaultRole;
+    expiresAt: number | null;
+  }): Promise<VaultShareInvitationResult>;
+  revokeInvitation(invitationId: string): Promise<unknown>;
+}
+
 export interface VaultShareInvitationRevocation {
   readonly vaultId: string;
   readonly invitationId: string;
@@ -53,6 +66,11 @@ export interface CreateVaultShareInvitationInput {
   readonly role: VaultRole;
   readonly expiresAt: number | null;
   readonly baseUrl?: string;
+  /**
+   * Link format of the returned bearer link (default 1). Invitations are the
+   * same rows for both protocols; only the `vault=` marker differs (P4c v2).
+   */
+  readonly linkVersion?: 1 | 2;
 }
 
 export interface RevokeVaultShareInvitationInput {
@@ -121,15 +139,21 @@ export const createVaultShareInvitation = async (
 
     const invitationCapability = generateVaultInvitationCapability();
     const vaultId = input.vaultId.toLowerCase();
-    const link = getVaultLink(
-      {
-        version: 1,
-        vaultId,
-        rootKey: input.rootKey,
-        invitationCapability,
-      },
-      input.baseUrl,
-    );
+    const link =
+      input.linkVersion === 2
+        ? getVaultV2Link(
+            { vaultId, rootKey: input.rootKey, invitationCapability },
+            input.baseUrl,
+          )
+        : getVaultLink(
+            {
+              version: 1,
+              vaultId,
+              rootKey: input.rootKey,
+              invitationCapability,
+            },
+            input.baseUrl,
+          );
     const invitation = await input.owner.createInvitation({
       vaultId,
       role: input.role,
