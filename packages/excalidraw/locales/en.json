@@ -115,8 +115,19 @@
       "unbind": "Unbind selected elements",
       "namePrompt": "Echo anchor name",
       "defaultName": "Echo anchor",
-      "status": { "label": "Status", "none": "No status", "todo": "To do", "in-progress": "In progress", "blocked": "Blocked", "done": "Done" },
-      "fields": { "text": "text", "status": "status", "backgroundColor": "background color" }
+      "status": {
+        "label": "Status",
+        "none": "No status",
+        "todo": "To do",
+        "in-progress": "In progress",
+        "blocked": "Blocked",
+        "done": "Done"
+      },
+      "fields": {
+        "text": "text",
+        "status": "status",
+        "backgroundColor": "background color"
+      }
     },
     "lineTone": {
       "label": "Line tone",
@@ -927,8 +938,20 @@
       "branch": "Branch again",
       "branchReady": "The result is ready to use as the input for a new batch.",
       "costWarning": "The provider may already have charged for this running request.",
-      "inputs": { "image": "Selected image", "region": "Selected region", "text": "Text", "visionAndText": "Visual input + text" },
-      "status": { "queued": "Queued", "running": "Running", "succeeded": "Succeeded", "failed": "Failed", "cancelled": "Cancelled", "interrupted": "Interrupted — explicit retry required" },
+      "inputs": {
+        "image": "Selected image",
+        "region": "Selected region",
+        "text": "Text",
+        "visionAndText": "Visual input + text"
+      },
+      "status": {
+        "queued": "Queued",
+        "running": "Running",
+        "succeeded": "Succeeded",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "interrupted": "Interrupted — explicit retry required"
+      },
       "errors": {
         "modelUnavailable": "The selected model is unavailable or unsupported. Choose a model and retry explicitly.",
         "inputMissing": "The stable input asset is unavailable.",
@@ -2080,5 +2103,12 @@
       "localStorageUnavailable": "Vault cannot be opened because this browser's local storage (IndexedDB) is unavailable, for example in some private browsing modes. Use a normal window or allow site storage. Nothing was loaded or saved. (VAULT_LOCAL_STORAGE_UNAVAILABLE)",
       "unavailable": "Vault cannot be opened because the required secure room and encrypted persistence services are unavailable. No plain or legacy fallback was used."
     }
+  },
+  "ui": {
+    "details": "Details",
+    "moreActions": "More actions",
+    "confirmTitle": "Are you sure?",
+    "labs": "Labs",
+    "showLabs": "Show Labs features"
   }
 }
