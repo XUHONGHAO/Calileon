@@ -14,7 +14,7 @@
   }
 
   .Dialog__title {
-    padding-right: 2rem;
+    padding-right: var(--ui-space-8);
   }
 
   .Dialog__content {
@@ -32,7 +32,7 @@
 .EmbedListDialog {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--ui-space-3);
   max-height: calc(100vh - 5rem);
   min-height: 0;
   min-width: 0;
@@ -56,7 +56,7 @@
     height: 2rem;
     padding: 0;
     border: 0;
-    border-radius: var(--border-radius-md);
+    border-radius: var(--ui-radius-md);
     background: transparent;
     color: var(--text-primary-color);
     cursor: pointer;
@@ -75,13 +75,13 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     min-width: 0;
 
     p {
       min-width: 0;
       margin: 0;
-      font-size: 0.875rem;
+      font-size: var(--ui-font-sm);
       color: var(--text-secondary-color);
       overflow-wrap: anywhere;
     }
@@ -92,7 +92,7 @@
   .EmbedListDialog__options {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
 
     label {
       flex: 1 1 10rem;
@@ -102,23 +102,23 @@
   .EmbedListDialog__create {
     display: flex;
     flex-direction: column;
-    gap: 0.625rem;
+    gap: var(--ui-space-3);
     min-width: 0;
-    padding: 0.625rem;
+    padding: var(--ui-space-3);
     border: 1px solid var(--default-border-color, var(--color-gray-30));
-    border-radius: var(--border-radius-md);
+    border-radius: var(--ui-radius-md);
   }
 
   label {
     display: flex;
     flex: 1 1 8rem;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
 
     span {
-      font-size: 0.75rem;
-      font-weight: 600;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
       color: var(--text-secondary-color);
     }
   }
@@ -128,13 +128,13 @@
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
-    padding: 0.5rem 0.625rem;
+    padding: var(--ui-space-2) var(--ui-space-3);
     border: 1px solid var(--default-border-color, var(--color-gray-30));
-    border-radius: var(--border-radius-md);
+    border-radius: var(--ui-radius-md);
     background: var(--input-bg-color, var(--island-bg-color));
     color: var(--text-primary-color);
     font: inherit;
-    font-size: 0.875rem;
+    font-size: var(--ui-font-sm);
 
     &:focus {
       outline: none;
@@ -150,9 +150,9 @@
   .EmbedListDialog__status,
   .EmbedListDialog__error {
     min-width: 0;
-    padding: 0.625rem 0.75rem;
-    border-radius: var(--border-radius-md);
-    font-size: 0.8125rem;
+    padding: var(--ui-space-3) var(--ui-space-3);
+    border-radius: var(--ui-radius-md);
+    font-size: var(--ui-font-sm);
     overflow-wrap: anywhere;
   }
 
@@ -170,7 +170,7 @@
   .EmbedListDialog__list {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-height: 0;
     min-width: 0;
     max-height: min(42vh, 22rem);
@@ -184,10 +184,10 @@
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     flex-wrap: wrap;
     min-width: 0;
-    padding: 0.625rem 0;
+    padding: var(--ui-space-3) 0;
     border-bottom: 1px solid var(--default-border-color, var(--color-gray-30));
   }
 
@@ -195,7 +195,7 @@
     display: flex;
     flex: 1 1 18rem;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
 
     strong {
@@ -205,12 +205,12 @@
     }
 
     strong {
-      font-size: 0.875rem;
+      font-size: var(--ui-font-sm);
     }
 
     span,
     small {
-      font-size: 0.75rem;
+      font-size: var(--ui-font-xs);
       color: var(--text-secondary-color);
       overflow-wrap: anywhere;
     }

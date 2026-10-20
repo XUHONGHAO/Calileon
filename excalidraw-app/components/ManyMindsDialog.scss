@@ -3,17 +3,17 @@
 }
 .ManyMinds {
   display: grid;
-  gap: 1rem;
+  gap: var(--ui-space-4);
   max-height: 78vh;
   overflow: auto;
 }
 .ManyMinds__setup {
   display: grid;
-  gap: 0.75rem;
+  gap: var(--ui-space-3);
 }
 .ManyMinds label {
   display: grid;
-  gap: 0.25rem;
+  gap: var(--ui-space-1);
 }
 .ManyMinds textarea {
   min-height: 72px;
@@ -24,7 +24,7 @@
 .ManyMinds__footer,
 .ManyMinds__taskActions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--ui-space-2);
   align-items: center;
   flex-wrap: wrap;
 }
@@ -34,7 +34,7 @@
 .ManyMinds__perspectives {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: 0.5rem;
+  gap: var(--ui-space-2);
 }
 .ManyMinds__primary {
   justify-self: start;
@@ -45,7 +45,7 @@
 .ManyMinds__grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: var(--ui-space-3);
 }
 .ManyMinds__grid--6,
 .ManyMinds__grid--9 {
@@ -53,17 +53,17 @@
 }
 .ManyMinds__task {
   border: 1px solid var(--color-gray-30);
-  border-radius: 0.5rem;
-  padding: 0.65rem;
+  border-radius: var(--ui-radius-lg);
+  padding: var(--ui-space-3);
   display: grid;
-  gap: 0.45rem;
+  gap: var(--ui-space-2);
 }
 .ManyMinds__task img {
   width: 100%;
   aspect-ratio: 1;
   object-fit: contain;
   background: var(--color-surface-low);
-  border-radius: 0.35rem;
+  border-radius: var(--ui-radius-md);
 }
 .ManyMinds__task.is-failed,
 .ManyMinds__task.is-interrupted {

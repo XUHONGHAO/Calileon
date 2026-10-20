@@ -9,7 +9,7 @@
 .CastDialog__body {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--ui-space-3);
   min-height: 22rem;
 }
 
@@ -25,7 +25,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--ui-space-3);
   flex-wrap: wrap;
 }
 
@@ -33,7 +33,7 @@
 .CastDialog__speed {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--ui-space-2);
   flex-wrap: wrap;
 }
 
@@ -51,8 +51,8 @@
 .CastDialog__status {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  font-weight: 600;
+  gap: var(--ui-space-1_5);
+  font-weight: var(--ui-weight-semibold);
 }
 
 .CastDialog__status::before {
@@ -83,7 +83,7 @@
   min-height: 20rem;
   overflow: hidden;
   border: 1px solid var(--default-border-color);
-  border-radius: var(--border-radius-lg);
+  border-radius: var(--ui-radius-lg);
   background: var(--island-bg-color);
 }
 
@@ -108,8 +108,8 @@
 }
 
 .CastDialog__error {
-  padding: 0.65rem 0.75rem;
-  border-radius: var(--border-radius-md);
+  padding: var(--ui-space-3) var(--ui-space-3);
+  border-radius: var(--ui-radius-md);
   color: var(--color-danger);
   background: color-mix(in srgb, var(--color-danger) 10%, transparent);
 }
@@ -120,7 +120,7 @@
   place-items: center;
   color: var(--text-secondary-color);
   border: 1px dashed var(--default-border-color);
-  border-radius: var(--border-radius-lg);
+  border-radius: var(--ui-radius-lg);
 }
 
 .CastDialog__footerActions {

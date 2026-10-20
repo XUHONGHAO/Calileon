@@ -1,0 +1,109 @@
+// Calileon app-level design tokens.
+//
+// Upstream only ships `--space-factor`, `--border-radius-md/lg` and the color
+// palette; it has no spacing / type / radius scale. These tokens add that
+// scale for the app's own UI (dialogs, panels, AI and Vault surfaces). They
+// are app-only: the published `@excalidraw/excalidraw` package is untouched.
+//
+// Scale rules:
+//   spacing  4px grid           --ui-space-{0_5,1,1_5,2,3,4,5,6,8}
+//   type     5 sizes, 3 weights --ui-font-{xs,sm,md,lg,xl}, --ui-weight-*
+//   radius   5 steps + pill     --ui-radius-{xs,sm,md,lg,xl,pill}
+//   tones    callout/badge pairs that hold contrast in light and dark themes
+.excalidraw {
+  // Spacing: multiples of 4px (0.25rem). 0_5 / 1_5 exist for hairline gaps
+  // and compact icon padding only.
+  --ui-space-0_5: 0.125rem; // 2px
+  --ui-space-1: 0.25rem; // 4px
+  --ui-space-1_5: 0.375rem; // 6px
+  --ui-space-2: 0.5rem; // 8px
+  --ui-space-3: 0.75rem; // 12px
+  --ui-space-4: 1rem; // 16px
+  --ui-space-5: 1.25rem; // 20px
+  --ui-space-6: 1.5rem; // 24px
+  --ui-space-8: 2rem; // 32px
+
+  // Type: 12px is the floor for any readable label.
+  --ui-font-xs: 0.75rem; // 12px  meta, hints, badges, shortcuts
+  --ui-font-sm: 0.875rem; // 14px  body, buttons, inputs, menu items
+  --ui-font-md: 1rem; // 16px  section titles, emphasised values
+  --ui-font-lg: 1.125rem; // 18px  panel titles
+  --ui-font-xl: 1.25rem; // 20px  dialog titles (matches upstream Dialog)
+  --ui-weight-regular: 400;
+  --ui-weight-medium: 500;
+  --ui-weight-semibold: 600;
+  --ui-line-tight: 1.25;
+  --ui-line-normal: 1.45;
+
+  // Radius: md/lg alias upstream so app and editor chrome stay identical.
+  --ui-radius-xs: 0.125rem; // 2px  focus marks, tiny chips
+  --ui-radius-sm: 0.25rem; // 4px  thumbnails, inline code
+  --ui-radius-md: var(--border-radius-md); // 6px controls
+  --ui-radius-lg: var(--border-radius-lg); // 8px cards, callouts
+  --ui-radius-xl: 0.75rem; // 12px dialogs (matches upstream Modal)
+  --ui-radius-pill: 999px;
+
+  // Control heights.
+  --ui-control-sm: 1.75rem; // 28px  compact/inline buttons
+  --ui-control-md: 2.25rem; // 36px  default buttons, inputs, selects
+  --ui-control-lg: 2.5rem; // 40px  primary dialog actions
+
+  // Text tones.
+  --ui-text: var(--text-primary-color);
+  --ui-text-secondary: var(--text-secondary-color);
+  --ui-text-disabled: var(--color-disabled);
+
+  // Surfaces.
+  --ui-surface: var(--island-bg-color);
+  --ui-surface-sunken: var(--color-surface-low);
+  --ui-surface-raised: var(--color-surface-mid);
+  --ui-border: var(--default-border-color);
+  --ui-border-strong: var(--color-border-outline-variant);
+
+  // Tone pairs (background / foreground / border) for callouts and badges.
+  --ui-info-bg: var(--color-surface-primary-container);
+  --ui-info-fg: var(--color-on-primary-container);
+  --ui-info-border: color-mix(in srgb, var(--color-primary) 35%, transparent);
+
+  --ui-success-bg: color-mix(in srgb, var(--color-success) 70%, transparent);
+  --ui-success-fg: var(--color-success-text);
+  --ui-success-border: color-mix(
+    in srgb,
+    var(--color-success-text) 30%,
+    transparent
+  );
+
+  --ui-warning-bg: color-mix(in srgb, var(--color-warning) 80%, transparent);
+  --ui-warning-fg: #6b4300;
+  --ui-warning-border: var(--color-warning-darker);
+
+  --ui-danger-bg: var(--color-danger-background);
+  --ui-danger-fg: var(--color-danger-color);
+  --ui-danger-border: color-mix(in srgb, var(--color-danger) 45%, transparent);
+
+  --ui-neutral-bg: var(--color-surface-low);
+  --ui-neutral-fg: var(--text-secondary-color);
+  --ui-neutral-border: var(--default-border-color);
+
+  &.theme--dark {
+    --ui-success-bg: color-mix(in srgb, #65bb6a 16%, transparent);
+    --ui-success-fg: #9be29f;
+    --ui-success-border: color-mix(in srgb, #65bb6a 40%, transparent);
+
+    --ui-warning-bg: color-mix(
+      in srgb,
+      var(--color-warning-darker) 16%,
+      transparent
+    );
+    --ui-warning-fg: #ffd98a;
+    --ui-warning-border: color-mix(
+      in srgb,
+      var(--color-warning-darker) 55%,
+      transparent
+    );
+
+    --ui-danger-bg: color-mix(in srgb, #ffa8a5 14%, transparent);
+    --ui-danger-fg: #ffc4c2;
+    --ui-danger-border: color-mix(in srgb, #ffa8a5 40%, transparent);
+  }
+}

@@ -1,12 +1,12 @@
 .excalidraw {
   .AISettingsDialog {
     .Island {
-      padding: 1.35rem;
+      padding: var(--ui-space-5);
     }
 
     .Dialog__title {
-      margin-bottom: 1rem;
-      padding-bottom: 0.65rem;
+      margin-bottom: var(--ui-space-4);
+      padding-bottom: var(--ui-space-3);
     }
 
     .Dialog__content {
@@ -19,7 +19,7 @@
     max-height: min(40rem, calc(100vh - 9rem));
     min-width: 0;
     flex-direction: column;
-    gap: 0.65rem;
+    gap: var(--ui-space-3);
     color: var(--text-primary-color);
   }
 
@@ -42,18 +42,18 @@
   .AISettings__editorActions {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     min-width: 0;
   }
 
   .AISettings__toolbar {
     justify-content: space-between;
-    font-weight: 600;
+    font-weight: var(--ui-weight-semibold);
 
     button {
       min-height: 2rem;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.45rem;
+      border-radius: var(--ui-radius-lg);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
@@ -74,7 +74,7 @@
     display: inline-flex;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -82,11 +82,11 @@
     box-sizing: border-box;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
-    padding: 0.25rem;
+    padding: var(--ui-space-1);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
+    border-radius: var(--ui-radius-lg);
     background: var(--color-surface-mid);
   }
 
@@ -101,7 +101,7 @@
   .AISettings__tab {
     min-height: 2rem;
     border: 0;
-    border-radius: 0.35rem;
+    border-radius: var(--ui-radius-md);
     background: transparent;
     color: var(--text-primary-color);
     font: inherit;
@@ -122,11 +122,11 @@
   .AISettings__models,
   .AISettings__editorBody {
     min-width: 0;
-    gap: 0.55rem;
+    gap: var(--ui-space-2);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
-    padding-right: 0.125rem;
+    padding-right: var(--ui-space-0_5);
   }
 
   .AISettings__models {
@@ -149,8 +149,8 @@
   .AISettings__emptyState {
     grid-column: 1 / -1;
     border: 1px dashed var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.85rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
     color: var(--text-primary-color);
     line-height: 1.35;
@@ -159,18 +159,18 @@
 
   .AISettings__modelPreviewCard {
     display: grid;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.6rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
     background: var(--island-bg-color);
   }
 
   .AISettings__editorHeader {
     h3 {
       margin: 0;
-      font-size: 0.95rem;
+      font-size: var(--ui-font-md);
       line-height: 1.25;
     }
   }
@@ -178,17 +178,17 @@
   .AISettings__providerPresets {
     display: grid;
     min-width: 0;
-    gap: 0.4rem;
+    gap: var(--ui-space-1_5);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.55rem 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2) var(--ui-space-3);
     background: var(--default-bg-color);
   }
 
   .AISettings__providerPresetsLabel {
     color: var(--text-primary-color);
-    font-size: 0.72rem;
-    font-weight: 700;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     line-height: 1.25;
     opacity: 0.72;
   }
@@ -196,16 +196,16 @@
   .AISettings__providerPresetList {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
 
     button {
       display: grid;
       min-width: 0;
-      gap: 0.15rem;
+      gap: var(--ui-space-0_5);
       border: 1px solid var(--default-border-color);
-      border-radius: 0.45rem;
-      padding: 0.45rem 0.55rem;
+      border-radius: var(--ui-radius-lg);
+      padding: var(--ui-space-2) var(--ui-space-2);
       background: var(--island-bg-color);
       color: var(--text-primary-color);
       font: inherit;
@@ -227,12 +227,12 @@
     }
 
     strong {
-      font-size: 0.78rem;
+      font-size: var(--ui-font-xs);
       line-height: 1.25;
     }
 
     span {
-      font-size: 0.72rem;
+      font-size: var(--ui-font-xs);
       line-height: 1.25;
       opacity: 0.72;
     }
@@ -262,11 +262,11 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
 
     span {
-      font-size: 0.72rem;
-      font-weight: 600;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
       line-height: 1.2;
     }
 
@@ -278,8 +278,8 @@
       min-width: 0;
       min-height: 2rem;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.4rem;
-      padding: 0.4rem 0.5rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-1_5) var(--ui-space-2);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
@@ -292,8 +292,8 @@
 
   .AISettings__fieldHint {
     color: var(--text-primary-color);
-    font-size: 0.72rem;
-    font-weight: 400 !important;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-regular) !important;
     line-height: 1.35;
     opacity: 0.72;
     overflow-wrap: anywhere;
@@ -303,18 +303,18 @@
     display: grid;
     min-width: 0;
     max-height: min(31rem, 58vh);
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     overflow-x: hidden;
     overflow-y: auto;
     overscroll-behavior: contain;
-    padding-right: 0.125rem;
+    padding-right: var(--ui-space-0_5);
   }
 
   .AISettings__networkModes,
   .AISettings__networkFields {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
+    gap: var(--ui-space-3);
     min-width: 0;
   }
 
@@ -323,14 +323,14 @@
   .AISettings__deviceApproval {
     display: grid;
     min-width: 0;
-    gap: 0.65rem;
+    gap: var(--ui-space-3);
   }
 
   .AISettings__gatewaySummary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
 
     strong {
@@ -340,7 +340,7 @@
     span {
       min-width: 0;
       overflow-wrap: anywhere;
-      font-size: 0.76rem;
+      font-size: var(--ui-font-xs);
     }
   }
 
@@ -348,8 +348,8 @@
     display: flex;
     min-width: 0;
     align-items: flex-start;
-    gap: 0.5rem;
-    font-size: 0.78rem;
+    gap: var(--ui-space-2);
+    font-size: var(--ui-font-xs);
 
     span {
       min-width: 0;
@@ -360,10 +360,10 @@
   .AISettings__auditRecords {
     display: grid;
     min-width: 0;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
 
     strong,
@@ -374,7 +374,7 @@
     }
 
     > strong {
-      font-size: 0.78rem;
+      font-size: var(--ui-font-xs);
     }
   }
 
@@ -383,10 +383,10 @@
     min-width: 0;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     border-top: 1px solid var(--default-border-color);
-    padding-top: 0.45rem;
-    font-size: 0.74rem;
+    padding-top: var(--ui-space-2);
+    font-size: var(--ui-font-xs);
 
     > span:first-child {
       min-width: 0;
@@ -396,13 +396,13 @@
     > span:last-child {
       display: flex;
       flex: 0 0 auto;
-      gap: 0.35rem;
+      gap: var(--ui-space-1_5);
     }
 
     button {
       border: 1px solid var(--default-border-color);
-      border-radius: 0.35rem;
-      padding: 0.25rem 0.45rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-1) var(--ui-space-2);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
@@ -412,9 +412,9 @@
 
   .AISettings__auditDetail {
     display: grid;
-    gap: 0.4rem;
+    gap: var(--ui-space-1_5);
     border-top: 1px solid var(--default-border-color);
-    padding-top: 0.55rem;
+    padding-top: var(--ui-space-2);
 
     pre {
       max-height: 12rem;
@@ -422,7 +422,7 @@
       overflow: auto;
       white-space: pre-wrap;
       font: inherit;
-      font-size: 0.75rem;
+      font-size: var(--ui-font-xs);
     }
   }
 
@@ -430,12 +430,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
 
     button {
       border: 1px solid var(--default-border-color);
-      border-radius: 0.35rem;
-      padding: 0.25rem 0.45rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-1) var(--ui-space-2);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
@@ -450,8 +450,8 @@
     button {
       min-height: 2rem;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.4rem;
-      padding: 0.4rem 0.75rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-1_5) var(--ui-space-3);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
@@ -463,10 +463,10 @@
     display: flex;
     min-width: 0;
     align-items: flex-start;
-    gap: 0.55rem;
+    gap: var(--ui-space-2);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.7rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
     cursor: pointer;
 
@@ -479,13 +479,13 @@
 
     input {
       flex: 0 0 auto;
-      margin: 0.15rem 0 0;
+      margin: var(--ui-space-0_5) 0 0;
     }
 
     span {
       display: grid;
       min-width: 0;
-      gap: 0.25rem;
+      gap: var(--ui-space-1);
     }
 
     strong,
@@ -496,22 +496,22 @@
     }
 
     strong {
-      font-size: 0.82rem;
+      font-size: var(--ui-font-sm);
     }
 
     small {
-      font-size: 0.74rem;
+      font-size: var(--ui-font-xs);
       opacity: 0.8;
     }
   }
 
   .AISettings__networkWarning {
     border: 1px solid var(--color-warning-darker);
-    border-radius: 0.5rem;
-    padding: 0.65rem 0.75rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3) var(--ui-space-3);
     background: var(--color-warning-background);
     color: var(--text-primary-color);
-    font-size: 0.76rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.4;
     overflow-wrap: anywhere;
   }
@@ -521,7 +521,7 @@
     min-width: 0;
     flex-wrap: wrap;
     justify-content: flex-end;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
 
     button {
       flex: 0 0 auto;
@@ -529,8 +529,8 @@
       height: auto;
       min-height: 2rem;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.4rem;
-      padding: 0.4rem 0.75rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-1_5) var(--ui-space-3);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
@@ -560,10 +560,10 @@
   .AISettings__formSection {
     display: grid;
     min-width: 0;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
 
     &.AISettings__formSection--wide {
@@ -576,12 +576,12 @@
     min-width: 0;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
 
     h4 {
       margin: 0;
       color: var(--text-primary-color);
-      font-size: 0.78rem;
+      font-size: var(--ui-font-xs);
       line-height: 1.25;
     }
   }
@@ -589,7 +589,7 @@
   .AISettings__connectionGrid {
     display: grid;
     grid-template-columns: minmax(8rem, 0.48fr) minmax(14rem, 1fr);
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
 
     .AISettings__field:last-child {
@@ -601,7 +601,7 @@
     display: grid;
     grid-template-columns: minmax(12rem, 0.45fr) minmax(0, 1fr);
     align-items: end;
-    gap: 0.35rem 0.75rem;
+    gap: var(--ui-space-1_5) var(--ui-space-3);
 
     > span:first-child {
       grid-column: 1 / -1;
@@ -609,14 +609,14 @@
 
     .AISettings__fieldHint {
       align-self: center;
-      padding-bottom: 0.42rem;
+      padding-bottom: var(--ui-space-1_5);
     }
   }
 
   .AISettings__endpointMatrix {
     display: grid;
     min-width: 0;
-    gap: 0.35rem;
+    gap: var(--ui-space-1_5);
   }
 
   .AISettings__endpointHeader {
@@ -625,12 +625,12 @@
         7rem,
         0.28fr
       );
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
-    padding: 0 0.5rem;
+    padding: 0 var(--ui-space-2);
     color: var(--text-primary-color);
-    font-size: 0.68rem;
-    font-weight: 600;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     line-height: 1.2;
     opacity: 0.62;
   }
@@ -642,18 +642,18 @@
         0.28fr
       );
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
-    border-radius: 0.45rem;
-    padding: 0.35rem 0.5rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-1_5) var(--ui-space-2);
     background: var(--island-bg-color);
   }
 
   .AISettings__endpointLabel {
     min-width: 0;
     color: var(--text-primary-color);
-    font-size: 0.76rem;
-    font-weight: 700;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     line-height: 1.25;
     overflow-wrap: anywhere;
   }
@@ -661,25 +661,25 @@
   .AISettings__fieldMappingGrid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
   .AISettings__advanced {
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.5rem 0.6rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2) var(--ui-space-2);
     background: var(--island-bg-color);
 
     summary {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.5rem;
+      gap: var(--ui-space-2);
       color: var(--text-primary-color);
-      font-size: 0.78rem;
-      font-weight: 600;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
       cursor: pointer;
     }
   }
@@ -687,22 +687,22 @@
   .AISettings__advanced[open] {
     display: flex;
     flex-direction: column;
-    gap: 0.6rem;
+    gap: var(--ui-space-2);
   }
 
   .AISettings__summaryBadge {
     border: 1px solid var(--default-border-color);
-    border-radius: 999px;
-    padding: 0.05rem 0.4rem;
+    border-radius: var(--ui-radius-pill);
+    padding: 0.05rem var(--ui-space-1_5);
     background: var(--default-bg-color);
-    font-size: 0.68rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.3;
   }
 
   .AISettings__modelGrid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -732,25 +732,25 @@
   .AISettings__defaultField {
     display: inline-flex;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--ui-space-1_5);
     min-width: 0;
-    font-size: 0.75rem;
-    font-weight: 600;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     white-space: nowrap;
   }
 
   .AISettings__capabilities {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0.3rem 0.5rem;
+    gap: var(--ui-space-1) var(--ui-space-2);
     min-width: 0;
 
     label {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
+      gap: var(--ui-space-1_5);
       min-width: 0;
-      font-size: 0.74rem;
+      font-size: var(--ui-font-xs);
       line-height: 1.25;
     }
 
@@ -763,22 +763,22 @@
   .AISettings__templateSections {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
+    gap: var(--ui-space-3);
     min-width: 0;
     max-height: min(31rem, 58vh);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
-    padding-right: 0.125rem;
+    padding-right: var(--ui-space-0_5);
   }
 
   .AISettings__agentIntro {
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
     color: var(--text-primary-color);
-    font-size: 0.78rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.35;
     opacity: 0.82;
     overflow-wrap: anywhere;
@@ -787,13 +787,13 @@
   .AISettings__agentSections {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
+    gap: var(--ui-space-3);
     min-width: 0;
     max-height: min(31rem, 58vh);
     overflow-y: auto;
     overflow-x: hidden;
     overscroll-behavior: contain;
-    padding-right: 0.125rem;
+    padding-right: var(--ui-space-0_5);
   }
 
   .AISettings__agentSections--single {
@@ -804,10 +804,10 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
 
     .AISettings__sectionHeader {
@@ -815,11 +815,11 @@
 
       h4 {
         display: grid;
-        gap: 0.1rem;
+        gap: var(--ui-space-0_5);
 
         span {
-          font-size: 0.68rem;
-          font-weight: 500;
+          font-size: var(--ui-font-xs);
+          font-weight: var(--ui-weight-medium);
           opacity: 0.72;
         }
       }
@@ -828,11 +828,11 @@
         flex: 0 0 auto;
         min-height: 1.85rem;
         border: 1px solid var(--default-border-color);
-        border-radius: 0.4rem;
+        border-radius: var(--ui-radius-md);
         background: var(--island-bg-color);
         color: var(--text-primary-color);
         font: inherit;
-        font-size: 0.74rem;
+        font-size: var(--ui-font-xs);
         cursor: pointer;
       }
     }
@@ -840,17 +840,17 @@
 
   .AISettings__agentList {
     display: grid;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
   .AISettings__agentCard {
     display: grid;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.6rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
     background: var(--island-bg-color);
   }
 
@@ -858,7 +858,7 @@
   .AISettings__agentActions {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -875,10 +875,10 @@
 
   .AISettings__agentMeta {
     display: grid;
-    gap: 0.2rem;
+    gap: var(--ui-space-1);
     min-width: 0;
     color: var(--text-primary-color);
-    font-size: 0.72rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.3;
     opacity: 0.76;
 
@@ -898,7 +898,7 @@
       background: transparent;
       color: var(--color-primary);
       font: inherit;
-      font-size: 0.74rem;
+      font-size: var(--ui-font-xs);
       cursor: pointer;
 
       &:disabled {
@@ -913,26 +913,26 @@
     display: flex;
     grid-column: 1 / -1;
     align-items: flex-start;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
     color: var(--text-primary-color);
-    font-size: 0.76rem;
-    font-weight: 600;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     line-height: 1.25;
 
     span {
       display: grid;
       min-width: 0;
-      gap: 0.2rem;
+      gap: var(--ui-space-1);
     }
 
     small {
-      font-size: 0.7rem;
-      font-weight: 400;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-regular);
       line-height: 1.35;
       opacity: 0.72;
       overflow-wrap: anywhere;
@@ -945,18 +945,18 @@
 
   .AISettings__agentRecommendations {
     display: grid;
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.55rem 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2) var(--ui-space-3);
     background: var(--island-bg-color);
     color: var(--text-primary-color);
-    font-size: 0.74rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.35;
 
     strong {
-      font-size: 0.76rem;
+      font-size: var(--ui-font-xs);
     }
 
     span {
@@ -969,33 +969,33 @@
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
     background: var(--default-bg-color);
   }
 
   .AISettings__templateList {
     display: grid;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
   .AISettings__templateCard {
     display: grid;
-    gap: 0.35rem;
+    gap: var(--ui-space-1_5);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.55rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
     background: var(--island-bg-color);
 
     p {
       min-width: 0;
       margin: 0;
       color: var(--text-primary-color);
-      font-size: 0.74rem;
+      font-size: var(--ui-font-xs);
       line-height: 1.35;
       opacity: 0.78;
       overflow-wrap: anywhere;
@@ -1006,7 +1006,7 @@
     min-width: 0;
     margin: 0;
     color: var(--text-primary-color);
-    font-size: 0.74rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.35;
     opacity: 0.78;
     overflow-wrap: anywhere;
@@ -1017,8 +1017,8 @@
     align-items: center;
     justify-content: center;
     min-width: 1.35rem;
-    margin-right: 0.35rem;
-    font-size: 0.86rem;
+    margin-right: var(--ui-space-1_5);
+    font-size: var(--ui-font-sm);
     line-height: 1;
   }
 
@@ -1028,7 +1028,7 @@
   .AISettings__templateModeGrid {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -1051,7 +1051,7 @@
       background: transparent;
       color: var(--color-primary);
       font: inherit;
-      font-size: 0.74rem;
+      font-size: var(--ui-font-xs);
       cursor: pointer;
     }
   }
@@ -1061,10 +1061,10 @@
 
     span {
       border: 1px solid var(--default-border-color);
-      border-radius: 999px;
-      padding: 0.05rem 0.4rem;
+      border-radius: var(--ui-radius-pill);
+      padding: 0.05rem var(--ui-space-1_5);
       background: var(--default-bg-color);
-      font-size: 0.68rem;
+      font-size: var(--ui-font-xs);
       line-height: 1.35;
       white-space: nowrap;
     }
@@ -1076,9 +1076,9 @@
     label {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
-      font-size: 0.76rem;
-      font-weight: 600;
+      gap: var(--ui-space-1_5);
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
       line-height: 1.25;
     }
   }
@@ -1091,13 +1091,13 @@
     box-sizing: border-box;
     justify-content: center;
     min-width: 8.5rem;
-    padding-inline: 1rem;
+    padding-inline: var(--ui-space-4);
     white-space: nowrap;
   }
 
   .AISettings__message {
-    border-radius: 0.45rem;
-    padding: 0.55rem 0.65rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2) var(--ui-space-3);
     background: var(--color-surface-low);
     line-height: 1.35;
     overflow-wrap: anywhere;
@@ -1115,7 +1115,7 @@
 
     .AISettingsDialog {
       .Island {
-        padding: 1rem;
+        padding: var(--ui-space-4);
       }
     }
 

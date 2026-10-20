@@ -2,12 +2,12 @@
   align-items: center;
   background: var(--color-surface-low);
   border: 1px solid var(--color-border-outline-variant);
-  border-radius: var(--border-radius-md);
+  border-radius: var(--ui-radius-md);
   color: var(--text-primary-color);
   display: inline-flex;
-  font-size: 0.75rem;
-  gap: 0.35rem;
-  padding: 0.3rem 0.55rem;
+  font-size: var(--ui-font-xs);
+  gap: var(--ui-space-1_5);
+  padding: var(--ui-space-1) var(--ui-space-2);
   // Long labels (conflict, realtime lost) must not collapse into a column.
   white-space: nowrap;
 
@@ -29,22 +29,22 @@
     flex: 0 0 auto;
     background: transparent;
     border: 1px solid currentColor;
-    border-radius: var(--border-radius-md);
+    border-radius: var(--ui-radius-md);
     color: inherit;
     cursor: pointer;
     font: inherit;
-    padding: 0.05rem 0.4rem;
+    padding: 0.05rem var(--ui-space-1_5);
   }
 }
 
 .VaultStatusControls {
   align-items: center;
   display: inline-flex;
-  gap: 0.5rem;
+  gap: var(--ui-space-2);
 
   &__share {
     min-height: 2rem;
-    padding-block: 0.3rem;
+    padding-block: var(--ui-space-1);
     white-space: nowrap;
   }
 }

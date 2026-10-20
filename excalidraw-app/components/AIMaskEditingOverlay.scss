@@ -68,16 +68,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--ui-space-3);
   // Hug the content instead of a fixed 44rem so the short status line doesn't
   // stretch a wide bar across the canvas. Cap it so a long localized string
   // still wraps rather than running off-screen.
   width: max-content;
   max-width: calc(100vw - 1.5rem);
   min-height: 3rem;
-  padding: 0.5rem 0.625rem 0.5rem 0.875rem;
+  padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-2)
+    var(--ui-space-4);
   border: 1px solid var(--default-border-color, #d6d6d6);
-  border-radius: 0.5rem;
+  border-radius: var(--ui-radius-lg);
   background: var(--island-bg-color, #ffffff);
   box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.22);
   color: var(--text-primary-color, #1b1b1f);
@@ -94,13 +95,13 @@
 .AIMaskEditingOverlay__buttons {
   display: flex;
   flex: 0 0 auto;
-  gap: 0.4rem;
+  gap: var(--ui-space-1_5);
 
   button {
     min-width: 4.5rem;
     min-height: 2rem;
     border: 1px solid var(--default-border-color, #d6d6d6);
-    border-radius: 0.4rem;
+    border-radius: var(--ui-radius-md);
     background: var(--button-gray-1, #f1f1f1);
     color: var(--text-primary-color, #1b1b1f);
     font: inherit;
@@ -119,9 +120,9 @@
   left: 50%;
   box-sizing: border-box;
   width: min(24rem, calc(100vw - 1.5rem));
-  padding: 0.625rem 0.75rem;
+  padding: var(--ui-space-3) var(--ui-space-3);
   border: 1px solid var(--default-border-color, #d6d6d6);
-  border-radius: 0.5rem;
+  border-radius: var(--ui-radius-lg);
   background: var(--island-bg-color, #ffffff);
   box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.2);
   color: var(--text-primary-color, #1b1b1f);
@@ -131,7 +132,7 @@
 
   label {
     display: grid;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
   }
 
   input {
@@ -149,9 +150,9 @@
   left: max(0.75rem, env(safe-area-inset-left));
   box-sizing: border-box;
   width: min(14rem, calc(100vw - 2rem));
-  padding: 0.625rem;
+  padding: var(--ui-space-3);
   border: 1px solid var(--default-border-color, #d6d6d6);
-  border-radius: 0.5rem;
+  border-radius: var(--ui-radius-lg);
   background: var(--island-bg-color, #ffffff);
   box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.2);
   color: var(--text-primary-color, #1b1b1f);
@@ -162,7 +163,7 @@
     display: block;
     width: 100%;
     max-height: 12rem;
-    margin-top: 0.5rem;
+    margin-top: var(--ui-space-2);
     border: 1px solid rgba(0, 0, 0, 0.14);
     background: #000000;
     object-fit: contain;

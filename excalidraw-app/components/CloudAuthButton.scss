@@ -1,14 +1,14 @@
 .CloudAuthButton {
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--ui-space-2);
 
   .excalidraw-button {
     display: inline-flex;
     align-items: center;
-    gap: 0.4rem;
+    gap: var(--ui-space-1_5);
     width: auto;
-    padding: 0 0.75rem;
+    padding: 0 var(--ui-space-3);
     height: 2.25rem;
     white-space: nowrap;
 
@@ -23,7 +23,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.875rem;
+    font-size: var(--ui-font-sm);
     color: var(--color-on-surface);
   }
 }

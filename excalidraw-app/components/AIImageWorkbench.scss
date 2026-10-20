@@ -8,7 +8,7 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: var(--app-sidebar-gap, 0.75rem);
+    gap: var(--app-sidebar-gap, var(--ui-space-3));
     flex: 1 1 auto;
     min-height: 0;
     height: 100%;
@@ -21,11 +21,11 @@
     // smaller in reference mode than in text-to-image mode.
     scrollbar-gutter: stable;
     overscroll-behavior: contain;
-    padding: var(--app-sidebar-padding, 0.75rem);
-    padding-bottom: 1rem;
+    padding: var(--app-sidebar-padding, var(--ui-space-3));
+    padding-bottom: var(--ui-space-4);
     min-width: 0;
     max-width: 100%;
-    font-size: 0.875rem;
+    font-size: var(--ui-font-sm);
   }
 
   .AIImageWorkbench button,
@@ -46,10 +46,10 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     min-width: 0;
     max-width: 100%;
-    padding-bottom: 0.75rem;
+    padding-bottom: var(--ui-space-3);
     border-bottom: 1px solid var(--default-border-color);
   }
 
@@ -57,13 +57,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     min-width: 0;
 
     h3 {
       min-width: 0;
       margin: 0;
-      font-size: 0.95rem;
+      font-size: var(--ui-font-md);
       line-height: 1.25;
       overflow-wrap: anywhere;
     }
@@ -72,27 +72,27 @@
   .AIImageWorkbench__statusStrip {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
 
     .AIImageWorkbench__statusPill {
       min-width: 0;
       border: 1px solid transparent;
-      border-radius: var(--border-radius-md);
-      padding: 0.25rem 0.4rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-1) var(--ui-space-1_5);
       background: var(--color-surface-mid);
       color: var(--app-sidebar-muted-text, var(--text-secondary-color));
-      font-size: 0.68rem;
-      font-weight: 600;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
       line-height: 1.25;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
 
       strong {
-        margin-right: 0.25rem;
+        margin-right: var(--ui-space-1);
         color: var(--text-primary-color);
-        font-weight: 800;
+        font-weight: var(--ui-weight-semibold);
       }
 
       &.is-ready {
@@ -143,19 +143,19 @@
     box-sizing: border-box;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
-    padding: 0.25rem;
+    padding: var(--ui-space-1);
     border: 1px solid
       var(--app-sidebar-panel-border, var(--default-border-color));
-    border-radius: 0.5rem;
+    border-radius: var(--ui-radius-lg);
     background: var(--color-surface-mid);
   }
 
   .AIImageWorkbench__segment {
     min-height: var(--app-sidebar-control-height, 2rem);
     border: 0;
-    border-radius: 0.35rem;
+    border-radius: var(--ui-radius-md);
     background: transparent;
     color: var(--text-primary-color);
     font: inherit;
@@ -181,13 +181,13 @@
   .AIImageWorkbench__field {
     display: flex;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: var(--ui-space-1_5);
     min-width: 0;
 
     span {
       color: var(--text-primary-color);
-      font-size: 0.78rem;
-      font-weight: 600;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
     }
 
     input,
@@ -197,8 +197,8 @@
       width: 100%;
       min-width: 0;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.45rem;
-      padding: 0.5rem;
+      border-radius: var(--ui-radius-lg);
+      padding: var(--ui-space-2);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
@@ -220,7 +220,7 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -245,9 +245,9 @@
     width: 100%;
     min-width: 0;
     min-height: 5.5rem;
-    padding: 0.5rem;
+    padding: var(--ui-space-2);
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
+    border-radius: var(--ui-radius-lg);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
     font: inherit;
@@ -282,7 +282,7 @@
   .AIImageWorkbench__promptInput .AIImageWorkbench__promptRef {
     color: var(--color-primary);
     font: inherit;
-    font-weight: 700;
+    font-weight: var(--ui-weight-semibold);
 
     &.is-invalid {
       color: var(--color-danger, #e03131);
@@ -300,7 +300,7 @@
   .AIImageWorkbench__referenceToolbar {
     display: flex;
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -312,7 +312,7 @@
     display: flex;
     align-items: center;
     justify-content: flex-start;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -324,11 +324,11 @@
   .AIImageWorkbench__referencePicker {
     box-sizing: border-box;
     display: grid;
-    gap: 0.35rem;
+    gap: var(--ui-space-1_5);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.45rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
     box-shadow: 0 0.35rem 1.2rem rgba(0, 0, 0, 0.12);
@@ -344,14 +344,14 @@
 
   .AIImageWorkbench__templateGroup {
     display: grid;
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
   }
 
   .AIImageWorkbench__templateGroupLabel {
     color: var(--text-primary-color);
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     letter-spacing: 0;
     opacity: 0.68;
     text-transform: uppercase;
@@ -362,8 +362,8 @@
     display: grid;
     min-width: 0;
     border: 0;
-    border-radius: 0.35rem;
-    padding: 0.4rem 0.45rem;
+    border-radius: var(--ui-radius-md);
+    padding: var(--ui-space-1_5) var(--ui-space-2);
     background: transparent;
     color: var(--text-primary-color);
     font: inherit;
@@ -384,7 +384,7 @@
     }
 
     small {
-      font-size: 0.68rem;
+      font-size: var(--ui-font-xs);
       opacity: 0.65;
     }
   }
@@ -392,27 +392,27 @@
   .AIImageWorkbench__referencePickerItem {
     grid-template-columns: 2.2rem 2.4rem minmax(0, 1fr);
     align-items: center;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
 
     img {
       width: 2.2rem;
       height: 2.2rem;
-      border-radius: 0.3rem;
+      border-radius: var(--ui-radius-sm);
       object-fit: cover;
       background: var(--default-bg-color);
     }
   }
 
   .AIImageWorkbench__warning {
-    border-radius: 0.4rem;
-    padding: 0.45rem 0.55rem;
+    border-radius: var(--ui-radius-md);
+    padding: var(--ui-space-2) var(--ui-space-2);
     background: color-mix(
       in srgb,
       var(--color-warning-darker) 16%,
       transparent
     );
     color: var(--text-primary-color);
-    font-size: 0.76rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.3;
     overflow-wrap: anywhere;
   }
@@ -420,7 +420,7 @@
   .AIImageWorkbench__grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.625rem;
+    gap: var(--ui-space-3);
     min-width: 0;
   }
 
@@ -430,7 +430,7 @@
 
   .AIImageWorkbench__seedField {
     display: flex;
-    gap: 0.35rem;
+    gap: var(--ui-space-1_5);
     min-width: 0;
 
     input {
@@ -447,7 +447,7 @@
     width: 2rem;
     padding: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
+    border-radius: var(--ui-radius-lg);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
     cursor: pointer;
@@ -519,18 +519,18 @@
   .AIImageWorkbench__inlineStatus {
     display: flex;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: var(--ui-space-3);
     color: var(--app-sidebar-muted-text, var(--text-secondary-color));
   }
 
   .AIImageWorkbench__referencePanel {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.5rem;
-    padding: 0.55rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
     background: var(--app-sidebar-panel-bg, var(--default-bg-color));
   }
 
@@ -539,8 +539,8 @@
 
     > span {
       min-width: 0;
-      font-size: 0.78rem;
-      font-weight: 700;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
       overflow-wrap: anywhere;
     }
   }
@@ -552,12 +552,12 @@
     button {
       min-height: 1.8rem;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.35rem;
-      padding: 0.25rem 0.45rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-1) var(--ui-space-2);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
-      font-size: 0.74rem;
+      font-size: var(--ui-font-xs);
       white-space: nowrap;
       cursor: pointer;
 
@@ -575,7 +575,7 @@
   .AIImageWorkbench__referenceHint,
   .AIImageWorkbench__emptyState {
     color: var(--app-sidebar-muted-text, var(--text-secondary-color));
-    font-size: 0.74rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.3;
     overflow-wrap: anywhere;
   }
@@ -583,14 +583,14 @@
   .AIImageWorkbench__referenceGrid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(5rem, 1fr));
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
   .AIImageWorkbench__assetGrid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
-    gap: 0.55rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -598,11 +598,11 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: var(--ui-space-1_5);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.45rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
     transition: border-color var(--ui-transition),
@@ -618,7 +618,7 @@
     position: relative;
     min-width: 0;
     aspect-ratio: 4 / 3;
-    border-radius: 0.35rem;
+    border-radius: var(--ui-radius-md);
     overflow: hidden;
     background: var(--color-surface-mid);
 
@@ -634,21 +634,21 @@
     position: absolute;
     left: 0.3rem;
     top: 0.3rem;
-    border-radius: 999px;
-    padding: 0.1rem 0.4rem;
+    border-radius: var(--ui-radius-pill);
+    padding: var(--ui-space-0_5) var(--ui-space-1_5);
     background: var(--color-ai-history-bg);
     color: var(--color-ai-history-text);
-    font-size: 0.68rem;
-    font-weight: 800;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     line-height: 1.25;
   }
 
   .AIImageWorkbench__assetMeta {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    gap: 0.1rem 0.45rem;
+    gap: var(--ui-space-0_5) var(--ui-space-2);
     min-width: 0;
-    font-size: 0.68rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.25;
 
     strong,
@@ -661,7 +661,7 @@
 
     strong {
       color: var(--text-primary-color);
-      font-size: 0.72rem;
+      font-size: var(--ui-font-xs);
     }
 
     span {
@@ -680,7 +680,7 @@
     min-width: 0;
     overflow: hidden;
     color: var(--app-sidebar-muted-text, var(--text-secondary-color));
-    font-size: 0.68rem;
+    font-size: var(--ui-font-xs);
     line-height: 1.3;
     overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
@@ -690,19 +690,19 @@
   .AIImageWorkbench__assetActions {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
 
     button {
       min-width: 0;
       min-height: 1.65rem;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.35rem;
-      padding: 0.12rem 0.2rem;
+      border-radius: var(--ui-radius-md);
+      padding: var(--ui-space-0_5) var(--ui-space-1);
       background: var(--app-sidebar-panel-bg, var(--default-bg-color));
       color: var(--text-primary-color);
       font: inherit;
-      font-size: 0.64rem;
+      font-size: var(--ui-font-xs);
       line-height: 1.15;
       overflow-wrap: anywhere;
       white-space: normal;
@@ -721,33 +721,33 @@
 
   .AIImageWorkbench__assetDetails {
     border-top: 1px solid var(--default-border-color);
-    padding-top: 0.35rem;
+    padding-top: var(--ui-space-1_5);
     color: var(--app-sidebar-muted-text, var(--text-secondary-color));
-    font-size: 0.68rem;
+    font-size: var(--ui-font-xs);
 
     summary {
       cursor: pointer;
       color: var(--text-primary-color);
-      font-weight: 700;
+      font-weight: var(--ui-weight-semibold);
     }
 
     dl {
       display: flex;
       flex-direction: column;
-      gap: 0.3rem;
-      margin: 0.4rem 0 0;
+      gap: var(--ui-space-1);
+      margin: var(--ui-space-1_5) 0 0;
     }
 
     div {
       display: grid;
       grid-template-columns: 2.4rem minmax(0, 1fr);
-      gap: 0.4rem;
+      gap: var(--ui-space-1_5);
       min-width: 0;
     }
 
     dt {
       color: var(--text-primary-color);
-      font-weight: 700;
+      font-weight: var(--ui-weight-semibold);
     }
 
     dd {
@@ -762,12 +762,12 @@
     box-sizing: border-box;
     display: grid;
     grid-template-rows: 4rem auto auto;
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
     min-height: 7.1rem;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.35rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-1_5);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
     cursor: pointer;
@@ -799,11 +799,11 @@
     position: absolute;
     z-index: 1;
     top: 0.25rem;
-    border-radius: 999px;
-    padding: 0.1rem 0.4rem;
+    border-radius: var(--ui-radius-pill);
+    padding: var(--ui-space-0_5) var(--ui-space-1_5);
     color: #fff;
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     line-height: 1.25;
   }
 
@@ -835,13 +835,13 @@
     width: 1.25rem;
     height: 1.25rem;
     border: 1px solid var(--default-border-color);
-    border-radius: 999px;
+    border-radius: var(--ui-radius-pill);
     padding: 0;
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
     font: inherit;
-    font-size: 0.75rem;
-    font-weight: 700;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
     line-height: 1;
     cursor: pointer;
 
@@ -859,19 +859,19 @@
     left: 0.25rem;
     display: inline-flex;
     align-items: center;
-    gap: 0.2rem;
-    border-radius: 999px;
-    padding: 0.08rem 0.35rem;
+    gap: var(--ui-space-1);
+    border-radius: var(--ui-radius-pill);
+    padding: 0.08rem var(--ui-space-1_5);
     background: var(--app-sidebar-panel-bg, var(--default-bg-color));
-    font-size: 0.68rem;
-    font-weight: 700;
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
   }
 
   .AIImageWorkbench__referenceThumb {
     width: 100%;
     min-width: 0;
     height: 4rem;
-    border-radius: 0.35rem;
+    border-radius: var(--ui-radius-md);
     object-fit: cover;
     background: linear-gradient(45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
       linear-gradient(-45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
@@ -886,12 +886,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.25rem;
+    gap: var(--ui-space-1);
     min-width: 0;
   }
 
   .AIImageWorkbench__referenceMeta {
-    font-size: 0.66rem;
+    font-size: var(--ui-font-xs);
 
     span {
       min-width: 0;
@@ -906,12 +906,12 @@
       min-width: 0;
       min-height: 1.45rem;
       border: 0;
-      border-radius: 0.3rem;
-      padding: 0.1rem 0.25rem;
+      border-radius: var(--ui-radius-sm);
+      padding: var(--ui-space-0_5) var(--ui-space-1);
       background: var(--app-sidebar-panel-bg, var(--default-bg-color));
       color: var(--text-primary-color);
       font: inherit;
-      font-size: 0.64rem;
+      font-size: var(--ui-font-xs);
       cursor: pointer;
 
       &:hover {
@@ -925,19 +925,19 @@
   .AIImageWorkbench__advanced {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.5rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
     background: var(--app-sidebar-panel-bg, var(--default-bg-color));
   }
 
   .AIImageWorkbench__advanced {
     summary {
       color: var(--text-primary-color);
-      font-size: 0.78rem;
-      font-weight: 700;
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
       cursor: pointer;
     }
   }
@@ -945,7 +945,7 @@
   .AIImageWorkbench__maskControls {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
   }
 
@@ -953,11 +953,11 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
+    gap: var(--ui-space-2);
     min-width: 0;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
-    padding: 0.45rem 0.5rem;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2) var(--ui-space-2);
     background: var(--app-sidebar-panel-bg, var(--default-bg-color));
     color: var(--text-primary-color);
 
@@ -980,7 +980,7 @@
   .AIImageWorkbench__secondaryButton {
     min-height: 2.25rem;
     border: 1px solid var(--default-border-color);
-    border-radius: 0.45rem;
+    border-radius: var(--ui-radius-lg);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
     font: inherit;
@@ -1002,9 +1002,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5rem;
-    border-radius: 0.45rem;
-    padding: 0.55rem 0.65rem;
+    gap: var(--ui-space-2);
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2) var(--ui-space-3);
     background: var(--color-surface-low);
     color: var(--text-primary-color);
     line-height: 1.35;
@@ -1020,7 +1020,7 @@
       background: transparent;
       color: var(--color-primary);
       font: inherit;
-      font-weight: 700;
+      font-weight: var(--ui-weight-semibold);
       cursor: pointer;
 
       &:hover {
@@ -1039,18 +1039,18 @@
   .AIImageWorkbench__metadata {
     display: flex;
     flex-direction: column;
-    gap: 0.45rem;
+    gap: var(--ui-space-2);
     margin: 0;
 
     div {
       display: grid;
       grid-template-columns: 4rem minmax(0, 1fr);
-      gap: 0.5rem;
+      gap: var(--ui-space-2);
     }
 
     dt {
       color: var(--text-primary-color);
-      font-weight: 600;
+      font-weight: var(--ui-weight-semibold);
     }
 
     dd {
@@ -1063,12 +1063,12 @@
   .AIImageWorkbench__actions {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.4rem;
+    gap: var(--ui-space-1_5);
 
     button {
       min-height: 2rem;
       border: 1px solid var(--default-border-color);
-      border-radius: 0.45rem;
+      border-radius: var(--ui-radius-lg);
       background: var(--app-sidebar-control-bg, var(--island-bg-color));
       color: var(--text-primary-color);
       font: inherit;
