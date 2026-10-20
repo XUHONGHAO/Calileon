@@ -37,7 +37,7 @@ import {
 import { hasMermaidCodeBlock } from "../../ai/codeBlockDetector";
 import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
 
-import { confirmAction } from "../ui";
+import { Callout, confirmAction } from "../ui";
 
 import "./CustomAgentChat.scss";
 
@@ -847,9 +847,13 @@ export const CustomAgentChat = ({
   return (
     <div className="CustomAgentChat">
       {!agentConfig.llmAgents.length && (
-        <div className="CustomAgentChat__notice">
+        <Callout
+          tone="warning"
+          live={false}
+          className="CustomAgentChat__notice"
+        >
           {t("ai.assistant.noticeNoAgents")}
-        </div>
+        </Callout>
       )}
 
       <section className="CustomAgentChat__chat">
@@ -884,7 +888,9 @@ export const CustomAgentChat = ({
                 className="CustomAgentChat__popover CustomAgentChat__popover--agent"
                 aria-label={t("ai.assistant.agent")}
               >
-                <strong>{t("ai.assistant.agent")}</strong>
+                <strong className="CustomAgentChat__popoverTitle">
+                  {t("ai.assistant.agent")}
+                </strong>
                 {agentConfig.llmAgents.map((agent) => (
                   <button
                     key={agent.id}
@@ -894,6 +900,7 @@ export const CustomAgentChat = ({
                         ? "is-selected"
                         : undefined
                     }
+                    title={agent.name}
                     onClick={() => switchAgent(agent.id)}
                   >
                     {agent.name}
@@ -979,11 +986,22 @@ export const CustomAgentChat = ({
                   setIsHistoryOpen(false);
                 }}
               >
-                <span>{t("ai.assistant.agent")}</span>
-                <strong>
+                <span className="CustomAgentChat__agentLabel">
+                  {t("ai.assistant.agent")}
+                </span>
+                <strong
+                  className={
+                    activeAgent
+                      ? "CustomAgentChat__agentValue"
+                      : "CustomAgentChat__agentValue is-missing"
+                  }
+                  title={activeAgent?.name || t("ai.assistant.missingAgent")}
+                >
                   {activeAgent?.name || t("ai.assistant.missingAgent")}
                 </strong>
-                {chevronUpIcon}
+                <span className="CustomAgentChat__agentChevron">
+                  {chevronUpIcon}
+                </span>
               </button>
               <button
                 type="button"
@@ -1078,9 +1096,13 @@ export const CustomAgentChat = ({
 
           {isSkillsPanelOpen && (
             <div className="CustomAgentChat__popover">
-              <strong>{t("ai.assistant.skills")}</strong>
+              <strong className="CustomAgentChat__popoverTitle">
+                {t("ai.assistant.skills")}
+              </strong>
               {agentConfig.skills.length === 0 && (
-                <span>{t("ai.assistant.noSkills")}</span>
+                <span className="CustomAgentChat__empty">
+                  {t("ai.assistant.noSkills")}
+                </span>
               )}
               {agentConfig.skills.map((skill) => (
                 <button
@@ -1097,8 +1119,8 @@ export const CustomAgentChat = ({
       </section>
 
       {(statusMessage || errorMessage) && (
-        <div
-          role={errorMessage ? "alert" : "status"}
+        <Callout
+          tone={errorMessage ? "danger" : "info"}
           className={
             errorMessage
               ? "CustomAgentChat__message is-error"
@@ -1106,7 +1128,7 @@ export const CustomAgentChat = ({
           }
         >
           {errorMessage || statusMessage}
-        </div>
+        </Callout>
       )}
     </div>
   );

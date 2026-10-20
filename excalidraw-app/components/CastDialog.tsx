@@ -3,7 +3,6 @@ import {
   Excalidraw,
   sceneCoordsToViewportCoords,
 } from "@excalidraw/excalidraw";
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { Range } from "@excalidraw/excalidraw/components/Range";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
@@ -30,6 +29,8 @@ import {
 } from "../cast";
 
 import { getCloudBackend } from "../data/cloud";
+
+import { Callout, SegmentedControl, UiButton } from "./ui";
 
 import "./CastDialog.scss";
 
@@ -433,44 +434,48 @@ export const CastDialog: React.FC<{
             {t(`labels.cast.status.${recorderState}`)} · {formatTime(elapsedMs)}
           </span>
           <div className="CastDialog__actions">
-            <Button onSelect={onClose}>{t("buttons.close")}</Button>
+            <UiButton onClick={onClose}>{t("buttons.close")}</UiButton>
+            <UiButton
+              onClick={() => importInputRef.current?.click()}
+              data-testid="cast-import"
+            >
+              {t("labels.cast.import")}
+            </UiButton>
             {recorderState === "idle" || recorderState === "stopped" ? (
-              <Button
-                onSelect={startRecording}
+              <UiButton
+                variant="primary"
+                onClick={startRecording}
                 disabled={!excalidrawAPI}
                 data-testid="cast-start-recording"
               >
                 {t("labels.cast.start")}
-              </Button>
-            ) : recorderState === "recording" ? (
-              <Button
-                onSelect={pauseRecording}
-                data-testid="cast-pause-recording"
-              >
-                {t("labels.cast.pause")}
-              </Button>
+              </UiButton>
             ) : (
-              <Button
-                onSelect={resumeRecording}
-                data-testid="cast-resume-recording"
-              >
-                {t("labels.cast.resume")}
-              </Button>
+              <>
+                {recorderState === "recording" ? (
+                  <UiButton
+                    onClick={pauseRecording}
+                    data-testid="cast-pause-recording"
+                  >
+                    {t("labels.cast.pause")}
+                  </UiButton>
+                ) : (
+                  <UiButton
+                    onClick={resumeRecording}
+                    data-testid="cast-resume-recording"
+                  >
+                    {t("labels.cast.resume")}
+                  </UiButton>
+                )}
+                <UiButton
+                  variant="primary"
+                  onClick={stopRecording}
+                  data-testid="cast-stop-recording"
+                >
+                  {t("labels.cast.stop")}
+                </UiButton>
+              </>
             )}
-            {(recorderState === "recording" || recorderState === "paused") && (
-              <Button
-                onSelect={stopRecording}
-                data-testid="cast-stop-recording"
-              >
-                {t("labels.cast.stop")}
-              </Button>
-            )}
-            <Button
-              onSelect={() => importInputRef.current?.click()}
-              data-testid="cast-import"
-            >
-              {t("labels.cast.import")}
-            </Button>
             <input
               ref={importInputRef}
               type="file"
@@ -487,9 +492,7 @@ export const CastDialog: React.FC<{
           </div>
         </div>
 
-        {errorMessage && (
-          <div className="CastDialog__error">{errorMessage}</div>
-        )}
+        {errorMessage && <Callout tone="danger">{errorMessage}</Callout>}
 
         {script && player ? (
           <>
@@ -544,8 +547,9 @@ export const CastDialog: React.FC<{
             </div>
             <div className="CastDialog__playbackControls">
               <div className="CastDialog__actions">
-                <Button
-                  onSelect={() => {
+                <UiButton
+                  variant="primary"
+                  onClick={() => {
                     if (currentTime >= script.durationMs) {
                       seek(0);
                     }
@@ -554,30 +558,31 @@ export const CastDialog: React.FC<{
                   data-testid="cast-toggle-playback"
                 >
                   {isPlaying ? t("labels.cast.pause") : t("labels.cast.play")}
-                </Button>
-                <Button
-                  onSelect={() => {
+                </UiButton>
+                <UiButton
+                  onClick={() => {
                     setIsPlaying(false);
                     seek(0);
                   }}
                 >
                   {t("labels.cast.restart")}
-                </Button>
+                </UiButton>
               </div>
-              <div
+              <SegmentedControl
                 className="CastDialog__speed"
-                aria-label={t("labels.cast.speed")}
-              >
-                {PLAYBACK_SPEEDS.map((speed) => (
-                  <Button
-                    key={speed}
-                    onSelect={() => setPlaybackSpeed(speed)}
-                    selected={playbackSpeed === speed}
-                  >
-                    {speed}×
-                  </Button>
-                ))}
-              </div>
+                size="sm"
+                label={t("labels.cast.speed")}
+                value={String(playbackSpeed)}
+                onChange={(value) =>
+                  setPlaybackSpeed(
+                    Number(value) as typeof PLAYBACK_SPEEDS[number],
+                  )
+                }
+                options={PLAYBACK_SPEEDS.map((speed) => ({
+                  value: String(speed),
+                  label: `${speed}×`,
+                }))}
+              />
             </div>
             <Range
               label={t("labels.cast.timeline")}
@@ -593,18 +598,18 @@ export const CastDialog: React.FC<{
               }}
             />
             <div className="CastDialog__footerActions">
-              <Button
-                onSelect={() => {
-                  downloadScript(script);
-                  setIsSaved(true);
-                }}
-                data-testid="cast-export"
+              <UiButton
+                variant="danger"
+                className="CastDialog__discard"
+                onClick={discardRecording}
+                data-testid="cast-discard"
               >
-                {t("labels.cast.export")}
-              </Button>
-              <Button
-                onSelect={() => void saveToCloud()}
+                {t("labels.cast.discard")}
+              </UiButton>
+              <UiButton
+                onClick={() => void saveToCloud()}
                 disabled={!cloudSaveAvailable || cloudState === "saving"}
+                loading={cloudState === "saving"}
                 title={
                   cloudSaveAvailable
                     ? undefined
@@ -617,10 +622,17 @@ export const CastDialog: React.FC<{
                   : cloudState === "saved"
                   ? t("labels.cast.savedCloud")
                   : t("labels.cast.saveCloud")}
-              </Button>
-              <Button onSelect={discardRecording} data-testid="cast-discard">
-                {t("labels.cast.discard")}
-              </Button>
+              </UiButton>
+              <UiButton
+                variant="primary"
+                onClick={() => {
+                  downloadScript(script);
+                  setIsSaved(true);
+                }}
+                data-testid="cast-export"
+              >
+                {t("labels.cast.export")}
+              </UiButton>
             </div>
           </>
         ) : (

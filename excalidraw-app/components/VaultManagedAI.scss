@@ -1,0 +1,51 @@
+.excalidraw .VaultManagedAI {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+  min-width: 0;
+
+  &__prompt {
+    max-height: 12rem;
+    margin: 0;
+    padding: var(--ui-space-2) var(--ui-space-3);
+    overflow: auto;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface-sunken);
+    color: var(--ui-text);
+    font-family: inherit;
+    font-size: var(--ui-font-sm);
+    line-height: var(--ui-line-normal);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  &__images {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-2);
+  }
+
+  &__meta {
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+  }
+
+  &__thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-2);
+  }
+
+  &__thumb {
+    width: 4rem;
+    height: 4rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-sm);
+    object-fit: cover;
+  }
+
+  .UiDialogActions {
+    margin-top: var(--ui-space-1);
+  }
+}

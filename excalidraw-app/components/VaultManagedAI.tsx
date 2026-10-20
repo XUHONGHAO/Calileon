@@ -1,7 +1,6 @@
 import React from "react";
 
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { isInitializedImageElement } from "@excalidraw/element";
@@ -20,6 +19,10 @@ import {
 } from "../data/vault/egress";
 
 import { loadAIProxyConfig } from "../ai/proxyConfig";
+
+import { Callout, DialogActions, Field, TextArea, UiButton } from "./ui";
+
+import "./VaultManagedAI.scss";
 
 import type { AiGatewayCatalogEntry } from "../data/cloud";
 
@@ -303,82 +306,74 @@ export const VaultManagedAI = ({
 
   return (
     <>
-      <Button onSelect={() => setOpen(true)}>
+      <UiButton onClick={() => setOpen(true)}>
         {t("ai.proxy.managedTitle")}
-      </Button>
+      </UiButton>
       {open && (
         <Dialog
           title={t("ai.proxy.managedTitle")}
           onCloseRequest={close}
           size="small"
         >
-          <div style={{ display: "grid", gap: "0.75rem" }}>
+          <div className="VaultManagedAI">
             {!review ? (
               <>
-                <label style={{ display: "grid", gap: "0.35rem" }}>
-                  <span>{t("ai.assistant.message")}</span>
-                  <textarea
+                <Field
+                  label={t("ai.assistant.message")}
+                  hint={t("ai.workbench.referenceImages", {
+                    count: selectedImages.length,
+                  })}
+                >
+                  <TextArea
                     rows={5}
                     value={prompt}
                     onChange={(event) => setPrompt(event.target.value)}
                   />
-                </label>
-                <span>
-                  {t("ai.workbench.referenceImages", {
-                    count: selectedImages.length,
-                  })}
-                </span>
-                <Button
-                  onSelect={() => setReview(true)}
-                  disabled={!prompt.trim()}
-                >
-                  {t("ai.common.create")}
-                </Button>
+                </Field>
+                <DialogActions>
+                  <UiButton
+                    variant="primary"
+                    onClick={() => setReview(true)}
+                    disabled={!prompt.trim()}
+                  >
+                    {t("ai.common.create")}
+                  </UiButton>
+                </DialogActions>
               </>
             ) : (
               <>
-                <pre style={{ whiteSpace: "pre-wrap", margin: 0 }}>
-                  {prompt}
-                </pre>
-                <div style={{ display: "grid", gap: "0.5rem" }}>
-                  <span>
+                <pre className="VaultManagedAI__prompt">{prompt}</pre>
+                <div className="VaultManagedAI__images">
+                  <span className="VaultManagedAI__meta">
                     {t("ai.workbench.referenceImages", {
                       count: selectedImages.length,
                     })}
                   </span>
                   {selectedImages.length > 0 && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: "0.5rem",
-                      }}
-                    >
+                    <div className="VaultManagedAI__thumbs">
                       {selectedImages.map((image) => (
                         <img
                           key={image.elementId}
+                          className="VaultManagedAI__thumb"
                           src={image.dataURL}
                           alt={image.elementId}
-                          style={{
-                            width: 64,
-                            height: 64,
-                            objectFit: "cover",
-                            borderRadius: 4,
-                          }}
                         />
                       ))}
                     </div>
                   )}
                 </div>
-                <Button onSelect={send} disabled={busy}>
-                  {t("ai.common.create")}
-                </Button>
-                <Button onSelect={() => setReview(false)} disabled={busy}>
-                  {t("ai.common.back")}
-                </Button>
+                {error && <Callout tone="danger">{error}</Callout>}
+                <DialogActions>
+                  <UiButton onClick={() => setReview(false)} disabled={busy}>
+                    {t("ai.common.back")}
+                  </UiButton>
+                  <UiButton variant="primary" onClick={send} loading={busy}>
+                    {t("ai.common.create")}
+                  </UiButton>
+                </DialogActions>
               </>
             )}
-            {error && <div role="alert">{error}</div>}
+            {!review && error && <Callout tone="danger">{error}</Callout>}
           </div>
         </Dialog>
       )}

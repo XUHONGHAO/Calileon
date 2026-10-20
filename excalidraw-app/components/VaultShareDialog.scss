@@ -1,149 +1,40 @@
-.VaultShareDialog {
+.excalidraw .VaultShareDialog {
   display: flex;
   flex-direction: column;
   gap: var(--ui-space-4);
   min-width: 0;
   overflow-wrap: anywhere;
 
-  p,
-  h3 {
+  &__description {
     margin: 0;
-  }
-
-  &__warning,
-  &__feedback {
-    border-radius: var(--ui-radius-lg);
-    padding: var(--ui-space-3);
-  }
-
-  &__warning {
-    background: var(--color-warning-background);
-    color: var(--color-warning-color);
+    color: var(--ui-text-secondary);
     font-size: var(--ui-font-sm);
+    line-height: var(--ui-line-normal);
   }
 
   &__form {
     display: grid;
     gap: var(--ui-space-3);
     grid-template-columns: repeat(2, minmax(0, 1fr));
-
-    label {
-      display: flex;
-      flex-direction: column;
-      gap: var(--ui-space-1_5);
-      min-width: 0;
-    }
-
-    select {
-      background: var(--input-bg-color, var(--island-bg-color));
-      border: 1px solid var(--color-border-outline-variant);
-      border-radius: var(--ui-radius-md);
-      color: var(--text-primary-color);
-      min-height: 2.5rem;
-      min-width: 0;
-      padding: 0 var(--ui-space-2);
-      width: 100%;
-    }
   }
 
-  &__actions,
-  &__itemActions {
+  .UiDialogActions {
+    margin-top: 0;
+  }
+
+  &__list {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     gap: var(--ui-space-2);
-    justify-content: flex-end;
-
-    .excalidraw-button {
-      --button-height: auto;
-      --button-width: auto;
-      --mobile-action-button-size: max-content;
-
-      flex: 0 0 auto;
-      max-width: 100%;
-      min-height: 2.5rem;
-      overflow-wrap: anywhere;
-      white-space: normal;
-      width: max-content;
-    }
-  }
-
-  &__feedback {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-1_5);
-
-    &--success {
-      background: var(--color-success);
-      color: var(--color-success-text);
-    }
-
-    &--error {
-      background: var(--color-danger-background);
-      color: var(--color-danger-color);
-    }
-
-    code {
-      color: inherit;
-      font-size: var(--ui-font-xs);
-    }
-  }
-
-  &__invitations {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-3);
-
-    ul {
-      display: flex;
-      flex-direction: column;
-      gap: var(--ui-space-2);
-      list-style: none;
-      margin: 0;
-      padding: 0;
-    }
-
-    li {
-      align-items: center;
-      background: var(--color-surface-low);
-      border-radius: var(--ui-radius-lg);
-      display: flex;
-      gap: var(--ui-space-3);
-      justify-content: space-between;
-      padding: var(--ui-space-3);
-
-      > div:first-child {
-        display: flex;
-        flex-direction: column;
-        gap: var(--ui-space-1);
-        min-width: 0;
-        overflow-wrap: anywhere;
-      }
-
-      span {
-        color: var(--text-secondary-color);
-        font-size: var(--ui-font-xs);
-      }
-    }
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
   &__empty {
-    color: var(--text-secondary-color);
+    margin: 0;
+    color: var(--ui-text-secondary);
     font-size: var(--ui-font-sm);
-  }
-
-  &__revoked {
-    color: var(--color-danger) !important;
-  }
-
-  @media (max-width: 600px) {
-    &__invitations li {
-      align-items: stretch;
-      flex-direction: column;
-    }
-
-    &__itemActions {
-      justify-content: flex-start;
-    }
   }
 
   @media (max-width: 480px) {

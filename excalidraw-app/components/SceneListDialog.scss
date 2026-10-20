@@ -1,3 +1,4 @@
+// Shared by SceneListDialog and AITaskListDialog.
 .SceneListDialogModal {
   .Island {
     position: relative;
@@ -14,7 +15,7 @@
   }
 }
 
-.SceneListDialog {
+.excalidraw .SceneListDialog {
   display: flex;
   flex-direction: column;
   gap: var(--ui-space-3);
@@ -25,73 +26,25 @@
 
   .SceneListDialog__close {
     position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    border: 0;
-    border-radius: var(--ui-radius-md);
-    background: transparent;
-    color: var(--text-primary-color);
-    cursor: pointer;
-
-    &:hover {
-      background: var(--button-hover-bg);
-    }
+    top: var(--ui-space-3);
+    right: var(--ui-space-3);
+    color: var(--ui-text-secondary);
   }
 
-  .SceneListDialog__toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--ui-space-2);
-    min-width: 0;
-
-    p {
-      flex: 1 1 14rem;
-      margin: 0;
-      font-size: var(--ui-font-sm);
-      color: var(--text-secondary-color);
-    }
-  }
-
-  .SceneListDialog__toolbarActions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--ui-space-2);
-
-    .excalidraw-button {
-      display: inline-flex;
-      flex: 0 0 auto;
-      align-items: center;
-      justify-content: center;
-      min-width: 4rem;
-      white-space: nowrap;
-      writing-mode: horizontal-tb;
-    }
-  }
-
-  .SceneListDialog__error {
+  .SceneListDialog__description {
     margin: 0;
-    padding: var(--ui-space-2) var(--ui-space-3);
+    color: var(--ui-text-secondary);
     font-size: var(--ui-font-sm);
-    color: var(--color-danger);
-    background: var(--color-danger-background);
-    border-radius: var(--ui-radius-md);
+    line-height: var(--ui-line-normal);
+    overflow-wrap: anywhere;
   }
 
   .SceneListDialog__status {
-    padding: var(--ui-space-4);
+    margin: 0;
+    padding: var(--ui-space-6) var(--ui-space-4);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-sm);
     text-align: center;
-    color: var(--text-secondary-color);
-    border: 1px solid var(--default-border-color, var(--color-gray-30));
-    border-radius: var(--ui-radius-md);
   }
 
   .SceneListDialog__list {
@@ -106,163 +59,80 @@
     list-style: none;
   }
 
+  .UiListRow {
+    flex-shrink: 0;
+  }
+
+  .UiListRow__title > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .UiDialogActions {
+    margin-top: var(--ui-space-1);
+  }
+
+  .SceneListDialog__row--renaming {
+    .UiListRow__titleLine,
+    .UiListRow__title {
+      flex: 1 1 auto;
+      overflow: visible;
+    }
+
+    .UiInput {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+    }
+  }
+
+  .SceneListDialog__row--revoked .UiListRow__title {
+    color: var(--ui-text-secondary);
+  }
+
   .SceneListDialog__shareView {
     display: flex;
     flex-direction: column;
-    gap: var(--ui-space-2);
+    gap: var(--ui-space-3);
     min-width: 0;
   }
 
-  .SceneListDialog__shareActions {
+  .SceneListDialog__shareCreate {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--ui-space-2);
-
-    .excalidraw-button {
-      flex: 0 0 auto;
-      width: auto;
-      min-width: 0;
-      white-space: nowrap;
-      writing-mode: horizontal-tb;
-    }
-  }
-
-  .SceneListDialog__item {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
+    align-items: flex-end;
     gap: var(--ui-space-2);
     min-width: 0;
-    padding: var(--ui-space-3);
-    border: 1px solid var(--default-border-color, var(--color-gray-30));
-    border-radius: var(--ui-radius-md);
-  }
 
-  .SceneListDialog__item--withThumbnail {
-    grid-template-columns: 4rem minmax(0, 1fr) auto;
+    .UiField {
+      flex: 1 1 12rem;
+      min-width: 0;
+    }
+
+    > .UiButton {
+      flex: 0 0 auto;
+    }
   }
 
   .SceneListDialog__thumbnail {
-    width: 4rem;
-    height: 4rem;
+    display: block;
+    box-sizing: border-box;
+    width: 3rem;
+    height: 3rem;
     object-fit: cover;
-    border: 1px solid var(--default-border-color, var(--color-gray-30));
-    border-radius: var(--ui-radius-md);
-    background: var(--color-surface-low);
-  }
-
-  .SceneListDialog__details {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    gap: var(--ui-space-1);
-
-    span {
-      font-size: var(--ui-font-xs);
-      color: var(--text-secondary-color);
-    }
-
-    input {
-      width: 100%;
-      min-width: 0;
-      padding: var(--ui-space-2) var(--ui-space-3);
-      font-size: var(--ui-font-sm);
-      border: 1px solid var(--default-border-color, var(--color-gray-30));
-      border-radius: var(--ui-radius-md);
-      background: var(--input-bg-color, var(--island-bg-color));
-      color: var(--text-primary-color);
-    }
-  }
-
-  .SceneListDialog__titleRow {
-    display: flex;
-    min-width: 0;
-
-    strong {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
-  .SceneListDialog__metaRow {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--ui-space-1_5);
-    min-width: 0;
-  }
-
-  .SceneListDialog__details .SceneListDialog__currentBadge {
-    display: inline-flex;
-    align-items: center;
-    width: max-content;
-    max-width: 100%;
-    padding: var(--ui-space-0_5) var(--ui-space-1_5);
-    border: 1px solid var(--color-primary);
-    border-radius: var(--ui-radius-md);
-    background: var(--color-primary);
-    color: var(--color-surface-low);
-    font-size: var(--ui-font-xs);
-    line-height: 1.2;
-    white-space: nowrap;
-  }
-
-  .SceneListDialog__actions {
-    display: flex;
-    flex-wrap: nowrap;
-    align-items: flex-start;
-    justify-content: flex-end;
-    justify-self: end;
-    gap: var(--ui-space-1);
-    width: max-content;
-    max-width: 100%;
-    overflow-x: auto;
-
-    .excalidraw-button {
-      --button-height: auto;
-      --button-width: auto;
-
-      flex: 0 0 auto;
-      width: auto;
-      height: auto;
-      min-width: 0;
-      min-height: 1.875rem;
-      padding: var(--ui-space-1_5) var(--ui-space-2);
-      line-height: 1;
-      white-space: nowrap;
-      writing-mode: horizontal-tb;
-    }
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-surface-sunken);
   }
 }
 
-@media (max-width: 640px) {
-  .SceneListDialog {
+@media (max-width: 480px) {
+  .excalidraw .SceneListDialog {
     width: calc(100vw - 1.5rem);
 
-    .SceneListDialog__toolbar,
-    .SceneListDialog__item {
-      grid-template-columns: 1fr;
-    }
-
-    .SceneListDialog__toolbar {
-      justify-content: stretch;
-    }
-
-    .SceneListDialog__toolbarActions {
-      width: 100%;
-      justify-content: stretch;
-
-      .excalidraw-button {
-        flex: 1 1 0;
-      }
-    }
-
-    .SceneListDialog__actions {
-      justify-content: flex-start;
-      justify-self: start;
-      width: auto;
-      max-width: none;
+    .SceneListDialog__shareCreate > .UiButton {
+      flex: 1 1 100%;
     }
   }
 }

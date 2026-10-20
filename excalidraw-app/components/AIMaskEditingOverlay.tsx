@@ -9,6 +9,8 @@ import {
   isPointInMaskViewportGeometry,
 } from "../ai/maskViewportGeometry";
 
+import { UiButton } from "./ui";
+
 import "./AIMaskEditingOverlay.scss";
 
 import type { MaskViewportGeometry } from "../ai/maskViewportGeometry";
@@ -23,6 +25,7 @@ type AIMaskEditingOverlayProps = {
   zoomValue: number;
   maskPreviewDataURL: string | null;
   isDonePending: boolean;
+  theme?: "light" | "dark";
   onBrushSizeChange: (size: number) => void;
   onDone: () => void | Promise<void>;
   onCancel: () => void;
@@ -41,6 +44,7 @@ export const AIMaskEditingOverlay = ({
   zoomValue,
   maskPreviewDataURL,
   isDonePending,
+  theme = "light",
   onBrushSizeChange,
   onDone,
   onCancel,
@@ -257,51 +261,61 @@ export const AIMaskEditingOverlay = ({
         />
       )}
 
-      <div className="AIMaskEditingOverlay__toolbar" role="status">
-        <span>
-          {isErasing
-            ? t("ai.workbench.maskEditor.erasing")
-            : t("ai.workbench.maskEditor.drawing")}
-        </span>
-        <div className="AIMaskEditingOverlay__buttons">
-          <button type="button" disabled={isDonePending} onClick={onDone}>
-            {t("ai.workbench.maskEditor.done")}
-          </button>
-          <button type="button" disabled={isDonePending} onClick={onCancel}>
-            {t("ai.workbench.maskEditor.cancel")}
-          </button>
-        </div>
-      </div>
-
-      <div className="AIMaskEditingOverlay__brushToolbar">
-        <label>
+      {/* The overlay mounts outside the editor root; this scope gives the
+          floating chrome the editor's theme tokens and UiButton styles. */}
+      <div
+        className={`excalidraw theme--${theme} AIMaskEditingOverlay__chrome`}
+      >
+        <div className="AIMaskEditingOverlay__toolbar" role="status">
           <span>
-            {t("ai.workbench.maskEditor.brushSize", { size: brushSize })}
+            {isErasing
+              ? t("ai.workbench.maskEditor.erasing")
+              : t("ai.workbench.maskEditor.drawing")}
           </span>
-          <input
-            type="range"
-            min={MASK_BRUSH_SIZE_LIMITS.min}
-            max={MASK_BRUSH_SIZE_LIMITS.max}
-            value={brushSize}
-            aria-label={t("ai.workbench.maskEditor.brushSizeLabel")}
-            onChange={(event) =>
-              onBrushSizeChange(Number(event.currentTarget.value))
-            }
-          />
-        </label>
-      </div>
-
-      {maskPreviewDataURL && (
-        <aside className="AIMaskEditingOverlay__preview">
-          <div className="AIMaskEditingOverlay__previewTitle">
-            {t("ai.workbench.maskEditor.preview")}
+          <div className="AIMaskEditingOverlay__buttons">
+            <UiButton
+              variant="primary"
+              disabled={isDonePending}
+              onClick={onDone}
+            >
+              {t("ai.workbench.maskEditor.done")}
+            </UiButton>
+            <UiButton disabled={isDonePending} onClick={onCancel}>
+              {t("ai.workbench.maskEditor.cancel")}
+            </UiButton>
           </div>
-          <img
-            src={maskPreviewDataURL}
-            alt={t("ai.workbench.maskEditor.preview")}
-          />
-        </aside>
-      )}
+        </div>
+
+        <div className="AIMaskEditingOverlay__brushToolbar">
+          <label>
+            <span>
+              {t("ai.workbench.maskEditor.brushSize", { size: brushSize })}
+            </span>
+            <input
+              type="range"
+              min={MASK_BRUSH_SIZE_LIMITS.min}
+              max={MASK_BRUSH_SIZE_LIMITS.max}
+              value={brushSize}
+              aria-label={t("ai.workbench.maskEditor.brushSizeLabel")}
+              onChange={(event) =>
+                onBrushSizeChange(Number(event.currentTarget.value))
+              }
+            />
+          </label>
+        </div>
+
+        {maskPreviewDataURL && (
+          <aside className="AIMaskEditingOverlay__preview">
+            <div className="AIMaskEditingOverlay__previewTitle">
+              {t("ai.workbench.maskEditor.preview")}
+            </div>
+            <img
+              src={maskPreviewDataURL}
+              alt={t("ai.workbench.maskEditor.preview")}
+            />
+          </aside>
+        )}
+      </div>
     </div>
   );
 };

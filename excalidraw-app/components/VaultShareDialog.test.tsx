@@ -36,22 +36,6 @@ vi.mock("@excalidraw/excalidraw/components/Dialog", () => ({
   ),
 }));
 
-vi.mock("@excalidraw/excalidraw/components/Button", () => ({
-  Button: ({
-    children,
-    onSelect,
-    disabled,
-  }: {
-    children: React.ReactNode;
-    onSelect: () => void;
-    disabled?: boolean;
-  }) => (
-    <button type="button" onClick={onSelect} disabled={disabled}>
-      {children}
-    </button>
-  ),
-}));
-
 vi.mock("@excalidraw/excalidraw/i18n", () => ({
   t: (key: string, replacement?: Record<string, string | number>) => {
     const value =

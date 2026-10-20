@@ -1,63 +1,40 @@
-.VaultDependencyDialog {
+.excalidraw .VaultDependencyDialog {
   display: flex;
   flex-direction: column;
-  gap: var(--ui-space-4);
+  gap: var(--ui-space-3);
   min-width: 0;
   overflow-wrap: anywhere;
 
-  p {
+  &__description,
+  &__notice {
     margin: 0;
+    font-size: var(--ui-font-sm);
+    line-height: var(--ui-line-normal);
   }
 
-  &__status {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-1_5);
-    padding: var(--ui-space-3);
-    border-radius: var(--ui-radius-lg);
-    background: var(--color-surface-low);
-
-    &--ready {
-      color: var(--color-success-text);
-    }
-
-    &--error {
-      color: var(--color-danger);
-    }
-
-    &--warning {
-      color: var(--color-warning-darkest);
-    }
-
-    code {
-      color: inherit;
-      font-size: var(--ui-font-xs);
-      word-break: break-all;
-    }
+  &__description {
+    color: var(--ui-text);
   }
 
   &__notice {
-    color: var(--text-secondary-color);
-    font-size: var(--ui-font-sm);
+    color: var(--ui-text-secondary);
   }
 
-  &__actions {
+  &__checking {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: var(--ui-space-2);
-    justify-content: flex-end;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-sm);
 
-    .excalidraw-button {
-      --button-height: auto;
-      --button-width: auto;
-      --mobile-action-button-size: max-content;
+    .Spinner {
+      --spinner-color: var(--color-primary);
 
       flex: 0 0 auto;
-      max-width: 100%;
-      min-height: 2.5rem;
-      overflow-wrap: anywhere;
-      white-space: normal;
-      width: max-content;
     }
+  }
+
+  .UiDialogActions {
+    margin-top: var(--ui-space-1);
   }
 }

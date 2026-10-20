@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { t } from "@excalidraw/excalidraw/i18n";
 import {
   getSelectedElements,
@@ -123,7 +122,7 @@ import {
 
 import "./AIImageWorkbench.scss";
 
-import { confirmAction } from "./ui";
+import { Callout, UiButton, confirmAction } from "./ui";
 
 import type {
   KeyboardEvent as ReactKeyboardEvent,
@@ -1512,8 +1511,8 @@ export const AIImageWorkbench = ({
     ? inpaintDraft.masksByImageId[selectedMaskImageId] || null
     : null;
   const editMaskLabel = currentMask
-    ? "Re-edit mask on canvas"
-    : "Edit mask on canvas";
+    ? t("ai.workbench.reEditMaskOnCanvas", null, "Re-edit mask on canvas")
+    : t("ai.workbench.editMaskOnCanvas", null, "Edit mask on canvas");
   const isInpaintMode = mode === "inpaint";
   const maskEditableSource =
     isInpaintMode &&
@@ -2163,8 +2162,12 @@ export const AIImageWorkbench = ({
       if (activeMode === "image-to-image" && activeSources.length === 0) {
         setErrorMessage(
           selectedSources.length
-            ? "Remove missing references or add an available reference image."
-            : "Add at least one reference image.",
+            ? t(
+                "ai.workbench.removeMissingReferences",
+                null,
+                "Remove missing references or add an available reference image.",
+              )
+            : t("ai.workbench.addReferenceImage"),
         );
         setStatusMessage("");
         setRunStatus("failed");
@@ -3286,7 +3289,14 @@ export const AIImageWorkbench = ({
         setRunStatus("inserted");
       } catch (error: any) {
         console.error("Could not insert generated asset", error);
-        setErrorMessage(error?.message || "Could not insert generated asset.");
+        setErrorMessage(
+          error?.message ||
+            t(
+              "ai.workbench.insertGeneratedAssetFailed",
+              null,
+              "Could not insert generated asset.",
+            ),
+        );
         setStatusMessage("");
         setRunStatus("failed");
       }
@@ -3485,28 +3495,29 @@ export const AIImageWorkbench = ({
     window.dispatchEvent(createAIOpenSettingsEvent({ tab: "models" }));
   }, []);
 
+  const canSendPromptToAssistant =
+    !!onSendPromptToAssistant && sendPromptToAssistantActionState.canSend;
+
   const renderCopyPromptButton = () => (
-    <button
-      type="button"
-      className="AIImageWorkbench__textButton"
+    <UiButton
+      variant="ghost"
+      size="sm"
       disabled={!copyPromptActionState.canCopy}
       onClick={copyCurrentPrompt}
     >
       {t("ai.common.copyPrompt")}
-    </button>
+    </UiButton>
   );
 
   const renderSendPromptToAssistantButton = () => (
-    <button
-      type="button"
-      className="AIImageWorkbench__textButton"
-      disabled={
-        !onSendPromptToAssistant || !sendPromptToAssistantActionState.canSend
-      }
+    <UiButton
+      variant="ghost"
+      size="sm"
+      disabled={!canSendPromptToAssistant}
       onClick={sendCurrentPromptToAssistant}
     >
       {t("ai.workbench.sendToAssistant")}
-    </button>
+    </UiButton>
   );
 
   const renderConfigurationNotice = () => {
@@ -3557,23 +3568,19 @@ export const AIImageWorkbench = ({
       </label>
 
       <div className="AIImageWorkbench__templateRow">
-        <button
-          type="button"
-          className="AIImageWorkbench__secondaryButton"
+        <UiButton
+          size="sm"
+          aria-expanded={isTemplateMenuOpen}
           onClick={() => setIsTemplateMenuOpen((current) => !current)}
         >
           {t("ai.workbench.templates")}
-        </button>
+        </UiButton>
         <div className="AIImageWorkbench__promptActions">
           {renderSendPromptToAssistantButton()}
           {renderCopyPromptButton()}
-          <button
-            type="button"
-            className="AIImageWorkbench__textButton"
-            onClick={openTemplateSettings}
-          >
+          <UiButton variant="ghost" size="sm" onClick={openTemplateSettings}>
             {t("ai.common.manage")}
-          </button>
+          </UiButton>
         </div>
       </div>
 
@@ -3647,9 +3654,14 @@ export const AIImageWorkbench = ({
       )}
 
       {promptReferenceWarnings.map((warning) => (
-        <div className="AIImageWorkbench__warning" key={warning}>
+        <Callout
+          key={warning}
+          tone="warning"
+          live={false}
+          className="AIImageWorkbench__warning"
+        >
           {warning}
-        </div>
+        </Callout>
       ))}
     </div>
   );
@@ -3894,14 +3906,12 @@ export const AIImageWorkbench = ({
                 }
               />
             </label>
-            <button
-              type="button"
-              className="AIImageWorkbench__secondaryButton"
+            <UiButton
               disabled={!selectedBatchIds.size}
               onClick={applyBatchWeight}
             >
               {t("ai.workbench.applyToSelected")}
-            </button>
+            </UiButton>
           </div>
         )}
 
@@ -3913,13 +3923,13 @@ export const AIImageWorkbench = ({
                   index: weightEditorSource.index,
                 })}
               </span>
-              <button
-                type="button"
-                className="AIImageWorkbench__textButton"
+              <UiButton
+                variant="ghost"
+                size="sm"
                 onClick={() => setWeightEditorId(null)}
               >
                 {t("ai.common.close")}
-              </button>
+              </UiButton>
             </div>
             <label className="AIImageWorkbench__field">
               <span>{weightDraft.toFixed(2)}</span>
@@ -3933,30 +3943,30 @@ export const AIImageWorkbench = ({
               />
             </label>
             <div className="AIImageWorkbench__referenceToolbar">
-              <button type="button" onClick={applyWeightEditor}>
+              <UiButton variant="primary" size="sm" onClick={applyWeightEditor}>
                 {t("ai.common.apply")}
-              </button>
-              <button
-                type="button"
+              </UiButton>
+              <UiButton
+                size="sm"
                 onClick={() => {
                   resetReferenceWeight(weightEditorSource.createdAt);
                   setWeightEditorId(null);
                 }}
               >
                 {t("ai.workbench.useGlobal")}
-              </button>
+              </UiButton>
             </div>
           </div>
         )}
 
         {hasCustomWeights && (
-          <button
-            type="button"
-            className="AIImageWorkbench__textButton"
+          <UiButton
+            variant="ghost"
+            size="sm"
             onClick={resetAllReferenceWeights}
           >
             {t("ai.workbench.resetAllWeights")}
-          </button>
+          </UiButton>
         )}
 
         <details className="AIImageWorkbench__advanced">
@@ -4060,15 +4070,15 @@ export const AIImageWorkbench = ({
       <div className="AIImageWorkbench__section">
         <div className="AIImageWorkbench__sectionHeader">
           <h3>{t("ai.workbench.generatedAssets")}</h3>
-          <button
-            type="button"
-            className="AIImageWorkbench__textButton"
+          <UiButton
+            variant="danger"
+            size="sm"
             aria-label={t("ai.workbench.clearGeneratedAssets")}
             title={t("ai.workbench.clearGeneratedAssets")}
             onClick={clearGeneratedAssets}
           >
             {t("ai.common.clear")}
-          </button>
+          </UiButton>
         </div>
 
         <div className="AIImageWorkbench__assetGrid">
@@ -4400,9 +4410,7 @@ export const AIImageWorkbench = ({
             </div>
           )}
           {maskEditableSource && onEnterMaskEditing && (
-            <button
-              type="button"
-              className="AIImageWorkbench__secondaryButton"
+            <UiButton
               aria-label={editMaskLabel}
               title={editMaskLabel}
               onClick={() => {
@@ -4413,7 +4421,7 @@ export const AIImageWorkbench = ({
               }}
             >
               {editMaskLabel}
-            </button>
+            </UiButton>
           )}
         </div>
       )}
@@ -4448,26 +4456,25 @@ export const AIImageWorkbench = ({
             <span className="AIImageWorkbench__videoTaskLabel">
               {t("ai.workbench.generatingImage")}
             </span>
-            <button
-              type="button"
-              className="AIImageWorkbench__textButton"
-              onClick={cancelGeneration}
-            >
+            <UiButton variant="ghost" size="sm" onClick={cancelGeneration}>
               {t("ai.common.cancel")}
-            </button>
+            </UiButton>
           </div>
         </div>
       )}
 
-      <Button
+      <UiButton
+        variant="primary"
+        size="lg"
+        fullWidth
         className="AIImageWorkbench__primaryButton"
         disabled={!canGenerate}
-        onSelect={() => generate()}
+        onClick={() => generate()}
       >
         {isGenerating
           ? t("ai.workbench.generating")
           : t("ai.workbench.generateImage")}
-      </Button>
+      </UiButton>
     </>
   );
 
@@ -4561,13 +4568,13 @@ export const AIImageWorkbench = ({
               <span className="AIImageWorkbench__videoTaskLabel">
                 {t("ai.workbench.generatingVideo")}
               </span>
-              <button
-                type="button"
-                className="AIImageWorkbench__textButton"
+              <UiButton
+                variant="ghost"
+                size="sm"
                 onClick={cancelVideoSubmission}
               >
                 {t("ai.common.cancel")}
-              </button>
+              </UiButton>
             </div>
           )}
           {pendingVideoTasks.map((task) => (
@@ -4577,25 +4584,28 @@ export const AIImageWorkbench = ({
                   ? t("ai.workbench.videoTaskQueued")
                   : t("ai.workbench.videoTaskPolling")}
               </span>
-              <button
-                type="button"
-                className="AIImageWorkbench__textButton"
+              <UiButton
+                variant="ghost"
+                size="sm"
                 onClick={() => cancelVideoTask(task.taskId)}
               >
                 {t("ai.common.cancel")}
-              </button>
+              </UiButton>
             </div>
           ))}
         </div>
       )}
 
-      <Button
+      <UiButton
+        variant="primary"
+        size="lg"
+        fullWidth
         className="AIImageWorkbench__primaryButton"
         disabled={!canGenerateVideo}
-        onSelect={() => generateVideo()}
+        onClick={() => generateVideo()}
       >
         {t("ai.workbench.generateVideo")}
-      </Button>
+      </UiButton>
     </>
   );
 
@@ -4665,13 +4675,15 @@ export const AIImageWorkbench = ({
       {renderConfigurationNotice()}
       {renderNotice(t("ai.workbench.audioControlsPreviewOnly"))}
 
-      <Button
+      <UiButton
+        variant="primary"
+        size="lg"
+        fullWidth
         className="AIImageWorkbench__primaryButton"
         disabled
-        onSelect={() => null}
       >
         {t("ai.workbench.audioPreviewOnly")}
-      </Button>
+      </UiButton>
     </>
   );
 
@@ -4680,13 +4692,9 @@ export const AIImageWorkbench = ({
       <div className="AIImageWorkbench__section">
         {isGenerating && (
           <div className="AIImageWorkbench__sectionHeader">
-            <button
-              className="AIImageWorkbench__textButton"
-              type="button"
-              onClick={cancelGeneration}
-            >
+            <UiButton variant="ghost" size="sm" onClick={cancelGeneration}>
               {t("ai.common.cancel")}
-            </button>
+            </UiButton>
           </div>
         )}
         <div className="AIImageWorkbench__statusStrip" aria-live="polite">
@@ -4770,7 +4778,9 @@ export const AIImageWorkbench = ({
       )}
 
       {(statusMessage || errorMessage) && (
-        <div
+        <Callout
+          tone={errorMessage ? "danger" : "info"}
+          live={false}
           className={
             errorMessage
               ? "AIImageWorkbench__message is-error"
@@ -4778,7 +4788,7 @@ export const AIImageWorkbench = ({
           }
         >
           {errorMessage || statusMessage}
-        </div>
+        </Callout>
       )}
     </div>
   );
@@ -4855,14 +4865,20 @@ const renderNotice = (
   action?: { label: string; onClick: () => void },
 ) => {
   return (
-    <div className="AIImageWorkbench__notice">
-      <span>{message}</span>
-      {action && (
-        <button type="button" onClick={action.onClick}>
-          {action.label}
-        </button>
-      )}
-    </div>
+    <Callout
+      tone="info"
+      live={false}
+      className="AIImageWorkbench__notice"
+      action={
+        action && (
+          <UiButton variant="ghost" size="sm" onClick={action.onClick}>
+            {action.label}
+          </UiButton>
+        )
+      }
+    >
+      {message}
+    </Callout>
   );
 };
 
@@ -4956,7 +4972,7 @@ const formatGeneratedAssetTime = (createdAt: string) => {
   const date = new Date(createdAt);
 
   if (Number.isNaN(date.getTime())) {
-    return "Now";
+    return t("ai.workbench.time.now");
   }
 
   return date.toLocaleTimeString([], {

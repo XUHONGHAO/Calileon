@@ -21,7 +21,7 @@ describe("VaultV2Status (W6)", () => {
     render(<VaultV2Status role="editor" state={state()} />);
     const pill = screen.getByTestId("vault-v2-status");
     expect(pill).toHaveTextContent(/Encrypted.*Editor.*Synced/);
-    expect(pill).toHaveClass("VaultStatus--synced");
+    expect(pill).toHaveClass("VaultStatus--synced", "UiStatusPill--success");
   });
 
   it("tells offline-safe from offline without a local copy", () => {

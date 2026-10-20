@@ -45,6 +45,17 @@ import { ManyMindsScheduler } from "../ai/manyMindsScheduler";
 import { createManyMindsBatch, createManyMindsId } from "../ai/manyMindsTypes";
 import { generateImagesWithOpenAIAdapter } from "../ai/openAIImageAdapter";
 
+import {
+  Badge,
+  Callout,
+  DialogActions,
+  Field,
+  Select,
+  TextArea,
+  TextInput,
+  UiButton,
+} from "./ui";
+
 import "./ManyMindsDialog.scss";
 
 import type { AIImageSource } from "../ai/types";
@@ -53,10 +64,20 @@ import type {
   ManyMindsInputKind,
   ManyMindsPerspective,
   ManyMindsTask,
+  ManyMindsTaskStatus,
 } from "../ai/manyMindsTypes";
+import type { UiTone } from "./ui";
 
 const COUNTS = [2, 4, 6, 9] as const;
 const DEFAULT_PARAMS = { size: "1024x1024", n: 1 };
+const TASK_STATUS_TONE: Record<ManyMindsTaskStatus, UiTone> = {
+  queued: "neutral",
+  running: "info",
+  succeeded: "success",
+  failed: "danger",
+  cancelled: "neutral",
+  interrupted: "warning",
+};
 
 type Props = {
   open: boolean;
@@ -96,6 +117,7 @@ export const ManyMindsDialog = ({
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [previews, setPreviews] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customPrompt, setCustomPrompt] = useState("");
   const [branchParentTaskId, setBranchParentTaskId] = useState<string | null>(
@@ -334,6 +356,7 @@ export const ManyMindsDialog = ({
       }
       const scheduler = createScheduler();
       scheduler?.hydrate(batches[0]);
+      setMessageIsError(false);
       setMessage(t("ai.manyMinds.restoredNotice"));
     });
     return () => {
@@ -461,10 +484,12 @@ export const ManyMindsDialog = ({
       });
       const scheduler = createScheduler();
       setSelectedTaskIds([]);
+      setMessageIsError(false);
       setMessage("");
       setBranchParentTaskId(null);
       scheduler?.start(next);
     } catch (error) {
+      setMessageIsError(true);
       setMessage(error instanceof Error ? error.message : String(error));
     }
   }, [
@@ -581,9 +606,8 @@ export const ManyMindsDialog = ({
     >
       <div className="ManyMinds" aria-label={t("ai.manyMinds.title")}>
         <section className="ManyMinds__setup">
-          <label>
-            {t("ai.manyMinds.inputKind")}
-            <select
+          <Field label={t("ai.manyMinds.inputKind")}>
+            <Select
               value={inputKind}
               onChange={(event) =>
                 setInputKind(event.target.value as ManyMindsInputKind)
@@ -595,19 +619,17 @@ export const ManyMindsDialog = ({
               <option value="vision-and-text">
                 {t("ai.manyMinds.inputs.visionAndText")}
               </option>
-            </select>
-          </label>
-          <label>
-            {t("ai.manyMinds.prompt")}
-            <textarea
+            </Select>
+          </Field>
+          <Field label={t("ai.manyMinds.prompt")}>
+            <TextArea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
             />
-          </label>
+          </Field>
           <div className="ManyMinds__row">
-            <label>
-              {t("ai.manyMinds.count")}
-              <select
+            <Field label={t("ai.manyMinds.count")}>
+              <Select
                 value={count}
                 onChange={(event) =>
                   setCount(Number(event.target.value) as typeof COUNTS[number])
@@ -616,11 +638,10 @@ export const ManyMindsDialog = ({
                 {COUNTS.map((value) => (
                   <option key={value}>{value}</option>
                 ))}
-              </select>
-            </label>
-            <label>
-              {t("ai.manyMinds.model")}
-              <select
+              </Select>
+            </Field>
+            <Field label={t("ai.manyMinds.model")}>
+              <Select
                 value={modelId}
                 onChange={(event) => setModelId(event.target.value)}
               >
@@ -629,14 +650,16 @@ export const ManyMindsDialog = ({
                     {model.label || model.model}
                   </option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </Field>
           </div>
-          <fieldset>
-            <legend>{t("ai.manyMinds.perspectives")}</legend>
+          <fieldset className="ManyMinds__fieldset">
+            <legend className="UiField__label">
+              {t("ai.manyMinds.perspectives")}
+            </legend>
             <div className="ManyMinds__perspectives">
               {Array.from({ length: count }, (_, index) => (
-                <select
+                <Select
                   aria-label={`${t("ai.manyMinds.perspective")} ${index + 1}`}
                   key={index}
                   value={perspectiveIds[index] || ""}
@@ -653,49 +676,63 @@ export const ManyMindsDialog = ({
                       {item.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               ))}
             </div>
           </fieldset>
-          <details>
+          <details className="ManyMinds__custom">
             <summary>{t("ai.manyMinds.customPerspective")}</summary>
-            <input
-              aria-label={t("ai.manyMinds.customName")}
-              value={customName}
-              onChange={(event) => setCustomName(event.target.value)}
-            />
-            <textarea
-              aria-label={t("ai.manyMinds.customPrompt")}
-              value={customPrompt}
-              onChange={(event) => setCustomPrompt(event.target.value)}
-            />
-            <button onClick={addCustomPerspective}>
-              {t("ai.manyMinds.addPerspective")}
-            </button>
-            {customPerspectives.map((item) => (
-              <button
-                key={item.id}
-                onClick={() =>
-                  setCustomPerspectives(
-                    deleteCustomManyMindsPerspective(item.id),
-                  )
-                }
-              >
-                {t("ai.manyMinds.deletePerspective", { name: item.name })}
-              </button>
-            ))}
+            <div className="ManyMinds__customBody">
+              <TextInput
+                aria-label={t("ai.manyMinds.customName")}
+                placeholder={t("ai.manyMinds.customName")}
+                value={customName}
+                onChange={(event) => setCustomName(event.target.value)}
+              />
+              <TextArea
+                aria-label={t("ai.manyMinds.customPrompt")}
+                placeholder={t("ai.manyMinds.customPrompt")}
+                value={customPrompt}
+                onChange={(event) => setCustomPrompt(event.target.value)}
+              />
+              <div className="ManyMinds__customActions">
+                {customPerspectives.map((item) => (
+                  <UiButton
+                    key={item.id}
+                    size="sm"
+                    variant="ghost"
+                    onClick={() =>
+                      setCustomPerspectives(
+                        deleteCustomManyMindsPerspective(item.id),
+                      )
+                    }
+                  >
+                    {t("ai.manyMinds.deletePerspective", { name: item.name })}
+                  </UiButton>
+                ))}
+                <UiButton size="sm" onClick={addCustomPerspective}>
+                  {t("ai.manyMinds.addPerspective")}
+                </UiButton>
+              </div>
+            </div>
           </details>
-          <button
-            className="ManyMinds__primary"
-            onClick={() => void startBatch()}
-            disabled={!persistenceScopeId || !imageModels.length}
-          >
-            {t("ai.manyMinds.generate", { count })}
-          </button>
-          {message && <p role="status">{message}</p>}
+          {message && (
+            <Callout tone={messageIsError ? "danger" : "info"}>
+              {message}
+            </Callout>
+          )}
+          <DialogActions>
+            <UiButton
+              variant="primary"
+              onClick={() => void startBatch()}
+              disabled={!persistenceScopeId || !imageModels.length}
+            >
+              {t("ai.manyMinds.generate", { count })}
+            </UiButton>
+          </DialogActions>
         </section>
         {batch && (
-          <section>
+          <section className="ManyMinds__batch">
             <div className="ManyMinds__batchHeader">
               <strong>
                 {t("ai.manyMinds.progress", {
@@ -703,9 +740,12 @@ export const ManyMindsDialog = ({
                   total: batch.taskOrder.length,
                 })}
               </strong>
-              <button onClick={() => schedulerRef.current?.cancelBatch()}>
+              <UiButton
+                size="sm"
+                onClick={() => schedulerRef.current?.cancelBatch()}
+              >
                 {t("ai.manyMinds.cancelBatch")}
-              </button>
+              </UiButton>
             </div>
             <div
               className={`ManyMinds__grid ManyMinds__grid--${batch.taskOrder.length}`}
@@ -723,7 +763,7 @@ export const ManyMindsDialog = ({
                       `ai.manyMinds.status.${task.status}`,
                     )}`}
                   >
-                    <label>
+                    <label className="ManyMinds__taskTitle">
                       <input
                         type="checkbox"
                         checked={selectedTaskIds.includes(task.id)}
@@ -736,20 +776,32 @@ export const ManyMindsDialog = ({
                           )
                         }
                       />
-                      {task.perspective.name}
+                      <span className="ManyMinds__taskName">
+                        {task.perspective.name}
+                      </span>
                     </label>
+                    <Badge
+                      className="ManyMinds__taskStatus"
+                      tone={TASK_STATUS_TONE[task.status]}
+                    >
+                      {t(`ai.manyMinds.status.${task.status}`)}
+                    </Badge>
                     {previews[task.id] && (
                       <img
                         src={previews[task.id]}
                         alt={task.perspective.name}
                       />
                     )}
-                    <p>{t(`ai.manyMinds.status.${task.status}`)}</p>
-                    {task.error && <p role="alert">{task.error}</p>}
-                    {task.cancellationMayHaveIncurredCost && (
-                      <p>{t("ai.manyMinds.costWarning")}</p>
+                    {task.error && (
+                      <Callout tone="danger">{task.error}</Callout>
                     )}
-                    <select
+                    {task.cancellationMayHaveIncurredCost && (
+                      <Callout tone="warning" live={false}>
+                        {t("ai.manyMinds.costWarning")}
+                      </Callout>
+                    )}
+                    <Select
+                      aria-label={t("ai.manyMinds.model")}
                       value={task.modelId}
                       disabled={
                         task.status === "running" || task.status === "succeeded"
@@ -765,8 +817,8 @@ export const ManyMindsDialog = ({
                           {model.label || model.model}
                         </option>
                       ))}
-                    </select>
-                    <select
+                    </Select>
+                    <Select
                       aria-label={t("ai.manyMinds.perspective")}
                       value={task.perspective.id}
                       disabled={
@@ -788,23 +840,25 @@ export const ManyMindsDialog = ({
                           {perspective.name}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     <div className="ManyMinds__taskActions">
                       {["queued", "running", "interrupted"].includes(
                         task.status,
                       ) && (
-                        <button
+                        <UiButton
+                          size="sm"
                           onClick={() =>
                             schedulerRef.current?.cancelTask(task.id)
                           }
                         >
                           {t("ai.manyMinds.cancel")}
-                        </button>
+                        </UiButton>
                       )}
                       {["failed", "cancelled", "interrupted"].includes(
                         task.status,
                       ) && (
-                        <button
+                        <UiButton
+                          size="sm"
                           onClick={() => {
                             if (schedulerRef.current?.retryTask(task.id)) {
                               schedulerRef.current.start();
@@ -812,16 +866,19 @@ export const ManyMindsDialog = ({
                           }}
                         >
                           {t("ai.manyMinds.retry")}
-                        </button>
+                        </UiButton>
                       )}
                       {task.status === "succeeded" && (
                         <>
-                          <button
+                          <UiButton
+                            size="sm"
                             onClick={() => void insertTasks([task], "single")}
                           >
                             {t("ai.manyMinds.insertOne")}
-                          </button>
-                          <button
+                          </UiButton>
+                          <UiButton
+                            size="sm"
+                            variant="ghost"
                             onClick={() =>
                               void (async () => {
                                 const items = await resolveCanvasItems([task]);
@@ -838,33 +895,39 @@ export const ManyMindsDialog = ({
                             }
                           >
                             {t("ai.manyMinds.replace")}
-                          </button>
-                          <button
+                          </UiButton>
+                          <UiButton
+                            size="sm"
+                            variant="ghost"
                             onClick={() => {
                               setPrompt("");
                               setInputKind("vision-and-text");
                               setBranchParentTaskId(task.id);
+                              setMessageIsError(false);
                               setMessage(t("ai.manyMinds.branchReady"));
                             }}
                           >
                             {t("ai.manyMinds.branch")}
-                          </button>
+                          </UiButton>
                         </>
                       )}
-                      <button
+                      <UiButton
+                        size="sm"
+                        variant="ghost"
+                        className="ManyMinds__delete"
                         onClick={() =>
                           schedulerRef.current?.deleteTask(task.id)
                         }
                       >
                         {t("ai.manyMinds.delete")}
-                      </button>
+                      </UiButton>
                     </div>
                   </article>
                 );
               })}
             </div>
-            <div className="ManyMinds__footer">
-              <button
+            <DialogActions>
+              <UiButton
                 disabled={!selectedTaskIds.length}
                 onClick={() =>
                   void insertTasks(
@@ -876,14 +939,15 @@ export const ManyMindsDialog = ({
                 }
               >
                 {t("ai.manyMinds.insertSelected")}
-              </button>
-              <button
+              </UiButton>
+              <UiButton
+                variant="primary"
                 disabled={!successfulTasks.length}
                 onClick={() => void insertTasks(successfulTasks, "all")}
               >
                 {t("ai.manyMinds.insertAll")}
-              </button>
-            </div>
+              </UiButton>
+            </DialogActions>
           </section>
         )}
       </div>

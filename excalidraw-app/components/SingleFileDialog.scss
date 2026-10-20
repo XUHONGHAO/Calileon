@@ -1,26 +1,15 @@
 .SingleFileDialog {
   display: flex;
   flex-direction: column;
-  gap: var(--ui-space-3);
+  gap: var(--ui-space-4);
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-line-normal);
 
-  p,
-  h3 {
+  p {
     margin: 0;
   }
 
-  section {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-1_5);
-  }
-
-  &__error {
-    color: var(--color-danger);
-  }
-
-  &__actions {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: var(--ui-space-2);
+  .UiSection p {
+    color: var(--ui-text-secondary);
   }
 }

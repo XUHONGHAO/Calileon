@@ -54,15 +54,21 @@ describe("VaultConflictDialog", () => {
     fireEvent.click(screen.getByText("Keep local version"));
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    // Actions are styled, accessible buttons (the bare Button rendered
-    // unstyled, wrapping labels that overlapped each other).
+    // One action per outcome ("Handle later" duplicated "Keep local"), with
+    // keeping the local branch as the single primary action.
     const actions = screen.getAllByRole("button", {
-      name: /Keep local version|View remote version|Export local recovery copy|Handle later/,
+      name: /Keep local version|View remote version|Export local recovery copy/,
     });
-    expect(actions).toHaveLength(4);
+    expect(actions).toHaveLength(3);
     for (const action of actions) {
-      expect(action).toHaveClass("ExcButton");
+      expect(action).toHaveClass("UiButton");
     }
+    expect(
+      screen.getByRole("button", { name: "Keep local version" }),
+    ).toHaveClass("UiButton--primary");
+    expect(
+      screen.queryByRole("button", { name: "Handle later" }),
+    ).not.toBeInTheDocument();
   });
 
   it("reveals remote metadata and exports a local recovery copy", async () => {

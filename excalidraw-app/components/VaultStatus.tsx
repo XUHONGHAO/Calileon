@@ -1,8 +1,13 @@
+import clsx from "clsx";
 import React from "react";
 
 import { t } from "@excalidraw/excalidraw/i18n";
 
+import { UiButton } from "./ui";
+
 import "./VaultStatus.scss";
+
+import type { UiTone } from "./ui";
 
 import type {
   VaultAutosaveUnsyncedReason,
@@ -96,6 +101,117 @@ const getStatusTone = (
   }
 };
 
+const getUiTone = (
+  syncStatus: VaultSyncStatus,
+  unsyncedReason?: VaultAutosaveUnsyncedReason | null,
+  recoveryState?: VaultRecoveryState,
+): UiTone => {
+  if (syncStatus === "revoked" || syncStatus === "expired") {
+    return "danger";
+  }
+  if (syncStatus === "closed") {
+    return "neutral";
+  }
+  if (recoveryState) {
+    switch (recoveryState) {
+      case "opening":
+      case "recovering-local":
+        return "neutral";
+      case "syncing":
+        return "info";
+      case "synced":
+        return "success";
+      // safe on this device or waiting for the user: not a failure
+      case "local-restored":
+      case "offline-local-safe":
+      case "conflict":
+      case "realtime-lost":
+        return "warning";
+      case "blocked":
+      case "error":
+        return "danger";
+    }
+  }
+  switch (syncStatus) {
+    case "loading":
+      return "neutral";
+    case "syncing":
+      return "info";
+    case "synced":
+      return "success";
+    case "unsynced":
+      return unsyncedReason === "conflict" ? "warning" : "danger";
+  }
+};
+
+/**
+ * Shared Vault status pill (v1 and v2). "Encrypted · role" and the details
+ * collapse at narrow widths; the full text stays in the tooltip and is still
+ * read by screen readers.
+ */
+export const VaultStatusPill = ({
+  tone,
+  legacyTone,
+  role,
+  label,
+  details,
+  action,
+  ...dataProps
+}: {
+  tone: UiTone;
+  /** kept for e2e selectors and tests (VaultStatus--synced, ...) */
+  legacyTone: string;
+  role: VaultRole;
+  label: string;
+  details?: { text: string; testId: string }[];
+  action?: React.ReactNode;
+} & { [key: `data-${string}`]: string | number | undefined }) => {
+  const meta = [
+    t("vault.status.encrypted"),
+    role === "editor" ? t("vault.status.editor") : t("vault.status.viewer"),
+  ];
+  const fullText = [label, ...(details ?? []).map((detail) => detail.text)];
+  return (
+    <div
+      {...dataProps}
+      className={clsx(
+        "VaultStatus",
+        `VaultStatus--${legacyTone}`,
+        "UiStatusPill",
+        `UiStatusPill--${tone}`,
+      )}
+      role="status"
+      title={[...meta, ...fullText].join(" · ")}
+    >
+      <span className="UiStatusPill__mark" aria-hidden="true">
+        <span className="UiStatusPill__dot" />
+      </span>
+      <span className="UiStatusPill__text VaultStatus__text">
+        <span className="VaultStatus__meta">
+          {meta.map((item) => (
+            <React.Fragment key={item}>
+              <span>{item}</span>
+              <span className="VaultStatus__separator" aria-hidden="true">
+                ·
+              </span>
+            </React.Fragment>
+          ))}
+        </span>
+        <span className="UiStatusPill__label VaultStatus__label">{label}</span>
+        {details?.map((detail) => (
+          <span className="VaultStatus__detail" key={detail.testId}>
+            <span className="VaultStatus__separator" aria-hidden="true">
+              ·
+            </span>
+            <span data-testid={detail.testId}>{detail.text}</span>
+          </span>
+        ))}
+      </span>
+      {action}
+    </div>
+  );
+};
+
 export const VaultStatus = ({
   role,
   syncStatus,
@@ -132,11 +248,40 @@ export const VaultStatus = ({
 }) => {
   const pendingAttachments = attachmentPending ?? 0;
   return (
-    <div
-      className={`VaultStatus VaultStatus--${getStatusTone(
-        syncStatus,
-        recoveryState,
-      )}`}
+    <VaultStatusPill
+      tone={getUiTone(syncStatus, autosaveUnsyncedReason, recoveryState)}
+      legacyTone={getStatusTone(syncStatus, recoveryState)}
+      role={role}
+      label={
+        recoveryState
+          ? getRecoveryLabel(recoveryState)
+          : getSyncLabel(syncStatus, autosaveUnsyncedReason)
+      }
+      details={
+        pendingAttachments > 0
+          ? [
+              {
+                text: t("vault.status.attachmentsPending", {
+                  pending: pendingAttachments,
+                }),
+                testId: "vault-attachments-pending",
+              },
+            ]
+          : undefined
+      }
+      action={
+        recoveryState === "conflict" &&
+        onReviewConflict && (
+          <UiButton
+            size="sm"
+            className="VaultStatus__review"
+            data-testid="vault-review-conflict"
+            onClick={onReviewConflict}
+          >
+            {t("vault.conflict.review")}
+          </UiButton>
+        )
+      }
       data-testid="vault-status"
       data-sync-status={syncStatus}
       data-autosave-error-code={autosaveErrorCode ?? undefined}
@@ -148,44 +293,6 @@ export const VaultStatus = ({
       data-realtime-lost-code={realtimeLostCode ?? undefined}
       data-attachment-pending={attachmentPending ?? undefined}
       data-attachment-failed={attachmentFailed ?? undefined}
-      role="status"
-    >
-      <span className="VaultStatus__lock" aria-hidden="true">
-        ◈
-      </span>
-      <span>{t("vault.status.encrypted")}</span>
-      <span className="VaultStatus__separator">·</span>
-      <span>
-        {role === "editor"
-          ? t("vault.status.editor")
-          : t("vault.status.viewer")}
-      </span>
-      <span className="VaultStatus__separator">·</span>
-      <span>
-        {recoveryState
-          ? getRecoveryLabel(recoveryState)
-          : getSyncLabel(syncStatus, autosaveUnsyncedReason)}
-      </span>
-      {pendingAttachments > 0 && (
-        <>
-          <span className="VaultStatus__separator">·</span>
-          <span data-testid="vault-attachments-pending">
-            {t("vault.status.attachmentsPending", {
-              pending: pendingAttachments,
-            })}
-          </span>
-        </>
-      )}
-      {recoveryState === "conflict" && onReviewConflict && (
-        <button
-          type="button"
-          className="VaultStatus__review"
-          data-testid="vault-review-conflict"
-          onClick={onReviewConflict}
-        >
-          {t("vault.conflict.review")}
-        </button>
-      )}
-    </div>
+    />
   );
 };

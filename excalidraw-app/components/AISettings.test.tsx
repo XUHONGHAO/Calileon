@@ -1,6 +1,7 @@
 import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
+import { AI_PROMPT_TEMPLATES_STORAGE_KEY } from "../ai/promptTemplates";
 import { STORAGE_KEYS } from "../app_constants";
 
 import { AISettings } from "./AISettings";
@@ -82,6 +83,36 @@ describe("AISettings", () => {
     expect(modelsTab).toHaveAttribute("aria-selected", "true");
     expect(
       screen.getByRole("tablist", { name: "AI models" }),
+    ).toBeInTheDocument();
+  });
+
+  it("links tabs to their panels and keeps secondary row actions in a menu", () => {
+    localStorage.setItem(
+      AI_PROMPT_TEMPLATES_STORAGE_KEY,
+      JSON.stringify([
+        {
+          id: "custom-1",
+          label: "My template",
+          template: "Draw #1",
+          modes: ["text-to-image"],
+          isBuiltIn: false,
+        },
+      ]),
+    );
+    render(<AISettings initialTab="templates" />);
+
+    const templatesTab = screen.getByRole("tab", { name: "Prompt Templates" });
+    const panel = screen.getByRole("tabpanel", { name: "Prompt Templates" });
+    expect(templatesTab).toHaveAttribute("aria-controls", panel.id);
+
+    expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+    const menus = screen.getAllByRole("button", { name: "More actions" });
+    fireEvent.click(menus[menus.length - 1]);
+    expect(
+      screen.getByRole("menuitem", { name: "Delete" }),
     ).toBeInTheDocument();
   });
 

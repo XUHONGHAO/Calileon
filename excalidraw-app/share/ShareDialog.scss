@@ -133,7 +133,7 @@
     &__options {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 1rem;
+      gap: var(--ui-space-4);
 
       @include isMobile {
         grid-template-columns: 1fr;
@@ -143,24 +143,24 @@
     &__option {
       display: flex;
       flex-direction: column;
-      gap: 0.75rem;
+      gap: var(--ui-space-3);
       min-width: 0;
-      padding: 1rem;
-      border: 1px solid var(--dialog-border-color);
-      border-radius: 0.5rem;
-      background: var(--island-bg-color);
+      padding: var(--ui-space-4);
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius-lg);
+      background: var(--ui-surface);
 
       p {
         margin: 0;
-        color: var(--text-primary-color);
-        font-size: 0.875rem;
-        line-height: 1.45;
+        color: var(--ui-text);
+        font-size: var(--ui-font-sm);
+        line-height: var(--ui-line-normal);
       }
 
       small {
-        color: var(--text-secondary-color);
-        font-size: 0.75rem;
-        line-height: 1.35;
+        color: var(--ui-text-secondary);
+        font-size: var(--ui-font-xs);
+        line-height: var(--ui-line-normal);
         overflow-wrap: anywhere;
       }
     }
@@ -169,22 +169,17 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.75rem;
+      gap: var(--ui-space-3);
 
       strong {
         min-width: 0;
-        font-size: 1rem;
-        line-height: 1.25;
+        font-size: var(--ui-font-md);
+        font-weight: var(--ui-weight-semibold);
+        line-height: var(--ui-line-tight);
       }
 
-      span {
+      .UiBadge {
         flex: 0 0 auto;
-        padding: 0.125rem 0.5rem;
-        border-radius: 999px;
-        color: var(--color-primary);
-        background: var(--button-gray-1);
-        font-size: 0.75rem;
-        line-height: 1.4;
       }
     }
 
@@ -192,76 +187,36 @@
     &__cloudShareActions {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: var(--ui-space-2);
+    }
+
+    &__optionActions {
       margin-top: auto;
     }
 
     &__status {
-      color: var(--text-secondary-color);
-      font-size: 0.8125rem;
-      line-height: 1.4;
-    }
-
-    &__error {
-      margin: 0;
-      color: var(--color-danger);
-      font-size: 0.875rem;
-      line-height: 1.4;
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-xs);
+      line-height: var(--ui-line-normal);
     }
 
     &__linkList {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: var(--ui-space-2);
       margin: 0;
       padding: 0;
       list-style: none;
 
-      li {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        min-width: 0;
-        padding: 0.5rem 0;
-        border-top: 1px solid var(--dialog-border-color);
-      }
-
-      strong,
-      span {
-        display: block;
-        line-height: 1.35;
-      }
-
-      strong {
-        font-size: 0.8125rem;
-      }
-
-      span {
-        color: var(--text-secondary-color);
-        font-size: 0.75rem;
+      .UiListRow__actions {
+        flex-wrap: wrap;
+        justify-content: flex-end;
       }
     }
 
-    &__linkActions {
-      display: flex;
-      flex: 0 0 auto;
-      gap: 0.5rem;
-
-      button {
-        border: 0;
-        background: transparent;
-        color: var(--color-primary);
-        cursor: pointer;
-        font: inherit;
-        font-size: 0.8125rem;
-        padding: 0.25rem;
-
-        &:disabled {
-          color: var(--text-secondary-color);
-          cursor: not-allowed;
-        }
-      }
+    // Destructive but low-emphasis: ghost shape, danger text.
+    .UiButton.ShareDialog__revokeLink:not(:disabled) {
+      --ui-btn-fg: var(--ui-danger-fg);
     }
 
     &__active {

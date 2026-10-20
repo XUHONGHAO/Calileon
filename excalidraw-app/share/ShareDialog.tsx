@@ -24,7 +24,13 @@ import { activeRoomLinkAtom } from "../collab/Collab";
 import { getCloudBackend, shareLink } from "../data/cloud";
 import { getCloudShareLink } from "../data/cloud/cloudShareLinks";
 
-import { confirmAction } from "../components/ui";
+import {
+  Badge,
+  Callout,
+  ListRow,
+  UiButton,
+  confirmAction,
+} from "../components/ui";
 
 import "./ShareDialog.scss";
 import { QRCode } from "./QRCode";
@@ -530,7 +536,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
           <section className="ShareDialog__option">
             <div className="ShareDialog__optionHeader">
               <strong>{t("roomDialog.realtimeRoomTitle")}</strong>
-              <span>{t("roomDialog.realtimeRoomBadge")}</span>
+              <Badge tone="info">{t("roomDialog.realtimeRoomBadge")}</Badge>
             </div>
             <p>{t("roomDialog.realtimeRoomDescription")}</p>
             {activeCloudScene && isSignedIn && (
@@ -552,43 +558,39 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
                 <small>{t("cloud.collabRooms.keyNotStored")}</small>
               )}
             <div className="ShareDialog__optionActions">
-              <FilledButton
-                size="large"
-                label={
-                  creatingCollabRoom
-                    ? t("cloud.collabRooms.creating")
-                    : t("roomDialog.button_startSession")
-                }
+              <UiButton
+                variant="primary"
                 icon={playerPlayIcon}
+                loading={creatingCollabRoom}
                 onClick={() => void handleCreateRealtimeRoom()}
-                disabled={creatingCollabRoom || revokingCollabRoom}
-              />
-              <FilledButton
-                size="large"
-                variant="outlined"
-                label={t("cloud.collabRooms.copyLink")}
+                disabled={revokingCollabRoom}
+              >
+                {creatingCollabRoom
+                  ? t("cloud.collabRooms.creating")
+                  : t("roomDialog.button_startSession")}
+              </UiButton>
+              <UiButton
                 icon={copyIcon}
                 onClick={() => void handleCopyCollabRoom()}
                 disabled={!collabRoomLink || creatingCollabRoom}
-              />
+              >
+                {t("cloud.collabRooms.copyLink")}
+              </UiButton>
               {activeCloudScene && isSignedIn && (
-                <FilledButton
-                  size="large"
-                  variant="outlined"
-                  color="danger"
-                  label={
-                    revokingCollabRoom
-                      ? t("cloud.collabRooms.revoking")
-                      : t("cloud.collabRooms.revoke")
-                  }
+                <UiButton
+                  variant="danger"
+                  loading={revokingCollabRoom}
                   onClick={() => void handleRevokeCollabRoom()}
                   disabled={
                     collabRoomStats.status !== "ready" ||
                     !collabRoomStats.room ||
-                    creatingCollabRoom ||
-                    revokingCollabRoom
+                    creatingCollabRoom
                   }
-                />
+                >
+                  {revokingCollabRoom
+                    ? t("cloud.collabRooms.revoking")
+                    : t("cloud.collabRooms.revoke")}
+                </UiButton>
               )}
             </div>
           </section>
@@ -596,7 +598,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
           <section className="ShareDialog__option">
             <div className="ShareDialog__optionHeader">
               <strong>{t("roomDialog.cloudShareTitle")}</strong>
-              <span>{t("roomDialog.cloudShareBadge")}</span>
+              <Badge tone="info">{t("roomDialog.cloudShareBadge")}</Badge>
             </div>
             <p>{t("roomDialog.cloudShareDescription")}</p>
             {activeCloudScene ? (
@@ -611,49 +613,48 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
 
             {activeCloudScene && (
               <div className="ShareDialog__cloudShareActions">
-                <FilledButton
-                  size="large"
-                  variant="outlined"
-                  label={t("cloud.share.createRead")}
+                <UiButton
                   icon={LinkIcon}
+                  loading={busyShareId === "create-read"}
                   onClick={() => void handleCreateCloudShare("read")}
                   disabled={
                     !isSignedIn ||
                     !backend.capabilities.share ||
                     shareLoading ||
-                    busyShareId !== null
+                    (busyShareId !== null && busyShareId !== "create-read")
                   }
-                />
-                <FilledButton
-                  size="large"
-                  variant="outlined"
-                  label={t("cloud.share.createWrite")}
+                >
+                  {t("cloud.share.createRead")}
+                </UiButton>
+                <UiButton
                   icon={LinkIcon}
+                  loading={busyShareId === "create-write"}
                   onClick={() => void handleCreateCloudShare("write")}
                   disabled={
                     !isSignedIn ||
                     !backend.capabilities.share ||
                     shareLoading ||
-                    busyShareId !== null
+                    (busyShareId !== null && busyShareId !== "create-write")
                   }
-                />
+                >
+                  {t("cloud.share.createWrite")}
+                </UiButton>
               </div>
             )}
 
             {!activeCloudScene && props.onSaveCloudScene && (
               <div className="ShareDialog__cloudShareActions">
-                <FilledButton
-                  size="large"
-                  variant="outlined"
-                  label={
-                    savingCloudScene
-                      ? t("cloud.scenes.saving")
-                      : t("cloud.scenes.saveToCloud")
-                  }
+                <UiButton
+                  variant="primary"
                   icon={LinkIcon}
+                  loading={savingCloudScene}
                   onClick={() => void handleSaveCloudScene()}
-                  disabled={!isSignedIn || savingCloudScene}
-                />
+                  disabled={!isSignedIn}
+                >
+                  {savingCloudScene
+                    ? t("cloud.scenes.saving")
+                    : t("cloud.scenes.saveToCloud")}
+                </UiButton>
               </div>
             )}
 
@@ -669,36 +670,43 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
               ) : (
                 <ul className="ShareDialog__linkList">
                   {shareLinks.map((link) => (
-                    <li key={link.id}>
-                      <div>
-                        <strong>
-                          {link.mode === "read"
-                            ? t("cloud.share.modeRead")
-                            : t("cloud.share.modeWrite")}
-                        </strong>
-                        <span>
+                    <ListRow
+                      key={link.id}
+                      title={
+                        link.mode === "read"
+                          ? t("cloud.share.modeRead")
+                          : t("cloud.share.modeWrite")
+                      }
+                      badges={
+                        <Badge tone={link.revoked ? "neutral" : "success"}>
                           {link.revoked
                             ? t("cloud.share.revoked")
                             : t("cloud.share.active")}
-                        </span>
-                      </div>
-                      <div className="ShareDialog__linkActions">
-                        <button
-                          type="button"
-                          onClick={() => void handleCopyCloudShare(link)}
-                          disabled={busyShareId !== null || link.revoked}
-                        >
-                          {t("cloud.share.copy")}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleRevokeCloudShare(link)}
-                          disabled={busyShareId !== null || link.revoked}
-                        >
-                          {t("cloud.share.revoke")}
-                        </button>
-                      </div>
-                    </li>
+                        </Badge>
+                      }
+                      actions={
+                        <>
+                          <UiButton
+                            size="sm"
+                            variant="ghost"
+                            icon={copyIcon}
+                            onClick={() => void handleCopyCloudShare(link)}
+                            disabled={busyShareId !== null || link.revoked}
+                          >
+                            {t("cloud.share.copy")}
+                          </UiButton>
+                          <UiButton
+                            size="sm"
+                            variant="ghost"
+                            className="ShareDialog__revokeLink"
+                            onClick={() => void handleRevokeCloudShare(link)}
+                            disabled={busyShareId !== null || link.revoked}
+                          >
+                            {t("cloud.share.revoke")}
+                          </UiButton>
+                        </>
+                      }
+                    />
                   ))}
                 </ul>
               ))}
@@ -706,11 +714,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
         </div>
       )}
 
-      {cloudError && (
-        <p className="ShareDialog__error" role="alert">
-          {cloudError}
-        </p>
-      )}
+      {cloudError && <Callout tone="danger">{cloudError}</Callout>}
 
       {props.type === "share" && (
         <div className="ShareDialog__separator">

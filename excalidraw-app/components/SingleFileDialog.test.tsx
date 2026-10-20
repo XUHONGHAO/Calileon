@@ -26,22 +26,6 @@ vi.mock("@excalidraw/excalidraw/components/Dialog", () => ({
   ),
 }));
 
-vi.mock("@excalidraw/excalidraw/components/FilledButton", () => ({
-  FilledButton: ({
-    label,
-    onClick,
-    disabled,
-  }: {
-    label: string;
-    onClick: () => void;
-    disabled?: boolean;
-  }) => (
-    <button type="button" onClick={onClick} disabled={disabled}>
-      {label}
-    </button>
-  ),
-}));
-
 vi.mock("@excalidraw/excalidraw/i18n", () => ({
   t: (key: string) =>
     ({
@@ -58,6 +42,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "singleFile.exporting": "Exporting...",
       "singleFile.errors.exportFailed": "Export failed",
       "singleFile.success.exported": "Single-file board exported.",
+      "buttons.cancel": "Cancel",
     }[key] ?? key),
 }));
 
@@ -122,6 +107,29 @@ describe("SingleFileDialog", () => {
     expect(
       screen.getByRole("button", { name: "Export single file" }),
     ).toBeDisabled();
+  });
+
+  it("closes from the cancel button", () => {
+    const onClose = vi.fn();
+    render(
+      <SingleFileDialog open={true} onClose={onClose} excalidrawAPI={null} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("announces a failed runtime fetch as an alert", async () => {
+    vi.mocked(fetchSingleFileRuntimeTemplate).mockRejectedValue(
+      new Error("offline"),
+    );
+
+    render(
+      <SingleFileDialog open={true} onClose={vi.fn()} excalidrawAPI={null} />,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Export failed");
   });
 
   it("exports the current scene and closes after saving", async () => {

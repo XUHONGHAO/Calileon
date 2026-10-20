@@ -62,6 +62,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.embed.unavailable": "Cloud embeds are not configured.",
       "cloud.scenes.back": "Back",
       "cloud.scenes.refresh": "Refresh",
+      "ui.moreActions": "More actions",
     };
     return values[key] ?? key;
   },
@@ -150,14 +151,21 @@ describe("EmbedListDialog", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Copy JS" }));
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy JS" }));
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
         expect.stringContaining("excalidraw-embed"),
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "More actions" }),
+      ).not.toBeDisabled();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Revoke" }));
     await waitFor(() => {
       expect(backend.embed.revoke).toHaveBeenCalledWith("embed-1");
     });

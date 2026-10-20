@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { pointFrom } from "@excalidraw/math";
+import { t } from "@excalidraw/excalidraw/i18n";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type {
@@ -172,7 +173,7 @@ export const AIMaskEditingController = forwardRef<
 
       if (!targetImage || !isInitializedImageElement(targetImage)) {
         excalidrawAPI.setToast({
-          message: "Select a saved image before editing a mask.",
+          message: t("ai.workbench.maskEditor.selectSavedImage"),
         });
         return;
       }
@@ -416,7 +417,7 @@ export const AIMaskEditingController = forwardRef<
 
     if (!targetImage || !isInitializedImageElement(targetImage)) {
       excalidrawAPI.setToast({
-        message: "The selected image is no longer available.",
+        message: t("ai.workbench.maskEditor.imageUnavailable"),
       });
       isCompletingMaskRef.current = false;
       setIsCompletingMask(false);
@@ -676,6 +677,7 @@ export const AIMaskEditingController = forwardRef<
       zoomValue={maskEditingZoomValue}
       maskPreviewDataURL={maskPreviewDataURL}
       isDonePending={isCompletingMask}
+      theme={excalidrawAPI?.getAppState().theme}
       onBrushSizeChange={setMaskBrushSize}
       onDone={handleMaskEditingDone}
       onCancel={() => exitMaskEditing(true)}

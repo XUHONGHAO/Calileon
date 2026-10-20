@@ -41,7 +41,6 @@
   .CustomAgentChat__sectionTitle,
   .CustomAgentChat__messageMeta,
   .CustomAgentChat__empty,
-  .CustomAgentChat__notice,
   .CustomAgentChat__conversation small {
     color: var(--app-sidebar-muted-text, var(--text-secondary-color));
     font-size: var(--ui-font-xs);
@@ -118,16 +117,7 @@
   }
 
   .CustomAgentChat__notice {
-    display: grid;
-    gap: var(--ui-space-2);
-    padding: var(--ui-space-3);
-    border: 1px solid var(--color-warning-darker);
-    border-radius: var(--ui-radius-md);
-    background: var(--color-warning-background);
-
-    button {
-      width: fit-content;
-    }
+    flex: 0 0 auto;
   }
 
   .CustomAgentChat__chat {
@@ -147,11 +137,6 @@
     gap: var(--ui-space-1);
     width: min(12rem, 100%);
     max-height: min(13.125rem, 38vh);
-    padding: var(--ui-space-1_5);
-    border: 1px solid var(--sidebar-border-color);
-    border-radius: var(--ui-radius-md);
-    background: var(--island-bg-color);
-    box-shadow: var(--shadow-island);
   }
 
   .CustomAgentChat__historySearch {
@@ -197,8 +182,7 @@
   .CustomAgentChat__conversationSelect,
   .CustomAgentChat__conversationDelete,
   .CustomAgentChat__inlineAction,
-  .CustomAgentChat__popover button,
-  .CustomAgentChat__notice button {
+  .CustomAgentChat__popover button {
     border: 0;
     border-radius: var(--ui-radius-md);
     color: var(--text-primary-color);
@@ -377,23 +361,41 @@
   }
 
   .CustomAgentChat__agentButton {
-    max-width: min(12rem, 100%);
-    border: 1px solid var(--app-sidebar-panel-border, var(--button-gray-1));
-    background: var(--app-sidebar-control-bg, var(--button-gray-2));
+    gap: var(--ui-space-1_5);
+    max-width: min(14rem, 100%);
+    min-width: 0;
+    border: 1px solid var(--app-sidebar-panel-border, var(--ui-border));
+    background: var(--app-sidebar-control-bg, var(--ui-surface));
+    white-space: nowrap;
+  }
 
-    span {
-      flex: 0 0 auto;
-      color: var(--app-sidebar-muted-text, var(--text-secondary-color));
-      font-weight: var(--ui-weight-regular);
-    }
+  .CustomAgentChat__agentLabel {
+    flex: 0 0 auto;
+    padding-right: var(--ui-space-1_5);
+    border-right: 1px solid var(--ui-border);
+    color: var(--app-sidebar-muted-text, var(--ui-text-secondary));
+    font-weight: var(--ui-weight-regular);
+    line-height: 1;
+  }
 
-    strong {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-      font-weight: var(--ui-weight-medium);
+  .CustomAgentChat__agentValue {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ui-text);
+    font-weight: var(--ui-weight-medium);
+
+    &.is-missing {
+      color: var(--ui-warning-fg);
     }
+  }
+
+  .CustomAgentChat__agentChevron {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--ui-text-secondary);
   }
 
   .CustomAgentChat__input textarea {
@@ -434,32 +436,58 @@
     }
   }
 
+  // Shared popover surface (agent / skills / history).
+  .CustomAgentChat__popover,
+  .CustomAgentChat__historyPopover {
+    box-sizing: border-box;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-1_5);
+    background: var(--ui-surface);
+    color: var(--ui-text);
+    box-shadow: var(--shadow-island);
+  }
+
   .CustomAgentChat__popover {
     position: absolute;
-    bottom: calc(100% + 0.4rem);
+    bottom: calc(100% + var(--ui-space-1_5));
     left: 0;
     z-index: var(--zIndex-ui-styles-popup);
     display: grid;
-    gap: var(--ui-space-1);
+    align-content: start;
+    gap: var(--ui-space-0_5);
     width: min(14rem, 100%);
     max-height: 15rem;
     overflow-y: auto;
-    padding: var(--ui-space-2);
-    border: 1px solid var(--sidebar-border-color);
-    border-radius: var(--ui-radius-lg);
-    background: var(--app-sidebar-control-bg, var(--island-bg-color));
-    box-shadow: var(--shadow-island);
 
     button {
+      min-width: 0;
       min-height: 2rem;
       padding: 0 var(--ui-space-2);
+      overflow: hidden;
+      font: inherit;
+      font-size: var(--ui-font-sm);
       text-align: left;
+      text-overflow: ellipsis;
+      white-space: nowrap;
 
       &.is-selected {
-        color: var(--color-primary);
+        color: var(--color-on-primary-container);
         background: var(--color-surface-primary-container);
+        font-weight: var(--ui-weight-medium);
       }
     }
+
+    .CustomAgentChat__empty {
+      padding: var(--ui-space-1) var(--ui-space-2);
+    }
+  }
+
+  .CustomAgentChat__popoverTitle {
+    padding: var(--ui-space-1) var(--ui-space-2);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
   }
 
   .CustomAgentChat__popover--agent {
@@ -468,16 +496,7 @@
 
   .CustomAgentChat__message {
     flex: 0 0 auto;
-    padding: var(--ui-space-2);
-    border-radius: var(--ui-radius-md);
-    color: var(--text-primary-color);
-    background: var(--color-surface-mid);
-    font-size: var(--ui-font-xs);
-
-    &.is-error {
-      color: var(--color-danger-color);
-      background: var(--color-danger-background);
-    }
+    overflow-wrap: anywhere;
   }
 
   @media (max-width: 520px) {

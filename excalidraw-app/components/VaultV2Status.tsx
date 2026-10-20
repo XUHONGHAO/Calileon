@@ -2,8 +2,10 @@ import React from "react";
 
 import { t } from "@excalidraw/excalidraw/i18n";
 
-import "./VaultStatus.scss";
+import { UiButton } from "./ui";
+import { VaultStatusPill } from "./VaultStatus";
 
+import type { UiTone } from "./ui";
 import type { VaultRole } from "../data/vault";
 import type { VaultV2UiState } from "../data/vault/v2/uiState";
 
@@ -50,6 +52,23 @@ const getStatusTone = (state: VaultV2UiState) => {
   }
 };
 
+const getUiTone = (state: VaultV2UiState): UiTone => {
+  switch (state.status) {
+    case "connecting":
+      return "neutral";
+    case "syncing":
+      return "info";
+    case "synced":
+      return state.attachmentFailed > 0 || state.conflictElementIds.length > 0
+        ? "warning"
+        : "success";
+    case "offline":
+      return state.localSafe ? "warning" : "danger";
+    case "blocked":
+      return "danger";
+  }
+};
+
 /** W6: the v2 status pill (sync state, attachments, concurrent edits) */
 export const VaultV2Status = ({
   role,
@@ -61,9 +80,51 @@ export const VaultV2Status = ({
   onShowConflicts?: (elementIds: readonly string[]) => void;
 }) => {
   const conflicts = state.conflictElementIds.length;
+  const details: { text: string; testId: string }[] = [];
+  if (state.attachmentPending > 0) {
+    details.push({
+      text: t("vault.status.attachmentsPending", {
+        pending: state.attachmentPending,
+      }),
+      testId: "vault-attachments-pending",
+    });
+  }
+  if (state.attachmentFailed > 0) {
+    details.push({
+      text:
+        state.attachmentFailure === "retry"
+          ? t("vault.v2.attachmentsRetry", { failed: state.attachmentFailed })
+          : t("vault.v2.attachmentsAction", { failed: state.attachmentFailed }),
+      testId: "vault-attachments-failed",
+    });
+  }
+  if (conflicts > 0) {
+    details.push({
+      text: t("vault.v2.conflicts", { count: conflicts }),
+      testId: "vault-v2-conflicts",
+    });
+  }
   return (
-    <div
-      className={`VaultStatus VaultStatus--${getStatusTone(state)}`}
+    <VaultStatusPill
+      tone={getUiTone(state)}
+      legacyTone={getStatusTone(state)}
+      role={role}
+      label={getStatusLabel(state)}
+      details={details}
+      action={
+        conflicts > 0 &&
+        onShowConflicts && (
+          <UiButton
+            size="sm"
+            className="VaultStatus__review"
+            data-testid="vault-v2-show-conflicts"
+            title={t("vault.v2.conflictsHint")}
+            onClick={() => onShowConflicts(state.conflictElementIds)}
+          >
+            {t("vault.v2.showConflicts")}
+          </UiButton>
+        )
+      }
       data-testid="vault-v2-status"
       data-sync-status={state.status}
       data-blocked-code={state.blockedCode ?? undefined}
@@ -71,63 +132,6 @@ export const VaultV2Status = ({
       data-attachment-failed={state.attachmentFailed}
       data-attachment-failure={state.attachmentFailure ?? undefined}
       data-conflicts={conflicts}
-      role="status"
-    >
-      <span className="VaultStatus__lock" aria-hidden="true">
-        ◈
-      </span>
-      <span>{t("vault.status.encrypted")}</span>
-      <span className="VaultStatus__separator">·</span>
-      <span>
-        {role === "editor"
-          ? t("vault.status.editor")
-          : t("vault.status.viewer")}
-      </span>
-      <span className="VaultStatus__separator">·</span>
-      <span>{getStatusLabel(state)}</span>
-      {state.attachmentPending > 0 && (
-        <>
-          <span className="VaultStatus__separator">·</span>
-          <span data-testid="vault-attachments-pending">
-            {t("vault.status.attachmentsPending", {
-              pending: state.attachmentPending,
-            })}
-          </span>
-        </>
-      )}
-      {state.attachmentFailed > 0 && (
-        <>
-          <span className="VaultStatus__separator">·</span>
-          <span data-testid="vault-attachments-failed">
-            {state.attachmentFailure === "retry"
-              ? t("vault.v2.attachmentsRetry", {
-                  failed: state.attachmentFailed,
-                })
-              : t("vault.v2.attachmentsAction", {
-                  failed: state.attachmentFailed,
-                })}
-          </span>
-        </>
-      )}
-      {conflicts > 0 && (
-        <>
-          <span className="VaultStatus__separator">·</span>
-          <span data-testid="vault-v2-conflicts">
-            {t("vault.v2.conflicts", { count: conflicts })}
-          </span>
-          {onShowConflicts && (
-            <button
-              type="button"
-              className="VaultStatus__review"
-              data-testid="vault-v2-show-conflicts"
-              title={t("vault.v2.conflictsHint")}
-              onClick={() => onShowConflicts(state.conflictElementIds)}
-            >
-              {t("vault.v2.showConflicts")}
-            </button>
-          )}
-        </>
-      )}
-    </div>
+    />
   );
 };

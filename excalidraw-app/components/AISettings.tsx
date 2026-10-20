@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -70,7 +69,22 @@ import { createHttpAiGateway } from "../data/cloud/HttpAiGateway";
 
 import "./AISettings.scss";
 
-import { confirmAction } from "./ui";
+import {
+  ActionMenu,
+  Badge,
+  Callout,
+  confirmAction,
+  DialogActions,
+  DialogSection,
+  Field,
+  getTabPanelProps,
+  ListRow,
+  Select,
+  TabList,
+  TextArea,
+  TextInput,
+  UiButton,
+} from "./ui";
 
 import type { AIModelProviderPreset } from "../ai/config";
 import type {
@@ -1547,40 +1561,30 @@ export const AISettings = ({
   }, []);
 
   const renderList = () => (
-    <>
-      <div className="AISettings__toolbar">
-        <span>{t("ai.settings.modelList.title")}</span>
-        <span className="AISettings__toolbarActions">
-          <button type="button" onClick={openCreateModel}>
-            {t("ai.settings.modelList.addModel")}
-          </button>
-        </span>
-      </div>
+    <DialogSection
+      title={t("ai.settings.modelList.title")}
+      actions={
+        <UiButton size="sm" onClick={openCreateModel}>
+          {t("ai.settings.modelList.addModel")}
+        </UiButton>
+      }
+    >
+      <TabList
+        idPrefix="ai-settings-media"
+        label={t("ai.settings.modelList.ariaLabel")}
+        value={activeMediaType}
+        onChange={setActiveMediaType}
+        tabs={AI_MODEL_MEDIA_TYPES.map((mediaType) => ({
+          value: mediaType,
+          label: getMediaTypeLabel(mediaType, t),
+        }))}
+      />
 
       <div
-        className="AISettings__tabs"
-        role="tablist"
-        aria-label={t("ai.settings.modelList.ariaLabel")}
+        {...getTabPanelProps("ai-settings-media", activeMediaType)}
+        className="AISettings__subPanel"
+        tabIndex={-1}
       >
-        {AI_MODEL_MEDIA_TYPES.map((mediaType) => (
-          <button
-            key={mediaType}
-            type="button"
-            role="tab"
-            aria-selected={activeMediaType === mediaType}
-            className={
-              activeMediaType === mediaType
-                ? "AISettings__tab is-selected"
-                : "AISettings__tab"
-            }
-            onClick={() => setActiveMediaType(mediaType)}
-          >
-            {getMediaTypeLabel(mediaType, t)}
-          </button>
-        ))}
-      </div>
-
-      <div className="AISettings__models">
         {visibleModelGroups.length === 0 && (
           <div className="AISettings__emptyState">
             <span>
@@ -1588,135 +1592,109 @@ export const AISettings = ({
                 mediaType: getMediaTypeInlineLabel(activeMediaType, t),
               })}
             </span>
-            <button
-              type="button"
-              className="AISettings__textButton"
-              onClick={openCreateModel}
-            >
+            <UiButton size="sm" variant="ghost" onClick={openCreateModel}>
               {t("ai.settings.modelList.addMediaModel", {
                 mediaType: getMediaTypeInlineLabel(activeMediaType, t),
               })}
-            </button>
+            </UiButton>
           </div>
         )}
 
-        {visibleModelGroups.map((group) => {
-          const isDefault = group.models.some(
-            (model) => config.defaultModel === model.id,
-          );
+        {visibleModelGroups.length > 0 && (
+          <ul className="AISettings__list">
+            {visibleModelGroups.map((group) => {
+              const isDefault = group.models.some(
+                (model) => config.defaultModel === model.id,
+              );
 
-          return (
-            <div className="AISettings__modelPreviewCard" key={group.key}>
-              <div className="AISettings__agentCardHeader">
-                <strong>{group.model.siteName}</strong>
-                <span className="AISettings__templateMeta">
-                  <span>{getMediaTypeLabel(group.model.mediaType, t)}</span>
-                  {group.models.length > 1 && (
-                    <span>
-                      {t("ai.settings.modelList.modelCount", {
-                        count: group.models.length,
-                      })}
+              return (
+                <ListRow
+                  key={group.key}
+                  title={group.model.siteName}
+                  badges={
+                    <>
+                      {group.models.length > 1 && (
+                        <Badge>
+                          {t("ai.settings.modelList.modelCount", {
+                            count: group.models.length,
+                          })}
+                        </Badge>
+                      )}
+                      {isDefault && (
+                        <Badge tone="info">{t("ai.common.default")}</Badge>
+                      )}
+                    </>
+                  }
+                  meta={
+                    <span className="AISettings__metaLines">
+                      <span>
+                        {t("ai.settings.modelList.modelsPrefix")}{" "}
+                        {formatModelGroupNames(group.models)}
+                      </span>
+                      <span>
+                        {t("ai.settings.modelList.baseURLPrefix")}{" "}
+                        {group.model.baseURL}
+                      </span>
+                      {group.model.mediaType === "image" && (
+                        <span>
+                          {t("ai.settings.modelList.nativeModelPrefix")}{" "}
+                          {group.model.nativeModel ||
+                            DEFAULT_AI_IMAGE_NATIVE_MODEL}
+                        </span>
+                      )}
                     </span>
-                  )}
-                  {isDefault && <span>{t("ai.common.default")}</span>}
-                </span>
-              </div>
-
-              <div className="AISettings__agentMeta">
-                <span>
-                  {t("ai.settings.modelList.modelsPrefix")}{" "}
-                  {formatModelGroupNames(group.models)}
-                </span>
-                <span>
-                  {t("ai.settings.modelList.baseURLPrefix")}{" "}
-                  {group.model.baseURL}
-                </span>
-                {group.model.mediaType === "image" && (
-                  <span>
-                    {t("ai.settings.modelList.nativeModelPrefix")}{" "}
-                    {group.model.nativeModel || DEFAULT_AI_IMAGE_NATIVE_MODEL}
-                  </span>
-                )}
-              </div>
-
-              <div className="AISettings__agentActions">
-                <button type="button" onClick={() => openEditModelGroup(group)}>
-                  {t("ai.common.edit")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => removeModelGroup(group.indexes)}
-                >
-                  {t("ai.common.delete")}
-                </button>
-                <button
-                  type="button"
-                  disabled={isDefault}
-                  onClick={() => makeDefaultModelGroup(group)}
-                >
-                  {t("ai.settings.modelList.setAsDefault")}
-                </button>
-              </div>
-            </div>
-          );
-        })}
+                  }
+                  actions={
+                    <UiButton
+                      size="sm"
+                      onClick={() => openEditModelGroup(group)}
+                    >
+                      {t("ai.common.edit")}
+                    </UiButton>
+                  }
+                  menu={[
+                    {
+                      label: t("ai.settings.modelList.setAsDefault"),
+                      disabled: isDefault,
+                      onSelect: () => makeDefaultModelGroup(group),
+                    },
+                    {
+                      label: t("ai.common.delete"),
+                      danger: true,
+                      onSelect: () => removeModelGroup(group.indexes),
+                    },
+                  ]}
+                />
+              );
+            })}
+          </ul>
+        )}
       </div>
-    </>
+    </DialogSection>
   );
 
   const renderAgentSubTabs = () => (
-    <div
-      className="AISettings__tabs AISettings__tabs--agents"
-      role="tablist"
-      aria-label={t("ai.settings.agents.sectionsAriaLabel")}
-    >
-      {[
-        { id: "base", label: t("ai.settings.agents.base") },
-        { id: "skills", label: t("ai.settings.agents.skills") },
-      ].map((tab) => (
-        <button
-          key={tab.id}
-          type="button"
-          role="tab"
-          aria-selected={activeAgentSubTab === tab.id}
-          className={
-            activeAgentSubTab === tab.id
-              ? "AISettings__tab is-selected"
-              : "AISettings__tab"
-          }
-          onClick={() => {
-            setActiveAgentSubTab(tab.id as AgentSettingsSubTab);
-            setStatusMessage("");
-            setErrorMessage("");
-          }}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
+    <TabList
+      idPrefix="ai-settings-agents"
+      label={t("ai.settings.agents.sectionsAriaLabel")}
+      value={activeAgentSubTab}
+      onChange={(value) => {
+        setActiveAgentSubTab(value);
+        setStatusMessage("");
+        setErrorMessage("");
+      }}
+      tabs={[
+        { value: "base", label: t("ai.settings.agents.base") },
+        { value: "skills", label: t("ai.settings.agents.skills") },
+      ]}
+    />
   );
 
   const renderBaseAgentsList = () => (
-    <>
-      <div className="AISettings__toolbar">
-        <span>{t("ai.settings.agents.baseConfiguration")}</span>
-        <span className="AISettings__toolbarActions">
-          <button type="button" onClick={() => openCreateAgent("text")}>
-            {t("ai.settings.agents.addTextAgent")}
-          </button>
-          <button type="button" onClick={() => openCreateAgent("vision")}>
-            {t("ai.settings.agents.addVisionAgent")}
-          </button>
-          <button type="button" onClick={() => openCreateAgent("llm")}>
-            {t("ai.settings.agents.addLLMAgent")}
-          </button>
-        </span>
-      </div>
-
-      <div className="AISettings__agentIntro">
-        {t("ai.settings.agents.baseDescription")}
-      </div>
-
+    <DialogSection
+      title={t("ai.settings.agents.baseConfiguration")}
+      description={t("ai.settings.agents.baseDescription")}
+    >
       <div className="AISettings__agentSections">
         {renderAgentSection(
           t("ai.settings.agents.textAgents"),
@@ -1740,78 +1718,78 @@ export const AISettings = ({
           "llm",
         )}
       </div>
-    </>
+    </DialogSection>
   );
 
   const renderSkillsList = () => (
-    <>
-      <div className="AISettings__toolbar">
-        <span>{t("ai.settings.agents.skillsTitle")}</span>
-        <span className="AISettings__toolbarActions">
-          <button type="button" onClick={openCreateSkill}>
-            {t("ai.settings.agents.addSkill")}
-          </button>
-        </span>
-      </div>
-
-      <div className="AISettings__agentIntro">
-        {t("ai.settings.agents.skillsDescription", {
-          placeholder: "{user_input}",
-        })}
-      </div>
-
-      <div className="AISettings__agentSections AISettings__agentSections--single">
-        <div className="AISettings__agentSection">
-          {agentConfig.skills.length === 0 && (
-            <div className="AISettings__emptyState">
-              {t("ai.settings.agents.emptySkills")}
-            </div>
-          )}
-
-          <div className="AISettings__agentList">
-            {agentConfig.skills.map((skill) => {
-              return (
-                <div className="AISettings__agentCard" key={skill.id}>
-                  <div className="AISettings__agentCardHeader">
-                    <strong>
-                      <span className="AISettings__iconBadge">
-                        {skill.icon}
-                      </span>
-                      {skill.name}
-                    </strong>
-                  </div>
-                  <p className="AISettings__agentDescription">
-                    {skill.description}
-                  </p>
-                  <div className="AISettings__agentMeta">
-                    <span>
-                      {t("ai.settings.agents.triggerPrefix")}{" "}
-                      {skill.triggers?.join(", ") ||
-                        t("ai.settings.agents.notConfigured")}
-                    </span>
-                  </div>
-                  <div className="AISettings__agentActions">
-                    <button type="button" onClick={() => openEditSkill(skill)}>
-                      {t("ai.common.edit")}
-                    </button>
-                    <button type="button" onClick={() => removeSkill(skill)}>
-                      {t("ai.common.delete")}
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+    <DialogSection
+      title={t("ai.settings.agents.skillsTitle")}
+      description={t("ai.settings.agents.skillsDescription", {
+        placeholder: "{user_input}",
+      })}
+      actions={
+        <UiButton size="sm" onClick={openCreateSkill}>
+          {t("ai.settings.agents.addSkill")}
+        </UiButton>
+      }
+    >
+      {agentConfig.skills.length === 0 && (
+        <div className="AISettings__emptyState">
+          {t("ai.settings.agents.emptySkills")}
         </div>
-      </div>
-    </>
+      )}
+
+      {agentConfig.skills.length > 0 && (
+        <ul className="AISettings__list">
+          {agentConfig.skills.map((skill) => (
+            <ListRow
+              key={skill.id}
+              leading={
+                <span className="AISettings__iconBadge" aria-hidden="true">
+                  {skill.icon}
+                </span>
+              }
+              title={skill.name}
+              meta={
+                <span className="AISettings__metaLines">
+                  {skill.description && <span>{skill.description}</span>}
+                  <span>
+                    {t("ai.settings.agents.triggerPrefix")}{" "}
+                    {skill.triggers?.join(", ") ||
+                      t("ai.settings.agents.notConfigured")}
+                  </span>
+                </span>
+              }
+              actions={
+                <UiButton size="sm" onClick={() => openEditSkill(skill)}>
+                  {t("ai.common.edit")}
+                </UiButton>
+              }
+              menu={[
+                {
+                  label: t("ai.common.delete"),
+                  danger: true,
+                  onSelect: () => removeSkill(skill),
+                },
+              ]}
+            />
+          ))}
+        </ul>
+      )}
+    </DialogSection>
   );
 
   const renderAgentsList = () => (
     <>
       {renderAgentSubTabs()}
-      {activeAgentSubTab === "base" && renderBaseAgentsList()}
-      {activeAgentSubTab === "skills" && renderSkillsList()}
+      <div
+        {...getTabPanelProps("ai-settings-agents", activeAgentSubTab)}
+        className="AISettings__subPanel"
+        tabIndex={-1}
+      >
+        {activeAgentSubTab === "base" && renderBaseAgentsList()}
+        {activeAgentSubTab === "skills" && renderSkillsList()}
+      </div>
     </>
   );
 
@@ -1822,18 +1800,19 @@ export const AISettings = ({
     defaultAgentId: string | null,
     type: AIAgentType,
   ) => (
-    <div className="AISettings__agentSection">
-      <div className="AISettings__sectionHeader">
-        <h4>
-          {title} <span>{subtitle}</span>
-        </h4>
-        <button type="button" onClick={() => openCreateAgent(type)}>
+    <DialogSection
+      headingLevel={4}
+      className="AISettings__group"
+      title={title}
+      description={subtitle}
+      actions={
+        <UiButton size="sm" onClick={() => openCreateAgent(type)}>
           {t("ai.settings.agentEditor.heading", {
             mode: `${t("ai.common.add")} ${getAgentTypeLabel(type, t)}`,
           })}
-        </button>
-      </div>
-
+        </UiButton>
+      }
+    >
       {agents.length === 0 && (
         <div className="AISettings__emptyState">
           {t("ai.settings.agents.emptyBaseAgent", {
@@ -1843,50 +1822,68 @@ export const AISettings = ({
         </div>
       )}
 
-      <div className="AISettings__agentList">
-        {agents.map((agent) => {
-          const providerLabel =
-            AGENT_PROVIDER_OPTIONS.find(
-              (option) => option.value === agent.provider,
-            )?.label || agent.provider;
-          const isDefault = agent.id === defaultAgentId;
+      {agents.length > 0 && (
+        <ul className="AISettings__list">
+          {agents.map((agent) => {
+            const providerLabel =
+              AGENT_PROVIDER_OPTIONS.find(
+                (option) => option.value === agent.provider,
+              )?.label || agent.provider;
+            const isDefault = agent.id === defaultAgentId;
 
-          return (
-            <div className="AISettings__agentCard" key={agent.id}>
-              <div className="AISettings__agentCardHeader">
-                <strong>{agent.name}</strong>
-                <span className="AISettings__templateMeta">
-                  <span>{providerLabel}</span>
-                  {isDefault && <span>{t("ai.common.default")}</span>}
-                </span>
-              </div>
-              <div className="AISettings__agentMeta">
-                <span>
-                  {t("ai.settings.agents.modelPrefix")} {agent.model}
-                </span>
-                <span>
-                  {t("ai.settings.modelList.baseURLPrefix")} {agent.baseURL}
-                </span>
-              </div>
-              <div className="AISettings__agentActions">
-                <button type="button" onClick={() => openEditAgent(agent)}>
-                  {t("ai.common.edit")}
-                </button>
-                <button type="button" onClick={() => removeAgent(agent)}>
-                  {t("ai.common.delete")}
-                </button>
-                <button
-                  type="button"
-                  disabled={isDefault}
-                  onClick={() => makeDefaultAgent(agent)}
-                >
-                  {t("ai.settings.modelList.setAsDefault")}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            return (
+              <ListRow
+                key={agent.id}
+                title={agent.name}
+                badges={
+                  <>
+                    <Badge>{providerLabel}</Badge>
+                    {isDefault && (
+                      <Badge tone="info">{t("ai.common.default")}</Badge>
+                    )}
+                  </>
+                }
+                meta={
+                  <span className="AISettings__metaLines">
+                    <span>
+                      {t("ai.settings.agents.modelPrefix")} {agent.model}
+                    </span>
+                    <span>
+                      {t("ai.settings.modelList.baseURLPrefix")} {agent.baseURL}
+                    </span>
+                  </span>
+                }
+                actions={
+                  <UiButton size="sm" onClick={() => openEditAgent(agent)}>
+                    {t("ai.common.edit")}
+                  </UiButton>
+                }
+                menu={[
+                  {
+                    label: t("ai.settings.modelList.setAsDefault"),
+                    disabled: isDefault,
+                    onSelect: () => makeDefaultAgent(agent),
+                  },
+                  {
+                    label: t("ai.common.delete"),
+                    danger: true,
+                    onSelect: () => removeAgent(agent),
+                  },
+                ]}
+              />
+            );
+          })}
+        </ul>
+      )}
+    </DialogSection>
+  );
+
+  const renderEditorHeader = (onBack: () => void, title: string) => (
+    <div className="AISettings__editorHeader">
+      <UiButton size="sm" variant="ghost" onClick={onBack}>
+        {t("ai.common.back")}
+      </UiButton>
+      <h3>{title}</h3>
     </div>
   );
 
@@ -1900,30 +1897,22 @@ export const AISettings = ({
 
     return (
       <>
-        <div className="AISettings__editorHeader">
-          <button
-            className="AISettings__textButton"
-            type="button"
-            onClick={closeAgentEditor}
-          >
-            {t("ai.common.back")}
-          </button>
-          <h3>
-            {t("ai.settings.agentEditor.heading", {
-              mode: `${
-                agentEditorState.mode === "edit"
-                  ? t("ai.common.edit")
-                  : t("ai.common.add")
-              } ${getAgentTypeLabel(draft.type, t)}`,
-            })}
-          </h3>
-        </div>
+        {renderEditorHeader(
+          closeAgentEditor,
+          t("ai.settings.agentEditor.heading", {
+            mode: `${
+              agentEditorState.mode === "edit"
+                ? t("ai.common.edit")
+                : t("ai.common.add")
+            } ${getAgentTypeLabel(draft.type, t)}`,
+          }),
+        )}
 
         <div className="AISettings__providerPresets">
           <span className="AISettings__providerPresetsLabel">
             {t("ai.settings.agentEditor.defaultConfigs")}
           </span>
-          <div className="AISettings__providerPresetList AISettings__providerPresetList--agents">
+          <div className="AISettings__providerPresetList">
             {AI_AGENT_PROVIDER_PRESETS.map((preset) => (
               <button
                 key={preset.id}
@@ -1947,153 +1936,139 @@ export const AISettings = ({
           </div>
         </div>
 
-        <div className="AISettings__editorBody AISettings__editorBody--single">
-          <div className="AISettings__formSection AISettings__formSection--wide">
-            <div className="AISettings__modelGrid">
-              <label className="AISettings__field">
-                <span>{t("ai.settings.agentEditor.agentName")}</span>
-                <input
-                  value={draft.name}
-                  placeholder={t(
-                    "ai.settings.agentEditor.agentNamePlaceholder",
-                  )}
-                  onChange={(event) =>
-                    updateAgentDraft({ name: event.target.value })
-                  }
-                />
-                <span className="AISettings__fieldHint">
-                  {t("ai.settings.agentEditor.agentNameHint")}
-                </span>
-              </label>
-
-              <label className="AISettings__field">
-                <span>{t("ai.settings.agentEditor.provider")}</span>
-                <select
-                  value={draft.provider}
-                  onChange={(event) =>
-                    applyAgentProviderPreset(
-                      event.target.value as AIAgentProvider,
-                    )
-                  }
-                >
-                  {AGENT_PROVIDER_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {providerPreset?.description && (
-                  <span className="AISettings__fieldHint">
-                    {providerPreset.description}
-                  </span>
-                )}
-              </label>
-
-              <label className="AISettings__field">
-                <span>{t("ai.settings.agentEditor.baseURL")}</span>
-                <input
-                  value={draft.baseURL}
-                  placeholder="https://api.example.com/v1"
-                  onChange={(event) =>
-                    updateAgentDraft({ baseURL: event.target.value })
-                  }
-                />
-              </label>
-
-              <label className="AISettings__field">
-                <span>{t("ai.settings.agentEditor.apiKey")}</span>
-                <input
-                  value={draft.apiKey}
-                  type="password"
-                  autoComplete="off"
-                  onChange={(event) =>
-                    updateAgentDraft({ apiKey: event.target.value })
-                  }
-                />
-                <span className="AISettings__fieldHint">
-                  {t("ai.settings.agentEditor.plainTextStorage")}
-                </span>
-              </label>
-
-              <label className="AISettings__field">
-                <span>{t("ai.settings.agentEditor.model")}</span>
-                <input
-                  value={draft.model}
-                  placeholder={
-                    draft.type === "vision" ? "gpt-4o" : "gpt-4o-mini"
-                  }
-                  onChange={(event) =>
-                    updateAgentDraft({ model: event.target.value })
-                  }
-                />
-              </label>
-
-              <label className="AISettings__defaultField">
-                <input
-                  type="checkbox"
-                  checked={setAgentAsDefault}
-                  onChange={(event) =>
-                    setSetAgentAsDefault(event.target.checked)
-                  }
-                />
-                <span>
-                  {t("ai.settings.agentEditor.defaultAgent", {
-                    type: getAgentTypeLabel(draft.type, t),
-                  })}
-                </span>
-              </label>
-            </div>
-
-            <label className="AISettings__field">
-              <span>{t("ai.settings.agentEditor.systemPromptOptional")}</span>
-              <textarea
-                value={draft.systemPrompt || ""}
-                rows={4}
-                placeholder={
-                  providerPreset?.defaultSystemPrompts[draft.type] || ""
-                }
+        <div className="AISettings__form">
+          <div className="AISettings__formGrid">
+            <Field
+              label={t("ai.settings.agentEditor.agentName")}
+              hint={t("ai.settings.agentEditor.agentNameHint")}
+            >
+              <TextInput
+                value={draft.name}
+                placeholder={t("ai.settings.agentEditor.agentNamePlaceholder")}
                 onChange={(event) =>
-                  updateAgentDraft({ systemPrompt: event.target.value })
+                  updateAgentDraft({ name: event.target.value })
                 }
               />
-              <span className="AISettings__fieldHint">
-                {t("ai.settings.agentEditor.systemPromptHint")}
+            </Field>
+
+            <Field
+              label={t("ai.settings.agentEditor.provider")}
+              hint={providerPreset?.description}
+            >
+              <Select
+                value={draft.provider}
+                onChange={(event) =>
+                  applyAgentProviderPreset(
+                    event.target.value as AIAgentProvider,
+                  )
+                }
+              >
+                {AGENT_PROVIDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label={t("ai.settings.agentEditor.baseURL")}>
+              <TextInput
+                value={draft.baseURL}
+                placeholder="https://api.example.com/v1"
+                onChange={(event) =>
+                  updateAgentDraft({ baseURL: event.target.value })
+                }
+              />
+            </Field>
+
+            <Field
+              label={t("ai.settings.agentEditor.apiKey")}
+              hint={t("ai.settings.agentEditor.plainTextStorage")}
+            >
+              <TextInput
+                value={draft.apiKey}
+                type="password"
+                autoComplete="off"
+                onChange={(event) =>
+                  updateAgentDraft({ apiKey: event.target.value })
+                }
+              />
+            </Field>
+
+            <Field label={t("ai.settings.agentEditor.model")}>
+              <TextInput
+                value={draft.model}
+                placeholder={draft.type === "vision" ? "gpt-4o" : "gpt-4o-mini"}
+                onChange={(event) =>
+                  updateAgentDraft({ model: event.target.value })
+                }
+              />
+            </Field>
+
+            <label className="AISettings__checkbox AISettings__checkbox--aligned">
+              <input
+                type="checkbox"
+                checked={setAgentAsDefault}
+                onChange={(event) => setSetAgentAsDefault(event.target.checked)}
+              />
+              <span>
+                {t("ai.settings.agentEditor.defaultAgent", {
+                  type: getAgentTypeLabel(draft.type, t),
+                })}
               </span>
             </label>
-
-            <div className="AISettings__agentRecommendations">
-              <strong>
-                {t("ai.settings.agentEditor.recommendedFor", {
-                  type: getAgentTargetShortLabel(draft.type, t),
-                })}
-              </strong>
-              {getAgentRecommendations(draft.type, t).map((item) => (
-                <span key={item}>{item}</span>
-              ))}
-            </div>
           </div>
+
+          <Field
+            label={t("ai.settings.agentEditor.systemPromptOptional")}
+            hint={t("ai.settings.agentEditor.systemPromptHint")}
+          >
+            <TextArea
+              value={draft.systemPrompt || ""}
+              rows={4}
+              placeholder={
+                providerPreset?.defaultSystemPrompts[draft.type] || ""
+              }
+              onChange={(event) =>
+                updateAgentDraft({ systemPrompt: event.target.value })
+              }
+            />
+          </Field>
+
+          <Callout
+            tone="neutral"
+            live={false}
+            title={t("ai.settings.agentEditor.recommendedFor", {
+              type: getAgentTargetShortLabel(draft.type, t),
+            })}
+          >
+            <ul className="AISettings__plainList">
+              {getAgentRecommendations(draft.type, t).map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </Callout>
         </div>
 
-        <div className="AISettings__editorActions">
-          {agentEditorState.mode === "edit" && (
-            <button
-              className="AISettings__dangerButton"
-              type="button"
-              onClick={() => removeAgent(agentEditorState.draft)}
-            >
-              {t("ai.common.remove")}
-            </button>
-          )}
-
-          <Button
-            className="AISettings__saveButton"
-            onSelect={submitAgentDraft}
-          >
+        <DialogActions
+          className="AISettings__footer"
+          leading={
+            agentEditorState.mode === "edit" && (
+              <UiButton
+                variant="danger"
+                onClick={() => removeAgent(agentEditorState.draft)}
+              >
+                {t("ai.common.remove")}
+              </UiButton>
+            )
+          }
+        >
+          <UiButton variant="primary" onClick={submitAgentDraft}>
             {agentEditorState.mode === "edit"
               ? t("ai.settings.agentEditor.saveAgent")
               : t("ai.settings.agentEditor.createAgent")}
-          </Button>
-        </div>
+          </UiButton>
+        </DialogActions>
       </>
     );
   };
@@ -2102,16 +2077,15 @@ export const AISettings = ({
     value: string,
     onChange: (value: string) => void,
   ) => (
-    <label className="AISettings__field">
-      <span>{t("ai.settings.common.icon")}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+    <Field label={t("ai.settings.common.icon")}>
+      <Select value={value} onChange={(event) => onChange(event.target.value)}>
         {ICON_OPTIONS.map((icon) => (
           <option key={icon} value={icon}>
             {icon}
           </option>
         ))}
-      </select>
-    </label>
+      </Select>
+    </Field>
   );
 
   const renderSkillEditor = () => {
@@ -2123,115 +2097,98 @@ export const AISettings = ({
 
     return (
       <>
-        <div className="AISettings__editorHeader">
-          <button
-            className="AISettings__textButton"
-            type="button"
-            onClick={closeSkillEditor}
-          >
-            {t("ai.common.back")}
-          </button>
-          <h3>
-            {t("ai.settings.skillEditor.heading", {
-              mode:
-                skillEditorState.mode === "edit"
-                  ? t("ai.common.edit")
-                  : t("ai.common.create"),
-            })}
-          </h3>
-        </div>
+        {renderEditorHeader(
+          closeSkillEditor,
+          t("ai.settings.skillEditor.heading", {
+            mode:
+              skillEditorState.mode === "edit"
+                ? t("ai.common.edit")
+                : t("ai.common.create"),
+          }),
+        )}
 
-        <div className="AISettings__editorBody AISettings__editorBody--single">
-          <div className="AISettings__formSection AISettings__formSection--wide">
-            <div className="AISettings__modelGrid">
-              <label className="AISettings__field">
-                <span>{t("ai.settings.skillEditor.skillName")}</span>
-                <input
-                  value={draft.name}
-                  placeholder={t(
-                    "ai.settings.skillEditor.skillNamePlaceholder",
-                  )}
-                  onChange={(event) =>
-                    updateSkillDraft({ name: event.target.value })
-                  }
-                />
-              </label>
-
-              {renderIconSelect(draft.icon, (icon) =>
-                updateSkillDraft({ icon }),
-              )}
-
-              <label className="AISettings__field">
-                <span>{t("ai.settings.skillEditor.description")}</span>
-                <input
-                  value={draft.description}
-                  placeholder={t(
-                    "ai.settings.skillEditor.descriptionPlaceholder",
-                  )}
-                  onChange={(event) =>
-                    updateSkillDraft({ description: event.target.value })
-                  }
-                />
-              </label>
-
-              <label className="AISettings__field">
-                <span>{t("ai.settings.skillEditor.triggers")}</span>
-                <input
-                  value={draft.triggers}
-                  placeholder={t("ai.settings.skillEditor.triggersPlaceholder")}
-                  onChange={(event) =>
-                    updateSkillDraft({ triggers: event.target.value })
-                  }
-                />
-                <span className="AISettings__fieldHint">
-                  {t("ai.settings.skillEditor.triggersHint")}
-                </span>
-              </label>
-            </div>
-
-            <label className="AISettings__field">
-              <span>{t("ai.settings.skillEditor.initialPrompt")}</span>
-              <textarea
-                value={draft.initialPrompt || ""}
-                rows={7}
-                placeholder={t(
-                  "ai.settings.skillEditor.initialPromptPlaceholder",
-                )}
+        <div className="AISettings__form">
+          <div className="AISettings__formGrid">
+            <Field label={t("ai.settings.skillEditor.skillName")}>
+              <TextInput
+                value={draft.name}
+                placeholder={t("ai.settings.skillEditor.skillNamePlaceholder")}
                 onChange={(event) =>
-                  updateSkillDraft({ initialPrompt: event.target.value })
+                  updateSkillDraft({ name: event.target.value })
                 }
               />
-              <span className="AISettings__fieldHint">
-                {t("ai.settings.skillEditor.initialPromptHint", {
-                  placeholder: "{user_input}",
-                })}
-              </span>
-            </label>
+            </Field>
+
+            {renderIconSelect(draft.icon, (icon) => updateSkillDraft({ icon }))}
+
+            <Field label={t("ai.settings.skillEditor.description")}>
+              <TextInput
+                value={draft.description}
+                placeholder={t(
+                  "ai.settings.skillEditor.descriptionPlaceholder",
+                )}
+                onChange={(event) =>
+                  updateSkillDraft({ description: event.target.value })
+                }
+              />
+            </Field>
+
+            <Field
+              label={t("ai.settings.skillEditor.triggers")}
+              hint={t("ai.settings.skillEditor.triggersHint")}
+            >
+              <TextInput
+                value={draft.triggers}
+                placeholder={t("ai.settings.skillEditor.triggersPlaceholder")}
+                onChange={(event) =>
+                  updateSkillDraft({ triggers: event.target.value })
+                }
+              />
+            </Field>
           </div>
+
+          <Field
+            label={t("ai.settings.skillEditor.initialPrompt")}
+            hint={t("ai.settings.skillEditor.initialPromptHint", {
+              placeholder: "{user_input}",
+            })}
+          >
+            <TextArea
+              value={draft.initialPrompt || ""}
+              rows={7}
+              placeholder={t(
+                "ai.settings.skillEditor.initialPromptPlaceholder",
+              )}
+              onChange={(event) =>
+                updateSkillDraft({ initialPrompt: event.target.value })
+              }
+            />
+          </Field>
         </div>
 
-        <div className="AISettings__editorActions">
-          {skillEditorState.mode === "edit" && (
-            <button
-              className="AISettings__dangerButton"
-              type="button"
-              onClick={() =>
-                removeSkill(normalizeSkillDraftForSave(skillEditorState.draft))
-              }
-            >
-              {t("ai.common.remove")}
-            </button>
-          )}
-
-          <Button
-            className="AISettings__saveButton"
-            onSelect={submitSkillDraft}
-          >
+        <DialogActions
+          className="AISettings__footer"
+          leading={
+            skillEditorState.mode === "edit" && (
+              <UiButton
+                variant="danger"
+                onClick={() =>
+                  removeSkill(
+                    normalizeSkillDraftForSave(skillEditorState.draft),
+                  )
+                }
+              >
+                {t("ai.common.remove")}
+              </UiButton>
+            )
+          }
+        >
+          <UiButton variant="primary" onClick={submitSkillDraft}>
             {skillEditorState.mode === "edit"
               ? t("ai.settings.skillEditor.saveSkill")
               : t("ai.settings.skillEditor.createSkill")}
-          </Button>
-        </div>
+          </UiButton>
+        </DialogActions>
       </>
     );
   };
@@ -2246,33 +2203,50 @@ export const AISettings = ({
 
     return (
       <>
-        <div className="AISettings__toolbar">
-          <span>{t("ai.settings.templates.title")}</span>
-          <span className="AISettings__toolbarActions">
-            <button
-              type="button"
-              onClick={() => templateImportInputRef.current?.click()}
-            >
-              {t("ai.settings.templates.import")}
-            </button>
-            <button
-              type="button"
-              disabled={!customTemplates.length}
-              onClick={exportTemplates}
-            >
-              {t("ai.settings.templates.export")}
-            </button>
-            <button type="button" onClick={openCreateTemplate}>
-              {t("ai.settings.templates.addTemplate")}
-            </button>
-          </span>
-        </div>
+        <DialogSection
+          title={t("ai.settings.templates.title")}
+          actions={
+            <>
+              <UiButton size="sm" onClick={openCreateTemplate}>
+                {t("ai.settings.templates.addTemplate")}
+              </UiButton>
+              <ActionMenu
+                items={[
+                  {
+                    label: t("ai.settings.templates.import"),
+                    onSelect: () => templateImportInputRef.current?.click(),
+                  },
+                  {
+                    label: t("ai.settings.templates.export"),
+                    disabled: !customTemplates.length,
+                    onSelect: exportTemplates,
+                  },
+                ]}
+              />
+            </>
+          }
+        >
+          <div className="AISettings__agentSections">
+            {renderTemplateSection(
+              t("ai.settings.templates.builtIn"),
+              builtInTemplates,
+              false,
+            )}
+            {renderTemplateSection(
+              t("ai.settings.templates.custom"),
+              savedCustomTemplates,
+              true,
+            )}
+          </div>
+        </DialogSection>
 
         <input
           ref={templateImportInputRef}
           className="AISettings__visuallyHidden"
           type="file"
           accept="application/json,.json"
+          tabIndex={-1}
+          aria-hidden="true"
           onChange={(event) => {
             const file = event.target.files?.[0];
 
@@ -2282,19 +2256,6 @@ export const AISettings = ({
             event.target.value = "";
           }}
         />
-
-        <div className="AISettings__templateSections">
-          {renderTemplateSection(
-            t("ai.settings.templates.builtIn"),
-            builtInTemplates,
-            false,
-          )}
-          {renderTemplateSection(
-            t("ai.settings.templates.custom"),
-            savedCustomTemplates,
-            true,
-          )}
-        </div>
       </>
     );
   };
@@ -2304,61 +2265,69 @@ export const AISettings = ({
     templates: PromptTemplate[],
     isCustomSection: boolean,
   ) => (
-    <div className="AISettings__templateSection">
-      <div className="AISettings__sectionHeader">
-        <h4>{title}</h4>
-        <span className="AISettings__summaryBadge">{templates.length}</span>
-      </div>
+    <DialogSection
+      headingLevel={4}
+      className="AISettings__group"
+      title={title}
+      actions={<Badge>{templates.length}</Badge>}
+    >
       {templates.length === 0 && (
         <div className="AISettings__emptyState">
           <span>{t("ai.settings.templates.empty")}</span>
           {isCustomSection && (
-            <button
-              type="button"
-              className="AISettings__textButton"
-              onClick={openCreateTemplate}
-            >
+            <UiButton size="sm" variant="ghost" onClick={openCreateTemplate}>
               {t("ai.settings.templates.addCustomTemplate")}
-            </button>
+            </UiButton>
           )}
         </div>
       )}
-      <div className="AISettings__templateList">
-        {templates.map((template) => (
-          <div className="AISettings__templateCard" key={template.id}>
-            <div className="AISettings__templateCardHeader">
-              <strong>{template.label}</strong>
-              {!template.isBuiltIn && (
-                <span className="AISettings__templateActions">
-                  <button
-                    type="button"
+      {templates.length > 0 && (
+        <ul className="AISettings__list">
+          {templates.map((template) => (
+            <ListRow
+              key={template.id}
+              className="AISettings__templateRow"
+              title={template.label}
+              meta={
+                <span className="AISettings__metaLines">
+                  <span>
+                    {[
+                      formatTemplateModes(template.modes, t),
+                      getPromptTemplateCategoryLabel(template.category, t),
+                      getPromptTemplateLanguageLabel(template.language, t),
+                    ].join(" · ")}
+                  </span>
+                  <span className="AISettings__templateText">
+                    {template.template}
+                  </span>
+                </span>
+              }
+              actions={
+                !template.isBuiltIn && (
+                  <UiButton
+                    size="sm"
                     onClick={() => openEditTemplate(template)}
                   >
                     {t("ai.common.edit")}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => removeTemplate(template)}
-                  >
-                    {t("ai.common.delete")}
-                  </button>
-                </span>
-              )}
-            </div>
-            <div className="AISettings__templateMeta">
-              <span>{formatTemplateModes(template.modes, t)}</span>
-              <span>
-                {getPromptTemplateCategoryLabel(template.category, t)}
-              </span>
-              <span>
-                {getPromptTemplateLanguageLabel(template.language, t)}
-              </span>
-            </div>
-            <p>{template.template}</p>
-          </div>
-        ))}
-      </div>
-    </div>
+                  </UiButton>
+                )
+              }
+              menu={
+                template.isBuiltIn
+                  ? undefined
+                  : [
+                      {
+                        label: t("ai.common.delete"),
+                        danger: true,
+                        onSelect: () => removeTemplate(template),
+                      },
+                    ]
+              }
+            />
+          ))}
+        </ul>
+      )}
+    </DialogSection>
   );
 
   const renderTemplateEditor = () => {
@@ -2370,111 +2339,96 @@ export const AISettings = ({
 
     return (
       <>
-        <div className="AISettings__editorHeader">
-          <button
-            className="AISettings__textButton"
-            type="button"
-            onClick={closeTemplateEditor}
+        {renderEditorHeader(
+          closeTemplateEditor,
+          templateEditorState.mode === "edit"
+            ? t("ai.settings.templates.editTemplate")
+            : t("ai.settings.templates.newTemplate"),
+        )}
+
+        <div className="AISettings__form">
+          <Field label={t("ai.settings.templates.label")}>
+            <TextInput
+              value={draft.label}
+              onChange={(event) =>
+                updateTemplateDraft({ label: event.target.value })
+              }
+            />
+          </Field>
+
+          <Field
+            label={t("ai.settings.templates.content")}
+            hint={t("ai.settings.templates.placeholderHint")}
           >
-            {t("ai.common.back")}
-          </button>
-          <h3>
-            {templateEditorState.mode === "edit"
-              ? t("ai.settings.templates.editTemplate")
-              : t("ai.settings.templates.newTemplate")}
-          </h3>
-        </div>
+            <TextArea
+              value={draft.template}
+              rows={5}
+              onChange={(event) =>
+                updateTemplateDraft({ template: event.target.value })
+              }
+            />
+          </Field>
 
-        <div className="AISettings__editorBody AISettings__editorBody--single">
-          <div className="AISettings__formSection AISettings__formSection--wide">
-            <label className="AISettings__field">
-              <span>{t("ai.settings.templates.label")}</span>
-              <input
-                value={draft.label}
-                onChange={(event) =>
-                  updateTemplateDraft({ label: event.target.value })
-                }
-              />
-            </label>
-
-            <label className="AISettings__field">
-              <span>{t("ai.settings.templates.content")}</span>
-              <textarea
-                value={draft.template}
-                rows={5}
-                onChange={(event) =>
-                  updateTemplateDraft({ template: event.target.value })
-                }
-              />
-            </label>
-
-            <div className="AISettings__templateModeGrid">
-              {TEMPLATE_MODE_OPTIONS.map((option) => (
-                <label key={option.value}>
-                  <input
-                    type="checkbox"
-                    checked={draft.modes.includes(option.value)}
-                    onChange={() => toggleTemplateMode(option.value)}
-                  />
-                  <span>{t(option.labelKey)}</span>
-                </label>
-              ))}
-            </div>
-
-            <div className="AISettings__modelGrid">
-              <label className="AISettings__field">
-                <span>{t("ai.settings.templates.category")}</span>
-                <select
-                  value={draft.category}
-                  onChange={(event) =>
-                    updateTemplateDraft({
-                      category: event.target.value as PromptTemplateCategory,
-                    })
-                  }
-                >
-                  {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {t(option.labelKey)}
-                    </option>
-                  ))}
-                </select>
+          <fieldset className="AISettings__checkboxGroup">
+            <legend className="AISettings__visuallyHidden">
+              {t("ai.common.mode")}
+            </legend>
+            {TEMPLATE_MODE_OPTIONS.map((option) => (
+              <label className="AISettings__checkbox" key={option.value}>
+                <input
+                  type="checkbox"
+                  checked={draft.modes.includes(option.value)}
+                  onChange={() => toggleTemplateMode(option.value)}
+                />
+                <span>{t(option.labelKey)}</span>
               </label>
+            ))}
+          </fieldset>
 
-              <label className="AISettings__field">
-                <span>{t("ai.settings.templates.language")}</span>
-                <select
-                  value={draft.language}
-                  onChange={(event) =>
-                    updateTemplateDraft({
-                      language: event.target.value as PromptTemplateLanguage,
-                    })
-                  }
-                >
-                  {TEMPLATE_LANGUAGE_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {t(option.labelKey)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
+          <div className="AISettings__formGrid">
+            <Field label={t("ai.settings.templates.category")}>
+              <Select
+                value={draft.category}
+                onChange={(event) =>
+                  updateTemplateDraft({
+                    category: event.target.value as PromptTemplateCategory,
+                  })
+                }
+              >
+                {TEMPLATE_CATEGORY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
 
-            <div className="AISettings__fieldHint">
-              {t("ai.settings.templates.placeholderHint")}
-            </div>
+            <Field label={t("ai.settings.templates.language")}>
+              <Select
+                value={draft.language}
+                onChange={(event) =>
+                  updateTemplateDraft({
+                    language: event.target.value as PromptTemplateLanguage,
+                  })
+                }
+              >
+                {TEMPLATE_LANGUAGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
         </div>
 
-        <div className="AISettings__editorActions">
-          <Button
-            className="AISettings__saveButton"
-            onSelect={submitTemplateDraft}
-          >
+        <DialogActions className="AISettings__footer">
+          <UiButton variant="primary" onClick={submitTemplateDraft}>
             {templateEditorState.mode === "edit"
               ? t("ai.settings.templates.saveTemplate")
               : t("ai.settings.templates.createTemplate")}
-          </Button>
-        </div>
+          </UiButton>
+        </DialogActions>
       </>
     );
   };
@@ -2530,20 +2484,12 @@ export const AISettings = ({
 
     return (
       <>
-        <div className="AISettings__editorHeader">
-          <button
-            className="AISettings__textButton"
-            type="button"
-            onClick={closeEditor}
-          >
-            {t("ai.common.back")}
-          </button>
-          <h3>
-            {editorState.mode === "edit"
-              ? t("ai.settings.modelEditor.editModel")
-              : t("ai.settings.modelEditor.newModel")}
-          </h3>
-        </div>
+        {renderEditorHeader(
+          closeEditor,
+          editorState.mode === "edit"
+            ? t("ai.settings.modelEditor.editModel")
+            : t("ai.settings.modelEditor.newModel"),
+        )}
 
         <div className="AISettings__providerPresets">
           <span className="AISettings__providerPresetsLabel">
@@ -2565,54 +2511,51 @@ export const AISettings = ({
         </div>
 
         <div className="AISettings__editorBody">
-          <div className="AISettings__formSection">
-            <div className="AISettings__sectionHeader">
-              <h4>{t("ai.settings.modelEditor.connection")}</h4>
-            </div>
+          <DialogSection
+            headingLevel={4}
+            className="AISettings__formSection"
+            title={t("ai.settings.modelEditor.connection")}
+          >
+            <Field label={t("ai.settings.modelEditor.siteName")}>
+              <TextInput
+                value={draft.siteName}
+                onChange={(event) =>
+                  updateDraft({ siteName: event.target.value })
+                }
+              />
+            </Field>
 
-            <div className="AISettings__connectionGrid">
-              <label className="AISettings__field">
-                <span>{t("ai.settings.modelEditor.siteName")}</span>
-                <input
-                  value={draft.siteName}
-                  onChange={(event) =>
-                    updateDraft({ siteName: event.target.value })
-                  }
-                />
-              </label>
+            <Field label={t("ai.settings.modelEditor.baseURL")}>
+              <TextInput
+                value={draft.baseURL}
+                onChange={(event) =>
+                  updateDraft({ baseURL: event.target.value })
+                }
+                placeholder="https://api.example.com/v1"
+              />
+            </Field>
 
-              <label className="AISettings__field">
-                <span>{t("ai.settings.modelEditor.baseURL")}</span>
-                <input
-                  value={draft.baseURL}
-                  onChange={(event) =>
-                    updateDraft({ baseURL: event.target.value })
-                  }
-                  placeholder="https://api.example.com/v1"
-                />
-              </label>
+            <Field
+              label={t("ai.settings.modelEditor.apiKey")}
+              hint={t("ai.settings.modelEditor.plainTextStorage")}
+            >
+              <TextInput
+                value={draft.apiKey}
+                type="password"
+                autoComplete="off"
+                onChange={(event) =>
+                  updateDraft({ apiKey: event.target.value })
+                }
+              />
+            </Field>
+          </DialogSection>
 
-              <label className="AISettings__field">
-                <span>{t("ai.settings.modelEditor.apiKey")}</span>
-                <input
-                  value={draft.apiKey}
-                  type="password"
-                  autoComplete="off"
-                  onChange={(event) =>
-                    updateDraft({ apiKey: event.target.value })
-                  }
-                />
-                <span className="AISettings__fieldHint">
-                  {t("ai.settings.modelEditor.plainTextStorage")}
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <div className="AISettings__formSection">
-            <div className="AISettings__sectionHeader">
-              <h4>{t("ai.settings.modelEditor.model")}</h4>
-              <label className="AISettings__defaultField">
+          <DialogSection
+            headingLevel={4}
+            className="AISettings__formSection"
+            title={t("ai.settings.modelEditor.model")}
+            actions={
+              <label className="AISettings__checkbox">
                 <input
                   type="checkbox"
                   checked={setAsDefault}
@@ -2620,27 +2563,23 @@ export const AISettings = ({
                 />
                 <span>{t("ai.settings.modelEditor.defaultModel")}</span>
               </label>
-            </div>
+            }
+          >
+            <Field
+              label={t("ai.settings.modelEditor.modelIds")}
+              hint={t("ai.settings.modelEditor.modelIdsHint")}
+            >
+              <TextArea
+                value={draft.model}
+                rows={3}
+                onChange={(event) => updateDraft({ model: event.target.value })}
+              />
+            </Field>
 
-            <div className="AISettings__modelGrid">
-              <label className="AISettings__field AISettings__modelIdsField">
-                <span>{t("ai.settings.modelEditor.modelIds")}</span>
-                <textarea
-                  value={draft.model}
-                  rows={4}
-                  onChange={(event) =>
-                    updateDraft({ model: event.target.value })
-                  }
-                />
-                <span className="AISettings__fieldHint">
-                  {t("ai.settings.modelEditor.modelIdsHint")}
-                </span>
-              </label>
-
+            <div className="AISettings__formGrid">
               {draft.mediaType === "image" && (
-                <label className="AISettings__field AISettings__modelRightField1">
-                  <span>{t("ai.settings.modelEditor.nativeModel")}</span>
-                  <select
+                <Field label={t("ai.settings.modelEditor.nativeModel")}>
+                  <Select
                     value={draft.nativeModel || DEFAULT_AI_IMAGE_NATIVE_MODEL}
                     onChange={(event) =>
                       updateDraft({
@@ -2653,19 +2592,12 @@ export const AISettings = ({
                         {option.label}
                       </option>
                     ))}
-                  </select>
-                </label>
+                  </Select>
+                </Field>
               )}
 
-              <label
-                className={
-                  draft.mediaType === "image"
-                    ? "AISettings__field AISettings__modelRightField2"
-                    : "AISettings__field AISettings__modelRightField1"
-                }
-              >
-                <span>{t("ai.settings.modelEditor.type")}</span>
-                <select
+              <Field label={t("ai.settings.modelEditor.type")}>
+                <Select
                   value={draft.mediaType}
                   onChange={(event) =>
                     updateDraft({
@@ -2678,18 +2610,11 @@ export const AISettings = ({
                       {getMediaTypeLabel(mediaType, t)}
                     </option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </Field>
 
-              <label
-                className={
-                  draft.mediaType === "image"
-                    ? "AISettings__field AISettings__modelRightField3"
-                    : "AISettings__field AISettings__modelRightField2"
-                }
-              >
-                <span>{t("ai.settings.modelEditor.timeoutSeconds")}</span>
-                <input
+              <Field label={t("ai.settings.modelEditor.timeoutSeconds")}>
+                <TextInput
                   inputMode="numeric"
                   pattern="[0-9]*"
                   type="text"
@@ -2713,19 +2638,21 @@ export const AISettings = ({
                     })
                   }
                 />
-              </label>
+              </Field>
             </div>
-          </div>
+          </DialogSection>
 
           {draft.mediaType === "image" && (
-            <div className="AISettings__formSection AISettings__formSection--wide">
-              <div className="AISettings__sectionHeader">
-                <h4>{t("ai.settings.modelEditor.apiConfiguration")}</h4>
-              </div>
-
-              <label className="AISettings__field AISettings__presetField">
-                <span>{t("ai.settings.modelEditor.endpointPreset")}</span>
-                <select
+            <DialogSection
+              headingLevel={4}
+              className="AISettings__formSection AISettings__formSection--wide"
+              title={t("ai.settings.modelEditor.apiConfiguration")}
+            >
+              <Field
+                label={t("ai.settings.modelEditor.endpointPreset")}
+                hint={selectedPreset?.description}
+              >
+                <Select
                   value={draft.endpointPresetId}
                   onChange={(event) => {
                     const preset = getPresetById(event.target.value);
@@ -2748,13 +2675,8 @@ export const AISettings = ({
                       {preset.name}
                     </option>
                   ))}
-                </select>
-                {selectedPreset?.description && (
-                  <span className="AISettings__fieldHint">
-                    {selectedPreset.description}
-                  </span>
-                )}
-              </label>
+                </Select>
+              </Field>
 
               <details className="AISettings__advanced">
                 <summary>
@@ -2782,43 +2704,36 @@ export const AISettings = ({
                         <span className="AISettings__endpointLabel">
                           {endpointLabel}
                         </span>
-                        <label className="AISettings__field">
-                          <span className="AISettings__visuallyHidden">
-                            {t("ai.settings.modelEditor.endpointPathLabel", {
-                              label: endpointLabel,
-                            })}
-                          </span>
-                          <input
-                            value={endpoint.path}
-                            placeholder={endpointField.placeholder}
-                            onChange={(event) =>
-                              updateEndpoint(endpointField.key, {
-                                path: event.target.value,
-                              })
-                            }
-                          />
-                        </label>
-
-                        <label className="AISettings__field">
-                          <span className="AISettings__visuallyHidden">
-                            {t("ai.settings.modelEditor.endpointFormatLabel", {
-                              label: endpointLabel,
-                            })}
-                          </span>
-                          <select
-                            value={endpoint.format}
-                            onChange={(event) =>
-                              updateEndpoint(endpointField.key, {
-                                format: event.target
-                                  .value as AIImageEndpointConfig["format"],
-                              })
-                            }
-                          >
-                            <option value="json">JSON</option>
-                            <option value="form">FormData</option>
-                            <option value="gemini">Gemini JSON</option>
-                          </select>
-                        </label>
+                        <TextInput
+                          aria-label={t(
+                            "ai.settings.modelEditor.endpointPathLabel",
+                            { label: endpointLabel },
+                          )}
+                          value={endpoint.path}
+                          placeholder={endpointField.placeholder}
+                          onChange={(event) =>
+                            updateEndpoint(endpointField.key, {
+                              path: event.target.value,
+                            })
+                          }
+                        />
+                        <Select
+                          aria-label={t(
+                            "ai.settings.modelEditor.endpointFormatLabel",
+                            { label: endpointLabel },
+                          )}
+                          value={endpoint.format}
+                          onChange={(event) =>
+                            updateEndpoint(endpointField.key, {
+                              format: event.target
+                                .value as AIImageEndpointConfig["format"],
+                            })
+                          }
+                        >
+                          <option value="json">JSON</option>
+                          <option value="form">FormData</option>
+                          <option value="gemini">Gemini JSON</option>
+                        </Select>
                       </div>
                     );
                   })}
@@ -2830,46 +2745,39 @@ export const AISettings = ({
                   <span>
                     {t("ai.settings.modelEditor.advancedFieldMapping")}
                   </span>
-                  {fieldMappingCount > 0 && (
-                    <span className="AISettings__summaryBadge">
-                      {fieldMappingCount}
-                    </span>
-                  )}
+                  {fieldMappingCount > 0 && <Badge>{fieldMappingCount}</Badge>}
                 </summary>
                 <div className="AISettings__fieldMappingGrid">
                   {FIELD_MAPPING_FORM_FIELDS.map((field) => (
-                    <label className="AISettings__field" key={field.key}>
-                      <span>{t(field.labelKey)}</span>
-                      <input
+                    <Field label={t(field.labelKey)} key={field.key}>
+                      <TextInput
                         value={draft.fieldMapping?.[field.key] || ""}
                         placeholder={field.placeholder}
                         onChange={(event) =>
                           updateFieldMapping(field.key, event.target.value)
                         }
                       />
-                    </label>
+                    </Field>
                   ))}
                 </div>
               </details>
-            </div>
+            </DialogSection>
           )}
 
-          <div className="AISettings__formSection AISettings__formSection--wide">
-            <div className="AISettings__sectionHeader">
-              <h4>{t("ai.settings.modelEditor.capabilities")}</h4>
-            </div>
-
-            <details className="AISettings__advanced AISettings__capabilitiesDetails">
+          <DialogSection
+            headingLevel={4}
+            className="AISettings__formSection AISettings__formSection--wide"
+            title={t("ai.settings.modelEditor.capabilities")}
+          >
+            <details className="AISettings__advanced">
               <summary>
                 <span>{t("ai.settings.modelEditor.enabledCapabilities")}</span>
-                <span className="AISettings__summaryBadge">
-                  {capabilityCount}
-                </span>
+                <Badge>{capabilityCount}</Badge>
               </summary>
 
               <div className="AISettings__capabilities">
                 {MODEL_CAPABILITY_OPTIONS[draft.mediaType].map((option) => (
-                  <label key={option.value}>
+                  <label className="AISettings__checkbox" key={option.value}>
                     <input
                       type="checkbox"
                       checked={draft.capabilities.includes(option.value)}
@@ -2884,26 +2792,28 @@ export const AISettings = ({
                 ))}
               </div>
             </details>
-          </div>
+          </DialogSection>
         </div>
 
-        <div className="AISettings__editorActions">
-          {editorState.mode === "edit" && (
-            <button
-              className="AISettings__dangerButton"
-              type="button"
-              onClick={() => removeModelGroup(editorState.indexes)}
-            >
-              {t("ai.common.remove")}
-            </button>
-          )}
-
-          <Button className="AISettings__saveButton" onSelect={submitDraft}>
+        <DialogActions
+          className="AISettings__footer"
+          leading={
+            editorState.mode === "edit" && (
+              <UiButton
+                variant="danger"
+                onClick={() => removeModelGroup(editorState.indexes)}
+              >
+                {t("ai.common.remove")}
+              </UiButton>
+            )
+          }
+        >
+          <UiButton variant="primary" onClick={submitDraft}>
             {editorState.mode === "edit"
               ? t("ai.settings.modelEditor.saveModel")
               : t("ai.settings.modelEditor.createModel")}
-          </Button>
-        </div>
+          </UiButton>
+        </DialogActions>
       </>
     );
   };
@@ -2924,91 +2834,75 @@ export const AISettings = ({
     const runtimeDefaultEndpoint = getRuntimeDefaultAIProxyEndpoint();
     const runtimeDefaultGatewayEndpoint = getRuntimeDefaultAIGatewayEndpoint();
 
+    const networkModes = [
+      {
+        mode: "direct",
+        title: t("ai.proxy.directTitle"),
+        description: t("ai.proxy.directDescription"),
+      },
+      {
+        mode: "byok-proxy",
+        title: t("ai.proxy.backendTitle"),
+        description: t("ai.proxy.backendDescription"),
+      },
+      {
+        mode: "managed-gateway",
+        title: t("ai.proxy.managedTitle"),
+        description: t("ai.proxy.managedDescription"),
+      },
+    ] as const;
+
     return (
-      <div className="AISettings__network">
+      <>
         <div
           className="AISettings__networkModes"
           role="radiogroup"
           aria-label={t("ai.proxy.networkTitle")}
         >
-          <label
-            className={
-              proxyConfig.mode === "direct"
-                ? "AISettings__networkMode is-selected"
-                : "AISettings__networkMode"
-            }
-          >
-            <input
-              type="radio"
-              name="ai-network-mode"
-              checked={proxyConfig.mode === "direct"}
-              onChange={() =>
-                setProxyConfig((current) => ({
-                  ...current,
-                  mode: "direct",
-                }))
+          {networkModes.map((option) => (
+            <label
+              key={option.mode}
+              className={
+                proxyConfig.mode === option.mode
+                  ? "AISettings__networkMode is-selected"
+                  : "AISettings__networkMode"
               }
-            />
-            <span>
-              <strong>{t("ai.proxy.directTitle")}</strong>
-              <small>{t("ai.proxy.directDescription")}</small>
-            </span>
-          </label>
-
-          <label
-            className={
-              proxyConfig.mode === "byok-proxy"
-                ? "AISettings__networkMode is-selected"
-                : "AISettings__networkMode"
-            }
-          >
-            <input
-              type="radio"
-              name="ai-network-mode"
-              checked={proxyConfig.mode === "byok-proxy"}
-              onChange={() =>
-                setProxyConfig((current) => ({
-                  ...current,
-                  mode: "byok-proxy",
-                }))
-              }
-            />
-            <span>
-              <strong>{t("ai.proxy.backendTitle")}</strong>
-              <small>{t("ai.proxy.backendDescription")}</small>
-            </span>
-          </label>
-
-          <label
-            className={
-              proxyConfig.mode === "managed-gateway"
-                ? "AISettings__networkMode is-selected"
-                : "AISettings__networkMode"
-            }
-          >
-            <input
-              type="radio"
-              name="ai-network-mode"
-              checked={proxyConfig.mode === "managed-gateway"}
-              onChange={() =>
-                setProxyConfig((current) => ({
-                  ...current,
-                  mode: "managed-gateway",
-                }))
-              }
-            />
-            <span>
-              <strong>{t("ai.proxy.managedTitle")}</strong>
-              <small>{t("ai.proxy.managedDescription")}</small>
-            </span>
-          </label>
+            >
+              <input
+                type="radio"
+                name="ai-network-mode"
+                checked={proxyConfig.mode === option.mode}
+                onChange={() =>
+                  setProxyConfig((current) => ({
+                    ...current,
+                    mode: option.mode,
+                  }))
+                }
+              />
+              <span>
+                <strong>{option.title}</strong>
+                <small>{option.description}</small>
+              </span>
+            </label>
+          ))}
         </div>
 
         {proxyConfig.mode === "byok-proxy" && (
-          <div className="AISettings__networkFields">
-            <label className="AISettings__field">
-              <span>{t("ai.proxy.endpoint")}</span>
-              <input
+          <div className="AISettings__formGrid">
+            <Field
+              label={t("ai.proxy.endpoint")}
+              hint={
+                <span className="AISettings__metaLines">
+                  <span>{t("ai.proxy.endpointHint")}</span>
+                  <span>
+                    {t("ai.proxy.runtimeDefault", {
+                      endpoint: runtimeDefaultEndpoint,
+                    })}
+                  </span>
+                </span>
+              }
+            >
+              <TextInput
                 value={proxyConfig.endpoint}
                 placeholder={t("ai.proxy.endpointPlaceholder")}
                 onChange={(event) =>
@@ -3018,19 +2912,13 @@ export const AISettings = ({
                   }))
                 }
               />
-              <span className="AISettings__fieldHint">
-                {t("ai.proxy.endpointHint")}
-              </span>
-              <span className="AISettings__fieldHint">
-                {t("ai.proxy.runtimeDefault", {
-                  endpoint: runtimeDefaultEndpoint,
-                })}
-              </span>
-            </label>
+            </Field>
 
-            <label className="AISettings__field">
-              <span>{t("ai.proxy.accessToken")}</span>
-              <input
+            <Field
+              label={t("ai.proxy.accessToken")}
+              hint={t("ai.proxy.accessTokenHint")}
+            >
+              <TextInput
                 type="password"
                 autoComplete="off"
                 value={proxyConfig.accessToken}
@@ -3041,18 +2929,19 @@ export const AISettings = ({
                   }))
                 }
               />
-              <span className="AISettings__fieldHint">
-                {t("ai.proxy.accessTokenHint")}
-              </span>
-            </label>
+            </Field>
           </div>
         )}
 
         {proxyConfig.mode === "managed-gateway" && (
-          <div className="AISettings__managedGateway">
-            <label className="AISettings__field">
-              <span>{t("ai.proxy.gatewayEndpoint")}</span>
-              <input
+          <>
+            <Field
+              label={t("ai.proxy.gatewayEndpoint")}
+              hint={t("ai.proxy.runtimeDefault", {
+                endpoint: runtimeDefaultGatewayEndpoint,
+              })}
+            >
+              <TextInput
                 value={proxyConfig.gatewayEndpoint}
                 placeholder="/ai-gateway/v1"
                 onChange={(event) =>
@@ -3062,40 +2951,35 @@ export const AISettings = ({
                   }))
                 }
               />
-              <span className="AISettings__fieldHint">
-                {t("ai.proxy.runtimeDefault", {
-                  endpoint: runtimeDefaultGatewayEndpoint,
-                })}
-              </span>
-            </label>
+            </Field>
 
             {managedAccountStatus === "loading" && (
-              <div className="AISettings__networkWarning">
-                {t("ai.proxy.managedLoading")}
-              </div>
+              <Callout tone="info">{t("ai.proxy.managedLoading")}</Callout>
             )}
             {managedAccountStatus === "signed-out" && (
-              <div className="AISettings__networkWarning" role="alert">
+              <Callout tone="warning">
                 {t("ai.proxy.managedSignInRequired")}
-              </div>
+              </Callout>
             )}
             {managedAccountStatus === "unavailable" && (
-              <div className="AISettings__networkWarning" role="alert">
+              <Callout tone="danger">
                 {t("ai.proxy.managedUnavailable")}
-              </div>
+              </Callout>
             )}
 
             {managedAccountStatus === "ready" && (
               <>
-                <div className="AISettings__networkFields">
+                <div className="AISettings__formGrid">
                   {MANAGED_ROUTE_CAPABILITIES.map((capability) => {
                     const routes = managedCatalog.filter(
                       (entry) => entry.capability === capability,
                     );
                     return (
-                      <label className="AISettings__field" key={capability}>
-                        <span>{t(MANAGED_ROUTE_LABELS[capability])}</span>
-                        <select
+                      <Field
+                        label={t(MANAGED_ROUTE_LABELS[capability])}
+                        key={capability}
+                      >
+                        <Select
                           value={proxyConfig.managedRoutes[capability] || ""}
                           onChange={(event) =>
                             setProxyConfig((current) => ({
@@ -3113,38 +2997,47 @@ export const AISettings = ({
                               {route.label} ({route.model})
                             </option>
                           ))}
-                        </select>
-                      </label>
+                        </Select>
+                      </Field>
                     );
                   })}
                 </div>
 
                 {managedQuota && (
-                  <div className="AISettings__gatewaySummary">
-                    <strong>{t("ai.proxy.quotaTitle")}</strong>
-                    <span>
-                      {t("ai.proxy.quotaDaily", {
-                        used: managedQuota.daily.used,
-                        limit: managedQuota.daily.limit,
-                      })}
-                    </span>
-                    <span>
-                      {t("ai.proxy.quotaMonthly", {
-                        used: managedQuota.monthly.used,
-                        limit: managedQuota.monthly.limit,
-                      })}
-                    </span>
-                    <span>
-                      {t("ai.proxy.recentUsage", {
-                        count: managedUsage.length,
-                      })}
-                    </span>
-                  </div>
+                  <DialogSection
+                    headingLevel={4}
+                    className="AISettings__group"
+                    title={t("ai.proxy.quotaTitle")}
+                  >
+                    <div className="AISettings__gatewaySummary">
+                      <span>
+                        {t("ai.proxy.quotaDaily", {
+                          used: managedQuota.daily.used,
+                          limit: managedQuota.daily.limit,
+                        })}
+                      </span>
+                      <span>
+                        {t("ai.proxy.quotaMonthly", {
+                          used: managedQuota.monthly.used,
+                          limit: managedQuota.monthly.limit,
+                        })}
+                      </span>
+                      <span>
+                        {t("ai.proxy.recentUsage", {
+                          count: managedUsage.length,
+                        })}
+                      </span>
+                    </div>
+                  </DialogSection>
                 )}
 
                 {managedAuditAvailable && (
-                  <>
-                    <label className="AISettings__gatewayToggle">
+                  <DialogSection
+                    headingLevel={4}
+                    className="AISettings__group"
+                    title={t("ai.proxy.auditRecords")}
+                  >
+                    <label className="AISettings__checkbox">
                       <input
                         type="checkbox"
                         checked={managedAuditConsent}
@@ -3154,178 +3047,149 @@ export const AISettings = ({
                       />
                       <span>{t("ai.proxy.auditConsent")}</span>
                     </label>
-                    <div className="AISettings__auditRecords">
-                      <strong>{t("ai.proxy.auditRecords")}</strong>
-                      {!managedAudits.length && (
-                        <span className="AISettings__fieldHint">
-                          {t("ai.proxy.auditEmpty")}
-                        </span>
-                      )}
-                      {managedAudits.map((audit) => (
-                        <div className="AISettings__auditRecord" key={audit.id}>
-                          <span>
-                            {audit.routeId} ·{" "}
-                            {new Date(audit.createdAt).toLocaleString()}
-                          </span>
-                          <span>
-                            <button
-                              type="button"
-                              onClick={() => void viewManagedAudit(audit.id)}
-                            >
-                              {t("ai.proxy.auditView")}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void deleteManagedAudit(audit.id)}
-                            >
-                              {t("ai.proxy.auditDelete")}
-                            </button>
-                          </span>
+                    {!managedAudits.length && (
+                      <p className="AISettings__hint">
+                        {t("ai.proxy.auditEmpty")}
+                      </p>
+                    )}
+                    {managedAudits.length > 0 && (
+                      <ul className="AISettings__list">
+                        {managedAudits.map((audit) => (
+                          <ListRow
+                            key={audit.id}
+                            title={audit.routeId}
+                            meta={new Date(audit.createdAt).toLocaleString()}
+                            actions={
+                              <>
+                                <UiButton
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() =>
+                                    void viewManagedAudit(audit.id)
+                                  }
+                                >
+                                  {t("ai.proxy.auditView")}
+                                </UiButton>
+                                <UiButton
+                                  size="sm"
+                                  variant="danger"
+                                  onClick={() =>
+                                    void deleteManagedAudit(audit.id)
+                                  }
+                                >
+                                  {t("ai.proxy.auditDelete")}
+                                </UiButton>
+                              </>
+                            }
+                          />
+                        ))}
+                      </ul>
+                    )}
+                    {managedAuditDetail && (
+                      <div className="AISettings__auditDetail">
+                        <div className="AISettings__auditDetailHeader">
+                          <strong>{t("ai.proxy.auditPrompt")}</strong>
+                          <UiButton
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setManagedAuditDetail(null)}
+                          >
+                            {t("buttons.close")}
+                          </UiButton>
                         </div>
-                      ))}
-                      {managedAuditDetail && (
-                        <div className="AISettings__auditDetail">
-                          <div className="AISettings__auditDetailHeader">
-                            <strong>{t("ai.proxy.auditPrompt")}</strong>
-                            <button
-                              type="button"
-                              onClick={() => setManagedAuditDetail(null)}
-                            >
-                              {t("buttons.close")}
-                            </button>
-                          </div>
-                          <pre>{managedAuditDetail.prompt || ""}</pre>
-                        </div>
-                      )}
-                    </div>
-                  </>
+                        <pre>{managedAuditDetail.prompt || ""}</pre>
+                      </div>
+                    )}
+                  </DialogSection>
                 )}
 
                 <div className="AISettings__deviceApproval">
-                  <label className="AISettings__field">
-                    <span>{t("ai.proxy.deviceCode")}</span>
-                    <input
+                  <Field label={t("ai.proxy.deviceCode")}>
+                    <TextInput
                       value={deviceUserCode}
                       autoComplete="off"
                       onChange={(event) =>
                         setDeviceUserCode(event.target.value)
                       }
                     />
-                  </label>
-                  <button
-                    type="button"
+                  </Field>
+                  <UiButton
                     disabled={!deviceUserCode.trim()}
                     onClick={approveDeviceCode}
                   >
                     {t("ai.proxy.approveDevice")}
-                  </button>
+                  </UiButton>
                 </div>
               </>
             )}
-          </div>
+          </>
         )}
 
-        <div className="AISettings__networkWarning">
+        <Callout tone="warning" live={false}>
           {t("ai.proxy.videoWarning")}
-        </div>
+        </Callout>
 
-        <div className="AISettings__networkActions">
-          <button type="button" onClick={restoreProxyDefaults}>
-            {t("ai.proxy.restoreDefaults")}
-          </button>
-          <button
-            type="button"
-            disabled={proxyConfig.mode !== "byok-proxy" || isTestingProxy}
+        <DialogActions
+          className="AISettings__footer"
+          leading={
+            <UiButton variant="ghost" onClick={restoreProxyDefaults}>
+              {t("ai.proxy.restoreDefaults")}
+            </UiButton>
+          }
+        >
+          <UiButton
+            disabled={proxyConfig.mode !== "byok-proxy"}
+            loading={isTestingProxy}
             onClick={testProxy}
           >
             {isTestingProxy ? t("ai.proxy.testing") : t("ai.proxy.test")}
-          </button>
-          <Button onSelect={persistProxyConfig}>{t("ai.proxy.save")}</Button>
-        </div>
-      </div>
+          </UiButton>
+          <UiButton variant="primary" onClick={persistProxyConfig}>
+            {t("ai.proxy.save")}
+          </UiButton>
+        </DialogActions>
+      </>
     );
   };
 
   return (
     <div className="AISettings">
+      <TabList
+        idPrefix="ai-settings"
+        className="AISettings__topTabs"
+        label={t("ai.common.settings")}
+        value={activeSettingsTab}
+        onChange={setActiveSettingsTab}
+        tabs={[
+          { value: "models", label: t("ai.settings.tabs.models") },
+          { value: "agents", label: t("ai.settings.tabs.agents") },
+          { value: "templates", label: t("ai.settings.tabs.templates") },
+          { value: "network", label: t("ai.proxy.networkTitle") },
+        ]}
+      />
+
       <div
-        className="AISettings__tabs AISettings__tabs--top"
-        role="tablist"
-        aria-label={t("ai.common.settings")}
+        {...getTabPanelProps("ai-settings", activeSettingsTab)}
+        className="AISettings__panel"
+        tabIndex={-1}
       >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSettingsTab === "models"}
-          className={
-            activeSettingsTab === "models"
-              ? "AISettings__tab is-selected"
-              : "AISettings__tab"
-          }
-          onClick={() => setActiveSettingsTab("models")}
-        >
-          {t("ai.settings.tabs.models")}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSettingsTab === "agents"}
-          className={
-            activeSettingsTab === "agents"
-              ? "AISettings__tab is-selected"
-              : "AISettings__tab"
-          }
-          onClick={() => setActiveSettingsTab("agents")}
-        >
-          {t("ai.settings.tabs.agents")}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSettingsTab === "templates"}
-          className={
-            activeSettingsTab === "templates"
-              ? "AISettings__tab is-selected"
-              : "AISettings__tab"
-          }
-          onClick={() => setActiveSettingsTab("templates")}
-        >
-          {t("ai.settings.tabs.templates")}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeSettingsTab === "network"}
-          className={
-            activeSettingsTab === "network"
-              ? "AISettings__tab is-selected"
-              : "AISettings__tab"
-          }
-          onClick={() => setActiveSettingsTab("network")}
-        >
-          {t("ai.proxy.networkTitle")}
-        </button>
+        {activeSettingsTab === "models" &&
+          (editorState.mode === "list" ? renderList() : renderEditor())}
+        {activeSettingsTab === "agents" && renderAgentSettings()}
+        {activeSettingsTab === "templates" &&
+          (templateEditorState.mode === "list"
+            ? renderTemplatesList()
+            : renderTemplateEditor())}
+        {activeSettingsTab === "network" && renderNetworkSettings()}
       </div>
 
-      {activeSettingsTab === "models" &&
-        (editorState.mode === "list" ? renderList() : renderEditor())}
-      {activeSettingsTab === "agents" && renderAgentSettings()}
-      {activeSettingsTab === "templates" &&
-        (templateEditorState.mode === "list"
-          ? renderTemplatesList()
-          : renderTemplateEditor())}
-      {activeSettingsTab === "network" && renderNetworkSettings()}
-
       {(statusMessage || errorMessage) && (
-        <div
-          className={
-            errorMessage
-              ? "AISettings__message is-error"
-              : "AISettings__message"
-          }
+        <Callout
+          className="AISettings__message"
+          tone={errorMessage ? "danger" : "success"}
         >
           {errorMessage || statusMessage}
-        </div>
+        </Callout>
       )}
     </div>
   );

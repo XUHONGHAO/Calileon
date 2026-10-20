@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -8,8 +7,16 @@ import { getCloudBackend } from "../data/cloud";
 
 import "./SceneListDialog.scss";
 
-import { confirmAction } from "./ui";
+import {
+  Badge,
+  Callout,
+  DialogActions,
+  ListRow,
+  UiButton,
+  confirmAction,
+} from "./ui";
 
+import type { UiTone } from "./ui";
 import type { AITaskRecord, SceneRecord } from "../data/cloud";
 
 export interface AITaskListDialogProps {
@@ -20,6 +27,13 @@ export interface AITaskListDialogProps {
 }
 
 const TASK_LIMIT = 50;
+
+const TASK_STATUS_TONE: Partial<Record<AITaskRecord["status"], UiTone>> = {
+  succeeded: "success",
+  failed: "danger",
+  running: "info",
+  queued: "info",
+};
 
 const formatUpdatedAt = (value: number) => {
   if (!value) {
@@ -154,6 +168,14 @@ export const AITaskListDialog: React.FC<AITaskListDialogProps> = ({
     }
   };
 
+  const hasThumbnails = tasks.some((task) => !!assetUrls[task.id]);
+
+  const renderStatus = (message: string) => (
+    <p className="SceneListDialog__status" role="status">
+      {message}
+    </p>
+  );
+
   return (
     <Dialog
       className="SceneListDialogModal"
@@ -163,101 +185,104 @@ export const AITaskListDialog: React.FC<AITaskListDialogProps> = ({
       title={t("cloud.aiTasks.title")}
     >
       <div className="SceneListDialog">
-        <button
+        <UiButton
           className="SceneListDialog__close"
-          type="button"
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon={CloseIcon}
           aria-label={t("buttons.close")}
           title={t("buttons.close")}
           onClick={onClose}
-        >
-          {CloseIcon}
-        </button>
+        />
 
-        <div className="SceneListDialog__toolbar">
-          <p>{t("cloud.aiTasks.description")}</p>
-          <div className="SceneListDialog__toolbarActions">
-            {onBack && (
-              <Button onSelect={onBack} disabled={loading}>
-                {t("cloud.scenes.back")}
-              </Button>
-            )}
-            <Button onSelect={() => void loadTasks()} disabled={loading}>
-              {t("cloud.scenes.refresh")}
-            </Button>
-          </div>
-        </div>
+        <p className="SceneListDialog__description">
+          {t("cloud.aiTasks.description")}
+        </p>
 
-        {error && (
-          <p className="SceneListDialog__error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <Callout tone="danger">{error}</Callout>}
 
         {loading ? (
-          <div className="SceneListDialog__status">
-            {t("cloud.aiTasks.loading")}
-          </div>
+          renderStatus(t("cloud.aiTasks.loading"))
         ) : tasks.length === 0 ? (
-          <div className="SceneListDialog__status">
-            {t("cloud.aiTasks.empty")}
-          </div>
+          renderStatus(t("cloud.aiTasks.empty"))
         ) : (
           <ul className="SceneListDialog__list">
             {tasks.map((task) => {
               const isBusy = busyTaskId === task.id;
               const assetUrl = assetUrls[task.id];
+              const title = task.promptSummary || t("cloud.aiTasks.untitled");
 
               return (
-                <li
-                  className={
-                    assetUrl
-                      ? "SceneListDialog__item SceneListDialog__item--withThumbnail"
-                      : "SceneListDialog__item"
-                  }
+                <ListRow
                   key={task.id}
-                >
-                  {assetUrl && (
-                    <img
-                      className="SceneListDialog__thumbnail"
-                      src={assetUrl}
-                      alt=""
-                    />
-                  )}
-                  <div className="SceneListDialog__details">
-                    <strong title={task.promptSummary}>
-                      {task.promptSummary || t("cloud.aiTasks.untitled")}
-                    </strong>
-                    <span>
-                      {getTaskStatusLabel(task)} {" - "} {task.mode} {" - "}
-                      {task.modelLabel || task.modelId}
-                    </span>
-                    <span>
-                      {t("cloud.aiTasks.updatedAt", {
-                        date: formatUpdatedAt(
-                          task.completedAt || task.updatedAt,
-                        ),
-                      })}
-                    </span>
-                  </div>
-                  <div className="SceneListDialog__actions">
-                    <Button
-                      onSelect={() => void handleOpenScene(task)}
+                  leading={
+                    hasThumbnails &&
+                    (assetUrl ? (
+                      <img
+                        className="SceneListDialog__thumbnail"
+                        src={assetUrl}
+                        alt=""
+                      />
+                    ) : (
+                      <span
+                        className="SceneListDialog__thumbnail"
+                        aria-hidden="true"
+                      />
+                    ))
+                  }
+                  title={<span title={title}>{title}</span>}
+                  badges={
+                    <Badge tone={TASK_STATUS_TONE[task.status] ?? "neutral"}>
+                      {getTaskStatusLabel(task)}
+                    </Badge>
+                  }
+                  meta={[
+                    task.mode,
+                    task.modelLabel || task.modelId,
+                    t("cloud.aiTasks.updatedAt", {
+                      date: formatUpdatedAt(task.completedAt || task.updatedAt),
+                    }),
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  actions={
+                    <UiButton
+                      size="sm"
+                      loading={isBusy}
                       disabled={!!busyTaskId}
+                      onClick={() => void handleOpenScene(task)}
                     >
                       {t("cloud.aiTasks.openScene")}
-                    </Button>
-                    <Button
-                      onSelect={() => void handleRemove(task)}
-                      disabled={!!busyTaskId || isBusy}
-                    >
-                      {t("cloud.aiTasks.delete")}
-                    </Button>
-                  </div>
-                </li>
+                    </UiButton>
+                  }
+                  menu={[
+                    {
+                      label: t("cloud.aiTasks.delete"),
+                      onSelect: () => void handleRemove(task),
+                      danger: true,
+                      disabled: !!busyTaskId,
+                    },
+                  ]}
+                />
               );
             })}
           </ul>
         )}
+
+        <DialogActions
+          leading={
+            onBack && (
+              <UiButton variant="ghost" onClick={onBack} disabled={loading}>
+                {t("cloud.scenes.back")}
+              </UiButton>
+            )
+          }
+        >
+          <UiButton onClick={() => void loadTasks()} disabled={loading}>
+            {t("cloud.scenes.refresh")}
+          </UiButton>
+        </DialogActions>
       </div>
     </Dialog>
   );

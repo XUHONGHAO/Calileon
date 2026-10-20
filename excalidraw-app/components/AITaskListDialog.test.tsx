@@ -54,6 +54,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.scenes.openFailed": "Could not open.",
       "cloud.scenes.refresh": "Refresh",
       "cloud.scenes.unknownUpdatedAt": "unknown time",
+      "ui.moreActions": "More actions",
     };
     return values[key] ?? key;
   },
@@ -143,6 +144,7 @@ describe("AITaskListDialog", () => {
       limit: 50,
     });
     expect(backendMock.backend.assets.getUrl).toHaveBeenCalledWith("asset-1");
+    expect(screen.getByText("Succeeded")).toHaveClass("UiBadge--success");
   });
 
   it("opens the task's cloud whiteboard", async () => {
@@ -164,7 +166,10 @@ describe("AITaskListDialog", () => {
   it("soft-deletes task records and refreshes the list", async () => {
     renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "More actions" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
 
     await waitFor(() => {
       expect(backendMock.backend.aiTasks.remove).toHaveBeenCalledWith("task-1");

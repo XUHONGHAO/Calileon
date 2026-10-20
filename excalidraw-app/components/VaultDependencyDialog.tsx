@@ -1,7 +1,7 @@
 import React from "react";
 
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
+import Spinner from "@excalidraw/excalidraw/components/Spinner";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -14,6 +14,8 @@ import {
   VaultError,
 } from "../data/vault";
 import { createSupabaseVaultBackend } from "../data/cloud";
+
+import { Callout, DialogActions, UiButton } from "./ui";
 
 import "./VaultDependencyDialog.scss";
 
@@ -78,7 +80,10 @@ export const VaultDependencyDialog = ({
   });
   const [creationError, setCreationError] =
     React.useState<VaultErrorCode | null>(null);
-  const [isCreating, setIsCreating] = React.useState(false);
+  // which create action is running ("v1" | "v2"); false when idle
+  const [isCreating, setIsCreating] = React.useState<false | "v1" | "v2">(
+    false,
+  );
   const attemptRef = React.useRef(0);
 
   const checkDependencies = React.useCallback(async () => {
@@ -120,7 +125,7 @@ export const VaultDependencyDialog = ({
       return;
     }
     setCreationError(null);
-    setIsCreating(true);
+    setIsCreating("v1");
     try {
       const backend = createSupabaseVaultBackend(status.deployment);
       const rooms = createHttpVaultRoomProvisionTransport({
@@ -149,7 +154,7 @@ export const VaultDependencyDialog = ({
       return;
     }
     setCreationError(null);
-    setIsCreating(true);
+    setIsCreating("v2");
     try {
       const editorLink = await onCreateV2();
       onClose();
@@ -176,90 +181,88 @@ export const VaultDependencyDialog = ({
       closeOnClickOutside={false}
     >
       <div className="VaultDependencyDialog">
-        <p>{t("vault.dependency.description")}</p>
+        <p className="VaultDependencyDialog__description">
+          {t("vault.dependency.description")}
+        </p>
 
         {status.kind === "checking" && (
-          <div className="VaultDependencyDialog__status" role="status">
-            {t("vault.dependency.checking")}
+          <div className="VaultDependencyDialog__checking" role="status">
+            <Spinner />
+            <span>{t("vault.dependency.checking")}</span>
           </div>
         )}
 
         {status.kind === "ready" && (
           <>
-            <div
-              className="VaultDependencyDialog__status VaultDependencyDialog__status--ready"
-              role="status"
-            >
-              {t("vault.dependency.ready")}
-            </div>
-            <div className="VaultDependencyDialog__notice">
+            <Callout tone="success">{t("vault.dependency.ready")}</Callout>
+            <p className="VaultDependencyDialog__notice">
               {t("vault.creation.emptyNotice")}
-            </div>
+            </p>
             {canCreate && onCreateV2 && (
-              <div className="VaultDependencyDialog__notice">
+              <p className="VaultDependencyDialog__notice">
                 {t("vault.v2.createHint")}
-              </div>
+              </p>
             )}
             {!canCreate && (
-              <div
-                className="VaultDependencyDialog__status VaultDependencyDialog__status--warning"
-                role="status"
-              >
+              <Callout tone="warning">
                 {t("vault.creation.signInRequired")}
-              </div>
+              </Callout>
             )}
           </>
         )}
 
         {status.kind === "error" && (
-          <div
-            className="VaultDependencyDialog__status VaultDependencyDialog__status--error"
-            role="alert"
-          >
-            <span>{getDependencyErrorMessage(status.code)}</span>
-            <code>{status.code}</code>
-          </div>
+          <Callout tone="danger" details={status.code}>
+            {getDependencyErrorMessage(status.code)}
+          </Callout>
         )}
 
         {creationError && (
-          <div
-            className="VaultDependencyDialog__status VaultDependencyDialog__status--error"
-            role="alert"
-          >
-            <span>{t("vault.creation.error")}</span>
-            <code>{creationError}</code>
-          </div>
+          <Callout tone="danger" details={creationError}>
+            {t("vault.creation.error")}
+          </Callout>
         )}
 
-        <div className="VaultDependencyDialog__actions">
+        <DialogActions>
+          <UiButton onClick={onClose}>{t("buttons.close")}</UiButton>
           {status.kind === "error" && (
-            <Button onSelect={() => void checkDependencies()}>
+            <UiButton
+              variant="primary"
+              onClick={() => void checkDependencies()}
+            >
               {t("vault.dependency.retry")}
-            </Button>
+            </UiButton>
           )}
           {status.kind === "ready" && !canCreate && onSignIn && (
-            <Button onSelect={onSignIn}>{t("vault.creation.signIn")}</Button>
+            <UiButton variant="primary" onClick={onSignIn}>
+              {t("vault.creation.signIn")}
+            </UiButton>
           )}
           {status.kind === "ready" && canCreate && (
-            <Button
-              onSelect={() => void createEmptyVault()}
-              disabled={isCreating}
+            <UiButton
+              variant={onCreateV2 ? "secondary" : "primary"}
+              onClick={() => void createEmptyVault()}
+              disabled={isCreating !== false}
+              loading={isCreating === "v1"}
             >
-              {isCreating
+              {isCreating === "v1"
                 ? t("vault.creation.creating")
                 : t("vault.creation.create")}
-            </Button>
+            </UiButton>
           )}
           {status.kind === "ready" && canCreate && onCreateV2 && (
-            <Button
-              onSelect={() => void createEmptyVaultV2()}
-              disabled={isCreating}
+            <UiButton
+              variant="primary"
+              onClick={() => void createEmptyVaultV2()}
+              disabled={isCreating !== false}
+              loading={isCreating === "v2"}
             >
-              {isCreating ? t("vault.creation.creating") : t("vault.v2.create")}
-            </Button>
+              {isCreating === "v2"
+                ? t("vault.creation.creating")
+                : t("vault.v2.create")}
+            </UiButton>
           )}
-          <Button onSelect={onClose}>{t("buttons.close")}</Button>
-        </div>
+        </DialogActions>
       </div>
     </Dialog>
   );

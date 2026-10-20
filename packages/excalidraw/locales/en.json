@@ -138,7 +138,7 @@
       "questioned": "Questioned"
     },
     "experimental": {
-      "label": "Experimental",
+      "label": "Labs",
       "lumina": "Lighting (Lumina)",
       "singleFileBoard": "Single-file board",
       "embedWhiteboard": "Embed whiteboard",
@@ -1089,8 +1089,8 @@
       "createWithAI": "Generate with AI",
       "assistant": "AI assistant",
       "assistantLabel": "Assistant",
-      "generationHistory": "Generate Logs",
-      "history": "Generate Logs",
+      "generationHistory": "Generation history",
+      "history": "Generation history",
       "comments": "Comments",
       "presentations": "Presentations",
       "present": "Present",
@@ -1124,7 +1124,7 @@
       "create": "AI: Generate",
       "addSelectionAsReference": "AI: Add selection as reference",
       "assistant": "AI: Assistant",
-      "generationHistory": "AI: Generate Logs",
+      "generationHistory": "AI: Generation history",
       "template": "Template: {{label}}",
       "skill": "Skill: {{name}}",
       "reuse": "Reuse: {{label}}",
@@ -1137,7 +1137,7 @@
       "officePresentation": "Office: Presentation"
     },
     "generationLog": {
-      "title": "Generate Logs",
+      "title": "Generation history",
       "clear": "Clear logs",
       "empty": "No generation logs.",
       "reuseSettings": "Reuse settings",
@@ -1251,7 +1251,9 @@
         "cancel": "Cancel",
         "brushSize": "Brush size: {{size}}px",
         "brushSizeLabel": "Brush size",
-        "preview": "Mask preview"
+        "preview": "Mask preview",
+        "selectSavedImage": "Select a saved image before editing a mask.",
+        "imageUnavailable": "The selected image is no longer available."
       },
       "referenceStrength": "Reference strength",
       "locked": "Locked",
@@ -1342,7 +1344,11 @@
         "useAsReference": "Use {{asset}} as reference",
         "reuseSettings": "Reuse generation settings from {{asset}}",
         "copyPrompt": "Copy prompt from {{asset}}"
-      }
+      },
+      "editMaskOnCanvas": "Edit mask on canvas",
+      "reEditMaskOnCanvas": "Re-edit mask on canvas",
+      "removeMissingReferences": "Remove missing references or add an available reference image.",
+      "insertGeneratedAssetFailed": "Could not insert generated asset."
     },
     "settings": {
       "tabs": {
@@ -1717,7 +1723,17 @@
       "noMatch": "No matching commands..."
     },
     "itemNotAvailable": "Command is not available...",
-    "shortcutHint": "For Command palette, use {{shortcut}}"
+    "shortcutHint": "For Command palette, use {{shortcut}}",
+    "categories": {
+      "app": "App",
+      "export": "Export",
+      "canvas": "Canvas",
+      "tools": "Tools",
+      "editor": "Editor",
+      "elements": "Elements",
+      "links": "Links",
+      "library": "Library"
+    }
   },
   "keys": {
     "ctrl": "Ctrl",
@@ -1884,7 +1900,9 @@
       "revokeConfirm": "Revoke this share link?",
       "saveFailed": "Cloud share save failed. Local data is preserved.",
       "saved": "Saved to shared cloud whiteboard.",
-      "unavailable": "Cloud sharing is not configured."
+      "unavailable": "Cloud sharing is not configured.",
+      "create": "Create link",
+      "permission": "Link access"
     },
     "embed": {
       "action": "Embed",
@@ -1902,7 +1920,7 @@
       "latest": "Latest: {{mode}}",
       "loading": "Loading...",
       "manage": "Manage embeds",
-      "meta": "{{theme}} 路 {{size}}",
+      "meta": "{{theme}} · {{size}}",
       "mode": "Mode",
       "modeCollab": "Collab",
       "modeRead": "Read-only",
@@ -1962,7 +1980,7 @@
     }
   },
   "vault": {
-    "menu": "Vault (experimental)",
+    "menu": "Vault",
     "dependency": {
       "title": "Vault dependency check",
       "description": "First checks the secure encrypted persistence and room services required by Vault. Creating a Vault always starts with an empty canvas and never uploads the current whiteboard.",

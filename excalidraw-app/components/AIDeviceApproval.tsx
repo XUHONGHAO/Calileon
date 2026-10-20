@@ -6,6 +6,8 @@ import { useCloudAuth } from "../auth/useCloudAuth";
 import { getCloudBackend } from "../data/cloud";
 import { useHandleAppTheme } from "../useHandleAppTheme";
 
+import { Callout, Field, TextInput, UiButton } from "./ui";
+
 import "./AIDeviceApproval.scss";
 
 /**
@@ -89,9 +91,9 @@ export const AIDeviceApproval = () => {
         <p>{t("ai.proxy.devicePage.intro")}</p>
 
         {unavailable && (
-          <p className="AIDeviceApproval__message" role="alert">
+          <Callout tone="danger">
             {t("ai.proxy.devicePage.unavailable")}
-          </p>
+          </Callout>
         )}
 
         {!unavailable && status === "loading" && (
@@ -103,36 +105,30 @@ export const AIDeviceApproval = () => {
         {!unavailable && status !== "loading" && !user && (
           <form className="AIDeviceApproval__form" onSubmit={submitSignIn}>
             <h2>{t("ai.proxy.devicePage.signInTitle")}</h2>
-            <label>
-              <span>{t("cloud.auth.email")}</span>
-              <input
+            <Field label={t("cloud.auth.email")}>
+              <TextInput
                 type="email"
                 autoComplete="username"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 required
               />
-            </label>
-            <label>
-              <span>{t("cloud.auth.password")}</span>
-              <input
+            </Field>
+            <Field label={t("cloud.auth.password")}>
+              <TextInput
                 type="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
               />
-            </label>
-            {signInError && (
-              <p className="AIDeviceApproval__error" role="alert">
-                {signInError}
-              </p>
-            )}
-            <button type="submit" disabled={busy}>
+            </Field>
+            {signInError && <Callout tone="danger">{signInError}</Callout>}
+            <UiButton type="submit" variant="primary" fullWidth loading={busy}>
               {busy
                 ? t("ai.proxy.devicePage.signingIn")
                 : t("cloud.auth.signIn")}
-            </button>
+            </UiButton>
           </form>
         )}
 
@@ -143,38 +139,37 @@ export const AIDeviceApproval = () => {
                 email: user.email || user.id,
               })}
             </p>
-            <label>
-              <span>{t("ai.proxy.devicePage.codeLabel")}</span>
-              <input
+            <Field
+              label={t("ai.proxy.devicePage.codeLabel")}
+              hint={t("ai.proxy.devicePage.codeHint")}
+            >
+              <TextInput
+                className="AIDeviceApproval__code"
                 inputMode="text"
                 autoComplete="off"
                 spellCheck={false}
                 value={code}
                 onChange={(event) => setCode(event.target.value)}
-                aria-describedby="ai-device-code-hint"
                 required
               />
-            </label>
-            <small id="ai-device-code-hint">
-              {t("ai.proxy.devicePage.codeHint")}
-            </small>
-            {approvalError && (
-              <p className="AIDeviceApproval__error" role="alert">
-                {approvalError}
-              </p>
-            )}
-            <button type="submit" disabled={busy || !normalizedCode}>
+            </Field>
+            {approvalError && <Callout tone="danger">{approvalError}</Callout>}
+            <UiButton
+              type="submit"
+              variant="primary"
+              fullWidth
+              loading={busy}
+              disabled={!normalizedCode}
+            >
               {busy
                 ? t("ai.proxy.devicePage.approving")
                 : t("ai.proxy.approveDevice")}
-            </button>
+            </UiButton>
           </form>
         )}
 
         {!unavailable && approved && (
-          <p className="AIDeviceApproval__success" role="status">
-            {t("ai.proxy.devicePage.approved")}
-          </p>
+          <Callout tone="success">{t("ai.proxy.devicePage.approved")}</Callout>
         )}
       </section>
     </main>

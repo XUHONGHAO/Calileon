@@ -1,4 +1,3 @@
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
@@ -9,7 +8,19 @@ import { getCloudShareLink } from "../data/cloud/cloudShareLinks";
 
 import "./SceneListDialog.scss";
 
-import { confirmAction } from "./ui";
+import {
+  Badge,
+  Callout,
+  DialogActions,
+  Field,
+  ListRow,
+  Select,
+  TextInput,
+  UiButton,
+  confirmAction,
+} from "./ui";
+
+import type { ActionMenuItem } from "./ui";
 
 import type {
   SceneRecord,
@@ -58,6 +69,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [shareLoading, setShareLoading] = useState(false);
   const [busyShareId, setBusyShareId] = useState<string | null>(null);
+  const [shareMode, setShareMode] = useState<ShareMode>("read");
 
   const backend = getCloudBackend();
 
@@ -113,6 +125,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     setSharingScene(null);
     setShareLinks([]);
     setBusyShareId(null);
+    setShareMode("read");
   }, [loadScenes, open]);
 
   if (!open) {
@@ -185,6 +198,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
 
   const stopSharing = () => {
     setSharingScene(null);
+    setShareMode("read");
     setShareLinks([]);
     setBusyShareId(null);
     setError(null);
@@ -244,9 +258,205 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     }
   };
 
-  const stopShortcutPropagation = (event: React.KeyboardEvent) => {
+  const onRenameKeyDown = (
+    event: React.KeyboardEvent<HTMLInputElement>,
+    id: string,
+  ) => {
     event.stopPropagation();
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      void handleRename(id);
+    }
   };
+
+  const renderStatus = (message: string) => (
+    <p className="SceneListDialog__status" role="status">
+      {message}
+    </p>
+  );
+
+  const renderShareView = () => (
+    <div className="SceneListDialog__shareView">
+      <div className="SceneListDialog__shareCreate">
+        <Field label={t("cloud.share.permission")}>
+          <Select
+            value={shareMode}
+            disabled={shareLoading || busyShareId !== null}
+            onChange={(event) =>
+              setShareMode(event.currentTarget.value as ShareMode)
+            }
+          >
+            <option value="read">{t("cloud.share.modeRead")}</option>
+            <option value="write">{t("cloud.share.modeWrite")}</option>
+          </Select>
+        </Field>
+        <UiButton
+          variant="primary"
+          loading={busyShareId === `create-${shareMode}`}
+          disabled={shareLoading || busyShareId !== null}
+          onClick={() => void handleCreateShare(shareMode)}
+        >
+          {t("cloud.share.create")}
+        </UiButton>
+      </div>
+
+      {shareLoading ? (
+        renderStatus(t("cloud.share.loading"))
+      ) : shareLinks.length === 0 ? (
+        renderStatus(t("cloud.share.empty"))
+      ) : (
+        <ul className="SceneListDialog__list">
+          {shareLinks.map((share) => (
+            <ListRow
+              key={share.id}
+              className={share.revoked ? "SceneListDialog__row--revoked" : ""}
+              title={
+                share.mode === "read"
+                  ? t("cloud.share.modeRead")
+                  : t("cloud.share.modeWrite")
+              }
+              badges={
+                <Badge tone={share.revoked ? "neutral" : "success"}>
+                  {share.revoked
+                    ? t("cloud.share.revoked")
+                    : t("cloud.share.active")}
+                </Badge>
+              }
+              actions={
+                !share.revoked && (
+                  <>
+                    <UiButton
+                      size="sm"
+                      loading={busyShareId === share.id}
+                      disabled={busyShareId !== null}
+                      onClick={() => void handleCopyShare(share)}
+                    >
+                      {t("cloud.share.copy")}
+                    </UiButton>
+                    <UiButton
+                      size="sm"
+                      variant="danger"
+                      disabled={busyShareId !== null}
+                      onClick={() => void handleRevokeShare(share)}
+                    >
+                      {t("cloud.share.revoke")}
+                    </UiButton>
+                  </>
+                )
+              }
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+
+  const renderSceneRow = (scene: SceneSummary) => {
+    const isBusy = busySceneId === scene.id;
+    const isRenaming = renamingSceneId === scene.id;
+    const isCurrentScene = activeSceneId === scene.id;
+    const rowDisabled = busySceneId !== null;
+
+    if (isRenaming) {
+      return (
+        <ListRow
+          key={scene.id}
+          className="SceneListDialog__row--renaming"
+          current={isCurrentScene}
+          title={
+            <TextInput
+              aria-label={t("cloud.scenes.renameTitle")}
+              autoFocus
+              disabled={isBusy}
+              value={renameTitle}
+              onChange={(event) => setRenameTitle(event.currentTarget.value)}
+              onKeyDown={(event) => onRenameKeyDown(event, scene.id)}
+            />
+          }
+          actions={
+            <>
+              <UiButton
+                size="sm"
+                onClick={() => {
+                  setRenamingSceneId(null);
+                  setRenameTitle("");
+                }}
+                disabled={isBusy}
+              >
+                {t("cloud.scenes.cancelRename")}
+              </UiButton>
+              <UiButton
+                size="sm"
+                variant="primary"
+                loading={isBusy}
+                onClick={() => void handleRename(scene.id)}
+                disabled={!renameTitle.trim()}
+              >
+                {t("cloud.scenes.saveRename")}
+              </UiButton>
+            </>
+          }
+        />
+      );
+    }
+
+    const menu: ActionMenuItem[] = [
+      {
+        label: t("cloud.scenes.rename"),
+        onSelect: () => startRename(scene),
+        disabled: rowDisabled,
+      },
+    ];
+    if (backend.capabilities.share) {
+      menu.push({
+        label: t("cloud.share.action"),
+        onSelect: () => void startSharing(scene),
+        disabled: rowDisabled,
+      });
+    }
+    if (onOpenEmbeds && backend.capabilities.embed) {
+      menu.push({
+        label: t("cloud.embed.action"),
+        onSelect: () => onOpenEmbeds(scene),
+        disabled: rowDisabled,
+      });
+    }
+    menu.push({
+      label: t("cloud.scenes.delete"),
+      onSelect: () => void handleRemove(scene.id),
+      danger: true,
+      disabled: rowDisabled,
+    });
+
+    return (
+      <ListRow
+        key={scene.id}
+        current={isCurrentScene}
+        title={<span title={scene.title}>{scene.title}</span>}
+        badges={
+          isCurrentScene && (
+            <Badge tone="info">{t("cloud.scenes.current")}</Badge>
+          )
+        }
+        meta={t("cloud.scenes.updatedAt", {
+          date: formatUpdatedAt(scene.updatedAt),
+        })}
+        actions={
+          <UiButton
+            size="sm"
+            loading={isBusy}
+            disabled={rowDisabled}
+            onClick={() => void handleOpenScene(scene.id)}
+          >
+            {t("cloud.scenes.open")}
+          </UiButton>
+        }
+        menu={menu}
+      />
+    );
+  };
+
+  const listBusy = sharingScene ? shareLoading : loading;
 
   return (
     <Dialog
@@ -257,222 +467,61 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
       title={t("cloud.scenes.title")}
     >
       <div className="SceneListDialog">
-        <button
+        <UiButton
           className="SceneListDialog__close"
-          type="button"
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon={CloseIcon}
           aria-label={t("buttons.close")}
           title={t("buttons.close")}
           onClick={onClose}
-        >
-          {CloseIcon}
-        </button>
+        />
 
-        <div className="SceneListDialog__toolbar">
-          <p>
-            {sharingScene
-              ? t("cloud.share.description", { title: sharingScene.title })
-              : t("cloud.scenes.description")}
-          </p>
-          <div className="SceneListDialog__toolbarActions">
-            {sharingScene ? (
-              <Button onSelect={stopSharing} disabled={shareLoading}>
-                {t("cloud.scenes.back")}
-              </Button>
-            ) : onBack ? (
-              <Button onSelect={onBack} disabled={loading}>
-                {t("cloud.scenes.back")}
-              </Button>
-            ) : null}
-            <Button
-              onSelect={() =>
-                sharingScene
-                  ? void loadShares(sharingScene.id)
-                  : void loadScenes()
-              }
-              disabled={sharingScene ? shareLoading : loading}
-            >
-              {t("cloud.scenes.refresh")}
-            </Button>
-          </div>
-        </div>
+        <p className="SceneListDialog__description">
+          {sharingScene
+            ? t("cloud.share.description", { title: sharingScene.title })
+            : t("cloud.scenes.description")}
+        </p>
 
-        {error && (
-          <p className="SceneListDialog__error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <Callout tone="danger">{error}</Callout>}
 
         {sharingScene ? (
-          <div className="SceneListDialog__shareView">
-            <div className="SceneListDialog__shareActions">
-              <Button
-                onSelect={() => void handleCreateShare("read")}
-                disabled={shareLoading || busyShareId !== null}
-              >
-                {t("cloud.share.createRead")}
-              </Button>
-              <Button
-                onSelect={() => void handleCreateShare("write")}
-                disabled={shareLoading || busyShareId !== null}
-              >
-                {t("cloud.share.createWrite")}
-              </Button>
-            </div>
-
-            {shareLoading ? (
-              <div className="SceneListDialog__status">
-                {t("cloud.share.loading")}
-              </div>
-            ) : shareLinks.length === 0 ? (
-              <div className="SceneListDialog__status">
-                {t("cloud.share.empty")}
-              </div>
-            ) : (
-              <ul className="SceneListDialog__list">
-                {shareLinks.map((share) => (
-                  <li className="SceneListDialog__item" key={share.id}>
-                    <div className="SceneListDialog__details">
-                      <strong>
-                        {share.mode === "read"
-                          ? t("cloud.share.modeRead")
-                          : t("cloud.share.modeWrite")}
-                      </strong>
-                      <span>
-                        {share.revoked
-                          ? t("cloud.share.revoked")
-                          : t("cloud.share.active")}
-                      </span>
-                    </div>
-                    <div className="SceneListDialog__actions">
-                      <Button
-                        onSelect={() => void handleCopyShare(share)}
-                        disabled={busyShareId !== null || share.revoked}
-                      >
-                        {t("cloud.share.copy")}
-                      </Button>
-                      <Button
-                        onSelect={() => void handleRevokeShare(share)}
-                        disabled={busyShareId !== null || share.revoked}
-                      >
-                        {t("cloud.share.revoke")}
-                      </Button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+          renderShareView()
         ) : loading ? (
-          <div className="SceneListDialog__status">
-            {t("cloud.scenes.loading")}
-          </div>
+          renderStatus(t("cloud.scenes.loading"))
         ) : scenes.length === 0 ? (
-          <div className="SceneListDialog__status">
-            {t("cloud.scenes.empty")}
-          </div>
+          renderStatus(t("cloud.scenes.empty"))
         ) : (
           <ul className="SceneListDialog__list">
-            {scenes.map((scene) => {
-              const isBusy = busySceneId === scene.id;
-              const isRenaming = renamingSceneId === scene.id;
-              const isCurrentScene = activeSceneId === scene.id;
-
-              return (
-                <li className="SceneListDialog__item" key={scene.id}>
-                  <div className="SceneListDialog__details">
-                    <div className="SceneListDialog__titleRow">
-                      {isRenaming ? (
-                        <input
-                          aria-label={t("cloud.scenes.renameTitle")}
-                          autoFocus
-                          disabled={isBusy}
-                          value={renameTitle}
-                          onChange={(event) =>
-                            setRenameTitle(event.currentTarget.value)
-                          }
-                          onKeyDown={stopShortcutPropagation}
-                        />
-                      ) : (
-                        <strong title={scene.title}>{scene.title}</strong>
-                      )}
-                    </div>
-                    <div className="SceneListDialog__metaRow">
-                      <span className="SceneListDialog__updatedAt">
-                        {t("cloud.scenes.updatedAt", {
-                          date: formatUpdatedAt(scene.updatedAt),
-                        })}
-                      </span>
-                      {isCurrentScene && (
-                        <span className="SceneListDialog__currentBadge">
-                          {t("cloud.scenes.current")}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="SceneListDialog__actions">
-                    {isRenaming ? (
-                      <>
-                        <Button
-                          onSelect={() => void handleRename(scene.id)}
-                          disabled={isBusy || !renameTitle.trim()}
-                        >
-                          {t("cloud.scenes.saveRename")}
-                        </Button>
-                        <Button
-                          onSelect={() => {
-                            setRenamingSceneId(null);
-                            setRenameTitle("");
-                          }}
-                          disabled={isBusy}
-                        >
-                          {t("cloud.scenes.cancelRename")}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <Button
-                          onSelect={() => void handleOpenScene(scene.id)}
-                          disabled={isBusy}
-                        >
-                          {t("cloud.scenes.open")}
-                        </Button>
-                        <Button
-                          onSelect={() => startRename(scene)}
-                          disabled={isBusy}
-                        >
-                          {t("cloud.scenes.rename")}
-                        </Button>
-                        <Button
-                          onSelect={() => void startSharing(scene)}
-                          disabled={isBusy || !backend.capabilities.share}
-                        >
-                          {t("cloud.share.action")}
-                        </Button>
-                        <Button
-                          onSelect={() => onOpenEmbeds?.(scene)}
-                          disabled={
-                            isBusy ||
-                            !onOpenEmbeds ||
-                            !backend.capabilities.embed
-                          }
-                        >
-                          {t("cloud.embed.action")}
-                        </Button>
-                        <Button
-                          onSelect={() => void handleRemove(scene.id)}
-                          disabled={isBusy}
-                        >
-                          {t("cloud.scenes.delete")}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
+            {scenes.map(renderSceneRow)}
           </ul>
         )}
+
+        <DialogActions
+          leading={
+            (sharingScene || onBack) && (
+              <UiButton
+                variant="ghost"
+                onClick={sharingScene ? stopSharing : onBack}
+                disabled={listBusy}
+              >
+                {t("cloud.scenes.back")}
+              </UiButton>
+            )
+          }
+        >
+          <UiButton
+            onClick={() =>
+              sharingScene
+                ? void loadShares(sharingScene.id)
+                : void loadScenes()
+            }
+            disabled={listBusy}
+          >
+            {t("cloud.scenes.refresh")}
+          </UiButton>
+        </DialogActions>
       </div>
     </Dialog>
   );

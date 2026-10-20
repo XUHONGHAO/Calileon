@@ -1,8 +1,9 @@
 import React from "react";
 
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { FilledButton } from "@excalidraw/excalidraw/components/FilledButton";
 import { t } from "@excalidraw/excalidraw/i18n";
+
+import { Callout, DialogActions, UiButton } from "./ui";
 
 import "./VaultConflictDialog.scss";
 
@@ -63,7 +64,9 @@ export const VaultConflictDialog = ({
       closeOnClickOutside={false}
     >
       <div className="VaultConflictDialog" data-testid="vault-conflict-dialog">
-        <p>{t("vault.conflict.description")}</p>
+        <p className="VaultConflictDialog__description">
+          {t("vault.conflict.description")}
+        </p>
         <p className="VaultConflictDialog__note">
           {t("vault.conflict.deviceNote")}
         </p>
@@ -87,58 +90,52 @@ export const VaultConflictDialog = ({
         )}
 
         {showRemote && (
-          <p
-            className="VaultConflictDialog__remote"
-            data-testid="vault-conflict-remote"
-          >
-            {conflict?.remoteGeneration != null
-              ? t("vault.conflict.remoteDetail", {
-                  generation: conflict.remoteGeneration,
-                })
-              : t("vault.conflict.remoteUnavailable")}
-          </p>
+          <Callout tone="neutral" live={false}>
+            <span data-testid="vault-conflict-remote">
+              {conflict?.remoteGeneration != null
+                ? t("vault.conflict.remoteDetail", {
+                    generation: conflict.remoteGeneration,
+                  })
+                : t("vault.conflict.remoteUnavailable")}
+            </span>
+          </Callout>
         )}
 
         {exportState === "done" && (
-          <p role="status" data-testid="vault-conflict-export-done">
-            {t("vault.conflict.exported")}
-          </p>
+          <Callout tone="success">
+            <span data-testid="vault-conflict-export-done">
+              {t("vault.conflict.exported")}
+            </span>
+          </Callout>
         )}
         {exportState === "error" && (
-          <p role="alert" data-testid="vault-conflict-export-error">
-            {t("vault.conflict.exportFailed")}
-          </p>
+          <Callout tone="danger">
+            <span data-testid="vault-conflict-export-error">
+              {t("vault.conflict.exportFailed")}
+            </span>
+          </Callout>
         )}
 
-        <div className="VaultConflictDialog__actions">
-          <FilledButton
-            label={t("vault.conflict.keepLocal")}
-            onClick={onClose}
-          />
-          <FilledButton
-            variant="outlined"
-            color="muted"
-            label={
-              showRemote
+        <DialogActions
+          leading={
+            <UiButton
+              variant="ghost"
+              aria-expanded={showRemote}
+              onClick={() => setShowRemote((value) => !value)}
+            >
+              {showRemote
                 ? t("vault.conflict.hideRemote")
-                : t("vault.conflict.viewRemote")
-            }
-            onClick={() => setShowRemote((value) => !value)}
-          />
-          <FilledButton
-            variant="outlined"
-            color="muted"
-            label={t("vault.conflict.exportLocal")}
-            onClick={exportLocal}
-            disabled={exportState === "exporting"}
-          />
-          <FilledButton
-            variant="outlined"
-            color="muted"
-            label={t("vault.conflict.later")}
-            onClick={onClose}
-          />
-        </div>
+                : t("vault.conflict.viewRemote")}
+            </UiButton>
+          }
+        >
+          <UiButton onClick={exportLocal} loading={exportState === "exporting"}>
+            {t("vault.conflict.exportLocal")}
+          </UiButton>
+          <UiButton variant="primary" onClick={onClose}>
+            {t("vault.conflict.keepLocal")}
+          </UiButton>
+        </DialogActions>
       </div>
     </Dialog>
   );

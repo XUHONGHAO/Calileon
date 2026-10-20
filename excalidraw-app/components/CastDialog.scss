@@ -15,7 +15,7 @@
 
 .CastDialog__description {
   margin: 0;
-  color: var(--text-secondary-color);
+  color: var(--ui-text-secondary);
 }
 
 .CastDialog__recordingBar,
@@ -29,23 +29,16 @@
   flex-wrap: wrap;
 }
 
-.CastDialog__actions,
-.CastDialog__speed {
+.CastDialog__actions {
   display: flex;
   align-items: center;
   gap: var(--ui-space-2);
   flex-wrap: wrap;
 }
 
-.CastDialog__actions > .excalidraw-button,
-.CastDialog__speed > .excalidraw-button,
-.CastDialog__footerActions > .excalidraw-button {
-  --button-width: auto;
-  --button-height: auto;
-
-  min-height: 2rem;
-  flex-shrink: 0;
-  white-space: nowrap;
+.CastDialog__description,
+.CastDialog__previewHeader {
+  font-size: var(--ui-font-sm);
 }
 
 .CastDialog__status {
@@ -82,9 +75,9 @@
   height: min(48vh, 30rem);
   min-height: 20rem;
   overflow: hidden;
-  border: 1px solid var(--default-border-color);
+  border: 1px solid var(--ui-border);
   border-radius: var(--ui-radius-lg);
-  background: var(--island-bg-color);
+  background: var(--ui-surface);
 }
 
 .CastDialog__preview > .excalidraw {
@@ -107,22 +100,41 @@
   z-index: 10;
 }
 
-.CastDialog__error {
-  padding: var(--ui-space-3) var(--ui-space-3);
-  border-radius: var(--ui-radius-md);
-  color: var(--color-danger);
-  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
-}
-
 .CastDialog__empty {
   display: grid;
   min-height: 15rem;
   place-items: center;
-  color: var(--text-secondary-color);
-  border: 1px dashed var(--default-border-color);
+  padding: var(--ui-space-4);
+  text-align: center;
+  color: var(--ui-text-secondary);
+  border: 1px dashed var(--ui-border);
   border-radius: var(--ui-radius-lg);
 }
 
 .CastDialog__footerActions {
   justify-content: flex-end;
+}
+
+.CastDialog__discard {
+  margin-inline-end: auto;
+}
+
+@media (max-width: 480px) {
+  .CastDialog__actions,
+  .CastDialog__footerActions {
+    width: 100%;
+  }
+
+  .CastDialog__actions > .UiButton,
+  .CastDialog__footerActions > .UiButton {
+    flex: 1 1 auto;
+  }
+
+  .CastDialog__discard {
+    margin-inline-end: 0;
+  }
+
+  .CastDialog__preview {
+    min-height: 14rem;
+  }
 }

@@ -171,14 +171,14 @@
       }
     }
 
+    // Phones: buttons share rows and grow to fill them instead of stacking one
+    // full-width button per row.
     @media (max-width: 480px) {
       &__main {
         flex: 1 1 100%;
-        flex-direction: column-reverse;
-        align-items: stretch;
 
         > .UiButton {
-          width: 100%;
+          flex: 1 1 auto;
         }
       }
     }

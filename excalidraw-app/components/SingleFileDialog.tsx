@@ -1,7 +1,6 @@
 import React from "react";
 
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { FilledButton } from "@excalidraw/excalidraw/components/FilledButton";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -16,7 +15,13 @@ import { createSingleFilePayload } from "../single-file/payload";
 import { saveSingleFileAs } from "../single-file/saveSingleFile";
 
 import "./SingleFileDialog.scss";
-import { confirmAction } from "./ui";
+import {
+  Callout,
+  DialogActions,
+  DialogSection,
+  UiButton,
+  confirmAction,
+} from "./ui";
 
 const formatBytes = (bytes: number) =>
   `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
@@ -122,32 +127,32 @@ export const SingleFileDialog = ({
         <p>{t("singleFile.description")}</p>
         <p>{t("singleFile.support")}</p>
 
-        <section>
-          <h3>{t("singleFile.browserSupportTitle")}</h3>
+        <DialogSection title={t("singleFile.browserSupportTitle")}>
           <p>{t("singleFile.browserSupport")}</p>
           <p>
             {overwriteSupported
               ? t("singleFile.overwriteSupported")
               : t("singleFile.overwriteUnsupported")}
           </p>
-        </section>
+        </DialogSection>
 
-        <section>
-          <h3>{t("singleFile.fileBoundaryTitle")}</h3>
+        <DialogSection title={t("singleFile.fileBoundaryTitle")}>
           <p>{t("singleFile.fileBoundary")}</p>
-        </section>
+        </DialogSection>
 
-        {error && <div className="SingleFileDialog__error">{error}</div>}
+        {error && <Callout tone="danger">{error}</Callout>}
 
-        <div className="SingleFileDialog__actions">
-          <FilledButton
-            label={
-              isExporting ? t("singleFile.exporting") : t("singleFile.export")
-            }
+        <DialogActions>
+          <UiButton onClick={onClose}>{t("buttons.cancel")}</UiButton>
+          <UiButton
+            variant="primary"
             onClick={onExport}
-            disabled={!excalidrawAPI || !runtimeTemplate || isExporting}
-          />
-        </div>
+            loading={isExporting}
+            disabled={!excalidrawAPI || !runtimeTemplate}
+          >
+            {isExporting ? t("singleFile.exporting") : t("singleFile.export")}
+          </UiButton>
+        </DialogActions>
       </div>
     </Dialog>
   );

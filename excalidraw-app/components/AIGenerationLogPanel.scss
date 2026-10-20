@@ -29,65 +29,51 @@
 
   .AIGenerationLogPanel__header {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     justify-content: flex-end;
-    gap: var(--ui-space-3);
+    gap: var(--ui-space-2);
     min-width: 0;
-
-    button {
-      min-height: 2rem;
-      border: 1px solid var(--default-border-color);
-      border-radius: var(--ui-radius-lg);
-      background: var(--app-sidebar-control-bg, var(--island-bg-color));
-      color: var(--text-primary-color);
-      font: inherit;
-      white-space: nowrap;
-      cursor: pointer;
-
-      &:hover:not(:disabled) {
-        background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
-      }
-
-      &:disabled {
-        cursor: not-allowed;
-        opacity: 0.45;
-      }
-    }
   }
 
   .AIGenerationLogPanel__emptyState {
-    border: 1px dashed var(--default-border-color);
+    flex: 0 0 auto;
+    border: 1px dashed var(--ui-border);
     border-radius: var(--ui-radius-lg);
-    padding: var(--ui-space-3);
-    background: var(--app-sidebar-panel-bg, var(--default-bg-color));
-    line-height: 1.35;
+    padding: var(--ui-space-6) var(--ui-space-4);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-sm);
+    line-height: var(--ui-line-normal);
+    text-align: center;
     overflow-wrap: anywhere;
   }
 
   .AIGenerationLogPanel__message {
-    border-radius: var(--ui-radius-lg);
-    padding: var(--ui-space-2) var(--ui-space-3);
-    background: var(--color-ai-history-bg);
-    color: var(--color-ai-history-text);
-    font-size: var(--ui-font-xs);
-    font-weight: var(--ui-weight-semibold);
-    line-height: 1.35;
+    flex: 0 0 auto;
     overflow-wrap: anywhere;
   }
 
   .AIGenerationLogPanel__list {
     display: grid;
     grid-template-columns: 1fr;
-    gap: var(--ui-space-3);
+    gap: var(--ui-space-2);
     min-width: 0;
+
+    &:empty {
+      display: none;
+    }
   }
 
   .AIGenerationLogPanel__card {
     min-width: 0;
-    border: 1px solid var(--default-border-color);
+    border: 1px solid var(--ui-border);
     border-radius: var(--ui-radius-lg);
-    background: var(--app-sidebar-panel-bg, var(--default-bg-color));
+    background: var(--app-sidebar-panel-bg, var(--ui-surface));
     overflow: hidden;
+
+    &.is-expanded {
+      border-color: var(--ui-border-strong);
+    }
   }
 
   .AIGenerationLogPanel__cardButton {
@@ -98,9 +84,10 @@
     grid-template-columns: minmax(0, 1fr) auto;
     gap: var(--ui-space-1) var(--ui-space-3);
     border: 0;
-    padding: var(--ui-space-3);
+    align-items: center;
+    padding: var(--ui-space-2) var(--ui-space-3);
     background: transparent;
-    color: var(--text-primary-color);
+    color: var(--ui-text);
     font: inherit;
     text-align: left;
     cursor: pointer;
@@ -129,27 +116,13 @@
 
   .AIGenerationLogPanel__cardModel {
     grid-column: 1 / -1;
-    font-size: var(--ui-font-sm);
-    opacity: 0.75;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
   }
 
   .AIGenerationLogPanel__status {
-    border: 1px solid var(--default-border-color);
-    border-radius: var(--ui-radius-pill);
-    padding: var(--ui-space-0_5) var(--ui-space-2);
-    background: var(--app-sidebar-control-bg, var(--island-bg-color));
-    font-size: var(--ui-font-xs);
-    font-weight: var(--ui-weight-semibold);
-    line-height: 1.35;
-    white-space: nowrap;
-  }
-
-  .AIGenerationLogPanel__status.is-success {
-    color: var(--color-primary);
-  }
-
-  .AIGenerationLogPanel__status.is-failed {
-    color: var(--color-danger-color);
+    grid-column: 2;
+    grid-row: 1;
   }
 
   .AIGenerationLogPanel__details {
@@ -157,37 +130,14 @@
     flex-direction: column;
     gap: var(--ui-space-2);
     min-width: 0;
-    border-top: 1px solid var(--default-border-color);
+    border-top: 1px solid var(--ui-border);
     padding: var(--ui-space-3);
 
     .AIGenerationLogPanel__actions {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
+      display: flex;
+      flex-wrap: wrap;
       gap: var(--ui-space-1_5);
       min-width: 0;
-
-      button {
-        min-width: 0;
-        min-height: 2rem;
-        border: 1px solid var(--default-border-color);
-        border-radius: var(--ui-radius-lg);
-        padding: var(--ui-space-1) var(--ui-space-2);
-        background: var(--app-sidebar-control-bg, var(--island-bg-color));
-        color: var(--text-primary-color);
-        font: inherit;
-        font-size: var(--ui-font-xs);
-        font-weight: var(--ui-weight-semibold);
-        overflow-wrap: anywhere;
-        white-space: normal;
-        cursor: pointer;
-
-        &:hover {
-          background: var(
-            --app-sidebar-control-hover-bg,
-            var(--button-hover-bg)
-          );
-        }
-      }
     }
 
     dl {
@@ -235,12 +185,6 @@
       // otherwise disables text selection on UI chrome.
       user-select: text;
       cursor: text;
-    }
-  }
-
-  @media (max-width: 360px) {
-    .AIGenerationLogPanel__details .AIGenerationLogPanel__actions {
-      grid-template-columns: 1fr;
     }
   }
 

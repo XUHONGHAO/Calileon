@@ -53,22 +53,6 @@ vi.mock("@excalidraw/excalidraw/components/Dialog", () => ({
   ),
 }));
 
-vi.mock("@excalidraw/excalidraw/components/Button", () => ({
-  Button: ({
-    children,
-    onSelect,
-    disabled,
-  }: {
-    children: React.ReactNode;
-    onSelect: () => void;
-    disabled?: boolean;
-  }) => (
-    <button type="button" onClick={onSelect} disabled={disabled}>
-      {children}
-    </button>
-  ),
-}));
-
 vi.mock("@excalidraw/excalidraw/i18n", () => ({
   t: (key: string) =>
     ({
@@ -223,6 +207,10 @@ describe("VaultDependencyDialog", () => {
     );
     expect(onCreateV2).toHaveBeenCalledTimes(1);
     expect(vaultMock.createVault).not.toHaveBeenCalled();
+    // one primary action: v2 when offered, v1 stays secondary
+    expect(
+      screen.getByRole("button", { name: "Create empty Vault" }),
+    ).not.toHaveClass("UiButton--primary");
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

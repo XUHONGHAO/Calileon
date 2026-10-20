@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import React from "react";
 import { vi } from "vitest";
 
@@ -55,8 +61,8 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.share.active": "Active",
       "cloud.share.copy": "Copy",
       "cloud.share.copyFailed": "Could not copy.",
-      "cloud.share.createRead": "Create read link",
-      "cloud.share.createWrite": "Create write link",
+      "cloud.share.create": "Create link",
+      "cloud.share.permission": "Link access",
       "cloud.share.description": `Manage share links for ${replacement?.title}.`,
       "cloud.share.empty": "No share links yet.",
       "cloud.share.loading": "Loading share links...",
@@ -67,6 +73,7 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.share.revokeConfirm": "Revoke this share link?",
       "cloud.share.unavailable": "Cloud sharing is not configured.",
       "cloud.embed.action": "Embed",
+      "ui.moreActions": "More actions",
     };
     return values[key] ?? key;
   },
@@ -143,6 +150,11 @@ const renderDialog = (
   return props;
 };
 
+const clickMenuItem = async (name: string) => {
+  fireEvent.click(await screen.findByRole("button", { name: "More actions" }));
+  fireEvent.click(screen.getByRole("menuitem", { name }));
+};
+
 describe("SceneListDialog", () => {
   beforeEach(() => {
     backendMock.backend = makeBackend();
@@ -173,6 +185,26 @@ describe("SceneListDialog", () => {
 
     expect(await screen.findByText("Roadmap")).toBeInTheDocument();
     expect(screen.getByText("Current whiteboard")).toBeInTheDocument();
+    expect(screen.getByRole("listitem")).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("keeps secondary scene actions in the overflow menu", async () => {
+    renderDialog({ onOpenEmbeds: vi.fn() });
+
+    await screen.findByText("Roadmap");
+    expect(
+      screen.queryByRole("button", { name: "Delete" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual(["Rename", "Share", "Embed", "Delete"]);
+    expect(screen.getByRole("menuitem", { name: "Delete" })).toHaveClass(
+      "UiActionMenu__item--danger",
+    );
   });
 
   it("loads a selected cloud scene before opening it", async () => {
@@ -201,7 +233,7 @@ describe("SceneListDialog", () => {
   it("renames a cloud scene and refreshes the list", async () => {
     renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Rename" }));
+    await clickMenuItem("Rename");
     fireEvent.change(screen.getByLabelText("Whiteboard title"), {
       target: { value: "Updated Roadmap" },
     });
@@ -219,7 +251,7 @@ describe("SceneListDialog", () => {
   it("soft-deletes a confirmed cloud scene and refreshes the list", async () => {
     renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
+    await clickMenuItem("Delete");
 
     await waitFor(() => {
       expect(backendMock.backend.scenes.remove).toHaveBeenCalledWith("scene-1");
@@ -235,9 +267,11 @@ describe("SceneListDialog", () => {
   it("opens share management from a cloud scene", async () => {
     renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+    await clickMenuItem("Share");
 
-    expect(await screen.findByText("Read-only link")).toBeInTheDocument();
+    const list = await screen.findByRole("list");
+    expect(within(list).getByText("Read-only link")).toBeInTheDocument();
+    expect(within(list).getByText("Active")).toBeInTheDocument();
     expect(backendMock.backend.shares.listByScene).toHaveBeenCalledWith(
       "scene-1",
     );
@@ -247,7 +281,7 @@ describe("SceneListDialog", () => {
     const onOpenEmbeds = vi.fn();
     renderDialog({ onOpenEmbeds });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Embed" }));
+    await clickMenuItem("Embed");
 
     expect(onOpenEmbeds).toHaveBeenCalledWith(summaries[0]);
   });
@@ -255,10 +289,8 @@ describe("SceneListDialog", () => {
   it("creates read and write share links", async () => {
     renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Create read link" }),
-    );
+    await clickMenuItem("Share");
+    fireEvent.click(await screen.findByRole("button", { name: "Create link" }));
     await waitFor(() => {
       expect(backendMock.backend.shares.create).toHaveBeenCalledWith({
         sceneId: "scene-1",
@@ -266,7 +298,15 @@ describe("SceneListDialog", () => {
       });
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Create write link" }));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Create link" }),
+      ).not.toBeDisabled();
+    });
+    fireEvent.change(screen.getByLabelText("Link access"), {
+      target: { value: "write" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create link" }));
     await waitFor(() => {
       expect(backendMock.backend.shares.create).toHaveBeenCalledWith({
         sceneId: "scene-1",
@@ -278,7 +318,7 @@ describe("SceneListDialog", () => {
   it("copies and revokes share links", async () => {
     renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+    await clickMenuItem("Share");
     fireEvent.click(await screen.findByRole("button", { name: "Copy" }));
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
@@ -302,7 +342,7 @@ describe("SceneListDialog", () => {
     });
     renderDialog();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Share" }));
+    await clickMenuItem("Share");
     fireEvent.click(await screen.findByRole("button", { name: "Copy" }));
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(

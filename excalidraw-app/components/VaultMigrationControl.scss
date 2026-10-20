@@ -1,45 +1,79 @@
-.VaultMigrationControl {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ui-space-3);
-
-  &__notes {
-    margin: 0;
-    padding-left: var(--ui-space-5);
-    color: var(--text-secondary-color);
-    font-size: var(--ui-font-sm);
-  }
-
-  &__actions {
+.excalidraw {
+  .VaultMigrationControl {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--ui-space-2);
-    justify-content: flex-end;
-    margin-top: var(--ui-space-1);
+    flex-direction: column;
+    gap: var(--ui-space-3);
+    min-width: 0;
+    overflow-wrap: anywhere;
 
-    .ExcButton {
-      flex: 0 0 auto;
-      white-space: nowrap;
+    &__description {
+      margin: 0;
+      color: var(--ui-text);
+      font-size: var(--ui-font-sm);
+      line-height: var(--ui-line-normal);
+    }
+
+    &__notes {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ui-space-1);
+      margin: 0;
+      padding-inline-start: var(--ui-space-5);
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-sm);
+      line-height: var(--ui-line-normal);
+    }
+
+    &__running {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space-2);
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-sm);
+
+      .Spinner {
+        --spinner-color: var(--color-primary);
+
+        flex: 0 0 auto;
+      }
+    }
+
+    .UiDialogActions {
+      margin-top: var(--ui-space-1);
     }
   }
 
-  &__trigger {
-    white-space: nowrap;
-  }
-
-  &__banner {
-    display: flex;
-    align-items: center;
+  // Shown next to the Vault status pill (outside the dialog).
+  .VaultMigrationControl__banner {
     gap: var(--ui-space-2);
-    padding: var(--ui-space-1) var(--ui-space-3);
-    border-radius: var(--ui-radius-md);
-    background-color: var(--color-surface-low);
-    font-size: var(--ui-font-sm);
-    white-space: nowrap;
 
     a {
+      flex: 0 0 auto;
       color: var(--color-primary);
       font-weight: var(--ui-weight-semibold);
+      text-decoration: none;
+
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+  }
+
+  .VaultMigrationControl__notice {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ui-text-secondary);
+    text-overflow: ellipsis;
+  }
+
+  @media (max-width: 600px) {
+    .VaultMigrationControl__notice {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
   }
 }

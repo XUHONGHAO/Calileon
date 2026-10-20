@@ -138,7 +138,7 @@
       "questioned": "存疑"
     },
     "experimental": {
-      "label": "实验性",
+      "label": "实验室",
       "lumina": "光照 Lumina",
       "singleFileBoard": "单文件白板",
       "embedWhiteboard": "嵌入式白板",
@@ -1089,8 +1089,8 @@
       "createWithAI": "用 AI 创意生成",
       "assistant": "AI助手",
       "assistantLabel": "AI助手",
-      "generationHistory": "生成日志",
-      "history": "生成日志",
+      "generationHistory": "生成记录",
+      "history": "生成记录",
       "comments": "评论",
       "presentations": "演示文稿",
       "present": "演示",
@@ -1124,7 +1124,7 @@
       "create": "AI：创意生成",
       "addSelectionAsReference": "AI：将选区添加为参考图",
       "assistant": "AI助手",
-      "generationHistory": "AI：生成日志",
+      "generationHistory": "AI：生成记录",
       "template": "模板：{{label}}",
       "skill": "技能：{{name}}",
       "reuse": "复用：{{label}}",
@@ -1137,7 +1137,7 @@
       "officePresentation": "办公：演示文稿"
     },
     "generationLog": {
-      "title": "生成日志",
+      "title": "生成记录",
       "clear": "清空日志",
       "empty": "暂无生成日志。",
       "reuseSettings": "复用设置",
@@ -1251,7 +1251,9 @@
         "cancel": "取消",
         "brushSize": "画笔大小：{{size}}px",
         "brushSizeLabel": "画笔大小",
-        "preview": "蒙版预览"
+        "preview": "蒙版预览",
+        "selectSavedImage": "请先选择一张已保存的图片，再编辑蒙版。",
+        "imageUnavailable": "所选图片已不可用。"
       },
       "referenceStrength": "参考强度",
       "locked": "已锁定",
@@ -1342,7 +1344,11 @@
         "reuseSettings": "复用{{asset}}的生成设置",
         "copyPrompt": "复制{{asset}}的提示词",
         "download": "下载{{asset}}"
-      }
+      },
+      "editMaskOnCanvas": "在画布上编辑蒙版",
+      "reEditMaskOnCanvas": "在画布上重新编辑蒙版",
+      "removeMissingReferences": "请移除缺失的参考图，或添加一张可用的参考图。",
+      "insertGeneratedAssetFailed": "无法插入生成的素材。"
     },
     "settings": {
       "tabs": {
@@ -1717,7 +1723,17 @@
       "noMatch": "没有匹配的命令……"
     },
     "itemNotAvailable": "命令不可用……",
-    "shortcutHint": "用 {{shortcut}} 打开命令面板"
+    "shortcutHint": "用 {{shortcut}} 打开命令面板",
+    "categories": {
+      "app": "应用",
+      "export": "导出",
+      "canvas": "画布",
+      "tools": "工具",
+      "editor": "编辑器",
+      "elements": "元素",
+      "links": "链接",
+      "library": "素材库"
+    }
   },
   "keys": {
     "ctrl": "Ctrl",
@@ -1884,7 +1900,9 @@
       "revokeConfirm": "撤销这个分享链接？",
       "saveFailed": "云端分享保存失败，本地数据已保留。",
       "saved": "已保存到共享云端白板。",
-      "unavailable": "云端分享未配置。"
+      "unavailable": "云端分享未配置。",
+      "create": "创建链接",
+      "permission": "链接权限"
     },
     "embed": {
       "action": "嵌入",
@@ -1962,7 +1980,7 @@
     }
   },
   "vault": {
-    "menu": "Vault（实验性）",
+    "menu": "Vault",
     "dependency": {
       "title": "Vault 依赖检查",
       "description": "先检查 Vault 所需的安全密文持久化与 room 服务。创建 Vault 时始终从空白画布开始，绝不会上传当前白板。",

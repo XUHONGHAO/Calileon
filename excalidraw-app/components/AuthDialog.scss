@@ -19,7 +19,7 @@
   .Dialog__title {
     flex: 0 0 auto;
     margin-bottom: 0;
-    padding-right: var(--ui-space-8);
+    padding-inline-end: var(--ui-space-8);
   }
 
   .Dialog__content {
@@ -27,35 +27,22 @@
     flex: 1 1 auto;
     min-height: 0;
     overflow: hidden;
-    padding-top: var(--ui-space-6);
+    padding-top: var(--ui-space-4);
   }
 
+  // Sits on the title row, outside the <h2>. Positioned against the Island.
   .AuthDialog__close {
     position: absolute;
-    top: 2rem;
-    right: 2rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 2rem;
-    height: 2rem;
-    padding: 0;
-    border: 0;
-    border-radius: var(--ui-radius-md);
-    background: transparent;
-    color: var(--text-primary-color);
-    cursor: pointer;
+    top: 1.625rem;
+    right: 1.5rem;
+    color: var(--ui-text-secondary);
 
-    &:hover {
-      background: var(--button-hover-bg);
-    }
-
-    &:disabled {
-      cursor: default;
-      opacity: 0.5;
+    &:hover:not(:disabled) {
+      color: var(--ui-text);
     }
   }
 
+  // Phones: the editor Dialog renders its own close button.
   &.Dialog--fullscreen {
     .Modal__content {
       max-height: 100%;
@@ -74,7 +61,6 @@
 .AuthDialog {
   display: flex;
   flex-direction: column;
-  gap: var(--ui-space-3);
   flex: 1 1 auto;
   max-height: 100%;
   min-height: 0;
@@ -84,54 +70,76 @@
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
-    gap: var(--ui-space-3);
+    gap: var(--ui-space-4);
     min-height: 0;
     min-width: 0;
     overflow-x: hidden;
     overflow-y: auto;
+    padding-bottom: var(--ui-space-4);
   }
 
   .AuthDialog__intro {
     margin: 0;
     font-size: var(--ui-font-sm);
-    color: var(--text-secondary-color);
+    line-height: var(--ui-line-normal);
+    color: var(--ui-text-secondary);
   }
 
-  .AuthDialog__field {
+  // Sections are stacked by the scroll body's gap and divided by a hairline.
+  .AuthDialog__section {
+    & + .AuthDialog__section {
+      margin-top: 0;
+      padding-top: var(--ui-space-4);
+      border-top: 1px solid var(--ui-border);
+    }
+  }
+
+  .AuthDialog__accountRow {
     display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-1_5);
-    width: 100%;
-    max-width: 26rem;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2);
     min-width: 0;
+  }
 
-    label {
-      font-size: var(--ui-font-sm);
-      font-weight: var(--ui-weight-semibold);
-    }
+  .AuthDialog__accountIdentity,
+  .AuthDialog__summary {
+    display: flex;
+    flex: 1 1 12rem;
+    flex-direction: column;
+    gap: var(--ui-space-0_5);
+    min-width: 0;
+  }
 
-    input {
-      box-sizing: border-box;
-      width: 100%;
-      max-width: 100%;
-      min-width: 0;
-      padding: var(--ui-space-2) var(--ui-space-3);
-      font-size: var(--ui-font-sm);
-      border: 1px solid var(--default-border-color, var(--color-gray-30));
-      border-radius: var(--ui-radius-md);
-      background: var(--input-bg-color, var(--island-bg-color));
-      color: var(--text-primary-color);
+  .AuthDialog__accountIdentity span,
+  .AuthDialog__accountCard span {
+    font-size: var(--ui-font-xs);
+    color: var(--ui-text-secondary);
+  }
 
-      &:focus {
-        outline: none;
-        border-color: var(--color-primary);
-        box-shadow: 0 0 0 1px var(--color-primary);
-      }
+  .AuthDialog__accountIdentity strong,
+  .AuthDialog__summary strong,
+  .AuthDialog__accountCard strong {
+    overflow: hidden;
+    color: var(--ui-text);
+    font-size: var(--ui-font-sm);
+    font-weight: var(--ui-weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 
-      &:disabled {
-        opacity: 0.6;
-      }
-    }
+  .AuthDialog__summary small,
+  .AuthDialog__accountCard small {
+    overflow: hidden;
+    font-size: var(--ui-font-xs);
+    color: var(--ui-text-secondary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .AuthDialog__accountCard .AuthDialog__cardError {
+    color: var(--ui-danger-fg);
   }
 
   .AuthDialog__accountGrid {
@@ -145,123 +153,69 @@
     display: flex;
     flex-direction: column;
     gap: var(--ui-space-1);
-    min-width: 0;
-    padding: var(--ui-space-3) var(--ui-space-3);
-    border: 1px solid var(--default-border-color, var(--color-gray-30));
-    border-radius: var(--ui-radius-md);
-    background: var(--island-bg-color);
-
-    span {
-      font-size: var(--ui-font-xs);
-      color: var(--text-secondary-color);
-    }
-
-    strong {
-      overflow: hidden;
-      font-size: var(--ui-font-sm);
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    small {
-      overflow: hidden;
-      font-size: var(--ui-font-xs);
-      color: var(--text-secondary-color);
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
-  .AuthDialog__accountCard--button {
+    box-sizing: border-box;
     width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: var(--ui-space-3);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface);
     color: inherit;
     font: inherit;
-    text-align: left;
+    text-align: start;
     cursor: pointer;
+    transition: background-color var(--ui-transition),
+      border-color var(--ui-transition);
 
     &:hover:not(:disabled) {
-      background: var(--button-hover-bg);
+      border-color: var(--ui-border-strong);
+      background: var(--ui-surface-sunken);
     }
 
     &:focus-visible {
-      outline: 2px solid var(--color-primary);
-      outline-offset: 2px;
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
     }
 
     &:disabled {
       cursor: default;
-      opacity: 0.65;
+      opacity: 0.6;
     }
   }
 
-  .AuthDialog__currentSceneCard--stale {
-    border-color: var(--color-warning, var(--color-primary));
-  }
-
-  .AuthDialog__cardActions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--ui-space-1_5);
-    margin-top: var(--ui-space-1);
-  }
-
-  .AuthDialog__cardAction {
-    align-self: flex-start;
-    margin-top: var(--ui-space-1);
-    padding: var(--ui-space-1) var(--ui-space-2);
-    border: 1px solid var(--default-border-color, var(--color-gray-30));
-    border-radius: var(--ui-radius-md);
-    background: transparent;
-    color: var(--text-primary-color);
-    font: inherit;
-    font-size: var(--ui-font-xs);
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: var(--button-hover-bg);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--color-primary);
-      outline-offset: 2px;
-    }
-
-    &:disabled {
-      cursor: default;
-      opacity: 0.65;
-    }
-  }
-
-  .AuthDialog__cardActions .AuthDialog__cardAction {
-    margin-top: 0;
-  }
-
-  .AuthDialog__error {
-    margin: 0;
-    padding: var(--ui-space-2) var(--ui-space-3);
-    font-size: var(--ui-font-sm);
-    color: var(--color-danger);
-    background: var(--color-danger-background);
-    border-radius: var(--ui-radius-md);
-  }
-
-  .AuthDialog__actions {
+  .AuthDialog__sectionActions {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    justify-content: flex-end;
-    flex: 0 0 auto;
     gap: var(--ui-space-2);
+    min-width: 0;
+  }
+
+  // Destructive action sits apart from the constructive ones.
+  .AuthDialog__actionEnd {
+    margin-inline-start: auto;
+  }
+
+  .AuthDialog__statusList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+    overflow-wrap: anywhere;
+  }
+
+  .AuthDialog__actions {
+    flex: 0 0 auto;
     margin-top: 0;
     padding-top: var(--ui-space-3);
-    border-top: 1px solid var(--dialog-border-color);
-    background: var(--island-bg-color);
-
-    .excalidraw-button {
-      flex: 0 0 auto;
-      min-width: 5rem;
-      white-space: nowrap;
-    }
+    border-top: 1px solid var(--ui-border);
+    background: var(--ui-surface);
   }
 }
 
@@ -271,13 +225,12 @@
       grid-template-columns: 1fr;
     }
 
-    .AuthDialog__actions {
-      justify-content: stretch;
+    .AuthDialog__sectionActions > .UiButton {
+      flex: 1 1 auto;
+    }
 
-      .excalidraw-button {
-        flex: 1 1 0;
-        min-width: 0;
-      }
+    .AuthDialog__actionEnd {
+      margin-inline-start: 0;
     }
   }
 }

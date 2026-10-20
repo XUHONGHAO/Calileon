@@ -1,6 +1,5 @@
 import React from "react";
 
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -10,6 +9,17 @@ import {
   revokeVaultShareInvitation,
   VaultError,
 } from "../data/vault";
+
+import {
+  Badge,
+  Callout,
+  DialogActions,
+  DialogSection,
+  Field,
+  ListRow,
+  Select,
+  UiButton,
+} from "./ui";
 
 import "./VaultShareDialog.scss";
 
@@ -239,27 +249,25 @@ export const VaultShareDialog = ({
       closeOnClickOutside={false}
     >
       <div className="VaultShareDialog">
-        <p>{t("vault.share.description")}</p>
-        <div className="VaultShareDialog__warning" role="note">
-          {t("vault.share.bearerWarning")}
-        </div>
+        <p className="VaultShareDialog__description">
+          {t("vault.share.description")}
+        </p>
+        <Callout tone="warning" live={false}>
+          <span role="note">{t("vault.share.bearerWarning")}</span>
+        </Callout>
 
         <div className="VaultShareDialog__form">
-          <label>
-            <span>{t("vault.share.role")}</span>
-            <select
-              aria-label={t("vault.share.role")}
+          <Field label={t("vault.share.role")}>
+            <Select
               value={role}
               onChange={(event) => setRole(event.target.value as VaultRole)}
             >
               <option value="viewer">{t("vault.share.viewer")}</option>
               <option value="editor">{t("vault.share.editor")}</option>
-            </select>
-          </label>
-          <label>
-            <span>{t("vault.share.expiry")}</span>
-            <select
-              aria-label={t("vault.share.expiry")}
+            </Select>
+          </Field>
+          <Field label={t("vault.share.expiry")}>
+            <Select
               value={expiry}
               onChange={(event) =>
                 setExpiry(event.target.value as VaultShareExpiry)
@@ -268,96 +276,91 @@ export const VaultShareDialog = ({
               <option value="never">{t("vault.share.expiryNever")}</option>
               <option value="day">{t("vault.share.expiryDay")}</option>
               <option value="week">{t("vault.share.expiryWeek")}</option>
-            </select>
-          </label>
+            </Select>
+          </Field>
         </div>
 
-        <div className="VaultShareDialog__actions">
-          <Button
-            onSelect={() => void createInvitation()}
-            disabled={isCreating}
+        <DialogActions>
+          <UiButton onClick={onClose}>{t("buttons.close")}</UiButton>
+          <UiButton
+            variant="primary"
+            onClick={() => void createInvitation()}
+            loading={isCreating}
           >
             {isCreating
               ? t("vault.share.creating")
               : t("vault.share.createAndCopy")}
-          </Button>
-          <Button onSelect={onClose}>{t("buttons.close")}</Button>
-        </div>
+          </UiButton>
+        </DialogActions>
 
         {feedback.kind === "success" && (
-          <div
-            className="VaultShareDialog__feedback VaultShareDialog__feedback--success"
-            role="status"
-          >
-            {feedback.message}
-          </div>
+          <Callout tone="success">{feedback.message}</Callout>
         )}
         {feedback.kind === "error" && (
-          <div
-            className="VaultShareDialog__feedback VaultShareDialog__feedback--error"
-            role="alert"
-          >
-            <span>{getShareErrorMessage(feedback.code)}</span>
-            <code>{feedback.code}</code>
-          </div>
+          <Callout tone="danger" details={feedback.code}>
+            {getShareErrorMessage(feedback.code)}
+          </Callout>
         )}
 
-        <div className="VaultShareDialog__invitations">
-          <h3>{t("vault.share.createdInvitations")}</h3>
+        <DialogSection title={t("vault.share.createdInvitations")}>
           {invitations.length === 0 ? (
             <p className="VaultShareDialog__empty">
               {t("vault.share.noInvitations")}
             </p>
           ) : (
-            <ul>
+            <ul className="VaultShareDialog__list">
               {invitations.map((invitation) => (
-                <li key={invitation.invitationId}>
-                  <div>
-                    <strong>
-                      {invitation.role === "viewer"
-                        ? t("vault.share.viewer")
-                        : t("vault.share.editor")}
-                    </strong>
-                    <span>
-                      {invitation.expiresAt === null
-                        ? t("vault.share.expiryNever")
-                        : t("vault.share.expiresAt", {
-                            date: new Date(
-                              invitation.expiresAt,
-                            ).toLocaleString(),
-                          })}
-                    </span>
-                    {invitation.state === "revoked" && (
-                      <span className="VaultShareDialog__revoked">
-                        {t("vault.share.revoked")}
-                      </span>
-                    )}
-                  </div>
-                  <div className="VaultShareDialog__itemActions">
-                    <Button
-                      onSelect={() =>
-                        void copyInvitation(invitation.invitationId)
-                      }
-                      disabled={invitation.state !== "active"}
-                    >
-                      {t("vault.share.copy")}
-                    </Button>
-                    <Button
-                      onSelect={() =>
-                        void revokeInvitation(invitation.invitationId)
-                      }
-                      disabled={invitation.state !== "active"}
-                    >
-                      {invitation.state === "revoking"
-                        ? t("vault.share.revoking")
-                        : t("vault.share.revoke")}
-                    </Button>
-                  </div>
-                </li>
+                <ListRow
+                  key={invitation.invitationId}
+                  className="VaultShareDialog__item"
+                  title={
+                    invitation.role === "viewer"
+                      ? t("vault.share.viewer")
+                      : t("vault.share.editor")
+                  }
+                  meta={
+                    invitation.expiresAt === null
+                      ? t("vault.share.expiryNever")
+                      : t("vault.share.expiresAt", {
+                          date: new Date(invitation.expiresAt).toLocaleString(),
+                        })
+                  }
+                  badges={
+                    invitation.state === "revoked" && (
+                      <Badge tone="danger">{t("vault.share.revoked")}</Badge>
+                    )
+                  }
+                  actions={
+                    <>
+                      <UiButton
+                        size="sm"
+                        onClick={() =>
+                          void copyInvitation(invitation.invitationId)
+                        }
+                        disabled={invitation.state !== "active"}
+                      >
+                        {t("vault.share.copy")}
+                      </UiButton>
+                      <UiButton
+                        size="sm"
+                        variant="danger"
+                        onClick={() =>
+                          void revokeInvitation(invitation.invitationId)
+                        }
+                        disabled={invitation.state !== "active"}
+                        loading={invitation.state === "revoking"}
+                      >
+                        {invitation.state === "revoking"
+                          ? t("vault.share.revoking")
+                          : t("vault.share.revoke")}
+                      </UiButton>
+                    </>
+                  }
+                />
               ))}
             </ul>
           )}
-        </div>
+        </DialogSection>
       </div>
     </Dialog>
   );

@@ -1,50 +1,98 @@
-.VaultStatus {
-  align-items: center;
-  background: var(--color-surface-low);
-  border: 1px solid var(--color-border-outline-variant);
-  border-radius: var(--ui-radius-md);
-  color: var(--text-primary-color);
-  display: inline-flex;
-  font-size: var(--ui-font-xs);
-  gap: var(--ui-space-1_5);
-  padding: var(--ui-space-1) var(--ui-space-2);
-  // Long labels (conflict, realtime lost) must not collapse into a column.
-  white-space: nowrap;
+.excalidraw {
+  // Base pill look comes from .UiStatusPill (ui.scss); this adds the tone
+  // tint for warning states and the narrow-width collapse.
+  .VaultStatus {
+    flex: 0 1 auto;
+    // long states (realtime lost + details) truncate; full text is the title
+    max-width: min(22rem, 100%);
 
-  &--unsynced,
-  &--revoked,
-  &--expired {
-    color: var(--color-danger);
+    &.UiStatusPill--warning {
+      border-color: var(--ui-warning-border);
+    }
+
+    &__text {
+      flex: 1 1 auto;
+      align-items: center;
+    }
+
+    &__meta {
+      flex: 0 0 auto;
+    }
+
+    &__meta,
+    &__detail {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--ui-space-1_5);
+      color: var(--ui-text-secondary);
+    }
+
+    &__detail {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &__label {
+      flex: 0 1 auto;
+      min-width: 3rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &__separator {
+      opacity: 0.55;
+    }
+
+    &__review {
+      margin-inline-start: var(--ui-space-1);
+      margin-inline-end: calc(var(--ui-space-2) * -1);
+    }
   }
 
-  &__lock {
-    color: var(--color-primary);
+  .VaultStatusControls {
+    display: inline-flex;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ui-space-2);
+    min-width: 0;
+    max-width: 100%;
+
+    // upstream Button: size to the label (its mobile rule forces squares)
+    &__share.excalidraw-button {
+      --button-width: auto;
+      --mobile-action-button-size: auto;
+
+      width: auto;
+      height: var(--ui-control-md);
+      padding-inline: var(--ui-space-3);
+      white-space: nowrap;
+    }
   }
 
-  &__separator {
-    opacity: 0.55;
-  }
+  // Phones: dot + sync label only; role, "Encrypted" and details move to the
+  // tooltip but stay in the accessible text.
+  @media (max-width: 600px) {
+    .VaultStatus {
+      max-width: 9.5rem;
+      padding-inline: var(--ui-space-2);
 
-  &__review {
-    flex: 0 0 auto;
-    background: transparent;
-    border: 1px solid currentColor;
-    border-radius: var(--ui-radius-md);
-    color: inherit;
-    cursor: pointer;
-    font: inherit;
-    padding: 0.05rem var(--ui-space-1_5);
-  }
-}
+      &__meta,
+      &__detail {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+    }
 
-.VaultStatusControls {
-  align-items: center;
-  display: inline-flex;
-  gap: var(--ui-space-2);
-
-  &__share {
-    min-height: 2rem;
-    padding-block: var(--ui-space-1);
-    white-space: nowrap;
+    .VaultStatusControls {
+      gap: var(--ui-space-1);
+    }
   }
 }

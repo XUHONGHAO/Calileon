@@ -1,4 +1,3 @@
-import { Button } from "@excalidraw/excalidraw/components/Button";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
@@ -13,7 +12,17 @@ import { normalizeEmbedOrigins } from "../data/cloud/embedOrigin";
 
 import "./EmbedListDialog.scss";
 
-import { confirmAction } from "./ui";
+import {
+  Badge,
+  Callout,
+  DialogActions,
+  Field,
+  ListRow,
+  Select,
+  TextArea,
+  UiButton,
+  confirmAction,
+} from "./ui";
 
 import type {
   EmbedMode,
@@ -213,6 +222,14 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
     event.stopPropagation();
   };
 
+  const formDisabled = loading || !!busyId;
+
+  const renderStatus = (message: string) => (
+    <p className="EmbedListDialog__status" role="status">
+      {message}
+    </p>
+  );
+
   return (
     <Dialog
       className="EmbedListDialogModal"
@@ -222,80 +239,60 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
       title={t("cloud.embed.title")}
     >
       <div className="EmbedListDialog">
-        <button
+        <UiButton
           className="EmbedListDialog__close"
-          type="button"
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon={CloseIcon}
           aria-label={t("buttons.close")}
           title={t("buttons.close")}
           onClick={handleClose}
-          disabled={loading || !!busyId}
-        >
-          {CloseIcon}
-        </button>
+          disabled={formDisabled}
+        />
 
-        <div className="EmbedListDialog__toolbar">
-          <p>{t("cloud.embed.description", { title: scene.title })}</p>
-          <div className="EmbedListDialog__toolbarActions">
-            {onBack && (
-              <Button onSelect={onBack} disabled={loading || !!busyId}>
-                {t("cloud.scenes.back")}
-              </Button>
-            )}
-            <Button
-              onSelect={() => void loadEmbeds()}
-              disabled={loading || !!busyId}
-            >
-              {t("cloud.scenes.refresh")}
-            </Button>
-          </div>
-        </div>
+        <p className="EmbedListDialog__description">
+          {t("cloud.embed.description", { title: scene.title })}
+        </p>
 
-        {error && (
-          <p className="EmbedListDialog__error" role="alert">
-            {error}
-          </p>
-        )}
+        {error && <Callout tone="danger">{error}</Callout>}
 
         <div className="EmbedListDialog__create">
-          <label>
-            <span>{t("cloud.embed.allowedOrigins")}</span>
-            <textarea
+          <Field label={t("cloud.embed.allowedOrigins")}>
+            <TextArea
               value={originText}
               onChange={(event) => setOriginText(event.currentTarget.value)}
               onKeyDown={stopShortcutPropagation}
-              disabled={loading || !!busyId}
+              disabled={formDisabled}
               rows={3}
             />
-          </label>
+          </Field>
           <div className="EmbedListDialog__options">
-            <label>
-              <span>{t("cloud.embed.mode")}</span>
-              <select
+            <Field label={t("cloud.embed.mode")}>
+              <Select
                 value={mode}
-                disabled={loading || !!busyId}
+                disabled={formDisabled}
                 onChange={(event) => setMode(event.target.value as EmbedMode)}
               >
                 <option value="read">{t("cloud.embed.modeRead")}</option>
                 <option value="write">{t("cloud.embed.modeWrite")}</option>
-              </select>
-            </label>
-            <label>
-              <span>{t("cloud.embed.theme")}</span>
-              <select
+              </Select>
+            </Field>
+            <Field label={t("cloud.embed.theme")}>
+              <Select
                 value={theme}
-                disabled={loading || !!busyId}
+                disabled={formDisabled}
                 onChange={(event) => setTheme(event.target.value as EmbedTheme)}
               >
                 <option value="system">{t("cloud.embed.themeSystem")}</option>
                 <option value="light">{t("cloud.embed.themeLight")}</option>
                 <option value="dark">{t("cloud.embed.themeDark")}</option>
-              </select>
-            </label>
-            <label>
-              <span>{t("cloud.embed.size")}</span>
-              <select
+              </Select>
+            </Field>
+            <Field label={t("cloud.embed.size")}>
+              <Select
                 value={size}
-                disabled={loading || !!busyId}
+                disabled={formDisabled}
                 onChange={(event) => setSize(event.target.value as EmbedSize)}
               >
                 <option value="responsive">
@@ -303,71 +300,109 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
                 </option>
                 <option value="wide">{t("cloud.embed.sizeWide")}</option>
                 <option value="compact">{t("cloud.embed.sizeCompact")}</option>
-              </select>
-            </label>
+              </Select>
+            </Field>
           </div>
-          <Button
-            onSelect={() => void handleCreate()}
-            disabled={loading || !!busyId || !originText.trim()}
-          >
-            {busyId === "create"
-              ? t("cloud.embed.creating")
-              : t("cloud.embed.create")}
-          </Button>
+          <div className="EmbedListDialog__createActions">
+            <UiButton
+              variant="primary"
+              loading={busyId === "create"}
+              disabled={loading || !!busyId || !originText.trim()}
+              onClick={() => void handleCreate()}
+            >
+              {busyId === "create"
+                ? t("cloud.embed.creating")
+                : t("cloud.embed.create")}
+            </UiButton>
+          </div>
         </div>
 
         {loading ? (
-          <div className="EmbedListDialog__status">
-            {t("cloud.embed.loading")}
-          </div>
+          renderStatus(t("cloud.embed.loading"))
         ) : embeds.length === 0 ? (
-          <div className="EmbedListDialog__status">
-            {t("cloud.embed.empty")}
-          </div>
+          renderStatus(t("cloud.embed.empty"))
         ) : (
           <ul className="EmbedListDialog__list">
-            {embeds.map((embed) => (
-              <li className="EmbedListDialog__item" key={embed.id}>
-                <div className="EmbedListDialog__details">
-                  <strong>
-                    {embed.revoked
-                      ? t("cloud.embed.revoked")
-                      : getModeLabel(embed.mode)}
-                  </strong>
-                  <span>
-                    {t("cloud.embed.meta", {
-                      theme: getThemeLabel(embed.theme),
-                      size: getSizeLabel(embed.size),
-                    })}
-                  </span>
-                  <small title={embed.allowedOrigins.join(", ")}>
-                    {embed.allowedOrigins.join(", ")}
-                  </small>
-                </div>
-                <div className="EmbedListDialog__actions">
-                  <Button
-                    onSelect={() => void handleCopyIframe(embed)}
-                    disabled={!!busyId || embed.revoked}
-                  >
-                    {t("cloud.embed.copyIframe")}
-                  </Button>
-                  <Button
-                    onSelect={() => void handleCopySnippet(embed)}
-                    disabled={!!busyId || embed.revoked}
-                  >
-                    {t("cloud.embed.copySnippet")}
-                  </Button>
-                  <Button
-                    onSelect={() => void handleRevoke(embed)}
-                    disabled={!!busyId || embed.revoked}
-                  >
-                    {t("cloud.embed.revoke")}
-                  </Button>
-                </div>
-              </li>
-            ))}
+            {embeds.map((embed) => {
+              const origins = embed.allowedOrigins.join(", ");
+              return (
+                <ListRow
+                  key={embed.id}
+                  className={
+                    embed.revoked ? "EmbedListDialog__row--revoked" : undefined
+                  }
+                  title={getModeLabel(embed.mode)}
+                  badges={
+                    embed.revoked && <Badge>{t("cloud.embed.revoked")}</Badge>
+                  }
+                  meta={
+                    <>
+                      <span className="EmbedListDialog__metaLine">
+                        {t("cloud.embed.meta", {
+                          theme: getThemeLabel(embed.theme),
+                          size: getSizeLabel(embed.size),
+                        })}
+                      </span>
+                      <span
+                        className="EmbedListDialog__metaLine"
+                        title={origins}
+                      >
+                        {origins}
+                      </span>
+                    </>
+                  }
+                  actions={
+                    !embed.revoked && (
+                      <UiButton
+                        size="sm"
+                        loading={busyId === embed.id}
+                        disabled={!!busyId}
+                        onClick={() => void handleCopyIframe(embed)}
+                      >
+                        {t("cloud.embed.copyIframe")}
+                      </UiButton>
+                    )
+                  }
+                  menu={
+                    embed.revoked
+                      ? undefined
+                      : [
+                          {
+                            label: t("cloud.embed.copySnippet"),
+                            onSelect: () => void handleCopySnippet(embed),
+                            disabled: !!busyId,
+                          },
+                          {
+                            label: t("cloud.embed.revoke"),
+                            onSelect: () => void handleRevoke(embed),
+                            danger: true,
+                            disabled: !!busyId,
+                          },
+                        ]
+                  }
+                />
+              );
+            })}
           </ul>
         )}
+
+        <DialogActions
+          leading={
+            onBack && (
+              <UiButton
+                variant="ghost"
+                onClick={onBack}
+                disabled={formDisabled}
+              >
+                {t("cloud.scenes.back")}
+              </UiButton>
+            )
+          }
+        >
+          <UiButton onClick={() => void loadEmbeds()} disabled={formDisabled}>
+            {t("cloud.scenes.refresh")}
+          </UiButton>
+        </DialogActions>
       </div>
     </Dialog>
   );

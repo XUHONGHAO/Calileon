@@ -304,15 +304,20 @@
     min-width: 0;
   }
 
+  // Buttons never wrap their labels; the row (and the action group) wraps
+  // as a whole at narrow widths.
   .AIImageWorkbench__templateRow {
+    flex-wrap: wrap;
     justify-content: space-between;
+    row-gap: var(--ui-space-1);
   }
 
   .AIImageWorkbench__promptActions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: flex-start;
-    gap: var(--ui-space-2);
+    gap: var(--ui-space-1);
     min-width: 0;
   }
 
@@ -331,7 +336,7 @@
     padding: var(--ui-space-2);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     color: var(--text-primary-color);
-    box-shadow: 0 0.35rem 1.2rem rgba(0, 0, 0, 0.12);
+    box-shadow: var(--shadow-island);
   }
 
   .AIImageWorkbench__referencePicker {
@@ -404,16 +409,7 @@
   }
 
   .AIImageWorkbench__warning {
-    border-radius: var(--ui-radius-md);
-    padding: var(--ui-space-2) var(--ui-space-2);
-    background: color-mix(
-      in srgb,
-      var(--color-warning-darker) 16%,
-      transparent
-    );
-    color: var(--text-primary-color);
     font-size: var(--ui-font-xs);
-    line-height: 1.3;
     overflow-wrap: anywhere;
   }
 
@@ -468,52 +464,13 @@
     }
   }
 
+  // UiButton primary, kept in view at the bottom of the scrolling panel.
   .AIImageWorkbench__primaryButton {
     position: sticky;
     bottom: 0;
     z-index: 1;
-    width: 100% !important;
-    height: 2.25rem !important;
-    min-width: 0;
-    --button-width: 100%;
-    --button-height: 2.25rem;
-    --button-bg: var(--color-primary);
-    --button-border: var(--color-primary);
-    --button-color: var(--color-icon-white);
-    --button-hover-bg: var(--color-primary-hover);
-    --button-hover-border: var(--color-primary-hover);
-    --button-hover-color: var(--color-icon-white);
-    --button-active-bg: var(--color-primary-darker);
-    --button-active-border: var(--color-primary-darker);
-    justify-content: center;
+    flex: 0 0 auto;
     box-shadow: 0 -0.25rem 0.75rem var(--sidebar-bg-color);
-
-    &:disabled {
-      --button-bg: var(--color-surface-mid);
-      --button-border: var(--default-border-color);
-      --button-color: var(--color-text-disabled);
-      cursor: not-allowed;
-      opacity: 0.7;
-    }
-  }
-
-  .AIImageWorkbench__textButton {
-    border: 0;
-    background: transparent;
-    color: var(--color-primary);
-    font: inherit;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      color: var(--color-primary-hover);
-      text-decoration: underline;
-      text-underline-offset: 0.15rem;
-    }
-
-    &:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
   }
 
   .AIImageWorkbench__inlineStatus {
@@ -549,7 +506,7 @@
     flex-wrap: wrap;
     justify-content: flex-end;
 
-    button {
+    button:not(.UiButton) {
       min-height: 1.8rem;
       border: 1px solid var(--default-border-color);
       border-radius: var(--ui-radius-md);
@@ -977,63 +934,11 @@
     }
   }
 
-  .AIImageWorkbench__secondaryButton {
-    min-height: 2.25rem;
-    border: 1px solid var(--default-border-color);
-    border-radius: var(--ui-radius-lg);
-    background: var(--app-sidebar-control-bg, var(--island-bg-color));
-    color: var(--text-primary-color);
-    font: inherit;
-    overflow-wrap: anywhere;
-    cursor: pointer;
-
-    &:hover:not(:disabled) {
-      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
-    }
-
-    &:disabled {
-      cursor: not-allowed;
-      opacity: 0.5;
-    }
-  }
-
+  // Notices and status/error messages render as UiCallout.
   .AIImageWorkbench__notice,
   .AIImageWorkbench__message {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--ui-space-2);
-    border-radius: var(--ui-radius-lg);
-    padding: var(--ui-space-2) var(--ui-space-3);
-    background: var(--color-surface-low);
-    color: var(--text-primary-color);
-    line-height: 1.35;
+    flex: 0 0 auto;
     overflow-wrap: anywhere;
-
-    span {
-      min-width: 0;
-    }
-
-    button {
-      flex: 0 0 auto;
-      border: 0;
-      background: transparent;
-      color: var(--color-primary);
-      font: inherit;
-      font-weight: var(--ui-weight-semibold);
-      cursor: pointer;
-
-      &:hover {
-        color: var(--color-primary-hover);
-        text-decoration: underline;
-        text-underline-offset: 0.15rem;
-      }
-    }
-  }
-
-  .AIImageWorkbench__message.is-error {
-    background: var(--color-danger-background);
-    color: var(--color-danger-color);
   }
 
   .AIImageWorkbench__metadata {

@@ -1,10 +1,12 @@
 import React from "react";
 
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { FilledButton } from "@excalidraw/excalidraw/components/FilledButton";
+import Spinner from "@excalidraw/excalidraw/components/Spinner";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import { VaultError } from "../data/vault/errors";
+
+import { Callout, DialogActions, UiButton } from "./ui";
 
 import "./VaultMigrationControl.scss";
 
@@ -110,11 +112,17 @@ export const VaultMigrationControl = ({
     return (
       <>
         <div
-          className="VaultMigrationControl__banner"
+          className="VaultMigrationControl__banner UiStatusPill UiStatusPill--info"
           role="status"
+          title={t("vault.migration.migratedNotice")}
           data-testid="vault-migration-banner"
         >
-          <span>{t("vault.migration.migratedNotice")}</span>
+          <span className="UiStatusPill__mark" aria-hidden="true">
+            <span className="UiStatusPill__dot" />
+          </span>
+          <span className="VaultMigrationControl__notice">
+            {t("vault.migration.migratedNotice")}
+          </span>
           <a href={state.link}>{t("vault.migration.openNew")}</a>
         </div>
         {state.justNow && (
@@ -128,19 +136,22 @@ export const VaultMigrationControl = ({
               className="VaultMigrationControl"
               data-testid="vault-migration-done"
             >
-              <p>{t("vault.migration.doneDescription")}</p>
-              <div className="VaultMigrationControl__actions">
-                <FilledButton
-                  label={t("vault.migration.openNew")}
-                  onClick={() => window.location.assign(state.link)}
-                />
-                <FilledButton
-                  variant="outlined"
-                  color="muted"
-                  label={t("vault.migration.stay")}
+              <Callout tone="success" live={false}>
+                {t("vault.migration.doneDescription")}
+              </Callout>
+              <DialogActions>
+                <UiButton
                   onClick={() => setState({ ...state, justNow: false })}
-                />
-              </div>
+                >
+                  {t("vault.migration.stay")}
+                </UiButton>
+                <UiButton
+                  variant="primary"
+                  onClick={() => window.location.assign(state.link)}
+                >
+                  {t("vault.migration.openNew")}
+                </UiButton>
+              </DialogActions>
             </div>
           </Dialog>
         )}
@@ -156,13 +167,12 @@ export const VaultMigrationControl = ({
 
   return (
     <>
-      <FilledButton
-        variant="outlined"
-        color="muted"
+      <UiButton
         className="VaultMigrationControl__trigger"
-        label={t("vault.migration.start")}
         onClick={() => setState({ kind: "confirm" })}
-      />
+      >
+        {t("vault.migration.start")}
+      </UiButton>
       {state.kind !== "idle" && (
         <Dialog
           title={t("vault.migration.title")}
@@ -171,38 +181,39 @@ export const VaultMigrationControl = ({
           closeOnClickOutside={false}
         >
           <div className="VaultMigrationControl" data-testid="vault-migration">
-            <p>{t("vault.migration.description")}</p>
+            <p className="VaultMigrationControl__description">
+              {t("vault.migration.description")}
+            </p>
             <ul className="VaultMigrationControl__notes">
               <li>{t("vault.migration.noteOldKept")}</li>
               <li>{t("vault.migration.noteOthers")}</li>
               <li>{t("vault.migration.noteImages")}</li>
             </ul>
             {state.kind === "running" && (
-              <p role="status">{t("vault.migration.running")}</p>
+              <div className="VaultMigrationControl__running" role="status">
+                <Spinner />
+                <span>{t("vault.migration.running")}</span>
+              </div>
             )}
             {state.kind === "error" && (
-              <p role="alert" data-testid="vault-migration-error">
-                {state.message}
-              </p>
+              <Callout tone="danger">
+                <span data-testid="vault-migration-error">{state.message}</span>
+              </Callout>
             )}
-            <div className="VaultMigrationControl__actions">
-              <FilledButton
-                label={
-                  state.kind === "error"
-                    ? t("vault.migration.retry")
-                    : t("vault.migration.confirm")
-                }
+            <DialogActions>
+              <UiButton onClick={close} disabled={state.kind === "running"}>
+                {t("vault.migration.cancel")}
+              </UiButton>
+              <UiButton
+                variant="primary"
                 onClick={migrate}
-                disabled={state.kind === "running"}
-              />
-              <FilledButton
-                variant="outlined"
-                color="muted"
-                label={t("vault.migration.cancel")}
-                onClick={close}
-                disabled={state.kind === "running"}
-              />
-            </div>
+                loading={state.kind === "running"}
+              >
+                {state.kind === "error"
+                  ? t("vault.migration.retry")
+                  : t("vault.migration.confirm")}
+              </UiButton>
+            </DialogActions>
           </div>
         </Dialog>
       )}

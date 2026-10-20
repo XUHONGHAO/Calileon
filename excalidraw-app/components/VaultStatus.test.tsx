@@ -100,6 +100,7 @@ describe("VaultStatus", () => {
     const status = screen.getByTestId("vault-status");
     expect(status).toHaveTextContent(/Syncing/i);
     expect(status).toHaveClass("VaultStatus--syncing");
+    expect(status).toHaveClass("UiStatusPill--info");
     expect(status).not.toHaveClass("VaultStatus--synced");
     expect(status).toHaveAttribute("data-sync-status", "synced");
 
@@ -120,6 +121,7 @@ describe("VaultStatus", () => {
     );
     expect(status).toHaveTextContent(/Not synced/i);
     expect(status).toHaveClass("VaultStatus--unsynced");
+    expect(status).toHaveClass("UiStatusPill--danger");
 
     // Terminal session states keep their own styling.
     rerender(
@@ -146,6 +148,7 @@ describe("VaultStatus", () => {
     // Safe on this device is not styled as a failure.
     expect(screen.getByTestId("vault-status")).toHaveClass(
       "VaultStatus--local",
+      "UiStatusPill--warning",
     );
     rerender(
       <VaultStatus

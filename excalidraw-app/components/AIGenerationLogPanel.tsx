@@ -8,9 +8,12 @@ import {
   loadAIGenerationLogs,
 } from "../ai/generationLog";
 
+import { Badge, Callout, UiButton } from "./ui";
+
 import "./AIGenerationLogPanel.scss";
 
 import type { AIGenerationLogEntry } from "../ai/types";
+import type { UiTone } from "./ui";
 
 const DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
   year: "numeric",
@@ -73,9 +76,14 @@ export const AIGenerationLogPanel = ({
   return (
     <div className="AIGenerationLogPanel">
       <div className="AIGenerationLogPanel__header">
-        <button type="button" onClick={clearLogs} disabled={!logs.length}>
+        <UiButton
+          variant="danger"
+          size="sm"
+          onClick={clearLogs}
+          disabled={!logs.length}
+        >
           {t("ai.generationLog.clear")}
-        </button>
+        </UiButton>
       </div>
 
       {!logs.length && (
@@ -85,9 +93,9 @@ export const AIGenerationLogPanel = ({
       )}
 
       {statusMessage && (
-        <div className="AIGenerationLogPanel__message" role="status">
+        <Callout tone="success" className="AIGenerationLogPanel__message">
           {statusMessage}
-        </div>
+        </Callout>
       )}
 
       <div className="AIGenerationLogPanel__list">
@@ -115,22 +123,27 @@ export const AIGenerationLogPanel = ({
                 <span className="AIGenerationLogPanel__cardModel">
                   {log.model.name} / {log.model.siteName}
                 </span>
-                <span
+                <Badge
+                  tone={STATUS_TONE[log.status] ?? "danger"}
                   className={`AIGenerationLogPanel__status is-${log.status}`}
                 >
                   {getStatusLabel(log.status, t)}
-                </span>
+                </Badge>
               </button>
 
               {isExpanded && (
                 <div className="AIGenerationLogPanel__details">
                   <div className="AIGenerationLogPanel__actions">
-                    <button type="button" onClick={() => reuseLog(log)}>
+                    <UiButton
+                      variant="primary"
+                      size="sm"
+                      onClick={() => reuseLog(log)}
+                    >
                       {t("ai.generationLog.reuseSettings")}
-                    </button>
-                    <button type="button" onClick={() => copyPrompt(log)}>
+                    </UiButton>
+                    <UiButton size="sm" onClick={() => copyPrompt(log)}>
                       {t("ai.generationLog.copyPrompt")}
-                    </button>
+                    </UiButton>
                   </div>
                   <dl>
                     <div>
@@ -159,6 +172,12 @@ export const AIGenerationLogPanel = ({
       </div>
     </div>
   );
+};
+
+const STATUS_TONE: Partial<Record<AIGenerationLogEntry["status"], UiTone>> = {
+  success: "success",
+  canceled: "neutral",
+  failed: "danger",
 };
 
 const formatDate = (value: string) => {
