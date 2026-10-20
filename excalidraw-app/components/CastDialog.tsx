@@ -1,6 +1,7 @@
 import {
   CaptureUpdateAction,
   Excalidraw,
+  ExcalidrawAPIProvider,
   sceneCoordsToViewportCoords,
 } from "@excalidraw/excalidraw";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
@@ -8,8 +9,10 @@ import { Range } from "@excalidraw/excalidraw/components/Range";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { getVersion } from "@excalidraw/common";
+import { getCommonBounds } from "@excalidraw/element";
 import React from "react";
 
+import type { ExcalidrawElement } from "@excalidraw/element/types";
 import type {
   AppState,
   ExcalidrawProps,
@@ -65,6 +68,45 @@ const toPreviewAppState = (
     luminaGameMode: null,
     exportIncludeGameEffects: false,
   } as AppState);
+
+type PreviewViewMode = "fit" | "follow";
+
+const FIT_PADDING = 32;
+const FIT_MAX_ZOOM = 1;
+const FIT_MIN_ZOOM = 0.1;
+
+/**
+ * Scroll/zoom that shows everything the recording ever draws inside a
+ * `width`×`height` preview. The recorded viewport belongs to the (larger) main
+ * canvas, so replaying it 1:1 crops the drawing.
+ */
+const getFitViewport = (
+  elements: readonly ExcalidrawElement[],
+  width: number,
+  height: number,
+) => {
+  if (!elements.length || width <= 0 || height <= 0) {
+    return null;
+  }
+  const [minX, minY, maxX, maxY] = getCommonBounds(elements);
+  const contentWidth = Math.max(1, maxX - minX);
+  const contentHeight = Math.max(1, maxY - minY);
+  const zoom = Math.min(
+    FIT_MAX_ZOOM,
+    Math.max(
+      FIT_MIN_ZOOM,
+      Math.min(
+        (width - FIT_PADDING * 2) / contentWidth,
+        (height - FIT_PADDING * 2) / contentHeight,
+      ),
+    ),
+  );
+  return {
+    zoom,
+    scrollX: width / 2 / zoom - (minX + contentWidth / 2),
+    scrollY: height / 2 / zoom - (minY + contentHeight / 2),
+  };
+};
 
 const formatTime = (timeMs: number) => {
   const totalSeconds = Math.max(0, Math.floor(timeMs / 1000));
@@ -123,9 +165,15 @@ export const CastDialog: React.FC<{
     "idle" | "saving" | "saved"
   >("idle");
 
+  const [viewMode, setViewMode] = React.useState<PreviewViewMode>("fit");
+
   const player = React.useMemo(
     () => (script ? new CastPlayer(script) : null),
     [script],
+  );
+  const allRecordedElements = React.useMemo(
+    () => player?.getAllElements() ?? [],
+    [player],
   );
 
   const applyPlaybackSnapshot = React.useCallback(
@@ -134,10 +182,19 @@ export const CastDialog: React.FC<{
       if (!previewAPI) {
         return;
       }
+      // The preview editor's own canvas size; on phones it is smaller than
+      // the container.
+      const { width, height } = previewAPI.getAppState();
+      const fit =
+        viewMode === "fit"
+          ? getFitViewport(allRecordedElements, width, height)
+          : null;
       previewAPI.addFiles(Object.values(snapshot.files));
       previewAPI.updateScene({
         elements: snapshot.elements,
-        appState: toPreviewAppState(snapshot.appState),
+        appState: toPreviewAppState(
+          fit ? { ...snapshot.appState, ...fit } : snapshot.appState,
+        ),
         captureUpdate: CaptureUpdateAction.NEVER,
       });
       previewAPI.history.clear();
@@ -161,7 +218,7 @@ export const CastDialog: React.FC<{
         visible: true,
       });
     },
-    [],
+    [allRecordedElements, viewMode],
   );
 
   const seek = React.useCallback(
@@ -289,6 +346,21 @@ export const CastDialog: React.FC<{
       seek(currentTime);
     }
   }, [currentTime, script, seek]);
+
+  // Re-fit when the preview resizes (window resize, phone rotation).
+  React.useEffect(() => {
+    const container = previewContainerRef.current;
+    if (!script || viewMode !== "fit" || !container) {
+      return;
+    }
+    const observer = new ResizeObserver(() => {
+      if (previewAPIRef.current) {
+        seek(currentTimeRef.current);
+      }
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [script, seek, viewMode]);
 
   const startRecording = () => {
     if (!excalidrawAPI) {
@@ -496,42 +568,56 @@ export const CastDialog: React.FC<{
           <>
             <div className="CastDialog__previewHeader">
               <strong>{t("labels.cast.preview")}</strong>
-              <span>
+              <SegmentedControl
+                size="sm"
+                label={t("labels.cast.view.label")}
+                value={viewMode}
+                onChange={setViewMode}
+                options={[
+                  { value: "fit", label: t("labels.cast.view.fit") },
+                  { value: "follow", label: t("labels.cast.view.follow") },
+                ]}
+              />
+              <span className="CastDialog__previewTime">
                 {formatTime(currentTime)} / {formatTime(script.durationMs)}
               </span>
             </div>
             <div className="CastDialog__preview" ref={previewContainerRef}>
-              <Excalidraw
-                key={script.id}
-                initialData={{
-                  elements: script.initial.elements,
-                  appState: toPreviewAppState(script.initial.appState),
-                  files: script.initial.files,
-                }}
-                onExcalidrawAPI={(api) => {
-                  previewAPIRef.current = api;
-                  if (api) {
-                    seek(currentTime);
-                  }
-                }}
-                viewModeEnabled={true}
-                zenModeEnabled={true}
-                handleKeyboardGlobally={false}
-                detectScroll={false}
-                autoFocus={false}
-                isCollaborating={false}
-                langCode={langCode}
-                UIOptions={{
-                  canvasActions: {
-                    loadScene: false,
-                    saveToActiveFile: false,
-                    export: false,
-                    clearCanvas: false,
-                    toggleTheme: false,
-                    changeViewBackgroundColor: false,
-                  },
-                }}
-              />
+              {/* Own API scope: otherwise this nested editor replaces the
+                  app's editor API on mount and clears it on unmount. */}
+              <ExcalidrawAPIProvider>
+                <Excalidraw
+                  key={script.id}
+                  initialData={{
+                    elements: script.initial.elements,
+                    appState: toPreviewAppState(script.initial.appState),
+                    files: script.initial.files,
+                  }}
+                  onExcalidrawAPI={(api) => {
+                    previewAPIRef.current = api;
+                    if (api) {
+                      seek(currentTime);
+                    }
+                  }}
+                  viewModeEnabled={true}
+                  zenModeEnabled={true}
+                  handleKeyboardGlobally={false}
+                  detectScroll={false}
+                  autoFocus={false}
+                  isCollaborating={false}
+                  langCode={langCode}
+                  UIOptions={{
+                    canvasActions: {
+                      loadScene: false,
+                      saveToActiveFile: false,
+                      export: false,
+                      clearCanvas: false,
+                      toggleTheme: false,
+                      changeViewBackgroundColor: false,
+                    },
+                  }}
+                />
+              </ExcalidrawAPIProvider>
               {pointerPosition?.visible && (
                 <div
                   className="CastDialog__pointer"

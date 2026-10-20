@@ -181,7 +181,12 @@
       "cloudUnavailable": "Bind this whiteboard to your signed-in cloud account to save the recording.",
       "unsupportedVersion": "This CastScript version is not supported.",
       "invalidScript": "The selected file is not a valid CastScript.",
-      "cloudError": "The recording could not be saved to the cloud."
+      "cloudError": "The recording could not be saved to the cloud.",
+      "view": {
+        "label": "Preview view",
+        "fit": "Fit drawing",
+        "follow": "Recorded view"
+      }
     },
     "textAlign": "Text align",
     "edges": "Edges",

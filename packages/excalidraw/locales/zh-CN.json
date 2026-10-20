@@ -181,7 +181,12 @@
       "cloudUnavailable": "请先登录并将当前白板绑定到云端，再保存录制。",
       "unsupportedVersion": "不支持此 CastScript 版本。",
       "invalidScript": "所选文件不是有效的 CastScript。",
-      "cloudError": "无法将录制保存到云端。"
+      "cloudError": "无法将录制保存到云端。",
+      "view": {
+        "label": "预览视角",
+        "fit": "适应画面",
+        "follow": "录制视角"
+      }
     },
     "textAlign": "文本对齐",
     "edges": "边角",

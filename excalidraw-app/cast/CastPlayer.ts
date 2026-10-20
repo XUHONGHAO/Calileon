@@ -46,6 +46,17 @@ export class CastPlayer {
     return this.script.durationMs;
   }
 
+  /** Every element version the recording ever shows, for fitting the view. */
+  public getAllElements(): ExcalidrawElement[] {
+    const all = [...this.script.initial.elements];
+    for (const event of this.script.events) {
+      if (event.type === "scene") {
+        all.push(...event.changedElements);
+      }
+    }
+    return all.filter((element) => !element.isDeleted);
+  }
+
   public seek(requestedAt: number): CastPlaybackSnapshot {
     const at = Math.max(0, Math.min(this.script.durationMs, requestedAt));
     const checkpoint = [...this.script.checkpoints]

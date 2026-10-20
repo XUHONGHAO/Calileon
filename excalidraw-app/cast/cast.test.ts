@@ -154,6 +154,20 @@ describe("Cast semantic core", () => {
     expect(final.files.image).toEqual(file("image"));
   });
 
+  it("lists every element the recording ever shows, including later-deleted ones", () => {
+    const { recorder, advance } = setup();
+    recorder.start(snapshot([element("a", 1)]));
+    advance(10);
+    recorder.recordScene(snapshot([element("a", 2), element("b", 1)]));
+    advance(10);
+    recorder.recordScene(snapshot([element("b", 2)]));
+    const all = new CastPlayer(recorder.stop()).getAllElements();
+    expect(new Set(all.map((candidate) => candidate.id))).toEqual(
+      new Set(["a", "b"]),
+    );
+    expect(all.every((candidate) => !candidate.isDeleted)).toBe(true);
+  });
+
   it("throttles and deduplicates pointer/viewport events and replays them", () => {
     const { recorder, advance } = setup();
     recorder.start(snapshot([]));

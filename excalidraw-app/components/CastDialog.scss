@@ -36,9 +36,18 @@
   flex-wrap: wrap;
 }
 
+.CastDialog__previewTime {
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
 .CastDialog__description,
 .CastDialog__previewHeader {
   font-size: var(--ui-font-sm);
+}
+
+.CastDialog__previewHeader {
+  justify-content: flex-start;
 }
 
 .CastDialog__status {
