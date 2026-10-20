@@ -70,6 +70,8 @@ import { createHttpAiGateway } from "../data/cloud/HttpAiGateway";
 
 import "./AISettings.scss";
 
+import { confirmAction } from "./ui";
+
 import type { AIModelProviderPreset } from "../ai/config";
 import type {
   AIAgent,
@@ -824,7 +826,7 @@ export const AISettings = ({
       if (!managedGateway) {
         return;
       }
-      if (!window.confirm(t("ai.proxy.auditDeleteConfirm"))) {
+      if (!(await confirmAction(t("ai.proxy.auditDeleteConfirm")))) {
         return;
       }
       try {
@@ -1218,15 +1220,15 @@ export const AISettings = ({
   }, [agentConfig, agentEditorState, persistAgentConfig, setAgentAsDefault]);
 
   const removeAgent = useCallback(
-    (agent: AIAgent) => {
+    async (agent: AIAgent) => {
       if (
-        !window.confirm(
+        !(await confirmAction(
           t("ai.settings.messages.deleteAgentConfirm", {
             type: getAgentTypeLabel(agent.type, t),
             name: agent.name,
             suffix: "",
           }),
-        )
+        ))
       ) {
         return;
       }
@@ -1345,11 +1347,11 @@ export const AISettings = ({
   }, [agentConfig, persistAgentConfig, skillEditorState]);
 
   const removeSkill = useCallback(
-    (skill: AISkill) => {
+    async (skill: AISkill) => {
       if (
-        !window.confirm(
+        !(await confirmAction(
           t("ai.settings.messages.deleteSkillConfirm", { name: skill.name }),
-        )
+        ))
       ) {
         return;
       }
@@ -1483,14 +1485,14 @@ export const AISettings = ({
     setErrorMessage("");
   }, [templateEditorState]);
 
-  const removeTemplate = useCallback((template: PromptTemplate) => {
+  const removeTemplate = useCallback(async (template: PromptTemplate) => {
     if (
       template.isBuiltIn ||
-      !window.confirm(
+      !(await confirmAction(
         t("ai.settings.messages.deleteTemplateConfirm", {
           label: template.label,
         }),
-      )
+      ))
     ) {
       return;
     }

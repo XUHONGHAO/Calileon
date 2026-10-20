@@ -9,6 +9,8 @@ import { getCloudShareLink } from "../data/cloud/cloudShareLinks";
 
 import "./SceneListDialog.scss";
 
+import { confirmAction } from "./ui";
+
 import type {
   SceneRecord,
   SceneSummary,
@@ -152,7 +154,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   };
 
   const handleRemove = async (id: string) => {
-    if (!window.confirm(t("cloud.scenes.deleteConfirm"))) {
+    if (!(await confirmAction(t("cloud.scenes.deleteConfirm")))) {
       return;
     }
 
@@ -223,7 +225,10 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   };
 
   const handleRevokeShare = async (share: ShareLink) => {
-    if (!sharingScene || !window.confirm(t("cloud.share.revokeConfirm"))) {
+    if (
+      !sharingScene ||
+      !(await confirmAction(t("cloud.share.revokeConfirm")))
+    ) {
       return;
     }
 

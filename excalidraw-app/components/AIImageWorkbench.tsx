@@ -123,6 +123,8 @@ import {
 
 import "./AIImageWorkbench.scss";
 
+import { confirmAction } from "./ui";
+
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   SetStateAction,
@@ -1629,10 +1631,10 @@ export const AIImageWorkbench = ({
     });
   }, []);
 
-  const clearReferenceImages = useCallback(() => {
+  const clearReferenceImages = useCallback(async () => {
     if (
       selectedSources.length > 2 &&
-      !window.confirm(t("ai.workbench.clearAllReferencesConfirm"))
+      !(await confirmAction(t("ai.workbench.clearAllReferencesConfirm")))
     ) {
       return;
     }

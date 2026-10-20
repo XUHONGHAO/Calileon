@@ -16,6 +16,7 @@ import { createSingleFilePayload } from "../single-file/payload";
 import { saveSingleFileAs } from "../single-file/saveSingleFile";
 
 import "./SingleFileDialog.scss";
+import { confirmAction } from "./ui";
 
 const formatBytes = (bytes: number) =>
   `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
@@ -84,9 +85,10 @@ export const SingleFileDialog = ({
 
       if (
         blob.size > SINGLE_FILE_WARNING_BYTES &&
-        !window.confirm(
+        !(await confirmAction(
           t("singleFile.sizeWarning", { size: formatBytes(blob.size) }),
-        )
+          { danger: false },
+        ))
       ) {
         return;
       }

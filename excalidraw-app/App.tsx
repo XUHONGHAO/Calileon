@@ -263,6 +263,8 @@ import {
 
 import { isVaultV2Enabled, isVaultV2Route } from "./data/vault/v2/flag";
 
+import { confirmAction } from "./components/ui";
+
 import type { CollabAPI } from "./collab/Collab";
 import type {
   AIGenerationLogEntry,
@@ -2757,7 +2759,9 @@ const ExcalidrawWrapper = () => {
             });
             if (
               silent ||
-              !window.confirm(t("cloud.scenes.remoteNewerConfirm"))
+              !(await confirmAction(t("cloud.scenes.remoteNewerConfirm"), {
+                danger: false,
+              }))
             ) {
               excalidrawAPI.setToast({
                 message: t("cloud.scenes.remoteNewer"),
@@ -4140,7 +4144,7 @@ const ExcalidrawWrapper = () => {
       const payloadHash = getCloudPayloadHash(serializedPayload);
       if (
         payloadHash !== lastCloudSavedPayloadHashRef.current &&
-        !window.confirm(t("cloud.scenes.refreshUnsavedConfirm"))
+        !(await confirmAction(t("cloud.scenes.refreshUnsavedConfirm")))
       ) {
         return;
       }

@@ -24,6 +24,8 @@ import { activeRoomLinkAtom } from "../collab/Collab";
 import { getCloudBackend, shareLink } from "../data/cloud";
 import { getCloudShareLink } from "../data/cloud/cloudShareLinks";
 
+import { confirmAction } from "../components/ui";
+
 import "./ShareDialog.scss";
 import { QRCode } from "./QRCode";
 
@@ -360,7 +362,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
   };
 
   const handleRevokeCloudShare = async (link: ShareLink) => {
-    if (!window.confirm(t("cloud.share.revokeConfirm"))) {
+    if (!(await confirmAction(t("cloud.share.revokeConfirm")))) {
       return;
     }
 
@@ -459,7 +461,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
       collabRoomStats.status !== "ready" ||
       !collabRoomStats.room ||
       revokingCollabRoom ||
-      !window.confirm(t("cloud.collabRooms.revokeConfirm"))
+      !(await confirmAction(t("cloud.collabRooms.revokeConfirm")))
     ) {
       return;
     }

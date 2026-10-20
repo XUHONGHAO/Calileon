@@ -31,6 +31,7 @@ import {
 import { readCloudDeploymentConfig } from "../data/cloud/deploymentConfig";
 
 import "./AuthDialog.scss";
+import { confirmAction } from "./ui";
 
 const getAITaskStatusLabel = (status: AITaskStatus) => {
   if (status === "succeeded") {
@@ -802,7 +803,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       revokingCollabRoom ||
       collabRoomStats.status !== "ready" ||
       !collabRoomStats.room ||
-      !window.confirm(t("cloud.collabRooms.revokeConfirm"))
+      !(await confirmAction(t("cloud.collabRooms.revokeConfirm")))
     ) {
       return;
     }

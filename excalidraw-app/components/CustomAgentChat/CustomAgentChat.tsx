@@ -37,6 +37,8 @@ import {
 import { hasMermaidCodeBlock } from "../../ai/codeBlockDetector";
 import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
 
+import { confirmAction } from "../ui";
+
 import "./CustomAgentChat.scss";
 
 import type {
@@ -511,8 +513,8 @@ export const CustomAgentChat = ({
     [abortActiveGeneration, updateActiveConversation],
   );
 
-  const clearAllConversations = useCallback(() => {
-    if (!window.confirm(t("ai.assistant.messages.clearAllConfirm"))) {
+  const clearAllConversations = useCallback(async () => {
+    if (!(await confirmAction(t("ai.assistant.messages.clearAllConfirm")))) {
       return;
     }
 

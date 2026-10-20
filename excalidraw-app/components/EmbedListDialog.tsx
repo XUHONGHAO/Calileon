@@ -13,6 +13,8 @@ import { normalizeEmbedOrigins } from "../data/cloud/embedOrigin";
 
 import "./EmbedListDialog.scss";
 
+import { confirmAction } from "./ui";
+
 import type {
   EmbedMode,
   EmbedRecord,
@@ -191,7 +193,7 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
   };
 
   const handleRevoke = async (embed: EmbedRecord) => {
-    if (!window.confirm(t("cloud.embed.revokeConfirm"))) {
+    if (!(await confirmAction(t("cloud.embed.revokeConfirm")))) {
       return;
     }
 

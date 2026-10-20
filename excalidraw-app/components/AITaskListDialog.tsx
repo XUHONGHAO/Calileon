@@ -8,6 +8,8 @@ import { getCloudBackend } from "../data/cloud";
 
 import "./SceneListDialog.scss";
 
+import { confirmAction } from "./ui";
+
 import type { AITaskRecord, SceneRecord } from "../data/cloud";
 
 export interface AITaskListDialogProps {
@@ -131,7 +133,10 @@ export const AITaskListDialog: React.FC<AITaskListDialogProps> = ({
   };
 
   const handleRemove = async (task: AITaskRecord) => {
-    if (busyTaskId || !window.confirm(t("cloud.aiTasks.deleteConfirm"))) {
+    if (
+      busyTaskId ||
+      !(await confirmAction(t("cloud.aiTasks.deleteConfirm")))
+    ) {
       return;
     }
 
