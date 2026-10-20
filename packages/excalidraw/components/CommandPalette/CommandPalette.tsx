@@ -94,6 +94,15 @@ export const DEFAULT_CATEGORIES = {
   library: "Library",
 };
 
+// Category values stay English (hosts register commands with them); only the
+// rendered heading is localized.
+const getCategoryLabel = (category: string) => {
+  const key = (
+    Object.keys(DEFAULT_CATEGORIES) as (keyof typeof DEFAULT_CATEGORIES)[]
+  ).find((name) => DEFAULT_CATEGORIES[name] === category);
+  return key ? t(`commandPalette.categories.${key}`) : category;
+};
+
 const getCategoryOrder = (category: string) => {
   switch (category) {
     case DEFAULT_CATEGORIES.app:
@@ -951,7 +960,9 @@ function CommandPaletteInner({
           Object.keys(commandsByCategory).map((category) => {
             return (
               <div className="command-category" key={category}>
-                <div className="command-category-title">{category}</div>
+                <div className="command-category-title">
+                  {getCategoryLabel(category)}
+                </div>
                 {commandsByCategory[category].map((command, commandIndex) => (
                   <CommandItem
                     key={`${category}-${command.label}-${

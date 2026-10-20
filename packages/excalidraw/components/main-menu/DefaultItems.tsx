@@ -3,7 +3,12 @@ import { useSyncExternalStore } from "react";
 
 import { THEME, arrayToMap } from "@excalidraw/common";
 
-import { getLineTone, isLineToneSupportedElement } from "@excalidraw/element";
+import {
+  getEchoData,
+  getLineTone,
+  isEchoSupportedElement,
+  isLineToneSupportedElement,
+} from "@excalidraw/element";
 
 import type { LineTone } from "@excalidraw/element";
 import type { Theme } from "@excalidraw/element/types";
@@ -91,6 +96,8 @@ import {
   RetryIcon,
   DuplicateIcon,
   elementLinkIcon,
+  LinkIcon,
+  PlusIcon,
   save,
   searchIcon,
   SunIcon,
@@ -1130,6 +1137,15 @@ export const LineToneFeatureSubmenu = () => {
 export const EchoFeatureSubmenu = () => {
   const { t } = useI18n();
   const actionManager = useExcalidrawActionManager();
+  const appState = useUIAppState();
+  const elements = useExcalidrawElements();
+  // Mirrors the action guards so impossible items read as disabled.
+  const selected = elements.filter(
+    (element) => appState.selectedElementIds[element.id],
+  );
+  const selectedEchoable = selected.filter(isEchoSupportedElement);
+  const hasSelection = selected.length > 0;
+  const hasAnchor = selected.some((element) => getEchoData(element));
   const runCreate = () =>
     actionManager.executeAction(
       actionCreateEchoAnchor as any,
@@ -1143,15 +1159,17 @@ export const EchoFeatureSubmenu = () => {
       </DropdownMenuSub.Trigger>
       <DropdownMenuSub.Content>
         <DropdownMenuItem
-          icon={elementLinkIcon}
+          icon={PlusIcon}
           data-testid="echo-create-menu-item"
+          disabled={selectedEchoable.length !== 1}
           onSelect={runCreate}
         >
           {t("labels.echo.createAnchor")}
         </DropdownMenuItem>
         <DropdownMenuItem
-          icon={elementLinkIcon}
+          icon={LinkIcon}
           data-testid="echo-bind-menu-item"
+          disabled={!hasAnchor || selectedEchoable.length < 2}
           onSelect={() => actionManager.executeAction(actionBindEchoSelection)}
         >
           {t("labels.echo.bindSelection")}
@@ -1159,6 +1177,7 @@ export const EchoFeatureSubmenu = () => {
         <DropdownMenuItem
           icon={DuplicateIcon}
           data-testid="echo-duplicate-independent-menu-item"
+          disabled={!hasSelection}
           onSelect={() =>
             actionManager.executeAction(actionDuplicateEchoIndependent)
           }
@@ -1168,6 +1187,7 @@ export const EchoFeatureSubmenu = () => {
         <DropdownMenuItem
           icon={CloseIcon}
           data-testid="echo-unbind-menu-item"
+          disabled={!hasAnchor}
           onSelect={() =>
             actionManager.executeAction(actionUnbindEchoSelection)
           }
@@ -1182,6 +1202,7 @@ export const EchoFeatureSubmenu = () => {
             <DropdownMenuItem
               key={status ?? "none"}
               icon={adjustmentsIcon}
+              disabled={!hasAnchor}
               onSelect={() =>
                 actionManager.executeAction(
                   actionSetEchoStatus as any,

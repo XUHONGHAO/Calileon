@@ -13116,6 +13116,7 @@ class App extends React.Component<AppProps, AppState> {
       actionToggleCropEditor,
       CONTEXT_MENU_SEPARATOR,
       ...options,
+      actionDownloadImage,
       CONTEXT_MENU_SEPARATOR,
       actionCopyStyles,
       actionPasteStyles,
@@ -13128,6 +13129,7 @@ class App extends React.Component<AppProps, AppState> {
       actionUngroup,
       CONTEXT_MENU_SEPARATOR,
       actionAddSelectionToAIReference,
+      CONTEXT_MENU_SEPARATOR,
       actionAddToLibrary,
       ...zIndexActions,
       CONTEXT_MENU_SEPARATOR,
@@ -13141,7 +13143,6 @@ class App extends React.Component<AppProps, AppState> {
       CONTEXT_MENU_SEPARATOR,
       actionDuplicateSelection,
       actionToggleElementLock,
-      actionDownloadImage,
       CONTEXT_MENU_SEPARATOR,
       actionDeleteSelected,
     ];

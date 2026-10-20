@@ -106,7 +106,7 @@ describe("AI workflow command factories", () => {
       .find((command) => command.label === "AI: Assistant")
       ?.perform({} as Parameters<typeof commands[number]["perform"]>[0]);
     commands
-      .find((command) => command.label === "AI: Generate Logs")
+      .find((command) => command.label === "AI: Generation history")
       ?.perform({} as Parameters<typeof commands[number]["perform"]>[0]);
 
     expect(excalidrawAPI.toggleSidebar).toHaveBeenNthCalledWith(1, {

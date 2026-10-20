@@ -56,9 +56,14 @@ vi.mock("@excalidraw/common", async (importOriginal) => ({
   isDevEnv: () => false,
 }));
 
-vi.mock("@excalidraw/excalidraw/components/icons", () => ({
+vi.mock("@excalidraw/excalidraw/components/icons", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@excalidraw/excalidraw/components/icons")
+  >()),
   CastIcon: null,
+  checkIcon: null,
   CloseIcon: null,
+  emptyIcon: null,
   loginIcon: null,
   ExcalLogo: null,
   eyeIcon: null,
@@ -143,13 +148,22 @@ vi.mock("@excalidraw/excalidraw/index", () => {
     className,
     onSelect,
     icon,
+    ...rest
   }: {
     children: React.ReactNode;
     className?: string;
-    onSelect: () => void;
+    onSelect: (event: Event) => void;
     icon?: React.ReactNode;
+    "aria-pressed"?: boolean;
+    "data-testid"?: string;
   }) => (
-    <button className={className} type="button" onClick={onSelect}>
+    <button
+      className={className}
+      type="button"
+      aria-pressed={rest["aria-pressed"]}
+      data-testid={rest["data-testid"]}
+      onClick={(event) => onSelect(event.nativeEvent)}
+    >
       {icon}
       {children}
     </button>
@@ -305,6 +319,7 @@ const renderMenu = (
 
 beforeEach(() => {
   vaultConfigMock.enabled = false;
+  localStorage.removeItem("excalidraw-show-labs");
 });
 
 describe("AppMainMenu experimental features", () => {
@@ -486,6 +501,29 @@ describe("AppMainMenu cloud auth account entry", () => {
     fireEvent.click(accountButton);
 
     expect(onCloudAccountOpen).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("AppMainMenu Labs preference", () => {
+  beforeEach(() => {
+    authMock.state = makeAuthState();
+  });
+
+  it("shows Labs by default and hides it once turned off in Preferences", () => {
+    const { unmount } = renderMenu();
+    const toggle = screen.getByTestId("show-labs-menu-item");
+
+    expect(screen.getByText("Lumina submenu")).toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(toggle);
+
+    expect(screen.queryByText("Lumina submenu")).not.toBeInTheDocument();
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+    unmount();
+    renderMenu();
+    expect(screen.queryByText("Lumina submenu")).not.toBeInTheDocument();
   });
 });
 
