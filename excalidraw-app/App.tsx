@@ -4255,6 +4255,11 @@ const ExcalidrawWrapper = () => {
     [createAIWorkflowRequestId, openAIWorkflowTab],
   );
   useEffect(() => {
+    // AI is unavailable in Vault mode; leaving the handler unset also hides
+    // the "Add to reference images" menu item there.
+    if (isVaultMode) {
+      return;
+    }
     const previousHandlers = window.EXCALIDRAW_APP_AI_HANDLERS;
 
     window.EXCALIDRAW_APP_AI_HANDLERS = {
@@ -4269,7 +4274,7 @@ const ExcalidrawWrapper = () => {
         window.EXCALIDRAW_APP_AI_HANDLERS = undefined;
       }
     };
-  }, [requestAIReferenceAdd]);
+  }, [isVaultMode, requestAIReferenceAdd]);
 
   const requestEnterMaskEditing = useCallback(
     (imageId: string, maskElements?: readonly ExcalidrawFreeDrawElement[]) => {

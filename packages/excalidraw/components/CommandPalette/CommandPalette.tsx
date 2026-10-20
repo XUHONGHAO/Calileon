@@ -365,7 +365,6 @@ function CommandPaletteInner({
         actionManager.actions.toggleHandTool,
         actionManager.actions.setFrameAsActiveTool,
         actionManager.actions.toggleLassoTool,
-        actionManager.actions.addLightSource,
       ].map((action) => actionToCommand(action, DEFAULT_CATEGORIES.tools));
 
       const canvasCommands: CommandPaletteItem[] = [

@@ -1,5 +1,5 @@
 import React from "react";
-import { vi } from "vitest";
+import { afterEach, vi } from "vitest";
 
 import { KEYS, reseed } from "@excalidraw/common";
 
@@ -61,8 +61,35 @@ describe("contextMenu element", () => {
     renderStaticScene.mockClear();
     reseed(7);
     setDateTimeForTests("201933152653");
+    // The host app registers this handler; it gates "Add to reference images".
+    window.EXCALIDRAW_APP_AI_HANDLERS = { addSelectionAsReference: vi.fn() };
 
     await render(<Excalidraw handleKeyboardGlobally={true} />);
+  });
+
+  afterEach(() => {
+    window.EXCALIDRAW_APP_AI_HANDLERS = undefined;
+  });
+
+  it("hides add-to-AI-reference when the host app has no AI handler", () => {
+    window.EXCALIDRAW_APP_AI_HANDLERS = undefined;
+    UI.clickTool("rectangle");
+    mouse.down(0, 0);
+    mouse.up(10, 10);
+
+    fireEvent.contextMenu(GlobalTestState.interactiveCanvas, {
+      button: 2,
+      clientX: 3,
+      clientY: 3,
+    });
+    const contextMenu = UI.queryContextMenu();
+    expect(contextMenu).not.toBeNull();
+    expect(
+      contextMenu?.querySelector('li[data-testid="addSelectionToAIReference"]'),
+    ).toBeNull();
+    expect(
+      contextMenu?.querySelector('li[data-testid="copyStyles"]'),
+    ).not.toBeNull();
   });
 
   beforeAll(() => {

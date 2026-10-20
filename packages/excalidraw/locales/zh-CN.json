@@ -3,6 +3,10 @@
     "paste": "粘贴",
     "pasteAsPlaintext": "粘贴为纯文本",
     "pasteCharts": "粘贴图表",
+    "chartType_bar": "柱状图",
+    "chartType_line": "折线图",
+    "chartType_radar": "雷达图",
+    "chartType_plaintext": "纯文本",
     "selectAll": "全部选中",
     "multiSelect": "添加元素到选区",
     "moveCanvas": "移动画布",
@@ -111,8 +115,19 @@
       "unbind": "解除所选元素联动",
       "namePrompt": "Echo 锚点名称",
       "defaultName": "Echo 锚点",
-      "status": { "label": "状态", "none": "无状态", "todo": "待办", "in-progress": "进行中", "blocked": "阻塞", "done": "完成" },
-      "fields": { "text": "文字", "status": "状态", "backgroundColor": "背景色" }
+      "status": {
+        "label": "状态",
+        "none": "无状态",
+        "todo": "待办",
+        "in-progress": "进行中",
+        "blocked": "阻塞",
+        "done": "完成"
+      },
+      "fields": {
+        "text": "文字",
+        "status": "状态",
+        "backgroundColor": "背景色"
+      }
     },
     "lineTone": {
       "label": "连线语气",
@@ -185,7 +200,14 @@
     "arrowhead_crowfoot_many": "鸦爪标记（多）",
     "arrowhead_crowfoot_one": "鸦爪标记（一）",
     "arrowhead_crowfoot_one_or_many": "鸦爪标记（一或多）",
+    "arrowhead_cardinality_one": "基数（一）",
+    "arrowhead_cardinality_many": "基数（多）",
+    "arrowhead_cardinality_one_or_many": "基数（一或多）",
+    "arrowhead_cardinality_exactly_one": "基数（恰好一）",
+    "arrowhead_cardinality_zero_or_one": "基数（零或一）",
+    "arrowhead_cardinality_zero_or_many": "基数（零或多）",
     "more_options": "更多选项",
+    "cardinality": "基数",
     "arrowtypes": "箭头类型",
     "arrowtype_sharp": "直箭头",
     "arrowtype_round": "曲线箭头",
@@ -234,6 +256,7 @@
     "collaborators": "协作者",
     "toggleGrid": "切换网格显示",
     "addToLibrary": "添加到素材库中",
+    "addSelectionToAIReference": "添加到参考图",
     "removeFromLibrary": "从素材库中移除",
     "libraryLoadingMessage": "正在加载素材库…",
     "libraries": "浏览素材库",
@@ -308,7 +331,14 @@
     "linkToElement": "链接到对象",
     "wrapSelectionInFrame": "用选中的元素创建画框",
     "tab": "Tab",
-    "shapeSwitch": "切换形状"
+    "shapeSwitch": "切换形状",
+    "preferences": "偏好设置",
+    "preferences_toolLock": "工具锁定",
+    "boxSelectionMode": "框选方式",
+    "boxSelectionContain": "完全包含",
+    "boxSelectionOverlap": "部分重叠",
+    "arrowBinding": "箭头绑定",
+    "midpointSnapping": "吸附到中点"
   },
   "singleFile": {
     "title": "单文件白板",
@@ -370,7 +400,8 @@
       "inputPlaceholder": "搜索库",
       "heading": "匹配的库",
       "noResults": "无匹配项……",
-      "clearSearch": "清除搜索"
+      "clearSearch": "清除搜索",
+      "clearSearchHint": "按 Esc 清除"
     }
   },
   "search": {
@@ -399,6 +430,8 @@
     "scrollBackToContent": "滚动回到内容",
     "zoomIn": "放大",
     "zoomOut": "缩小",
+    "next": "下一个",
+    "previous": "上一个",
     "resetZoom": "重置缩放",
     "menu": "菜单",
     "done": "完成",
@@ -423,6 +456,8 @@
     "publishLibrary": "重命名或发布",
     "submit": "提交",
     "confirm": "确定",
+    "signIn": "登录",
+    "signUp": "注册",
     "embeddableInteractionButton": "点击以开始交互"
   },
   "alerts": {
@@ -498,6 +533,7 @@
     "laser": "激光笔",
     "hand": "抓手（平移工具）",
     "extraTools": "更多工具",
+    "generate": "生成",
     "mermaidToExcalidraw": "Mermaid 至 Calileon",
     "convertElementType": "切换形状种类"
   },
@@ -583,6 +619,7 @@
     "button_stopSession": "结束会话",
     "desc_inProgressIntro": "实时协作会话进行中。",
     "desc_shareLink": "分享此链接给你要协作的用户",
+    "shareLinkLabel": "协作链接",
     "inputTargetLinkLabel": "邀请输入链接",
     "inputInviteDesc": "邀请其他人在这个矩形里输入文字。",
     "inputInviteShareTitle": "在 Calileon 的矩形里输入文字",
@@ -591,6 +628,10 @@
   },
   "errorDialog": {
     "title": "错误"
+  },
+  "progressDialog": {
+    "title": "正在保存",
+    "defaultMessage": "正在准备保存…"
   },
   "exportDialog": {
     "disk_title": "保存到本地",
@@ -621,6 +662,7 @@
     "github": "提交问题",
     "howto": "帮助文档",
     "or": "或",
+    "youtube": "YouTube",
     "preventBinding": "禁用箭头吸附",
     "tools": "工具",
     "shortcuts": "快捷键列表",
@@ -815,11 +857,12 @@
   "mermaid": {
     "title": "Mermaid 至 Calileon",
     "button": "插入",
-    "description": "目前仅支持<flowchartLink>流程图</flowchartLink>、<sequenceLink>序列图</sequenceLink>和<classLink>类图</classLink>。其他类型在 Calileon 中将以图像呈现。",
+    "description": "目前仅支持<flowchartLink>流程图</flowchartLink>、<sequenceLink>序列图</sequenceLink>、<classLink>类图</classLink>和<erdLink>实体关系图</erdLink>。其他类型在 Calileon 中将以图像呈现。",
     "syntax": "Mermaid 语法",
     "preview": "预览",
     "label": "",
-    "inputPlaceholder": ""
+    "inputPlaceholder": "",
+    "autoFixAvailable": "可以自动修复"
   },
   "ttd": {
     "error": ""
@@ -895,8 +938,20 @@
       "branch": "继续裂变",
       "branchReady": "该结果已可作为新批次输入。",
       "costWarning": "运行中的请求可能已经被 provider 计费。",
-      "inputs": { "image": "选中图片", "region": "选中区域", "text": "文字", "visionAndText": "视觉输入 + 文字" },
-      "status": { "queued": "排队中", "running": "生成中", "succeeded": "成功", "failed": "失败", "cancelled": "已取消", "interrupted": "已中断——需要明确重试" },
+      "inputs": {
+        "image": "选中图片",
+        "region": "选中区域",
+        "text": "文字",
+        "visionAndText": "视觉输入 + 文字"
+      },
+      "status": {
+        "queued": "排队中",
+        "running": "生成中",
+        "succeeded": "成功",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "interrupted": "已中断——需要明确重试"
+      },
       "errors": {
         "modelUnavailable": "指定模型不可用或不支持该模式。请选择模型后明确重试。",
         "inputMissing": "稳定输入资产不可用。",

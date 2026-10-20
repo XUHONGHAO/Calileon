@@ -4,6 +4,7 @@ import { t } from "@excalidraw/excalidraw/i18n";
 
 import { useCloudAuth } from "../auth/useCloudAuth";
 import { getCloudBackend } from "../data/cloud";
+import { useHandleAppTheme } from "../useHandleAppTheme";
 
 import "./AIDeviceApproval.scss";
 
@@ -22,6 +23,7 @@ export const getAIDeviceApprovalCode = (search: string): string => {
 
 export const AIDeviceApproval = () => {
   const { isAuthAvailable, status, user, signIn } = useCloudAuth();
+  const { editorTheme } = useHandleAppTheme();
   const backend = getCloudBackend();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -78,7 +80,7 @@ export const AIDeviceApproval = () => {
   };
 
   return (
-    <main className="AIDeviceApproval">
+    <main className={`excalidraw theme--${editorTheme} AIDeviceApproval`}>
       <section
         className="AIDeviceApproval__card"
         aria-labelledby="ai-device-title"
@@ -93,7 +95,7 @@ export const AIDeviceApproval = () => {
         )}
 
         {!unavailable && status === "loading" && (
-          <p className="AIDeviceApproval__message" role="status">
+          <p className="AIDeviceApproval__status" role="status">
             {t("ai.proxy.devicePage.loading")}
           </p>
         )}

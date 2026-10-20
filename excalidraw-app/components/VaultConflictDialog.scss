@@ -4,7 +4,7 @@
   gap: 0.75rem;
 
   &__note {
-    color: var(--color-gray-60);
+    color: var(--text-secondary-color);
     font-size: 0.875rem;
   }
 
@@ -21,7 +21,7 @@
     }
 
     dt {
-      color: var(--color-gray-60);
+      color: var(--text-secondary-color);
     }
 
     dd {

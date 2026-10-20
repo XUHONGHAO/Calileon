@@ -1,10 +1,14 @@
-.AIDeviceApproval {
+// The page renders outside the editor, so it carries `.excalidraw` itself to
+// get the theme tokens; undo the editor-shell layout that class brings along.
+.excalidraw.AIDeviceApproval {
   min-height: 100vh;
+  height: auto;
   display: grid;
   place-items: center;
+  overflow: auto;
   padding: 1rem;
   box-sizing: border-box;
-  background: var(--color-gray-10);
+  background: var(--color-surface-low);
   color: var(--text-primary-color);
 }
 
@@ -51,13 +55,22 @@
   border: 0;
   border-radius: 0.35rem;
   background: var(--color-primary);
-  color: var(--color-primary-darker);
+  color: var(--color-icon-white);
+  font-weight: 600;
   cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--color-primary-darker);
+  }
 }
 
 .AIDeviceApproval__form button:disabled {
   cursor: default;
   opacity: 0.6;
+}
+
+.AIDeviceApproval__status {
+  color: var(--text-secondary-color);
 }
 
 .AIDeviceApproval__message,
@@ -66,7 +79,7 @@
 }
 
 .AIDeviceApproval__success {
-  color: var(--color-green-70);
+  color: var(--color-success-text);
   font-weight: 600;
 }
 

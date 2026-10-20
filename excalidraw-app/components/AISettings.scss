@@ -506,7 +506,7 @@
   }
 
   .AISettings__networkWarning {
-    border: 1px solid var(--color-warning);
+    border: 1px solid var(--color-warning-darker);
     border-radius: 0.5rem;
     padding: 0.65rem 0.75rem;
     background: var(--color-warning-background);
@@ -1098,7 +1098,7 @@
   .AISettings__message {
     border-radius: 0.45rem;
     padding: 0.55rem 0.65rem;
-    background: var(--color-gray-10);
+    background: var(--color-surface-low);
     line-height: 1.35;
     overflow-wrap: anywhere;
   }
