@@ -138,3 +138,101 @@
     min-height: 14rem;
   }
 }
+
+// Floating bar shown while recording (see CastRecordingBar.tsx). The portal
+// root carries `.excalidraw` for tokens; neutralize its full-size layout.
+.excalidraw.CastRecordingBar-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: visible;
+}
+
+.excalidraw .CastRecordingBar {
+  position: fixed;
+  // Above the editor chrome, below menus, popovers and modals.
+  z-index: calc(var(--zIndex-ui-top) + 5);
+  bottom: calc(var(--ui-space-4) + var(--sab));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  max-width: calc(100vw - 2 * var(--ui-space-4));
+  padding: var(--ui-space-1_5) var(--ui-space-1_5) var(--ui-space-1_5)
+    var(--ui-space-3);
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius-pill);
+  background: var(--island-bg-color);
+  box-shadow: var(--shadow-island);
+  color: var(--ui-text);
+  font-size: var(--ui-font-sm);
+  white-space: nowrap;
+
+  &__status {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-1_5);
+    min-width: 0;
+    margin-inline-end: var(--ui-space-1);
+  }
+
+  &__dot {
+    flex: none;
+    width: 0.625rem;
+    height: 0.625rem;
+    border-radius: 50%;
+    background: var(--color-danger);
+  }
+
+  &--recording .CastRecordingBar__dot {
+    animation: CastRecordingBar-pulse 1.4s ease-in-out infinite;
+  }
+
+  &--paused .CastRecordingBar__dot {
+    background: var(--color-warning-darker);
+  }
+
+  &__label {
+    font-weight: var(--ui-weight-semibold);
+  }
+
+  &__time {
+    color: var(--ui-text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .UiButton {
+    border-radius: var(--ui-radius-pill);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &--recording .CastRecordingBar__dot {
+      animation: none;
+    }
+  }
+}
+
+// Phones: the bottom toolbar owns the bottom edge, so float under the top bar
+// and drop the status word (the dot + timer carry it).
+.excalidraw.excalidraw--mobile .CastRecordingBar {
+  top: calc(var(--ui-space-3) + var(--sat) + 2.75rem);
+  bottom: auto;
+
+  .CastRecordingBar__label {
+    display: none;
+  }
+}
+
+@keyframes CastRecordingBar-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 0.3rem
+      color-mix(in srgb, var(--color-danger) 0%, transparent);
+  }
+}

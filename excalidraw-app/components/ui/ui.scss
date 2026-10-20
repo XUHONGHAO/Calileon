@@ -158,12 +158,12 @@
       margin-inline-start: auto;
     }
 
-    &--between &__main {
+    &--between .UiDialogActions__main {
       flex: 1 1 auto;
       justify-content: space-between;
     }
 
-    &--stretch &__main {
+    &--stretch .UiDialogActions__main {
       flex: 1 1 auto;
 
       > .UiButton {

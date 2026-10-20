@@ -30,6 +30,7 @@ import {
 
 import { getCloudBackend } from "../data/cloud";
 
+import { CastRecordingBar } from "./CastRecordingBar";
 import { Callout, SegmentedControl, UiButton } from "./ui";
 
 import "./CastDialog.scss";
@@ -342,6 +343,15 @@ export const CastDialog: React.FC<{
     setIsSaved(false);
   };
 
+  // The bar lives outside the canvas, so canvas pointer updates stop at its
+  // edge; mark the pointer hidden instead of leaving it parked there.
+  const hideRecordedPointer = () => {
+    const lastPointer = lastPointerRef.current;
+    if (lastPointer && recorderRef.current?.getState() === "recording") {
+      recorderRef.current.recordPointer({ ...lastPointer, visible: false });
+    }
+  };
+
   const discardRecording = () => {
     recorderRef.current = null;
     setScript(null);
@@ -405,6 +415,21 @@ export const CastDialog: React.FC<{
     }
   };
 
+  // While capturing, collapse to the floating bar so the board stays usable.
+  // Shown even if the menu closed the dialog, so a recording can't run hidden.
+  if (recorderState === "recording" || recorderState === "paused") {
+    return (
+      <CastRecordingBar
+        state={recorderState}
+        elapsed={formatTime(elapsedMs)}
+        onPause={pauseRecording}
+        onResume={resumeRecording}
+        onStop={stopRecording}
+        onPointerOver={hideRecordedPointer}
+      />
+    );
+  }
+
   if (!open) {
     return null;
   }
@@ -441,41 +466,14 @@ export const CastDialog: React.FC<{
             >
               {t("labels.cast.import")}
             </UiButton>
-            {recorderState === "idle" || recorderState === "stopped" ? (
-              <UiButton
-                variant="primary"
-                onClick={startRecording}
-                disabled={!excalidrawAPI}
-                data-testid="cast-start-recording"
-              >
-                {t("labels.cast.start")}
-              </UiButton>
-            ) : (
-              <>
-                {recorderState === "recording" ? (
-                  <UiButton
-                    onClick={pauseRecording}
-                    data-testid="cast-pause-recording"
-                  >
-                    {t("labels.cast.pause")}
-                  </UiButton>
-                ) : (
-                  <UiButton
-                    onClick={resumeRecording}
-                    data-testid="cast-resume-recording"
-                  >
-                    {t("labels.cast.resume")}
-                  </UiButton>
-                )}
-                <UiButton
-                  variant="primary"
-                  onClick={stopRecording}
-                  data-testid="cast-stop-recording"
-                >
-                  {t("labels.cast.stop")}
-                </UiButton>
-              </>
-            )}
+            <UiButton
+              variant="primary"
+              onClick={startRecording}
+              disabled={!excalidrawAPI}
+              data-testid="cast-start-recording"
+            >
+              {t("labels.cast.start")}
+            </UiButton>
             <input
               ref={importInputRef}
               type="file"
