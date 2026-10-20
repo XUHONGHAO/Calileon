@@ -96,7 +96,7 @@ describe("download image action", () => {
   });
 
   describe("context menu entry", () => {
-    it("shows the download action for a selected image, right below lock", async () => {
+    it("shows the download action for a selected image, with the copy-as group", async () => {
       const scene = createImageScene();
       await render(<Excalidraw initialData={scene as any} />);
 
@@ -114,11 +114,14 @@ describe("download image action", () => {
       expect(download).not.toBe(null);
       expect(lock).not.toBe(null);
 
-      // sits immediately after the lock entry
+      // grouped with the export-ish copy actions, before the style actions
       const items = Array.from(contextMenu.querySelectorAll("[data-testid]"));
       const ids = items.map((item) => item.getAttribute("data-testid"));
-      expect(ids.indexOf("downloadImage")).toBe(
-        ids.indexOf("toggleElementLock") + 1,
+      expect(ids.indexOf("downloadImage")).toBeGreaterThan(
+        ids.indexOf("copyAsSvg"),
+      );
+      expect(ids.indexOf("downloadImage")).toBeLessThan(
+        ids.indexOf("copyStyles"),
       );
     });
 
