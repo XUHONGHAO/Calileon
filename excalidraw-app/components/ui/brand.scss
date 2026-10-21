@@ -1,0 +1,222 @@
+// Calileon brand palette ("A2+", approved 2026-10-21).
+//
+// Re-skins the editor chrome from upstream's violet to the logo's colours:
+// warm ink neutrals, a flame primary, a teal canvas selection (the only cool
+// hue, so it never blends into warm strokes) and a rose danger tone that stays
+// distinct from the primary. Gold is reserved for badges and warnings.
+//
+// App-only override of theme.scss variables; the published package keeps its
+// own palette. Light values are scoped with :not(.theme--dark) so nothing
+// light-only leaks into dark mode, which upstream does not always redefine
+// (e.g. the gray scale, --color-warning).
+
+// Logo palette, for reference: gold #f7b733, flame #e8432e, crimson #b3122e,
+// ember #2a0a12, ink #2a1418, cream #fff6ec.
+
+.excalidraw.excalidraw:not(.theme--dark) {
+  // Warm neutrals.
+  --color-gray-10: #f6f3f1;
+  --color-gray-20: #ece7e4;
+  --color-gray-30: #d9d2ce;
+  --color-gray-40: #bbb2ad;
+  --color-gray-50: #9c928d;
+  --color-gray-60: #7d736f;
+  --color-gray-70: #5f5551;
+  --color-gray-80: #403734;
+  --color-gray-85: #27201e;
+  --color-gray-90: #201a18;
+  --color-gray-100: #150f0e;
+
+  --island-bg-color: #fffcfa;
+  --island-bg-color-alt: #fffcfa;
+  --color-surface-high: #f6e9e2;
+  --color-surface-mid: #faf6f2;
+  --color-surface-low: #f2ebe5;
+  --color-surface-lowest: #ffffff;
+  --color-on-surface: #2a1418;
+  --color-border-outline: #7a6a64;
+  --color-border-outline-variant: #dccdc5;
+
+  // Flame primary.
+  --color-primary: #d2452a;
+  --color-primary-darker: #c13d24;
+  --color-primary-darkest: #a8331d;
+  --color-primary-light: #fbe3db;
+  --color-primary-light-darker: #f6d2c6;
+  --color-primary-hover: #bd3b22;
+  --color-brand-hover: #bd3b22;
+  --color-brand-active: #a8331d;
+  --color-on-primary-container: #5a1408;
+  --color-surface-primary-container: #fbddd2;
+  --color-primary-contrast-offset: #c13d24;
+  --color-slider-track: hsl(12, 80%, 90%);
+  --focus-highlight-color: #fbddd2;
+  --link-color: #b5361f;
+  --link-color-hover: #8f2a17;
+
+  // Teal selection.
+  --color-selection: #1f9e8f;
+
+  // Rose danger (~345deg), kept apart from the flame primary.
+  --color-danger: #c2185b;
+  --color-danger-dark: #c2185b;
+  --color-danger-darker: #a31450;
+  --color-danger-darkest: #861043;
+  --color-danger-text: #fff;
+  --color-danger-background: #fdeef3;
+  --color-danger-icon-background: #f9d3e1;
+  --color-danger-color: #6d0b33;
+  --color-danger-icon-color: #6d0b33;
+  --button-destructive-bg-color: #fdeef3;
+  --button-destructive-color: #a31450;
+
+  // Gold badges and warnings.
+  --color-warning: #fdf0d2;
+  --color-warning-dark: #f7b733;
+  --color-warning-darker: #e39a12;
+  --background-color-badge: #fdecc4;
+  --color-badge: #6b4300;
+
+  --shadow-island: 0 0 1px rgba(42, 20, 24, 0.2), 0 0 3px rgba(42, 20, 24, 0.08),
+    0 7px 14px rgba(42, 20, 24, 0.06);
+
+  --brand-gradient: linear-gradient(135deg, #e0532f 0%, #c42f2a 55%, #a5162e);
+  --brand-gradient-hover: linear-gradient(
+    135deg,
+    #cc4527 0%,
+    #b02824 55%,
+    #921229
+  );
+  --brand-on-gradient: #fff;
+  --brand-teal: #1f9e8f;
+  --brand-glow: radial-gradient(
+    closest-side,
+    rgba(247, 183, 51, 0.22),
+    rgba(232, 67, 46, 0.08) 60%,
+    transparent
+  );
+  --welcome-decor-color: #b4a39b;
+}
+
+// Doubled class: ties with theme.scss's dark block would otherwise depend on
+// CSS load order.
+.excalidraw.excalidraw.theme--dark {
+  // Ember surfaces.
+  --default-bg-color: #17100f;
+  --input-bg-color: #17100f;
+  --input-border-color: #3a2c27;
+  --input-hover-bg-color: #1e1614;
+  --island-bg-color: #241a18;
+  --island-bg-color-alt: #1c1412;
+  --color-surface-high: #36261f;
+  --color-surface-low: #2a1e1a;
+  --color-surface-mid: #1d1513;
+  --color-surface-lowest: #120c0b;
+  --color-on-surface: #f3e6df;
+  --color-border-outline: #a08d85;
+  --color-border-outline-variant: #4d3c36;
+
+  // Flame primary, lifted for dark surfaces.
+  --color-primary: #ff8a5c;
+  --color-primary-darker: #ff9a70;
+  --color-primary-darkest: #ffab86;
+  --color-primary-light: #5a2e22;
+  --color-primary-light-darker: #4a261c;
+  --color-primary-hover: #ffa07a;
+  --color-brand-hover: #ffa07a;
+  --color-brand-active: #ffc2a6;
+  --color-on-primary-container: #ffdccd;
+  --color-surface-primary-container: #5a2e22;
+  --color-primary-contrast-offset: #ff9a70;
+  --color-slider-track: hsl(14, 30%, 35%);
+  --link-color: #ff9a70;
+  --link-color-hover: #ffb898;
+
+  // The canvas is inverted in dark mode; this renders as a light teal.
+  --color-selection: #0e6f64;
+
+  --color-danger: #e5739b;
+  --color-danger-dark: #6e1a3c;
+  --color-danger-darker: #8c2150;
+  --color-danger-darkest: #a82860;
+  --color-danger-text: #ffd0e0;
+  --color-danger-background: #ffd0e0;
+  --color-danger-icon-background: #6e1a3c;
+  --color-danger-color: #2a0f19;
+  --color-danger-icon-color: #ffd0e0;
+  --button-destructive-bg-color: #4a1029;
+  --button-destructive-color: #ffb3cc;
+  --ui-danger-bg: color-mix(in srgb, #ff8fb4 14%, transparent);
+  --ui-danger-fg: #ffc2d6;
+  --ui-danger-border: color-mix(in srgb, #ff8fb4 40%, transparent);
+
+  --background-color-badge: #4a3510;
+  --color-badge: #ffd98a;
+
+  --brand-gradient: linear-gradient(135deg, #ff9a5c 0%, #f2683f 55%, #d8413a);
+  --brand-gradient-hover: linear-gradient(
+    135deg,
+    #ffab74 0%,
+    #ff7a50 55%,
+    #e65247
+  );
+  --brand-on-gradient: #2a0a12;
+  --brand-teal: #3cc8b4;
+  --brand-glow: radial-gradient(
+    closest-side,
+    rgba(247, 183, 51, 0.16),
+    rgba(232, 67, 46, 0.08) 60%,
+    transparent
+  );
+  --welcome-decor-color: #7d6a62;
+}
+
+// Brand moments. Gradients are limited to filled primary actions; everything
+// else stays flat.
+// The doubled class outranks the package's rules whatever the CSS load order.
+.excalidraw.excalidraw {
+  .UiButton--primary:not(:disabled),
+  .collab-button:not(.active),
+  .ExcButton--color-primary.ExcButton--variant-filled {
+    border-color: transparent;
+    background-image: var(--brand-gradient);
+    color: var(--brand-on-gradient);
+    --text-color: var(--brand-on-gradient);
+    --button-color: var(--brand-on-gradient);
+  }
+
+  .UiButton--primary:not(:disabled):hover,
+  .collab-button:not(.active):hover,
+  .ExcButton--color-primary.ExcButton--variant-filled:hover {
+    background-image: var(--brand-gradient-hover);
+  }
+
+  // Collaborating: teal, the chameleon's eye.
+  .collab-button.active.active {
+    background-color: var(--brand-teal);
+    border-color: var(--brand-teal);
+  }
+
+  .welcome-screen-center__logo {
+    position: relative;
+    isolation: isolate;
+
+    &::before {
+      content: "";
+      position: absolute;
+      inset: -40px -70px;
+      z-index: -1;
+      pointer-events: none;
+      background: var(--brand-glow);
+    }
+  }
+
+  // Doubled again to beat `.excalidraw.theme--dark .welcome-screen-decor`.
+  .welcome-screen-decor.welcome-screen-decor {
+    color: var(--welcome-decor-color);
+  }
+
+  .Modal__background {
+    background-color: rgba(42, 10, 18, 0.22);
+  }
+}
