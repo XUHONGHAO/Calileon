@@ -283,7 +283,6 @@ const AppSidebarTrigger = memo(() => {
       icon={sidebarRightIcon}
       tab="ai-image"
       title={t("ai.sidebar.workbenchTitle")}
-      closeOnToggle={false}
     />
   );
 });

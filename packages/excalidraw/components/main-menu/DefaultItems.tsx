@@ -417,7 +417,7 @@ export const Socials = () => {
     <>
       <DropdownMenuItemLink
         icon={GithubIcon}
-        href="https://github.com/excalidraw/excalidraw"
+        href="https://github.com/XUHONGHAO/Calileon"
         aria-label="GitHub"
       >
         GitHub
@@ -431,7 +431,7 @@ export const Socials = () => {
       </DropdownMenuItemLink>
       <DropdownMenuItemLink
         icon={DiscordIcon}
-        href="https://discord.gg/UexuTaE"
+        href="https://discord.gg/5FCdrcwbrb"
         aria-label="Discord"
       >
         {t("labels.discordChat")}

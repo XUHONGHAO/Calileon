@@ -40,7 +40,7 @@ const Header = () => (
     </a>
     <a
       className="HelpDialog__btn"
-      href="https://github.com/excalidraw/excalidraw/issues"
+      href="https://github.com/XUHONGHAO/Calileon/issues"
       target="_blank"
       rel="noopener noreferrer"
     >

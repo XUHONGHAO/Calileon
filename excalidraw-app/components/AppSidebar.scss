@@ -153,15 +153,34 @@
     margin: 0 auto;
   }
 
+  // The app sidebar starts below the top bar, so the UI no longer needs
+  // to shrink horizontally when it docks. Keep the top-right actions fixed.
+  .layer-ui__wrapper {
+    width: 100% !important;
+  }
+
   .default-sidebar {
+    // Start below the top bar (toolbar + top-right buttons such as
+    // Excalidraw+ / Share / the sidebar trigger) so they stay visible.
+    --app-sidebar-top: calc(
+      var(--editor-container-padding) + 2.75rem + var(--ui-space-2)
+    );
+
     box-sizing: border-box;
-    top: var(--editor-container-padding);
+    top: var(--app-sidebar-top);
     right: var(--editor-container-padding);
     bottom: var(--editor-container-padding);
     max-width: calc(100vw - var(--editor-container-padding) * 2);
     border-radius: var(--ui-radius-lg);
     border: 1px solid var(--sidebar-border-color);
     overflow: hidden;
+  }
+
+  &.excalidraw--mobile .default-sidebar {
+    --app-sidebar-top: calc(
+      var(--editor-container-padding) + var(--mobile-action-button-size) +
+        var(--ui-space-2)
+    );
   }
 
   .default-sidebar .sidebar-tabs-root {
@@ -277,7 +296,7 @@
   @media (max-width: 520px) {
     .default-sidebar.app-sidebar-dock {
       position: fixed;
-      top: var(--editor-container-padding);
+      top: var(--app-sidebar-top);
       left: var(--editor-container-padding);
       right: var(--editor-container-padding);
       bottom: var(--editor-container-padding);
