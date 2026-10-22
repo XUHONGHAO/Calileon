@@ -31,6 +31,7 @@ public/single-file-runtime-template.txt
 excalidraw-app/single-file/.runtime-build/
 .claude
 .pi
+CLAUDE.md
 .git_disabled/
 .git_empty_backup_*/
 .gitignore.local
