@@ -2137,7 +2137,71 @@
   "labs": {
     "rorschach": {
       "title": "Rorschach Mirror",
-      "description": "Scribble something and see what it reads into it."
+      "description": "Scribble something and see what it reads into it.",
+      "menuLabel": "Rorschach Mirror",
+      "dialogTitle": "What does it see?",
+      "intro": "Scribble any mess of lines and colors on the canvas, then select it. The mirror says what it sees, then draws that thing over your scribble.",
+      "selectFirst": "Select your scribble on the canvas first.",
+      "selectionHint": "Nothing selected yet.",
+      "persona": "Reader",
+      "personas": {
+        "gentleCounselor": "Gentle counselor",
+        "gentleCounselorHint": "Soft and warm, talks about feelings.",
+        "mysticMaster": "Mystic master",
+        "mysticMasterHint": "Confident and playful, talks about fate.",
+        "grimDiviner": "Grim diviner",
+        "grimDivinerHint": "Eerie and mysterious, atmospheric."
+      },
+      "costReadAndDraw": "This run sends 1 reading request and 1 image request.",
+      "costReadOnly": "This run sends 1 reading request and no image request.",
+      "actionReadAndDraw": "What does it see?",
+      "actionReadOnly": "Just one line",
+      "readingTitle": "It says",
+      "previewTitle": "Its picture",
+      "readingPlaceholder": "Waiting for a reading...",
+      "imagePlaceholder": "Not drawn yet.",
+      "status": {
+        "idle": "Ready",
+        "running": "Looking...",
+        "succeeded": "Done",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "insertImage": "Put on canvas",
+      "readAgain": "Read again",
+      "textOnly": "Only the sentence",
+      "drawNow": "Draw it",
+      "retryReading": "Retry reading",
+      "retryImage": "Retry drawing",
+      "cancel": "Cancel run",
+      "openSettings": "Open AI settings",
+      "historyHint": "Readings so far in this session",
+      "duplicateReading": "The mirror repeated itself. Try reading again in a moment.",
+      "sessionNotice": "Results live only in this dialog: closing it or reloading the page drops anything you have not put on the canvas yet.",
+      "noVisionAgent": "No vision agent is configured yet.",
+      "settingsHintVision": "Add a vision agent in AI settings, then run it again.",
+      "noImageModel": "No image model that supports reference images is configured.",
+      "settingsHintImage": "Add an image model that supports reference images in AI settings, then draw again.",
+      "settingsHintRoute": "Pick a managed route for this capability in AI settings, then try again.",
+      "inserted": "Added to the canvas. One undo removes the picture and the sentence.",
+      "insertedTextOnly": "Sentence added to the canvas.",
+      "errors": {
+        "invalidReading": "The mirror answered in an unexpected format. Try reading again.",
+        "emptyImage": "The image provider returned no picture. Try drawing again.",
+        "cancelled": "Cancelled.",
+        "requestFailed": "The request failed. Check your AI settings and try again.",
+        "transportConfig": "The AI transport is not configured for this request.",
+        "transportFailed": "The AI transport rejected this request.",
+        "selectionExport": "Could not capture your selection. Select it again and retry.",
+        "inputMissing": "Your selection changed while running. Select the scribble again.",
+        "insertFailed": "Could not put the result on the canvas."
+      },
+      "disclaimer": "Just for fun, not a psychological assessment.",
+      "icons": {
+        "personaGentle": "Gentle counselor icon",
+        "personaMystic": "Mystic master icon",
+        "personaGrim": "Grim diviner icon"
+      }
     },
     "shelfLife": {
       "title": "Shelf Life",

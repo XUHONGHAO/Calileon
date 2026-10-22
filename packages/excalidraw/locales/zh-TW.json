@@ -1754,7 +1754,71 @@
   "labs": {
     "rorschach": {
       "title": "羅夏鏡",
-      "description": "隨手塗一團，看它從中讀出了什麼。"
+      "description": "隨手塗一團，看它從中讀出了什麼。",
+      "menuLabel": "羅夏鏡",
+      "dialogTitle": "它看到了什麼？",
+      "intro": "在畫布上隨手塗一團亂線或色塊，然後選取它。鏡面會先說出一句解讀，再把你的塗鴉畫成它看到的樣子。",
+      "selectFirst": "先在畫布上選取你塗的那一團。",
+      "selectionHint": "還沒有選取任何東西。",
+      "persona": "解讀人設",
+      "personas": {
+        "gentleCounselor": "溫柔的心理諮商師",
+        "gentleCounselorHint": "語氣溫和，多談感受。",
+        "mysticMaster": "自信胡說的玄學大師",
+        "mysticMasterHint": "自信又愛開玩笑，喜歡談命運。",
+        "grimDiviner": "陰森的占卜師",
+        "grimDivinerHint": "神祕低語，氣氛陰森。"
+      },
+      "costReadAndDraw": "本次會送出 1 次解讀請求 + 1 次生圖請求。",
+      "costReadOnly": "本次只送出 1 次解讀請求，不生圖。",
+      "actionReadAndDraw": "它看到了什麼",
+      "actionReadOnly": "只讀一句",
+      "readingTitle": "它說",
+      "previewTitle": "它畫出的樣子",
+      "readingPlaceholder": "等待它開口……",
+      "imagePlaceholder": "還沒有畫。",
+      "status": {
+        "idle": "就緒",
+        "running": "正在看……",
+        "succeeded": "完成",
+        "failed": "失敗",
+        "cancelled": "已取消"
+      },
+      "insertImage": "放到畫布上",
+      "readAgain": "再看一次",
+      "textOnly": "只要這句話",
+      "drawNow": "畫出來",
+      "retryReading": "重試解讀",
+      "retryImage": "重試生圖",
+      "cancel": "取消本次",
+      "openSettings": "開啟 AI 設定",
+      "historyHint": "本次工作階段已給出的解讀",
+      "duplicateReading": "它重複了自己的上一句，可以稍後再「再看一次」。",
+      "sessionNotice": "結果只存在這個對話框裡：關閉對話框或重新整理頁面，還沒放到畫布上的結果會消失。",
+      "noVisionAgent": "還沒有設定視覺智能體。",
+      "settingsHintVision": "請先在 AI 設定裡新增視覺智能體，然後重新執行。",
+      "noImageModel": "還沒有設定支援參考圖的圖像模型。",
+      "settingsHintImage": "請先在 AI 設定裡新增支援參考圖的圖像模型，然後重試生圖。",
+      "settingsHintRoute": "請先在 AI 設定裡為這項能力選擇託管路由，然後重試。",
+      "inserted": "已放到畫布上，復原一步會同時撤掉圖片和解讀。",
+      "insertedTextOnly": "解讀已放到畫布上。",
+      "errors": {
+        "invalidReading": "這次解讀的格式不對，請重試。",
+        "emptyImage": "圖像服務沒有回傳圖片，請重試生圖。",
+        "cancelled": "已取消。",
+        "requestFailed": "請求失敗，請檢查 AI 設定後重試。",
+        "transportConfig": "AI 傳輸層還沒設定好這類請求。",
+        "transportFailed": "AI 傳輸層拒絕了這次請求。",
+        "selectionExport": "沒能截取你的選取範圍，請重新選取後再試。",
+        "inputMissing": "執行期間選取範圍變了，請重新選取那一團塗鴉。",
+        "insertFailed": "沒能把結果放到畫布上。"
+      },
+      "disclaimer": "僅供娛樂，不是心理測驗。",
+      "icons": {
+        "personaGentle": "溫柔的心理諮商師圖示",
+        "personaMystic": "玄學大師圖示",
+        "personaGrim": "陰森的占卜師圖示"
+      }
     },
     "shelfLife": {
       "title": "便籤保存期限",
