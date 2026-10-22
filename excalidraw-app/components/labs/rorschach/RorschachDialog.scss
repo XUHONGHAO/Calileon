@@ -82,6 +82,21 @@
   overflow-wrap: anywhere;
 }
 
+.Rorschach__personaLabel {
+  font-size: var(--ui-font-sm);
+  font-weight: var(--ui-weight-medium);
+  color: var(--ui-text);
+  line-height: var(--ui-line-tight);
+}
+
+.Rorschach__personaHint {
+  margin-top: calc(-1 * var(--ui-space-2));
+  font-size: var(--ui-font-sm);
+  color: var(--ui-text-secondary);
+  line-height: var(--ui-line-normal);
+  overflow-wrap: anywhere;
+}
+
 .Rorschach__cost {
   font-size: var(--ui-font-sm);
   color: var(--ui-text-secondary);

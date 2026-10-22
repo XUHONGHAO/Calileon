@@ -24,14 +24,7 @@ import {
 import { createRorschachSession } from "../../../ai/rorschachSession";
 import { insertRorschachResultIntoCanvas } from "../../../ai/rorschachCanvas";
 
-import {
-  Badge,
-  Callout,
-  DialogActions,
-  Field,
-  Select,
-  UiButton,
-} from "../../ui";
+import { Badge, Callout, DialogActions, UiButton } from "../../ui";
 
 import { RORSCHACH_PERSONA_ICONS, RorschachIcon } from "./icons";
 
@@ -361,27 +354,13 @@ export const RorschachDialog = ({
       <div className="Rorschach" aria-label={t("labs.rorschach.title")}>
         <p className="Rorschach__intro">{t("labs.rorschach.intro")}</p>
 
-        <Field label={t("labs.rorschach.persona")} hint={t(persona.promptKey)}>
-          <Select
-            value={personaId}
-            onChange={(event) =>
-              setPersonaId(event.target.value as RorschachPersonaId)
-            }
-            disabled={running}
-            aria-label={t("labs.rorschach.persona")}
-          >
-            {RORSCHACH_PERSONAS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {t(item.nameKey)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
+        <p className="Rorschach__personaLabel" id="rorschach-persona-label">
+          {t("labs.rorschach.persona")}
+        </p>
         <div
           className="Rorschach__personaRow"
           role="group"
-          aria-label={t("labs.rorschach.persona")}
+          aria-labelledby="rorschach-persona-label"
         >
           {RORSCHACH_PERSONAS.map((item) => {
             const Icon = RORSCHACH_PERSONA_ICONS[item.id];
@@ -405,6 +384,7 @@ export const RorschachDialog = ({
             );
           })}
         </div>
+        <p className="Rorschach__personaHint">{t(persona.promptKey)}</p>
 
         {!selectionCount && (
           <Callout tone="warning" live={false}>

@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import React from "react";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -152,6 +158,17 @@ describe("RorschachDialog", () => {
     ).toBeTruthy();
     expect(
       screen.getByText(/1 reading request and 1 image request/i),
+    ).toBeTruthy();
+  });
+
+  it("selects the persona only once, through the clickable cards", () => {
+    renderDialog(harness);
+    // No duplicate dropdown: the cards below are the single control.
+    expect(screen.queryByRole("combobox")).toBeNull();
+    const group = screen.getByRole("group", { name: /reader/i });
+    expect(within(group).getAllByRole("button")).toHaveLength(3);
+    expect(
+      within(group).getByRole("button", { name: /gentle counselor/i }),
     ).toBeTruthy();
   });
 
