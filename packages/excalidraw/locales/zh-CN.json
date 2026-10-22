@@ -2145,7 +2145,31 @@
     },
     "synesthesia": {
       "title": "通感画布",
-      "description": "让声音在画布上长出手绘图形。"
+      "description": "让声音在画布上长出手绘图形。",
+      "source": "声音来源",
+      "mic": "麦克风",
+      "file": "音频文件",
+      "fileHint": "最大 50 MiB，仅在本机播放和分析。",
+      "style": "画风",
+      "lines": "线条",
+      "blocks": "色块",
+      "stars": "星空",
+      "preview": "本地实时预览",
+      "volume": "响度",
+      "start": "开始",
+      "stop": "停止并加入白板",
+      "retry": "重试插入",
+      "privacy": "声音只在本机处理。结束后的作品才会加入白板并同步给协作成员。",
+      "completed": "作品已加入白板；静音会话不添加元素。",
+      "interrupted": "页面或设备中断，已停止并保留已有作品。",
+      "permission": "麦克风权限被拒绝，请在浏览器设置中允许后重试。",
+      "unsupported": "当前浏览器需要安全的麦克风访问和 Web Audio 支持。",
+      "tooLarge": "请选择小于 50 MiB 的文件。",
+      "fileError": "无法播放此音频格式，请更换文件。",
+      "audioError": "无法启动音频，请检查设备或文件后重试。",
+      "timeLimit": "已达五分钟上限，作品已保留。",
+      "elementLimit": "已达 600 个元素上限，作品已保留。",
+      "commitError": "作品插入失败，请在关闭前重试。"
     }
   }
 }
