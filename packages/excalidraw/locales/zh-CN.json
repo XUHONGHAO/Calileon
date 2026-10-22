@@ -2133,5 +2133,19 @@
     "confirmTitle": "确定要继续吗？",
     "labs": "实验室",
     "showLabs": "显示实验室功能"
+  },
+  "labs": {
+    "rorschach": {
+      "title": "罗夏镜",
+      "description": "随手涂一团，看它从中读出了什么。"
+    },
+    "shelfLife": {
+      "title": "便签保质期",
+      "description": "给便签设个保质期，过期后泛黄，可一键撕掉。"
+    },
+    "synesthesia": {
+      "title": "通感画布",
+      "description": "让声音在画布上长出手绘图形。"
+    }
   }
 }

@@ -1750,5 +1750,19 @@
       "localStorageUnavailable": "此瀏覽器的本機儲存空間（IndexedDB）無法使用（例如部分隱私瀏覽模式），無法開啟 Vault。請使用一般視窗或允許網站儲存資料。未載入也未儲存任何內容。（VAULT_LOCAL_STORAGE_UNAVAILABLE）",
       "unavailable": "缺少安全 room 或密文持久化服務，無法開啟 Vault。系統未使用明文或舊版儲存進行降級。"
     }
+  },
+  "labs": {
+    "rorschach": {
+      "title": "羅夏鏡",
+      "description": "隨手塗一團，看它從中讀出了什麼。"
+    },
+    "shelfLife": {
+      "title": "便籤保存期限",
+      "description": "給便籤設個保存期限，過期後泛黃，可一鍵撕掉。"
+    },
+    "synesthesia": {
+      "title": "通感畫布",
+      "description": "讓聲音在畫布上長出手繪圖形。"
+    }
   }
 }

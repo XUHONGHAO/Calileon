@@ -2133,5 +2133,19 @@
     "confirmTitle": "Are you sure?",
     "labs": "Labs",
     "showLabs": "Show Labs features"
+  },
+  "labs": {
+    "rorschach": {
+      "title": "Rorschach Mirror",
+      "description": "Scribble something and see what it reads into it."
+    },
+    "shelfLife": {
+      "title": "Shelf Life",
+      "description": "Give notes an expiry date; expired ones fade and can be torn off."
+    },
+    "synesthesia": {
+      "title": "Synesthesia",
+      "description": "Let sound draw hand-drawn shapes on the canvas."
+    }
   }
 }

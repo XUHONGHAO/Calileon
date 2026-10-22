@@ -38,6 +38,10 @@ import { CastDialog } from "./CastDialog";
 import { saveDebugState } from "./DebugCanvas";
 import { VaultDependencyDialog } from "./VaultDependencyDialog";
 import { useShowLabs } from "./labsPreference";
+// Labs wave 1: one line per feature, owned by that feature's branch.
+import { RorschachHost, RorschachMenuItem } from "./labs/rorschach";
+import { ShelfLifeHost, ShelfLifeMenuItem } from "./labs/shelfLife";
+import { SynesthesiaHost, SynesthesiaMenuItem } from "./labs/synesthesia";
 
 import type { AISettingsTab } from "../ai/workflowEvents";
 
@@ -220,6 +224,15 @@ export const AppMainMenu: React.FC<{
                 </MainMenu.Item>
               </>
             )}
+            <RorschachMenuItem
+              externalFeaturesDisabled={!!props.externalFeaturesDisabled}
+            />
+            <ShelfLifeMenuItem
+              externalFeaturesDisabled={!!props.externalFeaturesDisabled}
+            />
+            <SynesthesiaMenuItem
+              externalFeaturesDisabled={!!props.externalFeaturesDisabled}
+            />
           </MainMenu.DefaultItems.ExperimentalFeatures>
         )}
         <MainMenu.DefaultItems.Preferences
@@ -329,6 +342,18 @@ export const AppMainMenu: React.FC<{
         onClose={() => setIsManyMindsOpen(false)}
         excalidrawAPI={props.excalidrawAPI ?? null}
         persistenceScopeId={props.manyMindsPersistenceScopeId ?? null}
+      />
+      <RorschachHost
+        excalidrawAPI={props.excalidrawAPI ?? null}
+        externalFeaturesDisabled={!!props.externalFeaturesDisabled}
+      />
+      <ShelfLifeHost
+        excalidrawAPI={props.excalidrawAPI ?? null}
+        externalFeaturesDisabled={!!props.externalFeaturesDisabled}
+      />
+      <SynesthesiaHost
+        excalidrawAPI={props.excalidrawAPI ?? null}
+        externalFeaturesDisabled={!!props.externalFeaturesDisabled}
       />
       <VaultDependencyDialog
         open={isVaultDependencyDialogOpen}
