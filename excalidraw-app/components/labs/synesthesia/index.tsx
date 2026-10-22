@@ -1,9 +1,33 @@
+import { MainMenu } from "@excalidraw/excalidraw";
+import { t } from "@excalidraw/excalidraw/i18n";
+
+import {
+  closeLabsFeature,
+  openLabsFeature,
+  useLabsFeatureOpen,
+} from "../labsDialogs";
+
+import { soundIcon } from "./icons";
+import { SynesthesiaDialog } from "./SynesthesiaDialog";
+
 import type { LabsHostProps, LabsMenuItemProps } from "../types";
 
-// G7 Synesthesia. Placeholder until the feature branch lands: renders
-// nothing so master can ship the wiring safely.
-// Brief: 开发文档/excalidraw/01-requirements/canvas-experiments/parallel-wave-1/G7-synesthesia-brief.md
-
-export const SynesthesiaMenuItem = (_props: LabsMenuItemProps) => null;
-
-export const SynesthesiaHost = (_props: LabsHostProps) => null;
+export const SynesthesiaMenuItem = (_props: LabsMenuItemProps) => (
+  <MainMenu.Item
+    icon={soundIcon}
+    data-testid="labs-synesthesia-menu-item"
+    aria-label={t("labs.synesthesia.title")}
+    onSelect={() => openLabsFeature("synesthesia")}
+  >
+    {t("labs.synesthesia.title")}
+  </MainMenu.Item>
+);
+export const SynesthesiaHost = ({ excalidrawAPI }: LabsHostProps) => {
+  const open = useLabsFeatureOpen("synesthesia");
+  return open && excalidrawAPI ? (
+    <SynesthesiaDialog
+      api={excalidrawAPI}
+      onClose={() => closeLabsFeature("synesthesia")}
+    />
+  ) : null;
+};

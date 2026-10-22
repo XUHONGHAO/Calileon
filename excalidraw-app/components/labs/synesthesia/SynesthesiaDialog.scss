@@ -1,0 +1,39 @@
+.excalidraw .SynesthesiaDialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  color: var(--ui-text);
+  input {
+    max-width: 100%;
+    min-width: 0;
+  }
+  .UiSegmented {
+    flex-wrap: wrap;
+  }
+  .UiSegmented__label {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    white-space: normal;
+  }
+  svg {
+    width: var(--ui-control-sm);
+    height: var(--ui-control-sm);
+    flex-shrink: 0;
+  }
+  &__preview {
+    height: min(35vh, 20rem);
+    min-height: 10rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-md);
+    overflow: hidden;
+  }
+  &__preview .App-menu,
+  &__preview .layer-ui__wrapper {
+    display: none;
+  }
+  meter {
+    max-width: 100%;
+  }
+}

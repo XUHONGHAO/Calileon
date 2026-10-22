@@ -2145,7 +2145,31 @@
     },
     "synesthesia": {
       "title": "Synesthesia",
-      "description": "Let sound draw hand-drawn shapes on the canvas."
+      "description": "Let sound draw hand-drawn shapes on the canvas.",
+      "source": "Source",
+      "mic": "Microphone",
+      "file": "Audio file",
+      "fileHint": "Up to 50 MiB. Played and analysed locally.",
+      "style": "Style",
+      "lines": "Lines",
+      "blocks": "Blocks",
+      "stars": "Stars",
+      "preview": "Local preview",
+      "volume": "Loudness",
+      "start": "Start",
+      "stop": "Stop and add to board",
+      "retry": "Retry insertion",
+      "privacy": "Sound stays on this device. Only the finished artwork is added to your board and shared with collaborators.",
+      "completed": "Artwork added. Silent sessions add nothing.",
+      "interrupted": "Stopped: the device or page was interrupted. Existing artwork is kept.",
+      "permission": "Microphone permission denied. Allow access in browser settings and try again.",
+      "unsupported": "This browser needs secure microphone access and Web Audio.",
+      "tooLarge": "Choose a file smaller than 50 MiB.",
+      "fileError": "This audio format cannot be played. Try another file.",
+      "audioError": "Unable to start audio. Check your device and file, then try again.",
+      "timeLimit": "Five-minute limit reached. Artwork kept.",
+      "elementLimit": "600-element limit reached. Artwork kept.",
+      "commitError": "Could not insert artwork. Retry before closing."
     }
   }
 }
