@@ -37,6 +37,11 @@ import { ShapeCache } from "@excalidraw/element";
 import { getElementAbsoluteCoords } from "@excalidraw/element";
 import {
   getLineTone,
+  getElementShelfLifeState,
+  getShelfLifeRoot,
+  getShelfLifeGeometry,
+  SHELF_LIFE_PAPER,
+  SHELF_LIFE_FOLD,
   getLineToneMarkerGeometry,
   getLineTonePathAnchor,
   getLineToneRenderElement,
@@ -101,6 +106,7 @@ const renderElementToSvg = (
   offsetX: number,
   offsetY: number,
   renderConfig: SVGRenderConfig,
+  now = Date.now(),
 ) => {
   const offset = { x: offsetX, y: offsetY };
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, elementsMap);
@@ -141,10 +147,54 @@ const renderElementToSvg = (
     }
     root.appendChild(node);
   };
+  const addShelfLifeOverlay = () => {
+    if (
+      getShelfLifeRoot(element, elementsMap) === element &&
+      getElementShelfLifeState(element, elementsMap, now).expired &&
+      element.width > 0 &&
+      element.height > 0
+    ) {
+      const geometry = getShelfLifeGeometry(element);
+      const overlay = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+      overlay.setAttribute(
+        "transform",
+        `translate(${element.x + renderConfig.offsetX} ${
+          element.y + renderConfig.offsetY
+        }) rotate(${degree} ${element.width / 2} ${element.height / 2})`,
+      );
+      const clip = svgRoot.ownerDocument.createElementNS(SVG_NS, "clipPath");
+      clip.id = `shelf-life-${element.id}`;
+      const outline = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+      outline.setAttribute("d", geometry.outline);
+      clip.appendChild(outline);
+      const paper = outline.cloneNode(true) as SVGElement;
+      paper.setAttribute("fill", SHELF_LIFE_PAPER);
+      paper.setAttribute("opacity", `${opacity * 0.16}`);
+      overlay.append(clip, paper);
+      if (geometry.size >= 2) {
+        const fold = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+        fold.setAttribute("d", geometry.fold);
+        fold.setAttribute("fill", SHELF_LIFE_FOLD);
+        fold.setAttribute("opacity", `${opacity * 0.65}`);
+        fold.setAttribute("clip-path", `url(#${clip.id})`);
+        overlay.appendChild(fold);
+      }
+      root.appendChild(
+        maybeWrapNodesInFrameClipPath(
+          element,
+          root,
+          [overlay],
+          renderConfig.frameRendering,
+          elementsMap,
+        ) || overlay,
+      );
+    }
+  };
 
   const opacity =
-    ((getContainingFrame(element, elementsMap)?.opacity ?? 100) *
-      element.opacity) /
+    (getElementShelfLifeState(element, elementsMap, now).opacity *
+      ((getContainingFrame(element, elementsMap)?.opacity ?? 100) *
+        element.opacity)) /
     10000;
 
   switch (element.type) {
@@ -807,6 +857,7 @@ const renderElementToSvg = (
       }
     }
   }
+  addShelfLifeOverlay();
 };
 
 export const renderSceneToSvg = (

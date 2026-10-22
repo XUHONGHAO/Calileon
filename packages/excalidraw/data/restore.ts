@@ -27,6 +27,8 @@ import {
   isValidPolygon,
   projectFixedPointOntoDiagonal,
   getLineTone,
+  getShelfLifeData,
+  updateShelfLifeCustomData,
   updateLineToneCustomData,
 } from "@excalidraw/element";
 import { normalizeFixedPoint } from "@excalidraw/element";
@@ -403,6 +405,10 @@ const restoreElementWithProperties = <
   } as unknown as T;
 
   if ("customData" in ret) {
+    ret.customData = updateShelfLifeCustomData(
+      ret.customData,
+      getShelfLifeData(ret as unknown as ExcalidrawElement),
+    );
     ret.customData = updateLineToneCustomData(
       ret.customData,
       getLineTone(ret as unknown as ExcalidrawElement),

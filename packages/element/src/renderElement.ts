@@ -76,6 +76,7 @@ import {
   LINE_TONE_MARKER_MIN_ZOOM,
   LINE_TONE_MARKER_OFFSET,
 } from "./lineTone";
+import { getElementShelfLifeState, renderShelfLifeOverlay } from "./shelfLife";
 
 import type {
   ExcalidrawElement,
@@ -876,6 +877,11 @@ export const renderElement = (
     reduceAlphaForSelection ? DEFAULT_REDUCED_GLOBAL_ALPHA : 1,
   );
 
+  context.globalAlpha *= getElementShelfLifeState(
+    element,
+    allElementsMap,
+  ).opacity;
+
   switch (element.type) {
     case "magicframe":
     case "frame": {
@@ -1149,6 +1155,13 @@ export const renderElement = (
     renderLineToneMarker(element, elementsMap, context, renderConfig, appState);
   }
 
+  renderShelfLifeOverlay(
+    element,
+    allElementsMap,
+    context,
+    appState.scrollX,
+    appState.scrollY,
+  );
   context.globalAlpha = 1;
 };
 

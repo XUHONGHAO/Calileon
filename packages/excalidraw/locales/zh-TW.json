@@ -1758,7 +1758,24 @@
     },
     "shelfLife": {
       "title": "便籤保存期限",
-      "description": "給便籤設個保存期限，過期後泛黃，可一鍵撕掉。"
+      "description": "給便籤設個保存期限，過期後泛黃，可一鍵撕掉。",
+      "today": "今天結束",
+      "week": "本週結束",
+      "threeDays": "3 天後",
+      "sevenDays": "7 天後",
+      "customDate": "自訂日期",
+      "immediate": "將立即過期",
+      "apply": "套用日期",
+      "remove": "移除保質期",
+      "permanent": "永久（無保質期）",
+      "mixed": "多個保質期",
+      "selection": "已選取 {{count}} 張支援且未鎖定的便箋",
+      "inheritance": "綁定文字隨容器生效。不支援的類型和鎖定元素將被略過。",
+      "expired": "已過期 {{count}} 張，可清理",
+      "locked": "另有 {{count}} 張已鎖定，未清理",
+      "tear": "撕掉所有過期便箋",
+      "confirm": "撕掉全畫布 {{count}} 張未鎖定的過期便箋（包含視口外）？此操作可復原。",
+      "done": "已撕掉 {{count}} 張，可復原。"
     },
     "synesthesia": {
       "title": "通感畫布",

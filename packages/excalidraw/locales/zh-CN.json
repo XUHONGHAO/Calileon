@@ -2141,7 +2141,24 @@
     },
     "shelfLife": {
       "title": "便签保质期",
-      "description": "给便签设个保质期，过期后泛黄，可一键撕掉。"
+      "description": "给便签设个保质期，过期后泛黄，可一键撕掉。",
+      "today": "今天结束",
+      "week": "本周结束",
+      "threeDays": "3 天后",
+      "sevenDays": "7 天后",
+      "customDate": "自定义日期",
+      "immediate": "将立即过期",
+      "apply": "应用日期",
+      "remove": "移除保质期",
+      "permanent": "永久（无保质期）",
+      "mixed": "多个保质期",
+      "selection": "已选中 {{count}} 张支持且未锁定的便签",
+      "inheritance": "绑定文字随容器生效。不支持的类型和锁定元素将被跳过。",
+      "expired": "已过期 {{count}} 张，可清理",
+      "locked": "另有 {{count}} 张已锁定，未清理",
+      "tear": "撕掉所有过期便签",
+      "confirm": "撕掉全画布 {{count}} 张未锁定的过期便签（包含视口外）？此操作可撤销。",
+      "done": "已撕掉 {{count}} 张，可撤销。"
     },
     "synesthesia": {
       "title": "通感画布",
