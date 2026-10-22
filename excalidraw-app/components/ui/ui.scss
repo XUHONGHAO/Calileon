@@ -395,7 +395,7 @@
       code {
         display: block;
         margin-top: var(--ui-space-1);
-        font-family: var(--font-family-code, ui-monospace, monospace);
+        font-family: var(--ui-font-mono);
         word-break: break-all;
       }
     }
@@ -564,10 +564,15 @@
       text-align: start;
       cursor: pointer;
 
-      &:hover:not(:disabled),
+      &:hover:not(:disabled) {
+        background: var(--ui-surface-sunken);
+      }
+
+      // The sunken fill alone is ~1.1:1 against the menu; add a ring.
       &:focus-visible {
         outline: none;
         background: var(--ui-surface-sunken);
+        box-shadow: inset 0 0 0 2px var(--focus-ring-color);
       }
 
       &:disabled {
