@@ -30,6 +30,28 @@ type VisionAgentExecutionRequest = VisionAgentRequest & {
   transportConfig?: AIProxyConfigV2;
 };
 
+/**
+ * Generic "look at this image and answer" request. Unlike the wireframe
+ * exporter above, the caller owns both prompts so no HTML instructions leak
+ * into other features. Same three provider wire formats and the same unified
+ * transport boundary as `generateDiagramCodeWithVisionAgent`.
+ */
+export type VisionAgentDescribeRequest = {
+  agent: AIAgent | null;
+  image: string;
+  systemPrompt: string;
+  userPrompt: string;
+  signal?: AbortSignal;
+  /** Overrides reasoning length limits when a provider needs more room. */
+  maxTokens?: number;
+};
+
+type DescribeExecutionRequest = VisionAgentDescribeRequest & {
+  agent: AIAgent;
+  managedRoute?: AiGatewayCatalogEntry;
+  transportConfig?: AIProxyConfigV2;
+};
+
 const getManagedProvider = (
   route: AiGatewayCatalogEntry,
 ): AIAgent["provider"] => {
@@ -59,11 +81,68 @@ const createManagedAgent = (
     : {}),
 });
 
-const managedTransportOptions = (request: VisionAgentExecutionRequest) => ({
+type ManagedTransportRequest = Pick<
+  VisionAgentExecutionRequest,
+  "managedRoute" | "transportConfig"
+>;
+
+const managedTransportOptions = (request: ManagedTransportRequest) => ({
   ...(request.managedRoute ? { managedRoute: request.managedRoute } : {}),
   ...(request.transportConfig ? { config: request.transportConfig } : {}),
   ...(request.managedRoute ? { managedOperation: "generate" } : {}),
 });
+
+const manageDescribeRoute = async (): Promise<{
+  managed: boolean;
+  managedRoute?: AiGatewayCatalogEntry;
+  transportConfig: AIProxyConfigV2;
+}> => {
+  const transportConfig = loadAIProxyConfig();
+  const managed = transportConfig.mode === "managed-gateway";
+  const managedRoute = managed
+    ? await getManagedRouteForCapability("vision-agent", {
+        config: transportConfig,
+      })
+    : undefined;
+  if (managedRoute && !managedRoute.operations.includes("generate")) {
+    throw new AIProxyTransportError(
+      "proxy-config",
+      t("ai.proxy.errors.managedRouteMissing"),
+    );
+  }
+  return { managed, managedRoute, transportConfig };
+};
+
+const resolveDescribeAgent = (
+  request: VisionAgentDescribeRequest,
+  managedRoute?: AiGatewayCatalogEntry,
+) => {
+  if (managedRoute) {
+    const managedAgent = createManagedAgent(managedRoute, request.agent);
+    return {
+      ...managedAgent,
+      ...(describeSystemPrompt(request)
+        ? { systemPrompt: describeSystemPrompt(request) }
+        : {}),
+    };
+  }
+  return {
+    ...assertConfiguredAgent(request.agent),
+    systemPrompt: describeSystemPrompt(request),
+  };
+};
+
+const executeDescribeRequest = async (request: DescribeExecutionRequest) => {
+  const agent = request.agent;
+
+  if (agent.provider === "anthropic") {
+    return describeWithAnthropic(request);
+  }
+  if (agent.provider === "gemini") {
+    return describeWithGemini(request);
+  }
+  return describeWithOpenAICompatible(request);
+};
 
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/, "");
 
@@ -127,6 +206,14 @@ const dataURLToBase64Payload = (dataURL: string) => {
   const [, base64Payload] = dataURL.split(",");
 
   return base64Payload || dataURL;
+};
+
+const describePrompt = (request: VisionAgentDescribeRequest) => {
+  return request.userPrompt.trim();
+};
+
+const describeSystemPrompt = (request: VisionAgentDescribeRequest) => {
+  return request.systemPrompt.trim();
 };
 
 const buildVisionPrompt = (request: VisionAgentRequest) => {
@@ -365,6 +452,198 @@ const generateWithGeminiVisionAgent = async (
   }
 
   return extractGeminiContent(await parseResponseJSON(response));
+};
+
+const describeWithOpenAICompatible = async (
+  request: DescribeExecutionRequest,
+) => {
+  const agent = request.agent;
+  const headers = new Headers({
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  });
+  const authorizationHeader = getAuthorizationHeaderValue(agent.apiKey);
+
+  if (authorizationHeader) {
+    headers.set("Authorization", authorizationHeader);
+  }
+
+  const response = await fetchAIRequest(
+    getOpenAIChatEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        messages: [
+          { role: "system", content: getSystemPrompt(agent) },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: describePrompt(request) },
+              { type: "image_url", image_url: { url: request.image } },
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    {
+      kind: "vision-agent",
+      signal: request.signal,
+      auditPrompt: describePrompt(request),
+      ...managedTransportOptions(request),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await getProviderErrorMessage(response));
+  }
+
+  return extractOpenAIContent(await parseResponseJSON(response));
+};
+
+const describeWithAnthropic = async (request: DescribeExecutionRequest) => {
+  const agent = request.agent;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "anthropic-version": "2023-06-01",
+    "Content-Type": "application/json",
+  };
+  if (!request.managedRoute) {
+    headers["x-api-key"] = agent.apiKey.trim();
+  }
+  const response = await fetchAIRequest(
+    getAnthropicMessagesEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: agent.model,
+        max_tokens: request.maxTokens || 4096,
+        system: getSystemPrompt(agent),
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: describePrompt(request) },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: getMimeTypeFromDataURL(request.image),
+                  data: dataURLToBase64Payload(request.image),
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    {
+      kind: "vision-agent",
+      signal: request.signal,
+      auditPrompt: describePrompt(request),
+      ...managedTransportOptions(request),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await getProviderErrorMessage(response));
+  }
+
+  return extractAnthropicContent(await parseResponseJSON(response));
+};
+
+const describeWithGemini = async (request: DescribeExecutionRequest) => {
+  const agent = request.agent;
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+  if (!request.managedRoute) {
+    headers["x-goog-api-key"] = agent.apiKey.trim();
+  }
+  const response = await fetchAIRequest(
+    getGeminiGenerateEndpoint(agent),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: getSystemPrompt(agent) }] },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: describePrompt(request) },
+              {
+                inline_data: {
+                  mime_type: getMimeTypeFromDataURL(request.image),
+                  data: dataURLToBase64Payload(request.image),
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      signal: request.signal,
+    },
+    {
+      kind: "vision-agent",
+      signal: request.signal,
+      auditPrompt: describePrompt(request),
+      ...managedTransportOptions(request),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await getProviderErrorMessage(response));
+  }
+
+  return extractGeminiContent(await parseResponseJSON(response));
+};
+
+/**
+ * Sends one image plus caller-owned prompts to the configured vision agent.
+ * Returns the raw model text; callers own parsing and validation. Requests
+ * always go through the unified transport (direct / byok-proxy / managed).
+ */
+export const describeImageWithVisionAgent = async (
+  request: VisionAgentDescribeRequest,
+) => {
+  const systemPrompt = describeSystemPrompt(request);
+  const userPrompt = describePrompt(request);
+
+  if (!systemPrompt || !userPrompt) {
+    throw new Error(t("ai.assistant.messages.visionAgentIncomplete"));
+  }
+  if (!request.image.trim()) {
+    throw new Error(t("ai.assistant.messages.visionAgentIncomplete"));
+  }
+
+  const { managed, managedRoute, transportConfig } =
+    await manageDescribeRoute();
+  if (managed && !managedRoute) {
+    throw new AIProxyTransportError(
+      "proxy-config",
+      t("ai.proxy.errors.managedRouteMissing"),
+    );
+  }
+  const agent = resolveDescribeAgent(request, managedRoute);
+  const executionRequest: DescribeExecutionRequest = {
+    ...request,
+    agent,
+    ...(managedRoute ? { managedRoute } : {}),
+    ...(managed ? { transportConfig } : {}),
+  };
+  const text = await executeDescribeRequest(executionRequest);
+
+  if (!text.trim()) {
+    throw new Error(t("ai.assistant.messages.visionEmptyResponse"));
+  }
+
+  return { text: text.trim() };
 };
 
 export const generateDiagramCodeWithVisionAgent = async (
