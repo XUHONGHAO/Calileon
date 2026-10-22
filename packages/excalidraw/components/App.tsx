@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import throttle from "lodash.throttle";
+import { createShelfLifeScheduler } from "@excalidraw/element";
 import React, { useContext } from "react";
 import { flushSync } from "react-dom";
 import rough from "roughjs/bin/rough";
@@ -3375,6 +3376,8 @@ class App extends React.Component<AppProps, AppState> {
     });
   }
 
+  private stopShelfLifeScheduler?: () => void;
+
   public async componentDidMount() {
     this.unmounted = false;
     this.api = this.createExcalidrawAPI();
@@ -3428,6 +3431,11 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     this.scene.onUpdate(this.triggerRender);
+    this.stopShelfLifeScheduler = createShelfLifeScheduler({
+      getElements: () => this.scene.getElementsIncludingDeleted(),
+      subscribe: (callback) => this.scene.onUpdate(callback),
+      redraw: () => this.triggerRender(true),
+    });
     this.addEventListeners();
 
     if (this.props.autoFocus && this.excalidrawContainerRef.current) {
@@ -3469,6 +3477,7 @@ class App extends React.Component<AppProps, AppState> {
   }
 
   public componentWillUnmount() {
+    this.stopShelfLifeScheduler?.();
     // we're recreating the api object reference so that the
     // <ExcalidrawAPIContext.Provider/> picks up on it
     this.api = { ...this.api, isDestroyed: true };

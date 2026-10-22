@@ -2205,7 +2205,24 @@
     },
     "shelfLife": {
       "title": "Shelf Life",
-      "description": "Give notes an expiry date; expired ones fade and can be torn off."
+      "description": "Give notes an expiry date; expired ones fade and can be torn off.",
+      "today": "End of today",
+      "week": "End of this week",
+      "threeDays": "In 3 days",
+      "sevenDays": "In 7 days",
+      "customDate": "Custom date",
+      "immediate": "Will expire immediately",
+      "apply": "Apply date",
+      "remove": "Remove shelf life",
+      "permanent": "No expiration",
+      "mixed": "Multiple expiration dates",
+      "selection": "{{count}} supported, unlocked notes selected",
+      "inheritance": "Bound text follows its container. Unsupported and locked elements are skipped.",
+      "expired": "Expired notes available to clean up: {{count}}",
+      "locked": "Locked notes skipped, not cleaned up: {{count}}",
+      "tear": "Tear off expired notes",
+      "confirm": "Tear off all {{count}} expired, unlocked notes across the canvas, including those outside the viewport? You can undo this.",
+      "done": "Tore off {{count}} notes. You can undo this."
     },
     "synesthesia": {
       "title": "Synesthesia",

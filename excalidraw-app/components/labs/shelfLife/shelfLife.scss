@@ -1,0 +1,44 @@
+.shelf-life {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+  min-width: 0;
+  color: var(--ui-text);
+  font-size: var(--ui-font-sm);
+  p {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+  &__presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-2);
+  }
+  &__feedback {
+    padding: var(--ui-space-3);
+    border-radius: var(--ui-radius-md);
+    background: var(--ui-success-bg);
+    color: var(--ui-success-fg);
+    overflow-wrap: anywhere;
+  }
+  &__scraps {
+    display: inline-block;
+    margin-inline-end: var(--ui-space-2);
+    animation: shelf-life-tear var(--ui-transition-slow) ease-out both;
+  }
+}
+@keyframes shelf-life-tear {
+  from {
+    transform: translateY(-50%) rotate(-15deg);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) rotate(15deg);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shelf-life__scraps {
+    animation: none;
+  }
+}

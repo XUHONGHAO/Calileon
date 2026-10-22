@@ -1,5 +1,6 @@
 import {
   FRAME_STYLE,
+  DEFAULT_FONT_FAMILY,
   MAX_DECIMALS_FOR_SVG_EXPORT,
   SVG_NS,
   THEME,
@@ -37,6 +38,12 @@ import { ShapeCache } from "@excalidraw/element";
 import { getElementAbsoluteCoords } from "@excalidraw/element";
 import {
   getLineTone,
+  getElementShelfLifeState,
+  getShelfLifeRoot,
+  getShelfLifeGeometry,
+  getShelfLifeBadgeForElement,
+  SHELF_LIFE_PAPER,
+  SHELF_LIFE_FOLD,
   getLineToneMarkerGeometry,
   getLineTonePathAnchor,
   getLineToneRenderElement,
@@ -101,6 +108,7 @@ const renderElementToSvg = (
   offsetX: number,
   offsetY: number,
   renderConfig: SVGRenderConfig,
+  now = Date.now(),
 ) => {
   const offset = { x: offsetX, y: offsetY };
   const [x1, y1, x2, y2] = getElementAbsoluteCoords(element, elementsMap);
@@ -141,10 +149,110 @@ const renderElementToSvg = (
     }
     root.appendChild(node);
   };
+  const addShelfLifeOverlay = () => {
+    if (
+      getShelfLifeRoot(element, elementsMap) !== element ||
+      element.width <= 0 ||
+      element.height <= 0
+    ) {
+      return;
+    }
+    const expired = getElementShelfLifeState(element, elementsMap, now).expired;
+    const badge = expired
+      ? null
+      : getShelfLifeBadgeForElement(
+          element,
+          elementsMap,
+          renderConfig.theme,
+          now,
+        );
+    if (!expired && !badge) {
+      return;
+    }
+    const overlay = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+    overlay.setAttribute("data-shelf-life", expired ? "expired" : "badge");
+    overlay.setAttribute(
+      "transform",
+      `translate(${element.x + renderConfig.offsetX} ${
+        element.y + renderConfig.offsetY
+      }) rotate(${degree} ${element.width / 2} ${element.height / 2})`,
+    );
+    if (expired) {
+      const geometry = getShelfLifeGeometry(element);
+      const clip = svgRoot.ownerDocument.createElementNS(SVG_NS, "clipPath");
+      clip.id = `shelf-life-${element.id}`;
+      const outline = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+      outline.setAttribute("d", geometry.outline);
+      clip.appendChild(outline);
+      const paper = outline.cloneNode(true) as SVGElement;
+      paper.setAttribute("fill", SHELF_LIFE_PAPER);
+      paper.setAttribute("opacity", `${opacity * 0.16}`);
+      overlay.append(clip, paper);
+      if (geometry.size >= 2) {
+        const fold = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+        fold.setAttribute("d", geometry.fold);
+        fold.setAttribute("fill", SHELF_LIFE_FOLD);
+        fold.setAttribute("opacity", `${opacity * 0.65}`);
+        fold.setAttribute("clip-path", `url(#${clip.id})`);
+        overlay.appendChild(fold);
+      }
+    }
+    if (badge) {
+      const { size, x, y, label, dueSoon, ink, accent } = badge;
+      const stroke = dueSoon ? accent : ink;
+      const radius = size / 2;
+      const clock = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
+      clock.setAttribute("data-shelf-life-badge", dueSoon ? "due" : "idle");
+      clock.setAttribute("fill", "none");
+      clock.setAttribute("stroke", stroke);
+      clock.setAttribute("stroke-width", `${Math.max(0.8, size / 12)}`);
+      clock.setAttribute("stroke-linecap", "round");
+      clock.setAttribute("opacity", `${opacity}`);
+      const circle = svgRoot.ownerDocument.createElementNS(SVG_NS, "circle");
+      circle.setAttribute("cx", `${x + radius}`);
+      circle.setAttribute("cy", `${y + radius}`);
+      circle.setAttribute("r", `${radius * 0.82}`);
+      const hands = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+      hands.setAttribute(
+        "d",
+        `M ${x + radius} ${y + radius} V ${y + radius - radius * 0.48} M ${
+          x + radius
+        } ${y + radius} H ${x + radius + radius * 0.4}`,
+      );
+      clock.append(circle, hands);
+      if (size >= 9) {
+        const text = svgRoot.ownerDocument.createElementNS(SVG_NS, "text");
+        text.textContent = label;
+        text.setAttribute("x", `${x + size + size * 0.3}`);
+        text.setAttribute("y", `${y + radius}`);
+        text.setAttribute(
+          "font-family",
+          getFontFamilyString({ fontFamily: DEFAULT_FONT_FAMILY }),
+        );
+        text.setAttribute("font-size", `${Math.round(size * 0.62)}px`);
+        text.setAttribute("fill", stroke);
+        text.setAttribute("stroke", "none");
+        text.setAttribute("text-anchor", "end");
+        text.setAttribute("dominant-baseline", "middle");
+        clock.appendChild(text);
+      }
+      overlay.appendChild(clock);
+    }
+    root.appendChild(
+      maybeWrapNodesInFrameClipPath(
+        element,
+        root,
+        [overlay],
+        renderConfig.frameRendering,
+        elementsMap,
+      ) || overlay,
+    );
+  };
 
   const opacity =
-    ((getContainingFrame(element, elementsMap)?.opacity ?? 100) *
-      element.opacity) /
+    (getElementShelfLifeState(element, elementsMap, now).opacity *
+      ((getContainingFrame(element, elementsMap)?.opacity ?? 100) *
+        element.opacity)) /
     10000;
 
   switch (element.type) {
@@ -807,6 +915,7 @@ const renderElementToSvg = (
       }
     }
   }
+  addShelfLifeOverlay();
 };
 
 export const renderSceneToSvg = (
