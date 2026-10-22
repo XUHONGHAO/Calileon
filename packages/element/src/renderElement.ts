@@ -1161,6 +1161,7 @@ export const renderElement = (
     context,
     appState.scrollX,
     appState.scrollY,
+    renderConfig.theme,
   );
   context.globalAlpha = 1;
 };

@@ -4,6 +4,8 @@ import { exportToSvg, exportToCanvas } from "@excalidraw/utils";
 
 import {
   getExpiredShelfLife,
+  getShelfLifeBadgeForElement,
+  renderShelfLifeOverlay,
   getShelfLifeDeadline,
   getShelfLifeDateDeadline,
   getShelfLifeVisualState,
@@ -144,6 +146,97 @@ describe("Shelf Life model", () => {
     expect(
       restoreElements([JSON.parse(serialized)], null)[0].customData?.shelfLife,
     ).toEqual(data);
+  });
+
+  it("marks fresh and due-soon notes on the canvas with their deadline", async () => {
+    const now = Date.now();
+    const fresh = API.createElement({
+      type: "rectangle",
+      width: 160,
+      height: 120,
+      customData: {
+        shelfLife: {
+          version: 1,
+          setAt: now,
+          expiresAt: now + 5 * SHELF_LIFE_DAY,
+        },
+      },
+    });
+    const soon = API.createElement({
+      type: "rectangle",
+      width: 160,
+      height: 120,
+      customData: {
+        shelfLife: { version: 1, setAt: now, expiresAt: now + 3600_000 },
+      },
+    });
+    const expired = note();
+    const map = new Map(
+      [fresh, soon, expired].map((el) => [el.id, el] as const),
+    );
+    const idle = getShelfLifeBadgeForElement(fresh, map, "light", now)!;
+    const due = getShelfLifeBadgeForElement(soon, map, "light", now)!;
+    expect(idle.dueSoon).toBe(false);
+    expect(due.dueSoon).toBe(true);
+    expect(due.accent).not.toBe(idle.ink);
+    expect(idle.label).toMatch(/^\d{1,2}\/\d{1,2}$/);
+    expect(getShelfLifeBadgeForElement(expired, map, "light", now)).toBeNull();
+    expect(
+      getShelfLifeBadgeForElement(
+        API.createElement({
+          type: "rectangle",
+          width: 10,
+          height: 10,
+          customData: {
+            shelfLife: { version: 1, setAt: now, expiresAt: now + 1000 },
+          },
+        }),
+        map,
+        "light",
+        now,
+      ),
+    ).toBeNull();
+
+    const svg = await exportToSvg({
+      elements: [fresh, soon, expired],
+      files: null,
+      appState: { viewBackgroundColor: "#ffffff" },
+    });
+    expect(svg.querySelectorAll("[data-shelf-life-badge]")).toHaveLength(2);
+    expect(svg.querySelector("[data-shelf-life-badge='due']")).not.toBeNull();
+    expect(svg.querySelector("[data-shelf-life='expired']")).not.toBeNull();
+    expect(svg.querySelector("[data-shelf-life-badge] text")!.textContent).toBe(
+      idle.label,
+    );
+  });
+
+  it("draws the badge on the canvas path and never mutates the element", () => {
+    const now = Date.now();
+    const element = API.createElement({
+      type: "rectangle",
+      width: 160,
+      height: 120,
+      customData: {
+        shelfLife: {
+          version: 1,
+          setAt: now,
+          expiresAt: now + 5 * SHELF_LIFE_DAY,
+        },
+      },
+    });
+    const map = new Map([[element.id, element]]);
+    const before = JSON.stringify(element);
+    const context = document.createElement("canvas").getContext("2d")!;
+    const arc = vi.spyOn(context, "arc");
+    const fillText = vi.spyOn(context, "fillText");
+    renderShelfLifeOverlay(element, map, context, 0, 0, "light", now);
+    expect(arc).toHaveBeenCalled();
+    expect(fillText).toHaveBeenCalledWith(
+      expect.stringMatching(/^\d{1,2}\/\d{1,2}$/),
+      expect.any(Number),
+      expect.any(Number),
+    );
+    expect(JSON.stringify(element)).toBe(before);
   });
 });
 

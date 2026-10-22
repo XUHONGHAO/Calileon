@@ -60,6 +60,26 @@ export const getShelfLifeRoot = (
   }
   return element;
 };
+export const getShelfLifeBadge = (
+  element: ExcalidrawElement,
+  elements: ReadonlyMap<string, ExcalidrawElement>,
+  now = Date.now(),
+) => {
+  const root = getShelfLifeRoot(element, elements);
+  const data = root ? getShelfLifeData(root) : null;
+  if (!data || root !== element) {
+    return null;
+  }
+  const remaining = data.expiresAt - now;
+  if (remaining <= 0) {
+    return null;
+  }
+  const deadline = new Date(data.expiresAt);
+  return {
+    dueSoon: remaining <= SHELF_LIFE_DAY,
+    label: `${deadline.getMonth() + 1}/${deadline.getDate()}`,
+  };
+};
 export const getShelfLifeVisualState = (
   data: ShelfLifeData | null,
   now = Date.now(),
