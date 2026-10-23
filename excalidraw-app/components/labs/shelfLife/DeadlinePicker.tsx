@@ -83,15 +83,16 @@ export const splitDeadline = (value: number | null, now = Date.now()) => {
     : { day: startOfDay(value), allDay: false, minutes };
 };
 
-/** The weeks the month spans (4–6), from the locale's first weekday. */
+/**
+ * Always six weeks from the locale's first weekday: a constant height keeps
+ * the popup from jumping when the month changes.
+ */
 export const getMonthGrid = (month: number, weekStart: number) => {
   const first = new Date(month);
   first.setDate(1);
   const lead = (first.getDay() - weekStart + 7) % 7;
-  const days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
   const start = addDays(startOfDay(first.getTime()), -lead);
-  const length = Math.ceil((lead + days) / 7) * 7;
-  return Array.from({ length }, (_, i) => addDays(start, i));
+  return Array.from({ length: 42 }, (_, i) => addDays(start, i));
 };
 
 const getWeekStart = (code: string) => (code.startsWith("en") ? 0 : 1);
@@ -250,13 +251,14 @@ export const DeadlinePicker = forwardRef<
     }
     const rect = trigger.getBoundingClientRect();
     const { offsetWidth: width, offsetHeight: height } = popup;
-    // Below, else above the trigger; on very short screens use the whole
-    // viewport (covering the trigger beats hiding the confirm button).
+    // The side is chosen once per opening and the popup keeps a constant
+    // height (6-week grid, time column beside it), so switching modes or
+    // months never makes it jump. Below, else above; on very short screens
+    // it uses the viewport (covering the trigger beats hiding "Set").
     const spaceBelow = window.innerHeight - 8 - (rect.bottom + 4);
     const spaceAbove = rect.top - 4 - 8;
-    const maxHeight = window.innerHeight - 16;
     setPosition({
-      maxHeight,
+      maxHeight: window.innerHeight - 16,
       top:
         height <= spaceBelow
           ? rect.bottom + 4
@@ -268,8 +270,7 @@ export const DeadlinePicker = forwardRef<
         Math.max(8, window.innerWidth - width - 8),
       ),
     });
-    // Height changes with the time row and the month's week count.
-  }, [open, allDay, month]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -404,124 +405,134 @@ export const DeadlinePicker = forwardRef<
             }}
             onKeyDown={onPopupKeyDown}
           >
-            <div className="shelf-life-picker__header">
-              <UiButton
-                variant="ghost"
-                size="sm"
-                iconOnly
-                icon={prevIcon}
-                aria-label={t("labs.shelfLife.prevMonth")}
-                disabled={atMonthStart}
-                onClick={() => moveCursor(addMonths(cursor, -1))}
-              />
-              <span className="shelf-life-picker__month" aria-live="polite">
-                {monthDate.toLocaleDateString(lang, {
-                  year: "numeric",
-                  month: "long",
-                })}
-              </span>
-              <UiButton
-                variant="ghost"
-                size="sm"
-                iconOnly
-                icon={nextIcon}
-                aria-label={t("labs.shelfLife.nextMonth")}
-                onClick={() => moveCursor(addMonths(cursor, 1))}
-              />
-            </div>
-            <div className="shelf-life-picker__weekdays" aria-hidden="true">
-              {weekdays.map((label, i) => (
-                <span key={i}>{label}</span>
-              ))}
-            </div>
-            <div
-              ref={gridRef}
-              className="shelf-life-picker__grid"
-              onKeyDown={onGridKeyDown}
-            >
-              {grid.map((d) => {
-                const date = new Date(d);
-                return (
-                  <button
-                    key={d}
-                    type="button"
-                    tabIndex={d === cursor ? 0 : -1}
-                    disabled={d < today}
-                    aria-pressed={d === day}
-                    aria-current={d === today ? "date" : undefined}
-                    aria-label={date.toLocaleDateString(lang, {
+            <div className="shelf-life-picker__body">
+              <div className="shelf-life-picker__calendar">
+                <div className="shelf-life-picker__header">
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    icon={prevIcon}
+                    aria-label={t("labs.shelfLife.prevMonth")}
+                    disabled={atMonthStart}
+                    onClick={() => moveCursor(addMonths(cursor, -1))}
+                  />
+                  <span className="shelf-life-picker__month" aria-live="polite">
+                    {monthDate.toLocaleDateString(lang, {
                       year: "numeric",
                       month: "long",
-                      day: "numeric",
-                      weekday: "long",
                     })}
-                    className={clsx("shelf-life-picker__day", {
-                      "shelf-life-picker__day--outside":
-                        date.getMonth() !== monthDate.getMonth(),
-                      "shelf-life-picker__day--today": d === today,
-                      "shelf-life-picker__day--selected": d === day,
-                    })}
-                    onClick={() => {
-                      setDay(d);
-                      setCursor(d);
-                      setMonth(d);
-                    }}
-                  >
-                    {date.getDate()}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="shelf-life-picker__time">
-              <SegmentedControl
-                size="sm"
-                fullWidth
-                label={t("labs.shelfLife.timeMode")}
-                value={allDay ? "allDay" : "at"}
-                onChange={(mode) => setAllDay(mode === "allDay")}
-                options={[
-                  { value: "allDay", label: t("labs.shelfLife.endOfDay") },
-                  { value: "at", label: t("labs.shelfLife.atTime") },
-                ]}
-              />
-              {!allDay && (
-                <div className="shelf-life-picker__clock">
-                  <div className="shelf-life-picker__spins">
-                    <TimeSpin
-                      label={t("labs.shelfLife.hour")}
-                      value={Math.floor(minutes / 60)}
-                      max={23}
-                      step={1}
-                      onChange={(h) => setMinutes(h * 60 + (minutes % 60))}
-                    />
-                    <span aria-hidden="true">:</span>
-                    <TimeSpin
-                      label={t("labs.shelfLife.minute")}
-                      value={minutes % 60}
-                      max={59}
-                      step={5}
-                      onChange={(m) =>
-                        setMinutes(Math.floor(minutes / 60) * 60 + m)
-                      }
-                    />
-                  </div>
-                  <div className="shelf-life-picker__quick">
-                    {QUICK_TIMES.map((quick) => (
-                      <button
-                        key={quick}
-                        type="button"
-                        aria-pressed={quick === minutes}
-                        className={clsx("shelf-life-picker__chip", {
-                          "shelf-life-picker__chip--active": quick === minutes,
-                        })}
-                        onClick={() => setMinutes(quick)}
-                      >
-                        {`${pad2(Math.floor(quick / 60))}:00`}
-                      </button>
-                    ))}
-                  </div>
+                  </span>
+                  <UiButton
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    icon={nextIcon}
+                    aria-label={t("labs.shelfLife.nextMonth")}
+                    onClick={() => moveCursor(addMonths(cursor, 1))}
+                  />
                 </div>
-              )}
+                <div className="shelf-life-picker__weekdays" aria-hidden="true">
+                  {weekdays.map((label, i) => (
+                    <span key={i}>{label}</span>
+                  ))}
+                </div>
+                <div
+                  ref={gridRef}
+                  className="shelf-life-picker__grid"
+                  onKeyDown={onGridKeyDown}
+                >
+                  {grid.map((d) => {
+                    const date = new Date(d);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        tabIndex={d === cursor ? 0 : -1}
+                        disabled={d < today}
+                        aria-pressed={d === day}
+                        aria-current={d === today ? "date" : undefined}
+                        aria-label={date.toLocaleDateString(lang, {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          weekday: "long",
+                        })}
+                        className={clsx("shelf-life-picker__day", {
+                          "shelf-life-picker__day--outside":
+                            date.getMonth() !== monthDate.getMonth(),
+                          "shelf-life-picker__day--today": d === today,
+                          "shelf-life-picker__day--selected": d === day,
+                        })}
+                        onClick={() => {
+                          setDay(d);
+                          setCursor(d);
+                          setMonth(d);
+                        }}
+                      >
+                        {date.getDate()}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="shelf-life-picker__time">
+                <SegmentedControl
+                  size="sm"
+                  fullWidth
+                  label={t("labs.shelfLife.timeMode")}
+                  value={allDay ? "allDay" : "at"}
+                  onChange={(mode) => setAllDay(mode === "allDay")}
+                  options={[
+                    { value: "allDay", label: t("labs.shelfLife.endOfDay") },
+                    { value: "at", label: t("labs.shelfLife.atTime") },
+                  ]}
+                />
+                {!allDay && (
+                  <div className="shelf-life-picker__clock">
+                    <div className="shelf-life-picker__spins">
+                      <TimeSpin
+                        label={t("labs.shelfLife.hour")}
+                        value={Math.floor(minutes / 60)}
+                        max={23}
+                        step={1}
+                        onChange={(h) => setMinutes(h * 60 + (minutes % 60))}
+                      />
+                      <span aria-hidden="true">:</span>
+                      <TimeSpin
+                        label={t("labs.shelfLife.minute")}
+                        value={minutes % 60}
+                        max={59}
+                        step={5}
+                        onChange={(m) =>
+                          setMinutes(Math.floor(minutes / 60) * 60 + m)
+                        }
+                      />
+                    </div>
+                    <div className="shelf-life-picker__quick">
+                      {QUICK_TIMES.map((quick) => (
+                        <button
+                          key={quick}
+                          type="button"
+                          aria-pressed={quick === minutes}
+                          className={clsx("shelf-life-picker__chip", {
+                            "shelf-life-picker__chip--active":
+                              quick === minutes,
+                          })}
+                          onClick={() => setMinutes(quick)}
+                        >
+                          {`${pad2(Math.floor(quick / 60))}:00`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {allDay && (
+                  <p className="shelf-life-picker__allDayHint">
+                    {t("labs.shelfLife.endOfDayHint")}
+                  </p>
+                )}
+              </div>
             </div>
             <div className="shelf-life-picker__footer">
               <p

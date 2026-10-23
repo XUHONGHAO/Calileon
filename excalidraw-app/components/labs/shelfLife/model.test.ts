@@ -7,7 +7,8 @@ import {
   getShelfLifeBadge,
   getShelfLifeBadgeForElement,
   getShelfLifeBadgeLayout,
-  getShelfLifeGeometry,
+  getShelfLifeData,
+  getShelfLifeRoot,
   renderShelfLifeOverlay,
   renderShelfLifeBadge,
   formatShelfLifeBadgeLabel,
@@ -21,6 +22,8 @@ import {
   getElementShelfLifeState,
   createShelfLifeScheduler,
 } from "@excalidraw/element";
+
+import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 const data = { version: 1 as const, expiresAt: 1000, setAt: 2000 };
 const note = (overrides = {}) =>
@@ -183,10 +186,9 @@ describe("Shelf Life model", () => {
     const due = getShelfLifeBadgeForElement(soon, map, "light", now)!;
     expect(idle.dueSoon).toBe(false);
     expect(due.dueSoon).toBe(true);
-    expect(due.accent).not.toBe(idle.ink);
     expect(idle.label).toMatch(/^\d{1,2}\/\d{1,2} \d{2}:\d{2}$/);
     expect(getShelfLifeBadgeForElement(expired, map, "light", now)).toBeNull();
-    // Tiny notes still show the full date, just below the shape.
+    // Tiny notes still show the full date (it sits above them).
     const tiny = getShelfLifeBadgeForElement(
       API.createElement({
         type: "rectangle",
@@ -201,8 +203,7 @@ describe("Shelf Life model", () => {
       now,
     )!;
     expect(tiny.label).not.toBe("");
-    expect(tiny.y).toBeGreaterThan(10);
-    expect(tiny.clip).toBe(false);
+    expect(tiny.y).toBeLessThan(0);
 
     const svg = await exportToSvg({
       elements: [fresh, soon, expired],
@@ -237,7 +238,13 @@ describe("Shelf Life model", () => {
     renderShelfLifeOverlay(element, map, context, 0, 0, "light", now);
     expect(arc).not.toHaveBeenCalled();
     expect(fillText).not.toHaveBeenCalled();
-    renderShelfLifeBadge(element, map, context, 0, 0, now);
+    let textColor: unknown;
+    fillText.mockImplementation(() => {
+      textColor = context.fillStyle;
+    });
+    renderShelfLifeBadge(element, map, context, 0, 0, now, 1, "#1f9e8f");
+    // Drawn in the selection color, like the selection frame.
+    expect(textColor).toBe("#1f9e8f");
     expect(arc).toHaveBeenCalled();
     expect(fillText).toHaveBeenCalledWith(
       getShelfLifeBadge(element, map, now)!.label,
@@ -249,7 +256,7 @@ describe("Shelf Life model", () => {
 });
 
 describe("Shelf Life badge layout", () => {
-  const shape = (type: "rectangle" | "ellipse" | "diamond" | "text") =>
+  const shape = (type: "rectangle") =>
     API.createElement({ type, width: 200, height: 120 });
 
   it("keeps the date clear of the clock", () => {
@@ -261,41 +268,67 @@ describe("Shelf Life badge layout", () => {
     expect(layout.textX).toBeLessThan(layout.x + layout.width);
   });
 
-  it("moves a date that does not fit below the shape, never shrinking it", () => {
-    const el = shape("diamond");
+  it("sits above the note, right-aligned, at a fixed screen size", () => {
+    const el = API.createElement({
+      type: "rectangle",
+      width: 320,
+      height: 120,
+    });
     const layout = getShelfLifeBadgeLayout(el, "10/28 14:30")!;
-    expect(layout.label).toBe("10/28 14:30");
-    expect(layout.y).toBeGreaterThan(el.height);
-    expect(layout.clip).toBe(false);
+    expect(layout.x + layout.width).toBeCloseTo(el.width);
+    expect(layout.y + layout.height).toBeLessThan(0);
+    // Twice the zoom: half the scene size, same pixels on screen.
+    const zoomed = getShelfLifeBadgeLayout(el, "10/28 14:30", 2)!;
+    expect(zoomed.fontSize).toBeCloseTo(layout.fontSize / 2);
+    expect(zoomed.x + zoomed.width).toBeCloseTo(el.width);
   });
 
-  it("stays inside curved and pointed outlines", () => {
-    for (const type of ["ellipse", "diamond"] as const) {
-      const el = shape(type);
-      const layout = getShelfLifeBadgeLayout(el, "10/28")!;
-      const w = el.width;
-      const h = el.height;
-      const inside = (x: number, y: number) =>
-        type === "ellipse"
-          ? ((x - w / 2) / (w / 2)) ** 2 + ((y - h / 2) / (h / 2)) ** 2 <= 1
-          : Math.abs(x - w / 2) / (w / 2) + Math.abs(y - h / 2) / (h / 2) <= 1;
-      for (const [x, y] of [
-        [layout.x, layout.y],
-        [layout.x + layout.width, layout.y],
-        [layout.x, layout.y + layout.height],
-        [layout.x + layout.width, layout.y + layout.height],
-      ]) {
-        expect(inside(x, y)).toBe(true);
-      }
+  it("stays right-aligned at the same gap on small notes", () => {
+    const wide = getShelfLifeBadgeLayout(shape("rectangle"), "10/28 14:30")!;
+    for (const size of [120, 60, 24]) {
+      const el = API.createElement({
+        type: "rectangle",
+        width: size,
+        height: size,
+      });
+      const layout = getShelfLifeBadgeLayout(el, "10/28 14:30")!;
+      // Same distance above the note at every size.
+      expect(layout.y).toBeCloseTo(wide.y);
+      // Right edge flush with the note's right edge, however narrow.
+      expect(layout.x + layout.width).toBeCloseTo(size);
     }
   });
 
-  it("puts standalone text badges past the glyphs and never folds text", () => {
-    const el = shape("text");
-    const layout = getShelfLifeBadgeLayout(el, "10/28")!;
-    expect(layout.x).toBeGreaterThan(el.width);
-    expect(layout.clip).toBe(false);
-    expect(getShelfLifeGeometry(el).size).toBe(0);
+  it("only rectangles (and their bound text) carry a shelf life", () => {
+    const map = new Map<string, ExcalidrawElement>();
+    for (const type of ["ellipse", "diamond", "image", "text"] as const) {
+      const el = API.createElement({ type, customData: { shelfLife: data } });
+      map.set(el.id, el);
+      expect(getShelfLifeData(el)).toBeNull();
+      expect(getShelfLifeRoot(el, map)).toBeNull();
+    }
+    const rect = note({ id: "rect" });
+    const label = API.createElement({
+      type: "text",
+      containerId: "rect",
+    });
+    const ellipse = API.createElement({ id: "ell", type: "ellipse" });
+    const inEllipse = API.createElement({ type: "text", containerId: "ell" });
+    const all = new Map(
+      [rect, label, ellipse, inEllipse].map((el) => [el.id, el]),
+    );
+    expect(getShelfLifeRoot(label, all)).toBe(rect);
+    expect(getShelfLifeRoot(inEllipse, all)).toBeNull();
+    // Selecting an ellipse sets nothing; stale data on it is dropped on load.
+    expect(setShelfLifeForSelection([ellipse], { ell: true }, data)[0]).toBe(
+      ellipse,
+    );
+    expect(
+      restoreElements(
+        [{ ...ellipse, customData: { shelfLife: data } }],
+        null,
+      )[0].customData,
+    ).toBeUndefined();
   });
 
   it("labels midnight deadlines with the last good day", () => {

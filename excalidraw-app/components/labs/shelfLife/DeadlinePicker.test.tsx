@@ -30,9 +30,9 @@ describe("deadline math", () => {
 
   it("builds six local weeks from the locale's first weekday", () => {
     const grid = getMonthGrid(day, 1);
-    // Oct 2026 starts on a Thursday: 3 lead days + 31 = 5 weeks.
-    expect(grid).toHaveLength(35);
-    expect(getMonthGrid(new Date(2026, 1, 1).getTime(), 0)).toHaveLength(28);
+    // Constant six weeks, even for a 4-week February.
+    expect(grid).toHaveLength(42);
+    expect(getMonthGrid(new Date(2026, 1, 1).getTime(), 0)).toHaveLength(42);
     expect(new Date(grid[0]).getDay()).toBe(1);
     expect(grid).toContain(new Date(2026, 9, 1).getTime());
     // Calendar steps, not 24h steps: every cell is a local midnight.

@@ -23,6 +23,7 @@ import {
 } from "../labsDialogs";
 
 import { DeadlinePicker } from "./DeadlinePicker";
+import { setShelfLifeStripMode, useShelfLifeStripMode } from "./strip";
 
 import "./shelfLife.scss";
 
@@ -93,6 +94,7 @@ const getExpiredIdentity = (list: ReturnType<typeof getExpiredShelfLife>) =>
 
 export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
   const open = useLabsFeatureOpen("shelfLife");
+  const stripMode = useShelfLifeStripMode();
   const [, refresh] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -324,6 +326,25 @@ export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
           >
             {t("labs.shelfLife.tear")}
           </UiButton>
+        </section>
+        <section className="shelf-life__section">
+          <label className="shelf-life__switch">
+            <input
+              type="checkbox"
+              checked={stripMode !== "hidden"}
+              onChange={(event) =>
+                setShelfLifeStripMode(event.target.checked ? "open" : "hidden")
+              }
+            />
+            <span>
+              <span className="shelf-life__switchLabel">
+                {t("labs.shelfLife.stripSetting")}
+              </span>
+              <span className="shelf-life__hint">
+                {t("labs.shelfLife.stripSettingHint")}
+              </span>
+            </span>
+          </label>
         </section>
         {message && (
           <div key={animation} className="shelf-life__feedback" role="status">

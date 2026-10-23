@@ -6,6 +6,7 @@ import {
   getElementShelfLifeState,
   getShelfLifeBadge,
   getShelfLifeRoot,
+  isShelfLifeVisualsEnabled,
 } from "./helpers";
 
 import type { ExcalidrawElement } from "../types";
@@ -14,44 +15,27 @@ import type { ExcalidrawElement } from "../types";
 // These warm colors are shared by screen, PNG and SVG without a second filter.
 export const SHELF_LIFE_PAPER = "#eab94f";
 export const SHELF_LIFE_FOLD = "#bd822b";
-export const SHELF_LIFE_DUE = "#e08a12";
 /** Tint strength over the note. Dark fills need a little more to read warm. */
 export const getShelfLifePaperAlpha = (theme?: string) =>
   theme === "dark" ? 0.38 : 0.3;
 // Digits must stay legible at small sizes; the hand-drawn font is not.
 export const SHELF_LIFE_BADGE_FONT = "Helvetica, Arial, sans-serif";
-export const SHELF_LIFE_BADGE_MIN_WIDTH = 28;
-export const SHELF_LIFE_BADGE_MIN_HEIGHT = 20;
 
-/** Outline in element-local coordinates, used to clip every overlay. */
+/** Rounded-rect outline in element-local coordinates (clips the tint). */
 const getOutline = (el: ExcalidrawElement) => {
   const w = Math.max(0, el.width);
   const h = Math.max(0, el.height);
-  if (el.type === "ellipse") {
-    return `M 0 ${h / 2} A ${w / 2} ${h / 2} 0 1 0 ${w} ${h / 2} A ${w / 2} ${
-      h / 2
-    } 0 1 0 0 ${h / 2} Z`;
-  }
-  if (el.type === "diamond") {
-    return `M ${w / 2} 0 L ${w} ${h / 2} L ${w / 2} ${h} L 0 ${h / 2} Z`;
-  }
   const r = Math.min(getCornerRadius(Math.min(w, h), el), w / 2, h / 2);
   return `M ${r} 0 H ${w - r} Q ${w} 0 ${w} ${r} V ${h - r} Q ${w} ${h} ${
     w - r
   } ${h} H ${r} Q 0 ${h} 0 ${h - r} V ${r} Q 0 0 ${r} 0 Z`;
 };
 
-/**
- * Expired paper: the outline (for the tint) and, on boxes only, a dog-ear in
- * the bottom-right corner. Curved and pointed shapes have no corner to fold.
- */
+/** Expired paper: the outline (for the tint) and a bottom-right dog-ear. */
 export const getShelfLifeGeometry = (el: ExcalidrawElement) => {
   const w = Math.max(0, el.width);
   const h = Math.max(0, el.height);
-  // Text is not paper either: its box is invisible, so a dog-ear floats.
-  const foldable =
-    el.type !== "ellipse" && el.type !== "diamond" && el.type !== "text";
-  const size = foldable ? Math.min(22, w / 5, h / 4) : 0;
+  const size = Math.min(22, w / 5, h / 4);
   return {
     outline: getOutline(el),
     // The flap lies on the note; its hypotenuse is the crease.
@@ -73,8 +57,6 @@ export type ShelfLifeBadgeLayout = {
   label: string;
   textX: number;
   textY: number;
-  /** False when the pill sits outside the shape (text, small notes). */
-  clip: boolean;
 };
 
 const pillPath = (x: number, y: number, w: number, h: number) => {
@@ -84,70 +66,39 @@ const pillPath = (x: number, y: number, w: number, h: number) => {
   } H ${x + r} A ${r} ${r} 0 0 1 ${x + r} ${y} Z`;
 };
 
+// Screen pixels. The pill is editor UI: same size at every zoom level.
+const BADGE_FONT_PX = 11.5;
+// Selection frame (padding + dashed margin) plus a little air. Constant at
+// every note size: the pill never drifts away from small notes.
+const BADGE_GAP_PX = 14;
+// Calileon brand teal, the fallback when no selection color is passed in.
+const BADGE_COLOR = "#1f9e8f";
+
 /**
- * The pill sits in the top-right corner of the shape's inscribed box (not its
- * bounding box). When the full date does not fit there (ellipses, diamonds,
- * small notes) it moves just below the shape instead of shrinking to a bare
- * clock. Standalone text gets it past its right edge, off the glyphs.
+ * Above the note at a fixed distance, its right edge flush with the note's
+ * right edge at every size. On narrow notes it may sit under the centered
+ * rotation handle; the handle is painted after it and stays on top.
  */
 export const getShelfLifeBadgeLayout = (
   element: ExcalidrawElement,
   label: string,
+  zoom = 1,
 ): ShelfLifeBadgeLayout | null => {
   const w = element.width;
-  const h = element.height;
-  if (w <= 0 || h <= 0) {
+  if (w <= 0 || element.height <= 0) {
     return null;
   }
-  const isText = element.type === "text";
-  const fontSize = isText
-    ? Math.min(14, Math.max(10, h * 0.6))
-    : Math.min(14, Math.max(10, Math.min(w, h) * 0.12));
-  const height = Math.round(fontSize * 1.6);
-  const pad = fontSize * 0.5;
+  const unit = 1 / Math.max(zoom, 0.01);
+  const fontSize = BADGE_FONT_PX * unit;
+  const height = fontSize * 1.75;
+  const pad = fontSize * 0.6;
   const clockR = fontSize * 0.42;
-  const gap = fontSize * 0.35;
+  const gap = fontSize * 0.4;
   // Approximate advance of a sans-serif digit, slash or colon.
   const textWidth = label.length * fontSize * 0.58;
   const width = pad + clockR * 2 + gap + textWidth + pad;
-
-  let x: number;
-  let y: number;
-  let inside = false;
-  if (isText) {
-    x = w + gap;
-    y = (h - height) / 2;
-  } else {
-    // Top-right corner of the inscribed box, plus a small margin.
-    const [cx, cy] =
-      element.type === "ellipse"
-        ? [w * 0.854, h * 0.146]
-        : element.type === "diamond"
-        ? [w * 0.75, h * 0.25]
-        : [w, 0];
-    // Keep clear of the (rough, ~2px) stroke even on small notes.
-    const margin = Math.max(4, Math.min(8, w * 0.05, h * 0.06));
-    const room =
-      (element.type === "ellipse"
-        ? w * 0.708
-        : element.type === "diamond"
-        ? w * 0.5
-        : w) -
-      2 * margin;
-    inside =
-      w >= SHELF_LIFE_BADGE_MIN_WIDTH &&
-      h >= SHELF_LIFE_BADGE_MIN_HEIGHT &&
-      width <= room * 0.9 &&
-      cy + margin + height <= h * 0.6;
-    if (inside) {
-      x = cx - margin - width;
-      y = cy + margin;
-    } else {
-      // Centered under the shape, clear of the bottom resize handle.
-      x = (w - width) / 2;
-      y = h + fontSize * 1.2;
-    }
-  }
+  const x = w - width;
+  const y = -height - BADGE_GAP_PX * unit;
   const clockCx = x + pad + clockR;
   const cy = y + height / 2;
   return {
@@ -161,16 +112,7 @@ export const getShelfLifeBadgeLayout = (
     label,
     textX: clockCx + clockR + gap + textWidth / 2,
     textY: cy,
-    clip: inside,
   };
-};
-
-const getBadgeInk = (element: ExcalidrawElement, theme: string | undefined) => {
-  const base =
-    element.strokeColor && element.strokeColor !== "transparent"
-      ? element.strokeColor
-      : "#1e1e1e";
-  return applyDarkModeFilter(base, theme === "dark");
 };
 
 export const getShelfLifeBadgeForElement = (
@@ -178,19 +120,17 @@ export const getShelfLifeBadgeForElement = (
   elements: ReadonlyMap<string, ExcalidrawElement>,
   theme?: string,
   now = Date.now(),
+  zoom = 1,
 ) => {
   const badge = getShelfLifeBadge(element, elements, now);
-  const layout = badge && getShelfLifeBadgeLayout(element, badge.label);
+  const layout = badge && getShelfLifeBadgeLayout(element, badge.label, zoom);
   if (!badge || !layout) {
     return null;
   }
-  const dark = theme === "dark";
   return {
     ...layout,
     dueSoon: badge.dueSoon,
-    ink: getBadgeInk(element, theme),
-    accent: applyDarkModeFilter(SHELF_LIFE_DUE, dark),
-    fill: applyDarkModeFilter("#ffffff", dark),
+    fill: applyDarkModeFilter("#ffffff", theme === "dark"),
   };
 };
 
@@ -247,7 +187,8 @@ export const renderShelfLifeOverlay = (
 /**
  * The deadline pill is editor UI, not content: the interactive canvas draws it
  * for selected notes only, so it never clutters reading or lands in exports.
- * That canvas is CSS-inverted in dark mode, so it always uses light colors.
+ * That canvas is CSS-inverted in dark mode, so it always uses light colors,
+ * and it is drawn in the selection color, like the selection frame.
  */
 export const renderShelfLifeBadge = (
   element: ExcalidrawElement,
@@ -256,8 +197,12 @@ export const renderShelfLifeBadge = (
   scrollX: number,
   scrollY: number,
   now = Date.now(),
+  zoom = 1,
+  color = BADGE_COLOR,
 ) => {
-  const badge = getShelfLifeBadgeForElement(element, elements, "light", now);
+  const badge = isShelfLifeVisualsEnabled()
+    ? getShelfLifeBadgeForElement(element, elements, "light", now, zoom)
+    : null;
   if (!badge) {
     return;
   }
@@ -269,20 +214,18 @@ export const renderShelfLifeBadge = (
   context.rotate(element.angle);
   context.translate(-element.width / 2, -element.height / 2);
   const alpha = context.globalAlpha;
-  const color = badge.dueSoon ? badge.accent : badge.ink;
   const pill = new Path2D(badge.pill);
-  if (badge.clip) {
-    context.clip(new Path2D(getShelfLifeGeometry(element).outline));
-  }
-  context.globalAlpha = alpha * 0.85;
+  context.globalAlpha = alpha * 0.92;
   context.fillStyle = badge.fill;
   context.fill(pill);
   context.globalAlpha = alpha;
   context.strokeStyle = color;
-  context.lineWidth = 1;
+  // Scene units per screen pixel: hairlines stay 1px at any zoom.
+  const px = badge.fontSize / BADGE_FONT_PX;
+  context.lineWidth = px;
   context.stroke(pill);
   const { cx, cy, r } = badge.clock;
-  context.lineWidth = Math.max(1, badge.fontSize / 10);
+  context.lineWidth = 1.25 * px;
   context.lineCap = "round";
   context.beginPath();
   context.arc(cx, cy, r, 0, Math.PI * 2);

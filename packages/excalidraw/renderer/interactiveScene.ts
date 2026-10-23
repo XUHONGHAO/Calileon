@@ -1763,6 +1763,31 @@ const _renderInteractiveScene = ({
     }
   }
 
+  // Shelf Life deadlines are shown on selected notes only (never exported).
+  // Drawn before the transform handles so the rotation handle stays on top.
+  if (selectedElements.length && !appState.editingTextElement) {
+    const roots = new Set<ExcalidrawElement>();
+    for (const element of selectedElements) {
+      const root = getShelfLifeRoot(element, allElementsMap);
+      if (root) {
+        roots.add(root);
+      }
+    }
+    const now = Date.now();
+    roots.forEach((root) =>
+      renderShelfLifeBadge(
+        root,
+        allElementsMap,
+        context,
+        appState.scrollX,
+        appState.scrollY,
+        now,
+        appState.zoom.value,
+        renderConfig.selectionColor,
+      ),
+    );
+  }
+
   // Paint selected elements
   if (
     !appState.multiElement &&
@@ -1986,28 +2011,6 @@ const _renderInteractiveScene = ({
       }
     }
     context.restore();
-  }
-
-  // Shelf Life deadlines are shown on selected notes only (never exported).
-  if (selectedElements.length && !appState.editingTextElement) {
-    const roots = new Set<ExcalidrawElement>();
-    for (const element of selectedElements) {
-      const root = getShelfLifeRoot(element, allElementsMap);
-      if (root) {
-        roots.add(root);
-      }
-    }
-    const now = Date.now();
-    roots.forEach((root) =>
-      renderShelfLifeBadge(
-        root,
-        allElementsMap,
-        context,
-        appState.scrollX,
-        appState.scrollY,
-        now,
-      ),
-    );
   }
 
   appState.searchMatches?.matches.forEach(({ id, focus, matchedLines }) => {

@@ -24,10 +24,14 @@ export const normalizeShelfLifeData = (
     ? { version: 1, expiresAt: data.expiresAt, setAt: data.setAt }
     : null;
 };
+/**
+ * Only rectangles are notes (user decision, 2026-10-23). A rectangle's bound
+ * text follows it; ellipses, diamonds, images and loose text never carry a
+ * shelf life (restore strips stale data from them).
+ */
 export const isShelfLifeSupportedElement = (
   element: Pick<ExcalidrawElement, "type">,
-) =>
-  ["rectangle", "diamond", "ellipse", "text", "image"].includes(element.type);
+) => element.type === "rectangle";
 export const getShelfLifeData = (element: ExcalidrawElement) =>
   isShelfLifeSupportedElement(element)
     ? normalizeShelfLifeData(element.customData?.shelfLife)
@@ -49,16 +53,18 @@ export const getShelfLifeRoot = (
   element: ExcalidrawElement,
   elements: ReadonlyMap<string, ExcalidrawElement>,
 ): ExcalidrawElement | null => {
-  if (element.isDeleted || !isShelfLifeSupportedElement(element)) {
+  if (element.isDeleted) {
     return null;
   }
   if (element.type === "text" && element.containerId) {
     const container = elements.get(element.containerId);
-    if (container && !container.isDeleted) {
-      return isShelfLifeSupportedElement(container) ? container : null;
-    }
+    return container &&
+      !container.isDeleted &&
+      isShelfLifeSupportedElement(container)
+      ? container
+      : null;
   }
-  return element;
+  return isShelfLifeSupportedElement(element) ? element : null;
 };
 export const getShelfLifeBadge = (
   element: ExcalidrawElement,
@@ -112,11 +118,25 @@ export const getShelfLifeVisualState = (
         );
   return { expired, opacity };
 };
+/**
+ * Render switch for the user's own view (and their exports). Off hides the
+ * tint, fading and badge; the stored deadlines and cleanup are untouched.
+ */
+let shelfLifeVisuals = true;
+export const setShelfLifeVisualsEnabled = (enabled: boolean) => {
+  shelfLifeVisuals = enabled;
+};
+export const isShelfLifeVisualsEnabled = () => shelfLifeVisuals;
+
+/** What the renderers draw: always "fresh" while the visuals are off. */
 export const getElementShelfLifeState = (
   element: ExcalidrawElement,
   elements: ReadonlyMap<string, ExcalidrawElement>,
   now = Date.now(),
 ) => {
+  if (!shelfLifeVisuals) {
+    return { expired: false, opacity: 1 };
+  }
   const root = getShelfLifeRoot(element, elements);
   return getShelfLifeVisualState(root ? getShelfLifeData(root) : null, now);
 };
