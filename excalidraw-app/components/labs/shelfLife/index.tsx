@@ -9,19 +9,20 @@ import {
   getShelfLifeSelection,
   getShelfLifeData,
   getShelfLifeDeadline,
-  getShelfLifeDateDeadline,
   setShelfLifeForSelection,
   planShelfLifeCleanup,
 } from "@excalidraw/element";
 
 import type { ShelfLifePreset } from "@excalidraw/element";
 
-import { UiButton, Field, TextInput, Callout, confirmAction } from "../../ui";
+import { UiButton, Field, Callout, confirmAction } from "../../ui";
 import {
   openLabsFeature,
   closeLabsFeature,
   useLabsFeatureOpen,
 } from "../labsDialogs";
+
+import { DeadlinePicker } from "./DeadlinePicker";
 
 import "./shelfLife.scss";
 
@@ -93,7 +94,6 @@ const getExpiredIdentity = (list: ReturnType<typeof getExpiredShelfLife>) =>
 export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
   const open = useLabsFeatureOpen("shelfLife");
   const [, refresh] = useState(0);
-  const [date, setDate] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [animation, setAnimation] = useState(0);
@@ -142,7 +142,6 @@ export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
   const readOnly = state.viewModeEnabled;
   const selected = getShelfLifeSelection(elements, state.selectedElementIds);
   const expired = getExpiredShelfLife(elements);
-  const deadline = getShelfLifeDateDeadline(date);
   const values = new Set(
     selected.map((el) => getShelfLifeData(el)?.expiresAt ?? null),
   );
@@ -283,25 +282,18 @@ export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
               </UiButton>
             ))}
           </div>
-          <div className="shelf-life__dateRow">
-            <Field label={t("labs.shelfLife.customDate")}>
-              <TextInput
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                disabled={disabled}
-              />
-            </Field>
-            <UiButton
-              disabled={disabled || deadline === null}
-              onClick={() => apply(deadline)}
-            >
-              {t("labs.shelfLife.apply")}
-            </UiButton>
-          </div>
-          {deadline !== null && deadline <= Date.now() && (
-            <Callout tone="warning">{t("labs.shelfLife.immediate")}</Callout>
-          )}
+          <Field label={t("labs.shelfLife.customDate")}>
+            <DeadlinePicker
+              value={value}
+              display={
+                value === null || !selected.length
+                  ? t("labs.shelfLife.pickerPlaceholder")
+                  : formatValue(value)
+              }
+              disabled={disabled}
+              onApply={apply}
+            />
+          </Field>
           <p className="shelf-life__hint">{t("labs.shelfLife.inheritance")}</p>
           <UiButton
             variant="ghost"

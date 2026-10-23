@@ -74,13 +74,28 @@ export const getShelfLifeBadge = (
   if (remaining <= 0) {
     return null;
   }
-  // "Today", "this week" and picked dates end at the next local midnight, so
-  // label the last day the note is still good, not the day it flips.
-  const deadline = new Date(data.expiresAt - 1);
   return {
     dueSoon: remaining <= SHELF_LIFE_DAY,
-    label: `${deadline.getMonth() + 1}/${deadline.getDate()}`,
+    label: formatShelfLifeBadgeLabel(data.expiresAt, now),
   };
+};
+const pad2 = (value: number) => `${value}`.padStart(2, "0");
+/**
+ * "10/28" for whole-day deadlines (they end at the next local midnight, so
+ * name the last good day), "14:30" later today, "10/28 14:30" otherwise.
+ */
+export const formatShelfLifeBadgeLabel = (expiresAt: number, now: number) => {
+  const at = new Date(expiresAt);
+  const wholeDay = at.getHours() === 0 && at.getMinutes() === 0;
+  const day = new Date(wholeDay ? expiresAt - 1 : expiresAt);
+  const date = `${day.getMonth() + 1}/${day.getDate()}`;
+  if (wholeDay) {
+    return date;
+  }
+  const time = `${pad2(at.getHours())}:${pad2(at.getMinutes())}`;
+  return new Date(now).toDateString() === at.toDateString()
+    ? time
+    : `${date} ${time}`;
 };
 export const getShelfLifeVisualState = (
   data: ShelfLifeData | null,

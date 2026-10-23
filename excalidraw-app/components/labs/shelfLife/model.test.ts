@@ -9,6 +9,8 @@ import {
   getShelfLifeBadgeLayout,
   getShelfLifeGeometry,
   renderShelfLifeOverlay,
+  renderShelfLifeBadge,
+  formatShelfLifeBadgeLabel,
   getShelfLifeDeadline,
   getShelfLifeDateDeadline,
   getShelfLifeVisualState,
@@ -151,7 +153,7 @@ describe("Shelf Life model", () => {
     ).toEqual(data);
   });
 
-  it("marks fresh and due-soon notes on the canvas with their deadline", async () => {
+  it("badges fresh and due-soon notes, but keeps the badge out of exports", async () => {
     const now = Date.now();
     const fresh = API.createElement({
       type: "rectangle",
@@ -182,38 +184,38 @@ describe("Shelf Life model", () => {
     expect(idle.dueSoon).toBe(false);
     expect(due.dueSoon).toBe(true);
     expect(due.accent).not.toBe(idle.ink);
-    expect(idle.label).toMatch(/^\d{1,2}\/\d{1,2}$/);
+    expect(idle.label).toMatch(/^\d{1,2}\/\d{1,2} \d{2}:\d{2}$/);
     expect(getShelfLifeBadgeForElement(expired, map, "light", now)).toBeNull();
-    expect(
-      getShelfLifeBadgeForElement(
-        API.createElement({
-          type: "rectangle",
-          width: 10,
-          height: 10,
-          customData: {
-            shelfLife: { version: 1, setAt: now, expiresAt: now + 1000 },
-          },
-        }),
-        map,
-        "light",
-        now,
-      ),
-    ).toBeNull();
+    // Tiny notes still show the full date, just below the shape.
+    const tiny = getShelfLifeBadgeForElement(
+      API.createElement({
+        type: "rectangle",
+        width: 10,
+        height: 10,
+        customData: {
+          shelfLife: { version: 1, setAt: now, expiresAt: now + 1000 },
+        },
+      }),
+      map,
+      "light",
+      now,
+    )!;
+    expect(tiny.label).not.toBe("");
+    expect(tiny.y).toBeGreaterThan(10);
+    expect(tiny.clip).toBe(false);
 
     const svg = await exportToSvg({
       elements: [fresh, soon, expired],
       files: null,
       appState: { viewBackgroundColor: "#ffffff" },
     });
-    expect(svg.querySelectorAll("[data-shelf-life-badge]")).toHaveLength(2);
-    expect(svg.querySelector("[data-shelf-life-badge='due']")).not.toBeNull();
+    // The deadline is editor UI for selected notes; exports show paper only.
+    expect(svg.querySelectorAll("[data-shelf-life]")).toHaveLength(1);
     expect(svg.querySelector("[data-shelf-life='expired']")).not.toBeNull();
-    expect(svg.querySelector("[data-shelf-life-badge] text")!.textContent).toBe(
-      idle.label,
-    );
+    expect(svg.querySelector("text")).toBeNull();
   });
 
-  it("draws the badge on the canvas path and never mutates the element", () => {
+  it("draws the badge only through the selection layer", () => {
     const now = Date.now();
     const element = API.createElement({
       type: "rectangle",
@@ -233,9 +235,12 @@ describe("Shelf Life model", () => {
     const arc = vi.spyOn(context, "arc");
     const fillText = vi.spyOn(context, "fillText");
     renderShelfLifeOverlay(element, map, context, 0, 0, "light", now);
+    expect(arc).not.toHaveBeenCalled();
+    expect(fillText).not.toHaveBeenCalled();
+    renderShelfLifeBadge(element, map, context, 0, 0, now);
     expect(arc).toHaveBeenCalled();
     expect(fillText).toHaveBeenCalledWith(
-      expect.stringMatching(/^\d{1,2}\/\d{1,2}$/),
+      getShelfLifeBadge(element, map, now)!.label,
       expect.any(Number),
       expect.any(Number),
     );
@@ -254,6 +259,14 @@ describe("Shelf Life badge layout", () => {
     expect(layout.label).toBe("10/28");
     expect(textLeft).toBeGreaterThan(clockRight);
     expect(layout.textX).toBeLessThan(layout.x + layout.width);
+  });
+
+  it("moves a date that does not fit below the shape, never shrinking it", () => {
+    const el = shape("diamond");
+    const layout = getShelfLifeBadgeLayout(el, "10/28 14:30")!;
+    expect(layout.label).toBe("10/28 14:30");
+    expect(layout.y).toBeGreaterThan(el.height);
+    expect(layout.clip).toBe(false);
   });
 
   it("stays inside curved and pointed outlines", () => {
@@ -305,6 +318,21 @@ describe("Shelf Life badge layout", () => {
       end - SHELF_LIFE_DAY * 2,
     )!;
     expect(badge.label).toBe("10/28");
+  });
+});
+
+describe("Shelf Life badge label", () => {
+  const now = new Date(2026, 9, 26, 10, 0).getTime();
+  it("names the last good day, the time today, or both", () => {
+    expect(
+      formatShelfLifeBadgeLabel(new Date(2026, 9, 29).getTime(), now),
+    ).toBe("10/28");
+    expect(
+      formatShelfLifeBadgeLabel(new Date(2026, 9, 26, 18, 30).getTime(), now),
+    ).toBe("18:30");
+    expect(
+      formatShelfLifeBadgeLabel(new Date(2026, 9, 27, 9, 5).getTime(), now),
+    ).toBe("10/27 09:05");
   });
 });
 

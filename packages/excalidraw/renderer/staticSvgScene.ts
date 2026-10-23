@@ -40,10 +40,8 @@ import {
   getElementShelfLifeState,
   getShelfLifeRoot,
   getShelfLifeGeometry,
-  getShelfLifeBadgeForElement,
   SHELF_LIFE_PAPER,
   SHELF_LIFE_FOLD,
-  SHELF_LIFE_BADGE_FONT,
   getShelfLifePaperAlpha,
   getLineToneMarkerGeometry,
   getLineTonePathAnchor,
@@ -158,20 +156,12 @@ const renderElementToSvg = (
     ) {
       return;
     }
-    const expired = getElementShelfLifeState(element, elementsMap, now).expired;
-    const badge = expired
-      ? null
-      : getShelfLifeBadgeForElement(
-          element,
-          elementsMap,
-          renderConfig.theme,
-          now,
-        );
-    if (!expired && !badge) {
+    if (!getElementShelfLifeState(element, elementsMap, now).expired) {
+      // The deadline badge is editor UI (selected notes only), never exported.
       return;
     }
     const overlay = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
-    overlay.setAttribute("data-shelf-life", expired ? "expired" : "badge");
+    overlay.setAttribute("data-shelf-life", "expired");
     overlay.setAttribute(
       "transform",
       `translate(${element.x + renderConfig.offsetX} ${
@@ -186,84 +176,36 @@ const renderElementToSvg = (
     outline.setAttribute("d", geometry.outline);
     clip.appendChild(outline);
     overlay.appendChild(clip);
-    if (expired) {
-      const paper = outline.cloneNode(true) as SVGElement;
-      paper.setAttribute("fill", SHELF_LIFE_PAPER);
-      paper.setAttribute(
-        "opacity",
-        `${opacity * getShelfLifePaperAlpha(renderConfig.theme)}`,
+    const paper = outline.cloneNode(true) as SVGElement;
+    paper.setAttribute("fill", SHELF_LIFE_PAPER);
+    paper.setAttribute(
+      "opacity",
+      `${opacity * getShelfLifePaperAlpha(renderConfig.theme)}`,
+    );
+    overlay.appendChild(paper);
+    if (geometry.size >= 4) {
+      const fold = doc.createElementNS(SVG_NS, "path");
+      fold.setAttribute("d", geometry.fold);
+      fold.setAttribute("fill", SHELF_LIFE_FOLD);
+      fold.setAttribute("opacity", `${opacity * 0.85}`);
+      fold.setAttribute("clip-path", `url(#${clip.id})`);
+      const crease = doc.createElementNS(SVG_NS, "path");
+      crease.setAttribute("d", geometry.crease);
+      crease.setAttribute("fill", "none");
+      crease.setAttribute(
+        "stroke",
+        applyDarkModeFilter(
+          element.strokeColor || "#1e1e1e",
+          renderConfig.theme === THEME.DARK,
+        ),
       );
-      overlay.appendChild(paper);
-      if (geometry.size >= 4) {
-        const fold = doc.createElementNS(SVG_NS, "path");
-        fold.setAttribute("d", geometry.fold);
-        fold.setAttribute("fill", SHELF_LIFE_FOLD);
-        fold.setAttribute("opacity", `${opacity * 0.85}`);
-        fold.setAttribute("clip-path", `url(#${clip.id})`);
-        const crease = doc.createElementNS(SVG_NS, "path");
-        crease.setAttribute("d", geometry.crease);
-        crease.setAttribute("fill", "none");
-        crease.setAttribute(
-          "stroke",
-          applyDarkModeFilter(
-            element.strokeColor || "#1e1e1e",
-            renderConfig.theme === THEME.DARK,
-          ),
-        );
-        crease.setAttribute(
-          "stroke-width",
-          `${Math.max(1, element.strokeWidth * 0.6)}`,
-        );
-        crease.setAttribute("stroke-linecap", "round");
-        crease.setAttribute("opacity", `${opacity}`);
-        overlay.append(fold, crease);
-      }
-    }
-    if (badge) {
-      const color = badge.dueSoon ? badge.accent : badge.ink;
-      const group = doc.createElementNS(SVG_NS, "g");
-      group.setAttribute(
-        "data-shelf-life-badge",
-        badge.dueSoon ? "due" : "idle",
+      crease.setAttribute(
+        "stroke-width",
+        `${Math.max(1, element.strokeWidth * 0.6)}`,
       );
-      group.setAttribute("opacity", `${opacity}`);
-      if (badge.clip) {
-        group.setAttribute("clip-path", `url(#${clip.id})`);
-      }
-      const pill = doc.createElementNS(SVG_NS, "path");
-      pill.setAttribute("d", badge.pill);
-      pill.setAttribute("fill", badge.fill);
-      pill.setAttribute("fill-opacity", "0.85");
-      pill.setAttribute("stroke", color);
-      pill.setAttribute("stroke-width", "1");
-      const { cx, cy, r } = badge.clock;
-      const clock = doc.createElementNS(SVG_NS, "path");
-      clock.setAttribute(
-        "d",
-        `M ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${
-          cx - r
-        } ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} M ${cx} ${cy} V ${
-          cy - r * 0.6
-        } M ${cx} ${cy} H ${cx + r * 0.5}`,
-      );
-      clock.setAttribute("fill", "none");
-      clock.setAttribute("stroke", color);
-      clock.setAttribute("stroke-width", `${Math.max(1, badge.fontSize / 10)}`);
-      clock.setAttribute("stroke-linecap", "round");
-      group.append(pill, clock);
-      if (badge.label) {
-        const text = doc.createElementNS(SVG_NS, "text");
-        text.textContent = badge.label;
-        text.setAttribute("x", `${badge.textX}`);
-        text.setAttribute("y", `${badge.textY}`);
-        text.setAttribute("font-family", SHELF_LIFE_BADGE_FONT);
-        text.setAttribute("font-size", `${badge.fontSize}px`);
-        text.setAttribute("fill", color);
-        text.setAttribute("text-anchor", "middle");
-        text.setAttribute("dominant-baseline", "central");
-        group.appendChild(text);
-      }
-      overlay.appendChild(group);
+      crease.setAttribute("stroke-linecap", "round");
+      crease.setAttribute("opacity", `${opacity}`);
+      overlay.append(fold, crease);
     }
     root.appendChild(
       maybeWrapNodesInFrameClipPath(

@@ -70,11 +70,10 @@ export type ShelfLifeBadgeLayout = {
   height: number;
   fontSize: number;
   clock: { cx: number; cy: number; r: number };
-  /** Empty when the pill is too small for the date. */
   label: string;
   textX: number;
   textY: number;
-  /** Text elements carry the badge outside their box: never clip it. */
+  /** False when the pill sits outside the shape (text, small notes). */
   clip: boolean;
 };
 
@@ -86,23 +85,20 @@ const pillPath = (x: number, y: number, w: number, h: number) => {
 };
 
 /**
- * One layout for screen, PNG and SVG. The pill sits in the top-right corner
- * of the shape's inscribed box (not its bounding box), shrinks to a clock
- * when the date does not fit, and disappears on tiny notes. Standalone text
- * gets the pill just past its right edge so it never covers the glyphs.
+ * The pill sits in the top-right corner of the shape's inscribed box (not its
+ * bounding box). When the full date does not fit there (ellipses, diamonds,
+ * small notes) it moves just below the shape instead of shrinking to a bare
+ * clock. Standalone text gets it past its right edge, off the glyphs.
  */
 export const getShelfLifeBadgeLayout = (
   element: ExcalidrawElement,
   label: string,
 ): ShelfLifeBadgeLayout | null => {
-  if (
-    element.width < SHELF_LIFE_BADGE_MIN_WIDTH ||
-    element.height < SHELF_LIFE_BADGE_MIN_HEIGHT
-  ) {
-    return null;
-  }
   const w = element.width;
   const h = element.height;
+  if (w <= 0 || h <= 0) {
+    return null;
+  }
   const isText = element.type === "text";
   const fontSize = isText
     ? Math.min(14, Math.max(10, h * 0.6))
@@ -111,18 +107,16 @@ export const getShelfLifeBadgeLayout = (
   const pad = fontSize * 0.5;
   const clockR = fontSize * 0.42;
   const gap = fontSize * 0.35;
-  // Approximate advance of a sans-serif digit or slash; dates are short.
+  // Approximate advance of a sans-serif digit, slash or colon.
   const textWidth = label.length * fontSize * 0.58;
-  const full = pad + clockR * 2 + gap + textWidth + pad;
-  const compact = pad * 2 + clockR * 2;
+  const width = pad + clockR * 2 + gap + textWidth + pad;
 
-  let right: number;
-  let top: number;
-  let room: number;
+  let x: number;
+  let y: number;
+  let inside = false;
   if (isText) {
-    right = w + gap + full;
-    top = Math.max(0, (h - height) / 2);
-    room = Infinity;
+    x = w + gap;
+    y = (h - height) / 2;
   } else {
     // Top-right corner of the inscribed box, plus a small margin.
     const [cx, cy] =
@@ -133,27 +127,27 @@ export const getShelfLifeBadgeLayout = (
         : [w, 0];
     // Keep clear of the (rough, ~2px) stroke even on small notes.
     const margin = Math.max(4, Math.min(8, w * 0.05, h * 0.06));
-    right = cx - margin;
-    top = cy + margin;
-    // Width available inside the inscribed box at this corner.
-    room =
+    const room =
       (element.type === "ellipse"
         ? w * 0.708
         : element.type === "diamond"
         ? w * 0.5
         : w) -
       2 * margin;
-    if (top + height > h * 0.6) {
-      return null;
+    inside =
+      w >= SHELF_LIFE_BADGE_MIN_WIDTH &&
+      h >= SHELF_LIFE_BADGE_MIN_HEIGHT &&
+      width <= room * 0.9 &&
+      cy + margin + height <= h * 0.6;
+    if (inside) {
+      x = cx - margin - width;
+      y = cy + margin;
+    } else {
+      // Centered under the shape, clear of the bottom resize handle.
+      x = (w - width) / 2;
+      y = h + fontSize * 1.2;
     }
   }
-  const showLabel = full <= room * 0.75;
-  if (!showLabel && compact > room * 0.6) {
-    return null;
-  }
-  const width = showLabel ? full : compact;
-  const x = right - width;
-  const y = top;
   const clockCx = x + pad + clockR;
   const cy = y + height / 2;
   return {
@@ -164,10 +158,10 @@ export const getShelfLifeBadgeLayout = (
     height,
     fontSize,
     clock: { cx: clockCx, cy, r: clockR },
-    label: showLabel ? label : "",
+    label,
     textX: clockCx + clockR + gap + textWidth / 2,
     textY: cy,
-    clip: !isText,
+    clip: inside,
   };
 };
 
@@ -200,6 +194,7 @@ export const getShelfLifeBadgeForElement = (
   };
 };
 
+/** Expired paper only. This is content: it is drawn on screen and exported. */
 export const renderShelfLifeOverlay = (
   element: ExcalidrawElement,
   elements: ReadonlyMap<string, ExcalidrawElement>,
@@ -216,11 +211,7 @@ export const renderShelfLifeOverlay = (
   ) {
     return;
   }
-  const expired = getElementShelfLifeState(element, elements, now).expired;
-  const badge = expired
-    ? null
-    : getShelfLifeBadgeForElement(element, elements, theme, now);
-  if (!expired && !badge) {
+  if (!getElementShelfLifeState(element, elements, now).expired) {
     return;
   }
   context.save();
@@ -233,62 +224,79 @@ export const renderShelfLifeOverlay = (
   const alpha = context.globalAlpha;
   const geometry = getShelfLifeGeometry(element);
   const outline = new Path2D(geometry.outline);
-
-  if (expired) {
-    context.save();
-    context.clip(outline);
-    context.globalAlpha = alpha * getShelfLifePaperAlpha(theme);
-    context.fillStyle = SHELF_LIFE_PAPER;
-    context.fill(outline);
-    if (geometry.size >= 4) {
-      context.globalAlpha = alpha * 0.85;
-      context.fillStyle = SHELF_LIFE_FOLD;
-      context.fill(new Path2D(geometry.fold));
-      context.globalAlpha = alpha;
-      context.strokeStyle = applyDarkModeFilter(
-        element.strokeColor || "#1e1e1e",
-        theme === "dark",
-      );
-      context.lineWidth = Math.max(1, element.strokeWidth * 0.6);
-      context.lineCap = "round";
-      context.stroke(new Path2D(geometry.crease));
-    }
-    context.restore();
-  }
-
-  if (badge) {
-    const color = badge.dueSoon ? badge.accent : badge.ink;
-    const pill = new Path2D(badge.pill);
-    context.save();
-    if (badge.clip) {
-      context.clip(outline);
-    }
+  context.clip(outline);
+  context.globalAlpha = alpha * getShelfLifePaperAlpha(theme);
+  context.fillStyle = SHELF_LIFE_PAPER;
+  context.fill(outline);
+  if (geometry.size >= 4) {
     context.globalAlpha = alpha * 0.85;
-    context.fillStyle = badge.fill;
-    context.fill(pill);
+    context.fillStyle = SHELF_LIFE_FOLD;
+    context.fill(new Path2D(geometry.fold));
     context.globalAlpha = alpha;
-    context.strokeStyle = color;
-    context.lineWidth = 1;
-    context.stroke(pill);
-    const { cx, cy, r } = badge.clock;
-    context.lineWidth = Math.max(1, badge.fontSize / 10);
+    context.strokeStyle = applyDarkModeFilter(
+      element.strokeColor || "#1e1e1e",
+      theme === "dark",
+    );
+    context.lineWidth = Math.max(1, element.strokeWidth * 0.6);
     context.lineCap = "round";
-    context.beginPath();
-    context.arc(cx, cy, r, 0, Math.PI * 2);
-    context.moveTo(cx, cy);
-    context.lineTo(cx, cy - r * 0.6);
-    context.moveTo(cx, cy);
-    context.lineTo(cx + r * 0.5, cy);
-    context.stroke();
-    if (badge.label) {
-      context.fillStyle = color;
-      context.font = `${badge.fontSize}px ${SHELF_LIFE_BADGE_FONT}`;
-      context.textAlign = "center";
-      context.textBaseline = "middle";
-      context.fillText(badge.label, badge.textX, badge.textY);
-    }
-    context.restore();
+    context.stroke(new Path2D(geometry.crease));
   }
+  context.restore();
+};
 
+/**
+ * The deadline pill is editor UI, not content: the interactive canvas draws it
+ * for selected notes only, so it never clutters reading or lands in exports.
+ * That canvas is CSS-inverted in dark mode, so it always uses light colors.
+ */
+export const renderShelfLifeBadge = (
+  element: ExcalidrawElement,
+  elements: ReadonlyMap<string, ExcalidrawElement>,
+  context: CanvasRenderingContext2D,
+  scrollX: number,
+  scrollY: number,
+  now = Date.now(),
+) => {
+  const badge = getShelfLifeBadgeForElement(element, elements, "light", now);
+  if (!badge) {
+    return;
+  }
+  context.save();
+  context.translate(
+    element.x + scrollX + element.width / 2,
+    element.y + scrollY + element.height / 2,
+  );
+  context.rotate(element.angle);
+  context.translate(-element.width / 2, -element.height / 2);
+  const alpha = context.globalAlpha;
+  const color = badge.dueSoon ? badge.accent : badge.ink;
+  const pill = new Path2D(badge.pill);
+  if (badge.clip) {
+    context.clip(new Path2D(getShelfLifeGeometry(element).outline));
+  }
+  context.globalAlpha = alpha * 0.85;
+  context.fillStyle = badge.fill;
+  context.fill(pill);
+  context.globalAlpha = alpha;
+  context.strokeStyle = color;
+  context.lineWidth = 1;
+  context.stroke(pill);
+  const { cx, cy, r } = badge.clock;
+  context.lineWidth = Math.max(1, badge.fontSize / 10);
+  context.lineCap = "round";
+  context.beginPath();
+  context.arc(cx, cy, r, 0, Math.PI * 2);
+  context.moveTo(cx, cy);
+  context.lineTo(cx, cy - r * 0.6);
+  context.moveTo(cx, cy);
+  context.lineTo(cx + r * 0.5, cy);
+  context.stroke();
+  if (badge.label) {
+    context.fillStyle = color;
+    context.font = `${badge.fontSize}px ${SHELF_LIFE_BADGE_FONT}`;
+    context.textAlign = "center";
+    context.textBaseline = "middle";
+    context.fillText(badge.label, badge.textX, badge.textY);
+  }
   context.restore();
 };
