@@ -4,7 +4,10 @@ import { exportToSvg, exportToCanvas } from "@excalidraw/utils";
 
 import {
   getExpiredShelfLife,
+  getShelfLifeBadge,
   getShelfLifeBadgeForElement,
+  getShelfLifeBadgeLayout,
+  getShelfLifeGeometry,
   renderShelfLifeOverlay,
   getShelfLifeDeadline,
   getShelfLifeDateDeadline,
@@ -237,6 +240,71 @@ describe("Shelf Life model", () => {
       expect.any(Number),
     );
     expect(JSON.stringify(element)).toBe(before);
+  });
+});
+
+describe("Shelf Life badge layout", () => {
+  const shape = (type: "rectangle" | "ellipse" | "diamond" | "text") =>
+    API.createElement({ type, width: 200, height: 120 });
+
+  it("keeps the date clear of the clock", () => {
+    const layout = getShelfLifeBadgeLayout(shape("rectangle"), "10/28")!;
+    const clockRight = layout.clock.cx + layout.clock.r;
+    const textLeft = layout.textX - (5 * layout.fontSize * 0.58) / 2;
+    expect(layout.label).toBe("10/28");
+    expect(textLeft).toBeGreaterThan(clockRight);
+    expect(layout.textX).toBeLessThan(layout.x + layout.width);
+  });
+
+  it("stays inside curved and pointed outlines", () => {
+    for (const type of ["ellipse", "diamond"] as const) {
+      const el = shape(type);
+      const layout = getShelfLifeBadgeLayout(el, "10/28")!;
+      const w = el.width;
+      const h = el.height;
+      const inside = (x: number, y: number) =>
+        type === "ellipse"
+          ? ((x - w / 2) / (w / 2)) ** 2 + ((y - h / 2) / (h / 2)) ** 2 <= 1
+          : Math.abs(x - w / 2) / (w / 2) + Math.abs(y - h / 2) / (h / 2) <= 1;
+      for (const [x, y] of [
+        [layout.x, layout.y],
+        [layout.x + layout.width, layout.y],
+        [layout.x, layout.y + layout.height],
+        [layout.x + layout.width, layout.y + layout.height],
+      ]) {
+        expect(inside(x, y)).toBe(true);
+      }
+    }
+  });
+
+  it("puts standalone text badges past the glyphs and never folds text", () => {
+    const el = shape("text");
+    const layout = getShelfLifeBadgeLayout(el, "10/28")!;
+    expect(layout.x).toBeGreaterThan(el.width);
+    expect(layout.clip).toBe(false);
+    expect(getShelfLifeGeometry(el).size).toBe(0);
+  });
+
+  it("labels midnight deadlines with the last good day", () => {
+    const end = new Date(2026, 9, 29, 0, 0, 0, 0).getTime();
+    const el = API.createElement({
+      type: "rectangle",
+      width: 200,
+      height: 120,
+      customData: {
+        shelfLife: {
+          version: 1,
+          setAt: end - SHELF_LIFE_DAY * 3,
+          expiresAt: end,
+        },
+      },
+    });
+    const badge = getShelfLifeBadge(
+      el,
+      new Map([[el.id, el]]),
+      end - SHELF_LIFE_DAY * 2,
+    )!;
+    expect(badge.label).toBe("10/28");
   });
 });
 

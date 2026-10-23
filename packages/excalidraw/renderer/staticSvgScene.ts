@@ -1,6 +1,5 @@
 import {
   FRAME_STYLE,
-  DEFAULT_FONT_FAMILY,
   MAX_DECIMALS_FOR_SVG_EXPORT,
   SVG_NS,
   THEME,
@@ -44,6 +43,8 @@ import {
   getShelfLifeBadgeForElement,
   SHELF_LIFE_PAPER,
   SHELF_LIFE_FOLD,
+  SHELF_LIFE_BADGE_FONT,
+  getShelfLifePaperAlpha,
   getLineToneMarkerGeometry,
   getLineTonePathAnchor,
   getLineToneRenderElement,
@@ -177,66 +178,92 @@ const renderElementToSvg = (
         element.y + renderConfig.offsetY
       }) rotate(${degree} ${element.width / 2} ${element.height / 2})`,
     );
+    const doc = svgRoot.ownerDocument;
+    const geometry = getShelfLifeGeometry(element);
+    const clip = doc.createElementNS(SVG_NS, "clipPath");
+    clip.id = `shelf-life-${element.id}`;
+    const outline = doc.createElementNS(SVG_NS, "path");
+    outline.setAttribute("d", geometry.outline);
+    clip.appendChild(outline);
+    overlay.appendChild(clip);
     if (expired) {
-      const geometry = getShelfLifeGeometry(element);
-      const clip = svgRoot.ownerDocument.createElementNS(SVG_NS, "clipPath");
-      clip.id = `shelf-life-${element.id}`;
-      const outline = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
-      outline.setAttribute("d", geometry.outline);
-      clip.appendChild(outline);
       const paper = outline.cloneNode(true) as SVGElement;
       paper.setAttribute("fill", SHELF_LIFE_PAPER);
-      paper.setAttribute("opacity", `${opacity * 0.16}`);
-      overlay.append(clip, paper);
-      if (geometry.size >= 2) {
-        const fold = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
+      paper.setAttribute(
+        "opacity",
+        `${opacity * getShelfLifePaperAlpha(renderConfig.theme)}`,
+      );
+      overlay.appendChild(paper);
+      if (geometry.size >= 4) {
+        const fold = doc.createElementNS(SVG_NS, "path");
         fold.setAttribute("d", geometry.fold);
         fold.setAttribute("fill", SHELF_LIFE_FOLD);
-        fold.setAttribute("opacity", `${opacity * 0.65}`);
+        fold.setAttribute("opacity", `${opacity * 0.85}`);
         fold.setAttribute("clip-path", `url(#${clip.id})`);
-        overlay.appendChild(fold);
+        const crease = doc.createElementNS(SVG_NS, "path");
+        crease.setAttribute("d", geometry.crease);
+        crease.setAttribute("fill", "none");
+        crease.setAttribute(
+          "stroke",
+          applyDarkModeFilter(
+            element.strokeColor || "#1e1e1e",
+            renderConfig.theme === THEME.DARK,
+          ),
+        );
+        crease.setAttribute(
+          "stroke-width",
+          `${Math.max(1, element.strokeWidth * 0.6)}`,
+        );
+        crease.setAttribute("stroke-linecap", "round");
+        crease.setAttribute("opacity", `${opacity}`);
+        overlay.append(fold, crease);
       }
     }
     if (badge) {
-      const { size, x, y, label, dueSoon, ink, accent } = badge;
-      const stroke = dueSoon ? accent : ink;
-      const radius = size / 2;
-      const clock = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
-      clock.setAttribute("data-shelf-life-badge", dueSoon ? "due" : "idle");
-      clock.setAttribute("fill", "none");
-      clock.setAttribute("stroke", stroke);
-      clock.setAttribute("stroke-width", `${Math.max(0.8, size / 12)}`);
-      clock.setAttribute("stroke-linecap", "round");
-      clock.setAttribute("opacity", `${opacity}`);
-      const circle = svgRoot.ownerDocument.createElementNS(SVG_NS, "circle");
-      circle.setAttribute("cx", `${x + radius}`);
-      circle.setAttribute("cy", `${y + radius}`);
-      circle.setAttribute("r", `${radius * 0.82}`);
-      const hands = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
-      hands.setAttribute(
-        "d",
-        `M ${x + radius} ${y + radius} V ${y + radius - radius * 0.48} M ${
-          x + radius
-        } ${y + radius} H ${x + radius + radius * 0.4}`,
+      const color = badge.dueSoon ? badge.accent : badge.ink;
+      const group = doc.createElementNS(SVG_NS, "g");
+      group.setAttribute(
+        "data-shelf-life-badge",
+        badge.dueSoon ? "due" : "idle",
       );
-      clock.append(circle, hands);
-      if (size >= 9) {
-        const text = svgRoot.ownerDocument.createElementNS(SVG_NS, "text");
-        text.textContent = label;
-        text.setAttribute("x", `${x + size + size * 0.3}`);
-        text.setAttribute("y", `${y + radius}`);
-        text.setAttribute(
-          "font-family",
-          getFontFamilyString({ fontFamily: DEFAULT_FONT_FAMILY }),
-        );
-        text.setAttribute("font-size", `${Math.round(size * 0.62)}px`);
-        text.setAttribute("fill", stroke);
-        text.setAttribute("stroke", "none");
-        text.setAttribute("text-anchor", "end");
-        text.setAttribute("dominant-baseline", "middle");
-        clock.appendChild(text);
+      group.setAttribute("opacity", `${opacity}`);
+      if (badge.clip) {
+        group.setAttribute("clip-path", `url(#${clip.id})`);
       }
-      overlay.appendChild(clock);
+      const pill = doc.createElementNS(SVG_NS, "path");
+      pill.setAttribute("d", badge.pill);
+      pill.setAttribute("fill", badge.fill);
+      pill.setAttribute("fill-opacity", "0.85");
+      pill.setAttribute("stroke", color);
+      pill.setAttribute("stroke-width", "1");
+      const { cx, cy, r } = badge.clock;
+      const clock = doc.createElementNS(SVG_NS, "path");
+      clock.setAttribute(
+        "d",
+        `M ${cx + r} ${cy} A ${r} ${r} 0 1 0 ${
+          cx - r
+        } ${cy} A ${r} ${r} 0 1 0 ${cx + r} ${cy} M ${cx} ${cy} V ${
+          cy - r * 0.6
+        } M ${cx} ${cy} H ${cx + r * 0.5}`,
+      );
+      clock.setAttribute("fill", "none");
+      clock.setAttribute("stroke", color);
+      clock.setAttribute("stroke-width", `${Math.max(1, badge.fontSize / 10)}`);
+      clock.setAttribute("stroke-linecap", "round");
+      group.append(pill, clock);
+      if (badge.label) {
+        const text = doc.createElementNS(SVG_NS, "text");
+        text.textContent = badge.label;
+        text.setAttribute("x", `${badge.textX}`);
+        text.setAttribute("y", `${badge.textY}`);
+        text.setAttribute("font-family", SHELF_LIFE_BADGE_FONT);
+        text.setAttribute("font-size", `${badge.fontSize}px`);
+        text.setAttribute("fill", color);
+        text.setAttribute("text-anchor", "middle");
+        text.setAttribute("dominant-baseline", "central");
+        group.appendChild(text);
+      }
+      overlay.appendChild(group);
     }
     root.appendChild(
       maybeWrapNodesInFrameClipPath(

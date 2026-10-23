@@ -1833,13 +1833,18 @@
       "remove": "移除保質期",
       "permanent": "永久（無保質期）",
       "mixed": "多個保質期",
-      "selection": "已選取 {{count}} 張支援且未鎖定的便箋",
+      "selection": "已選取 {{count}} 張便籤",
       "inheritance": "綁定文字隨容器生效。不支援的類型和鎖定元素將被略過。",
       "expired": "已過期 {{count}} 張，可清理",
       "locked": "另有 {{count}} 張已鎖定，未清理",
       "tear": "撕掉所有過期便箋",
       "confirm": "撕掉全畫布 {{count}} 張未鎖定的過期便箋（包含視口外）？此操作可復原。",
-      "done": "已撕掉 {{count}} 張，可復原。"
+      "done": "已撕掉 {{count}} 張，可復原。",
+      "setTitle": "設定保存期限",
+      "cleanupTitle": "清理",
+      "noSelection": "先在畫布上選取要設定保存期限的便籤。",
+      "untilDay": "保存到 {{date}} 結束",
+      "untilTime": "保存到 {{date}}"
     },
     "synesthesia": {
       "title": "通感畫布",
@@ -1858,7 +1863,7 @@
       "stop": "停止並加入白板",
       "retry": "重試插入",
       "privacy": "聲音僅在本機處理。結束後的作品才會加入白板並同步給協作成員。",
-      "completed": "作品已加入白板；靜音工作階段不新增元素。",
+      "completed": "作品已加入白板，復原一次即可整體移除。",
       "interrupted": "頁面或裝置中斷，已停止並保留作品。",
       "permission": "麥克風權限遭拒，請在瀏覽器設定中允許後重試。",
       "unsupported": "目前瀏覽器需要安全的麥克風存取和 Web Audio 支援。",
@@ -1867,7 +1872,8 @@
       "audioError": "無法啟動音訊，請檢查裝置或檔案後重試。",
       "timeLimit": "已達五分鐘上限，作品已保留。",
       "elementLimit": "已達 600 個元素上限，作品已保留。",
-      "commitError": "作品插入失敗，請在關閉前重試。"
+      "commitError": "作品插入失敗，請在關閉前重試。",
+      "empty": "聲音太小，沒有畫出內容，未新增任何元素。"
     }
   }
 }

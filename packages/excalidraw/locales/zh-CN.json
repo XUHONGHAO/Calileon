@@ -2216,13 +2216,18 @@
       "remove": "移除保质期",
       "permanent": "永久（无保质期）",
       "mixed": "多个保质期",
-      "selection": "已选中 {{count}} 张支持且未锁定的便签",
+      "selection": "已选中 {{count}} 张便签",
       "inheritance": "绑定文字随容器生效。不支持的类型和锁定元素将被跳过。",
       "expired": "已过期 {{count}} 张，可清理",
       "locked": "另有 {{count}} 张已锁定，未清理",
       "tear": "撕掉所有过期便签",
       "confirm": "撕掉全画布 {{count}} 张未锁定的过期便签（包含视口外）？此操作可撤销。",
-      "done": "已撕掉 {{count}} 张，可撤销。"
+      "done": "已撕掉 {{count}} 张，可撤销。",
+      "setTitle": "设置保质期",
+      "cleanupTitle": "清理",
+      "noSelection": "先在画布上选中要设保质期的便签。",
+      "untilDay": "保质到 {{date}} 结束",
+      "untilTime": "保质到 {{date}}"
     },
     "synesthesia": {
       "title": "通感画布",
@@ -2241,7 +2246,7 @@
       "stop": "停止并加入白板",
       "retry": "重试插入",
       "privacy": "声音只在本机处理。结束后的作品才会加入白板并同步给协作成员。",
-      "completed": "作品已加入白板；静音会话不添加元素。",
+      "completed": "作品已加入白板，撤销一次即可整体移除。",
       "interrupted": "页面或设备中断，已停止并保留已有作品。",
       "permission": "麦克风权限被拒绝，请在浏览器设置中允许后重试。",
       "unsupported": "当前浏览器需要安全的麦克风访问和 Web Audio 支持。",
@@ -2250,7 +2255,8 @@
       "audioError": "无法启动音频，请检查设备或文件后重试。",
       "timeLimit": "已达五分钟上限，作品已保留。",
       "elementLimit": "已达 600 个元素上限，作品已保留。",
-      "commitError": "作品插入失败，请在关闭前重试。"
+      "commitError": "作品插入失败，请在关闭前重试。",
+      "empty": "声音太小，没有画出内容，未添加任何元素。"
     }
   }
 }

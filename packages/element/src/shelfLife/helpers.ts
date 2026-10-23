@@ -74,7 +74,9 @@ export const getShelfLifeBadge = (
   if (remaining <= 0) {
     return null;
   }
-  const deadline = new Date(data.expiresAt);
+  // "Today", "this week" and picked dates end at the next local midnight, so
+  // label the last day the note is still good, not the day it flips.
+  const deadline = new Date(data.expiresAt - 1);
   return {
     dueSoon: remaining <= SHELF_LIFE_DAY,
     label: `${deadline.getMonth() + 1}/${deadline.getDate()}`,
