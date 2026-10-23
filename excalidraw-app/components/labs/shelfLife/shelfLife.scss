@@ -5,9 +5,64 @@
   min-width: 0;
   color: var(--ui-text);
   font-size: var(--ui-font-sm);
+  outline: none;
   p {
     margin: 0;
     overflow-wrap: anywhere;
+  }
+  &__intro,
+  &__hint {
+    color: var(--ui-text-secondary);
+    line-height: var(--ui-line-normal);
+  }
+  &__hint {
+    font-size: var(--ui-font-xs);
+  }
+  &__section {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ui-space-2);
+    min-width: 0;
+    & + & {
+      padding-top: var(--ui-space-3);
+      border-top: 1px solid var(--ui-border);
+    }
+    > .UiButton {
+      align-self: flex-start;
+    }
+  }
+  &__heading {
+    margin: 0;
+    font-size: var(--ui-font-sm);
+    font-weight: 600;
+    color: var(--ui-text);
+  }
+  &__switch {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--ui-space-2);
+    cursor: pointer;
+    input {
+      flex: 0 0 auto;
+      width: 1rem;
+      height: 1rem;
+      margin: 0.125rem 0 0;
+      accent-color: var(--color-primary);
+      cursor: pointer;
+    }
+    > span {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ui-space-0_5);
+      min-width: 0;
+    }
+  }
+  &__switchLabel {
+    font-weight: var(--ui-weight-medium);
+  }
+  &__status strong {
+    font-weight: 600;
   }
   &__presets {
     display: flex;
@@ -40,5 +95,522 @@
 @media (prefers-reduced-motion: reduce) {
   .shelf-life__scraps {
     animation: none;
+  }
+}
+
+// Deadline picker. The popup is portalled to the editor root, so it is a
+// top-level block (still inside `.excalidraw`, where the tokens live).
+.excalidraw {
+  .shelf-life-picker__trigger {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    text-align: start;
+    cursor: pointer;
+    &--empty .shelf-life-picker__triggerText {
+      color: var(--ui-text-secondary);
+    }
+    &[aria-expanded="true"] {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 1px var(--color-primary);
+    }
+  }
+  .shelf-life-picker__triggerIcon {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 1.125rem;
+    height: 1.125rem;
+    color: var(--ui-text-secondary);
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+  .shelf-life-picker__triggerText {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .shelf-life-picker {
+    position: fixed;
+    z-index: var(--zIndex-popup);
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1_5);
+    box-sizing: border-box;
+    width: min(31rem, calc(100vw - 1rem));
+    max-height: calc(100vh - 1rem);
+    overflow-y: auto;
+    padding: var(--ui-space-3);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface);
+    box-shadow: var(--shadow-island);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+    font-size: var(--ui-font-sm);
+
+    // Calendar | time side by side: the time column changes, the popup's
+    // height does not. Narrow screens stack them.
+    &__body {
+      display: grid;
+      grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+      gap: var(--ui-space-3);
+    }
+    &__calendar {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ui-space-1_5);
+      min-width: 0;
+    }
+    &__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--ui-space-2);
+    }
+    &__month {
+      font-weight: var(--ui-weight-semibold);
+    }
+    &__weekdays,
+    &__grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: var(--ui-space-0_5);
+    }
+    &__weekdays span {
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-xs);
+      line-height: 1.5rem;
+      text-align: center;
+    }
+    &__day {
+      box-sizing: border-box;
+      height: 2rem;
+      margin: 0;
+      padding: 0;
+      border: 1px solid transparent;
+      border-radius: var(--ui-radius-md);
+      background: transparent;
+      color: var(--ui-text);
+      font-family: inherit;
+      font-size: var(--ui-font-sm);
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      &:hover:not(:disabled) {
+        background: var(--ui-surface-sunken);
+      }
+      &:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 2px var(--focus-ring-color);
+      }
+      &--outside {
+        color: var(--ui-text-secondary);
+      }
+      &--today {
+        border-color: var(--color-primary);
+        font-weight: var(--ui-weight-semibold);
+      }
+      &--selected,
+      &--selected:hover:not(:disabled) {
+        border-color: var(--color-primary);
+        background: var(--color-primary);
+        color: var(--ui-surface);
+        font-weight: var(--ui-weight-semibold);
+      }
+      &--selected:focus-visible {
+        box-shadow: 0 0 0 2px var(--ui-surface),
+          0 0 0 4px var(--focus-ring-color);
+      }
+      &:disabled {
+        color: var(--ui-text-disabled);
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+    }
+
+    &__time {
+      display: flex;
+      flex-direction: column;
+      gap: var(--ui-space-3);
+      min-width: 0;
+      padding-inline-start: var(--ui-space-3);
+      border-inline-start: 1px solid var(--ui-border);
+    }
+    &__clock {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--ui-space-3);
+    }
+    &__allDayHint {
+      margin: 0;
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-xs);
+      line-height: var(--ui-line-normal);
+    }
+    @media (max-width: 34rem) {
+      &__body {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      &__time {
+        padding-inline-start: 0;
+        padding-top: var(--ui-space-2);
+        border-inline-start: 0;
+        border-top: 1px solid var(--ui-border);
+      }
+      &__clock {
+        flex-direction: row;
+      }
+      // Reserve the clock's room so "End of day" keeps the same height.
+      &__time {
+        min-height: 9rem;
+      }
+    }
+    &__spins {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space-1);
+      font-size: var(--ui-font-lg);
+      font-weight: var(--ui-weight-semibold);
+    }
+    &__spin {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    &__spinInput {
+      box-sizing: border-box;
+      width: 2.75rem;
+      height: var(--ui-control-md);
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--ui-border-strong);
+      border-radius: var(--ui-radius-md);
+      background: var(--input-bg-color);
+      color: var(--ui-text);
+      font-family: inherit;
+      font-size: var(--ui-font-lg);
+      font-weight: var(--ui-weight-semibold);
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      &:focus-visible {
+        outline: none;
+        border-color: var(--color-primary);
+        box-shadow: 0 0 0 1px var(--color-primary);
+      }
+    }
+    &__step {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.75rem;
+      height: 1.125rem;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: var(--ui-radius-sm);
+      background: transparent;
+      color: var(--ui-text-secondary);
+      cursor: pointer;
+      svg {
+        width: 1rem;
+        height: 1rem;
+      }
+      &:hover {
+        background: var(--ui-surface-sunken);
+        color: var(--ui-text);
+      }
+    }
+    // A deliberate 2×2 beside the spinners (a 3+1 wrap looked broken).
+    &__quick {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--ui-space-1);
+      // Never stretch to the column height (rows drifted apart).
+      flex: 0 0 auto;
+      align-content: start;
+    }
+    &__chip {
+      height: var(--ui-control-sm);
+      margin: 0;
+      padding: 0 var(--ui-space-2);
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius-pill);
+      background: transparent;
+      color: var(--ui-text);
+      font-family: inherit;
+      font-size: var(--ui-font-xs);
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      &:hover {
+        background: var(--ui-surface-sunken);
+      }
+      &:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 2px var(--focus-ring-color);
+      }
+      &--active,
+      &--active:hover {
+        border-color: var(--color-primary);
+        background: var(--color-primary-light);
+        color: var(--color-on-primary-container);
+      }
+    }
+
+    &__footer {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space-2);
+      padding-top: var(--ui-space-2);
+      border-top: 1px solid var(--ui-border);
+    }
+    &__summary {
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-xs);
+      line-height: var(--ui-line-tight);
+      overflow-wrap: anywhere;
+      &--past {
+        padding: var(--ui-space-1) var(--ui-space-2);
+        border-radius: var(--ui-radius-sm);
+        background: var(--ui-warning-bg);
+        color: var(--ui-warning-fg);
+      }
+    }
+    &__actions {
+      display: flex;
+      flex: 0 0 auto;
+      gap: var(--ui-space-1);
+    }
+  }
+}
+
+// Floating row in the footer: centered on the canvas (like the toolbar
+// above), level with the zoom/undo islands, never overlapping them.
+.excalidraw {
+  .shelf-life-strip {
+    --shelf-life-strip-h: var(--lg-button-size, 2.25rem);
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-1);
+    box-sizing: border-box;
+    height: var(--shelf-life-strip-h);
+    // Leave the zoom/undo group (left) and help button (right) free.
+    max-width: calc(100% - 2 * 19rem);
+    padding: var(--ui-space-0_5);
+    border-radius: var(--border-radius-lg);
+    background: var(--island-bg-color);
+    box-shadow: var(--shadow-island);
+    font-family: var(--ui-font);
+    pointer-events: var(--ui-pointerEvents);
+
+    &__toggle {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      gap: var(--ui-space-1);
+      box-sizing: border-box;
+      min-width: calc(var(--shelf-life-strip-h) - 0.25rem);
+      height: calc(var(--shelf-life-strip-h) - 0.25rem);
+      margin: 0;
+      padding: 0 var(--ui-space-1_5);
+      border: 0;
+      border-radius: var(--border-radius-md);
+      background: transparent;
+      color: var(--ui-text-secondary);
+      font-family: inherit;
+      cursor: pointer;
+      &:hover {
+        background: var(--button-hover-bg);
+        color: var(--ui-text);
+      }
+      &:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 2px var(--focus-ring-color);
+      }
+    }
+    // Show/hide the canvas visuals; sits at the far end, after a divider.
+    &__visuals {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      width: calc(var(--shelf-life-strip-h) - 0.25rem);
+      height: calc(var(--shelf-life-strip-h) - 0.25rem);
+      margin: 0;
+      margin-inline-start: var(--ui-space-0_5);
+      padding: 0;
+      border: 0;
+      border-radius: var(--border-radius-md);
+      background: transparent;
+      color: var(--ui-text-secondary);
+      cursor: pointer;
+      position: relative;
+      &::before {
+        content: "";
+        position: absolute;
+        inset-inline-start: calc(-1 * var(--ui-space-0_5) - 0.5px);
+        top: 20%;
+        bottom: 20%;
+        border-inline-start: 1px solid var(--ui-border);
+      }
+      &:hover {
+        background: var(--button-hover-bg);
+        color: var(--ui-text);
+      }
+      &:focus-visible {
+        outline: none;
+        box-shadow: inset 0 0 0 2px var(--focus-ring-color);
+      }
+      // Off reads as "muted", like a disabled layer in a layers panel.
+      &--off {
+        color: var(--ui-text-disabled);
+      }
+    }
+    &__toggleIcon {
+      display: inline-flex;
+      width: 1.125rem;
+      height: 1.125rem;
+      svg {
+        width: 100%;
+        height: 100%;
+      }
+    }
+    &__count {
+      min-width: 1.125rem;
+      padding: 0 var(--ui-space-1);
+      border-radius: var(--ui-radius-pill);
+      background: var(--ui-surface-sunken);
+      color: var(--ui-text);
+      font-size: var(--ui-font-xs);
+      font-weight: var(--ui-weight-semibold);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.125rem;
+      &--attention {
+        background: var(--color-primary);
+        color: var(--brand-on-gradient, #fff);
+      }
+    }
+
+    &__list {
+      display: flex;
+      align-items: center;
+      gap: var(--ui-space-1);
+      min-width: 0;
+      height: 100%;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      padding-inline-start: var(--ui-space-1);
+      border-inline-start: 1px solid var(--ui-border);
+      &::-webkit-scrollbar {
+        display: none;
+      }
+      // Soft edges hint that more chips scroll into view.
+      &[data-fade-end] {
+        mask-image: linear-gradient(
+          to right,
+          #000 calc(100% - 2rem),
+          transparent
+        );
+      }
+      &[data-fade-start] {
+        mask-image: linear-gradient(to right, transparent, #000 2rem);
+      }
+      &[data-fade-start][data-fade-end] {
+        mask-image: linear-gradient(
+          to right,
+          transparent,
+          #000 2rem,
+          #000 calc(100% - 2rem),
+          transparent
+        );
+      }
+    }
+
+    &__chip {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: var(--ui-space-1_5);
+      box-sizing: border-box;
+      max-width: 15rem;
+      height: calc(var(--shelf-life-strip-h) - 0.5rem);
+      margin: 0;
+      padding: 0 var(--ui-space-2);
+      border: 1px solid var(--ui-border);
+      border-radius: var(--ui-radius-pill);
+      background: var(--ui-surface);
+      color: var(--ui-text);
+      font-family: inherit;
+      font-size: var(--ui-font-xs);
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background var(--ui-transition-fast),
+        border-color var(--ui-transition-fast);
+      &:hover {
+        border-color: var(--ui-border-strong);
+        background: var(--ui-surface-sunken);
+      }
+      &:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 2px var(--focus-ring-color);
+      }
+      // Same teal as the canvas selection: chip and note read as one.
+      &--selected,
+      &--selected:hover {
+        border-color: var(--color-selection);
+        background: color-mix(in srgb, var(--color-selection) 12%, transparent);
+      }
+    }
+    &__dot {
+      flex: 0 0 auto;
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--ui-text-disabled);
+    }
+    // Spelled out: a second `&` would repeat the whole `.excalidraw ...` chain.
+    .shelf-life-strip__chip--due .shelf-life-strip__dot {
+      background: var(--color-primary);
+    }
+    .shelf-life-strip__chip--expired .shelf-life-strip__dot {
+      background: var(--ui-warning-border);
+    }
+    &__name {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: var(--ui-weight-medium);
+    }
+    &__time {
+      flex: 0 0 auto;
+      color: var(--ui-text-secondary);
+      font-variant-numeric: tabular-nums;
+    }
+    .shelf-life-strip__chip--due .shelf-life-strip__time {
+      color: var(--color-primary);
+    }
+    .shelf-life-strip__chip--expired .shelf-life-strip__time {
+      color: var(--ui-warning-fg);
+    }
+  }
+  // Narrow windows: no room between the islands, so float one row higher.
+  @media (max-width: 60rem) {
+    .shelf-life-strip {
+      bottom: calc(var(--shelf-life-strip-h) + var(--ui-space-2));
+      max-width: calc(100% - 2rem);
+    }
   }
 }

@@ -132,7 +132,13 @@ export const SynesthesiaDialog = ({
         submit();
         if (mounted.current) {
           setBusy(false);
-          setMessage(pending.current.length ? "commitError" : reason);
+          setMessage(
+            pending.current.length
+              ? "commitError"
+              : reason === "completed" && !elements.length
+              ? "empty"
+              : reason,
+          );
         }
       },
     });
@@ -148,7 +154,7 @@ export const SynesthesiaDialog = ({
   return (
     <Dialog title={text("title")} onCloseRequest={close} size="wide">
       <div className="SynesthesiaDialog">
-        <Callout>{text("privacy")}</Callout>
+        <Callout live={false}>{text("privacy")}</Callout>
         <SegmentedControl
           label={text("source")}
           value={source}

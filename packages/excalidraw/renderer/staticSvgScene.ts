@@ -1,6 +1,5 @@
 import {
   FRAME_STYLE,
-  DEFAULT_FONT_FAMILY,
   MAX_DECIMALS_FOR_SVG_EXPORT,
   SVG_NS,
   THEME,
@@ -41,9 +40,9 @@ import {
   getElementShelfLifeState,
   getShelfLifeRoot,
   getShelfLifeGeometry,
-  getShelfLifeBadgeForElement,
   SHELF_LIFE_PAPER,
   SHELF_LIFE_FOLD,
+  getShelfLifePaperAlpha,
   getLineToneMarkerGeometry,
   getLineTonePathAnchor,
   getLineToneRenderElement,
@@ -157,86 +156,56 @@ const renderElementToSvg = (
     ) {
       return;
     }
-    const expired = getElementShelfLifeState(element, elementsMap, now).expired;
-    const badge = expired
-      ? null
-      : getShelfLifeBadgeForElement(
-          element,
-          elementsMap,
-          renderConfig.theme,
-          now,
-        );
-    if (!expired && !badge) {
+    if (!getElementShelfLifeState(element, elementsMap, now).expired) {
+      // The deadline badge is editor UI (selected notes only), never exported.
       return;
     }
     const overlay = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
-    overlay.setAttribute("data-shelf-life", expired ? "expired" : "badge");
+    overlay.setAttribute("data-shelf-life", "expired");
     overlay.setAttribute(
       "transform",
       `translate(${element.x + renderConfig.offsetX} ${
         element.y + renderConfig.offsetY
       }) rotate(${degree} ${element.width / 2} ${element.height / 2})`,
     );
-    if (expired) {
-      const geometry = getShelfLifeGeometry(element);
-      const clip = svgRoot.ownerDocument.createElementNS(SVG_NS, "clipPath");
-      clip.id = `shelf-life-${element.id}`;
-      const outline = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
-      outline.setAttribute("d", geometry.outline);
-      clip.appendChild(outline);
-      const paper = outline.cloneNode(true) as SVGElement;
-      paper.setAttribute("fill", SHELF_LIFE_PAPER);
-      paper.setAttribute("opacity", `${opacity * 0.16}`);
-      overlay.append(clip, paper);
-      if (geometry.size >= 2) {
-        const fold = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
-        fold.setAttribute("d", geometry.fold);
-        fold.setAttribute("fill", SHELF_LIFE_FOLD);
-        fold.setAttribute("opacity", `${opacity * 0.65}`);
-        fold.setAttribute("clip-path", `url(#${clip.id})`);
-        overlay.appendChild(fold);
-      }
-    }
-    if (badge) {
-      const { size, x, y, label, dueSoon, ink, accent } = badge;
-      const stroke = dueSoon ? accent : ink;
-      const radius = size / 2;
-      const clock = svgRoot.ownerDocument.createElementNS(SVG_NS, "g");
-      clock.setAttribute("data-shelf-life-badge", dueSoon ? "due" : "idle");
-      clock.setAttribute("fill", "none");
-      clock.setAttribute("stroke", stroke);
-      clock.setAttribute("stroke-width", `${Math.max(0.8, size / 12)}`);
-      clock.setAttribute("stroke-linecap", "round");
-      clock.setAttribute("opacity", `${opacity}`);
-      const circle = svgRoot.ownerDocument.createElementNS(SVG_NS, "circle");
-      circle.setAttribute("cx", `${x + radius}`);
-      circle.setAttribute("cy", `${y + radius}`);
-      circle.setAttribute("r", `${radius * 0.82}`);
-      const hands = svgRoot.ownerDocument.createElementNS(SVG_NS, "path");
-      hands.setAttribute(
-        "d",
-        `M ${x + radius} ${y + radius} V ${y + radius - radius * 0.48} M ${
-          x + radius
-        } ${y + radius} H ${x + radius + radius * 0.4}`,
+    const doc = svgRoot.ownerDocument;
+    const geometry = getShelfLifeGeometry(element);
+    const clip = doc.createElementNS(SVG_NS, "clipPath");
+    clip.id = `shelf-life-${element.id}`;
+    const outline = doc.createElementNS(SVG_NS, "path");
+    outline.setAttribute("d", geometry.outline);
+    clip.appendChild(outline);
+    overlay.appendChild(clip);
+    const paper = outline.cloneNode(true) as SVGElement;
+    paper.setAttribute("fill", SHELF_LIFE_PAPER);
+    paper.setAttribute(
+      "opacity",
+      `${opacity * getShelfLifePaperAlpha(renderConfig.theme)}`,
+    );
+    overlay.appendChild(paper);
+    if (geometry.size >= 4) {
+      const fold = doc.createElementNS(SVG_NS, "path");
+      fold.setAttribute("d", geometry.fold);
+      fold.setAttribute("fill", SHELF_LIFE_FOLD);
+      fold.setAttribute("opacity", `${opacity * 0.85}`);
+      fold.setAttribute("clip-path", `url(#${clip.id})`);
+      const crease = doc.createElementNS(SVG_NS, "path");
+      crease.setAttribute("d", geometry.crease);
+      crease.setAttribute("fill", "none");
+      crease.setAttribute(
+        "stroke",
+        applyDarkModeFilter(
+          element.strokeColor || "#1e1e1e",
+          renderConfig.theme === THEME.DARK,
+        ),
       );
-      clock.append(circle, hands);
-      if (size >= 9) {
-        const text = svgRoot.ownerDocument.createElementNS(SVG_NS, "text");
-        text.textContent = label;
-        text.setAttribute("x", `${x + size + size * 0.3}`);
-        text.setAttribute("y", `${y + radius}`);
-        text.setAttribute(
-          "font-family",
-          getFontFamilyString({ fontFamily: DEFAULT_FONT_FAMILY }),
-        );
-        text.setAttribute("font-size", `${Math.round(size * 0.62)}px`);
-        text.setAttribute("fill", stroke);
-        text.setAttribute("stroke", "none");
-        text.setAttribute("text-anchor", "end");
-        text.setAttribute("dominant-baseline", "middle");
-        clock.appendChild(text);
-      }
-      overlay.appendChild(clock);
+      crease.setAttribute(
+        "stroke-width",
+        `${Math.max(1, element.strokeWidth * 0.6)}`,
+      );
+      crease.setAttribute("stroke-linecap", "round");
+      crease.setAttribute("opacity", `${opacity}`);
+      overlay.append(fold, crease);
     }
     root.appendChild(
       maybeWrapNodesInFrameClipPath(

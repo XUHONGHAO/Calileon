@@ -16,11 +16,13 @@
     align-items: center;
     gap: var(--ui-space-2);
     white-space: normal;
-  }
-  svg {
-    width: var(--ui-control-sm);
-    height: var(--ui-control-sm);
-    flex-shrink: 0;
+    // Only the style icons; a bare `svg` rule also stretched the Callout and
+    // the nested editor's icons.
+    svg {
+      width: 1.125rem;
+      height: 1.125rem;
+      flex-shrink: 0;
+    }
   }
   &__preview {
     height: min(35vh, 20rem);
@@ -29,9 +31,15 @@
     border-radius: var(--ui-radius-md);
     overflow: hidden;
   }
+  // The preview is a read-only nested editor: hide all of its chrome (menu
+  // trigger, "exit view mode", footer), leaving only the canvas.
   &__preview .App-menu,
-  &__preview .layer-ui__wrapper {
-    display: none;
+  &__preview .layer-ui__wrapper,
+  &__preview .FixedSideContainer,
+  &__preview .App-toolbar-content,
+  &__preview .layer-ui__wrapper__footer,
+  &__preview .disable-view-mode {
+    display: none !important;
   }
   meter {
     max-width: 100%;

@@ -44,7 +44,11 @@ import {
   getActiveTextElement,
 } from "@excalidraw/element";
 
-import { renderSelectionElement } from "@excalidraw/element";
+import {
+  getShelfLifeRoot,
+  renderSelectionElement,
+  renderShelfLifeBadge,
+} from "@excalidraw/element";
 
 import {
   getElementsInGroup,
@@ -1757,6 +1761,31 @@ const _renderInteractiveScene = ({
         type: "end",
       });
     }
+  }
+
+  // Shelf Life deadlines are shown on selected notes only (never exported).
+  // Drawn before the transform handles so the rotation handle stays on top.
+  if (selectedElements.length && !appState.editingTextElement) {
+    const roots = new Set<ExcalidrawElement>();
+    for (const element of selectedElements) {
+      const root = getShelfLifeRoot(element, allElementsMap);
+      if (root) {
+        roots.add(root);
+      }
+    }
+    const now = Date.now();
+    roots.forEach((root) =>
+      renderShelfLifeBadge(
+        root,
+        allElementsMap,
+        context,
+        appState.scrollX,
+        appState.scrollY,
+        now,
+        appState.zoom.value,
+        renderConfig.selectionColor,
+      ),
+    );
   }
 
   // Paint selected elements

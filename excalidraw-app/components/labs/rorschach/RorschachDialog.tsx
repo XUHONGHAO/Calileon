@@ -113,6 +113,17 @@ export const RorschachDialog = ({
   const [insertNotice, setInsertNotice] = useState("");
   const [needsSettings, setNeedsSettings] = useState<SettingsIssue>(null);
   const runnerRef = useRef<RorschachRunner | null>(null);
+  const activePersonaRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    // Wait a frame: the closing main menu restores focus on its way out.
+    const frame = requestAnimationFrame(() =>
+      activePersonaRef.current?.focus({ preventScroll: true }),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
   const [busy, setBusy] = useState(false);
   /** Guards against a double click inserting the same result twice. */
   const [inserting, setInserting] = useState(false);
@@ -345,11 +356,14 @@ export const RorschachDialog = ({
           <span className="RorschachDialog__titleIcon" aria-hidden="true">
             {RorschachIcon}
           </span>
-          {t("labs.rorschach.dialogTitle")}
+          {t("labs.rorschach.title")}
         </span>
       }
       size="regular"
       onCloseRequest={onClose}
+      // Dialog focuses its 2nd focusable (assuming a close button), which
+      // lit up the 2nd persona as if selected. Focus the active one instead.
+      autofocus={false}
     >
       <div className="Rorschach" aria-label={t("labs.rorschach.title")}>
         <p className="Rorschach__intro">{t("labs.rorschach.intro")}</p>
@@ -371,6 +385,7 @@ export const RorschachDialog = ({
                 type="button"
                 className={`Rorschach__persona${active ? " is-active" : ""}`}
                 aria-pressed={active}
+                ref={active ? activePersonaRef : undefined}
                 disabled={running}
                 onClick={() => setPersonaId(item.id)}
               >

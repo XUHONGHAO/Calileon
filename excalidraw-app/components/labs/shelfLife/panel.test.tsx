@@ -5,6 +5,7 @@ import {
   render,
   screen,
   fireEvent,
+  within,
 } from "@excalidraw/excalidraw/tests/test-utils";
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 import { Keyboard } from "@excalidraw/excalidraw/tests/helpers/ui";
@@ -153,14 +154,31 @@ it("warns about past dates and reports locked notes separately", async () => {
       captureUpdate: CaptureUpdateAction.IMMEDIATELY,
     }),
   );
-  fireEvent.change(screen.getByLabelText(t("labs.shelfLife.customDate")), {
-    target: { value: "2020-01-01" },
+  // Today at 00:00 is already gone: the picker warns before it applies.
+  fireEvent.click(screen.getByLabelText(t("labs.shelfLife.customDate")));
+  const picker = screen.getByRole("dialog", {
+    name: t("labs.shelfLife.pickerTitle"),
   });
-  expect(screen.getByText(t("labs.shelfLife.immediate"))).toBeInTheDocument();
+  fireEvent.click(
+    within(picker).getByRole("radio", { name: t("labs.shelfLife.atTime") }),
+  );
+  for (const name of [t("labs.shelfLife.hour"), t("labs.shelfLife.minute")]) {
+    const spin = within(picker).getByRole("spinbutton", { name });
+    fireEvent.change(spin, { target: { value: "0" } });
+    fireEvent.blur(spin);
+  }
+  expect(
+    within(picker).getByText(t("labs.shelfLife.immediate")),
+  ).toBeInTheDocument();
   expect(
     screen.getByText(t("labs.shelfLife.locked", { count: 1 })),
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByText(t("labs.shelfLife.apply")));
+  fireEvent.click(
+    within(picker).getByRole("button", { name: t("labs.shelfLife.apply") }),
+  );
+  expect(
+    screen.queryByRole("dialog", { name: t("labs.shelfLife.pickerTitle") }),
+  ).toBeNull();
   expect(
     api.getSceneElements().find((el) => el.id === root.id)?.customData
       ?.shelfLife,

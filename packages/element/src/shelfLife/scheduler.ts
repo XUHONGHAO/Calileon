@@ -2,6 +2,7 @@ import {
   getShelfLifeData,
   getShelfLifeRoot,
   getShelfLifeVisualState,
+  SHELF_LIFE_DAY,
 } from "./helpers";
 
 import type { ExcalidrawElement } from "../types";
@@ -27,8 +28,12 @@ export const createShelfLifeScheduler = ({
   const snapshot = () =>
     tracked
       .map((el) => {
-        const state = getShelfLifeVisualState(getShelfLifeData(el), now());
-        return `${el.id}:${state.expired}:${state.opacity}`;
+        const data = getShelfLifeData(el);
+        const at = now();
+        const state = getShelfLifeVisualState(data, at);
+        // Entering the last day flips the selected badge to the accent color.
+        const dueSoon = !!data && data.expiresAt - at <= SHELF_LIFE_DAY;
+        return `${el.id}:${state.expired}:${state.opacity}:${dueSoon}`;
       })
       .join("|");
   const check = () => {
