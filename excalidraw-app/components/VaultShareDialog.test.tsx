@@ -1,10 +1,11 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import React from "react";
-import { vi } from "vitest";
+import { afterEach, vi } from "vitest";
 
 import { VaultError } from "../data/vault/errors";
 
 import { VaultShareDialog } from "./VaultShareDialog";
+import { chooseSelectOption } from "./ui/testing";
 
 const vaultMock = vi.hoisted(() => ({
   createInvitation: vi.fn(),
@@ -62,6 +63,10 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
         "vault.share.revoke": "Revoke",
         "vault.share.revoking": "Revoking...",
         "vault.share.revoked": "Revoked",
+        "vault.share.revokeConfirm": "Revoke this invitation?",
+        "vault.share.revokeConfirmTitle": "Revoke invitation",
+        "vault.share.createdCopyFailed":
+          "Invitation created but not copied. Use Copy link below.",
         "vault.share.errors.ownerRequired": "Only the owner can share.",
         "vault.share.errors.expired": "Access expired.",
         "vault.share.errors.revoked": "Access revoked.",
@@ -94,6 +99,11 @@ describe("VaultShareDialog", () => {
       configurable: true,
       value: { writeText: vi.fn().mockResolvedValue(undefined) },
     });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it("renders nothing while closed", () => {
@@ -178,12 +188,9 @@ describe("VaultShareDialog", () => {
       />,
     );
 
-    fireEvent.change(
-      screen.getByRole("combobox", { name: "Invitation role" }),
-      {
-        target: { value: "editor" },
-      },
-    );
+    const role = screen.getByRole("combobox", { name: "Invitation role" });
+    chooseSelectOption(role, "Editor");
+    expect(role).toHaveAttribute("data-value", "editor");
     fireEvent.click(
       screen.getByRole("button", { name: "Create and copy link" }),
     );
@@ -248,6 +255,78 @@ describe("VaultShareDialog", () => {
     expect(await screen.findAllByText("Revoked")).toHaveLength(2);
     expect(share.revokeInvitation).toHaveBeenCalledWith(invitationId);
     expect(vaultMock.revokeInvitation).not.toHaveBeenCalled();
+  });
+
+  it("asks before revoking and keeps the invitation when cancelled", async () => {
+    vaultMock.createInvitation.mockResolvedValue({
+      link: bearerLink,
+      metadata: {
+        vaultId: activeVault.session.vaultId,
+        invitationId,
+        role: "viewer",
+        authorizationVersion: 1,
+        expiresAt: null,
+      },
+    });
+    vi.mocked(window.confirm).mockReturnValue(false);
+
+    render(
+      <VaultShareDialog
+        open={true}
+        onClose={vi.fn()}
+        activeVault={activeVault as never}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create and copy link" }),
+    );
+    await screen.findByText("Invitation created and copied.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
+
+    await waitFor(() =>
+      expect(window.confirm).toHaveBeenCalledWith("Revoke this invitation?"),
+    );
+    expect(vaultMock.revokeInvitation).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Revoke" })).not.toBeDisabled();
+  });
+
+  it("reports a clipboard failure after create as created, not as a failed create", async () => {
+    vaultMock.createInvitation.mockResolvedValue({
+      link: bearerLink,
+      metadata: {
+        vaultId: activeVault.session.vaultId,
+        invitationId,
+        role: "viewer",
+        authorizationVersion: 1,
+        expiresAt: null,
+      },
+    });
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(
+      new Error("denied"),
+    );
+
+    render(
+      <VaultShareDialog
+        open={true}
+        onClose={vi.fn()}
+        activeVault={activeVault as never}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create and copy link" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Invitation created but not copied. Use Copy link below.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Invitation action failed safely."),
+    ).not.toBeInTheDocument();
+    // The invitation is listed and can be copied again.
+    expect(screen.getByRole("button", { name: "Copy link" })).toBeEnabled();
   });
 
   it("does not create invitations for a v2 viewer target", () => {

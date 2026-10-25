@@ -1,4 +1,3 @@
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { getSelectedElements } from "@excalidraw/element";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -38,16 +37,21 @@ import {
   BUILTIN_MANY_MINDS_PERSPECTIVES,
   createCustomManyMindsPerspective,
   deleteCustomManyMindsPerspective,
+  getBuiltInManyMindsPerspectiveNameKey,
+  getDefaultManyMindsPerspectiveIds,
   loadCustomManyMindsPerspectives,
   saveCustomManyMindsPerspectives,
 } from "../ai/manyMindsPerspectives";
 import { ManyMindsScheduler } from "../ai/manyMindsScheduler";
+import { createAIOpenSettingsEvent } from "../ai/workflowEvents";
 import { createManyMindsBatch, createManyMindsId } from "../ai/manyMindsTypes";
 import { generateImagesWithOpenAIAdapter } from "../ai/openAIImageAdapter";
 
 import {
+  AppDialog,
   Badge,
   Callout,
+  confirmAction,
   DialogActions,
   Field,
   Select,
@@ -88,6 +92,13 @@ type Props = {
 
 const blobToPreviewURL = (blob: Blob) => URL.createObjectURL(blob);
 
+// Built-in names are persisted in English inside each task, so translate them
+// from the id at render time. Custom perspectives keep their own name.
+const getPerspectiveLabel = (perspective: ManyMindsPerspective) => {
+  const key = getBuiltInManyMindsPerspectiveNameKey(perspective.id);
+  return key ? t(key) : perspective.name;
+};
+
 export const ManyMindsDialog = ({
   open,
   onClose,
@@ -123,6 +134,9 @@ export const ManyMindsDialog = ({
   const [branchParentTaskId, setBranchParentTaskId] = useState<string | null>(
     null,
   );
+  const [isStarting, setIsStarting] = useState(false);
+  // Sync guard: two clicks can land before the `isStarting` render.
+  const startingRef = useRef(false);
   const schedulerRef = useRef<ManyMindsScheduler | null>(null);
   const previewURLsRef = useRef<string[]>([]);
 
@@ -130,15 +144,17 @@ export const ManyMindsDialog = ({
     () => [...BUILTIN_MANY_MINDS_PERSPECTIVES, ...customPerspectives],
     [customPerspectives],
   );
+  // Trigger text when the value matches nothing, and list text when empty.
+  const modelPlaceholder = imageModels.length
+    ? t("ai.workbench.selectModel")
+    : t("ai.workbench.noMediaModels", { mediaType: t("ai.common.image") });
 
   useEffect(() => {
     if (!open) {
       return;
     }
     setCustomPerspectives(loadCustomManyMindsPerspectives());
-    setPerspectiveIds(
-      BUILTIN_MANY_MINDS_PERSPECTIVES.slice(0, count).map((item) => item.id),
-    );
+    setPerspectiveIds(getDefaultManyMindsPerspectiveIds(count));
     setModelId((current) => current || imageModels[0]?.id || "");
   }, [count, imageModels, open]);
 
@@ -270,8 +286,8 @@ export const ManyMindsDialog = ({
               params: { ...task.params, n: 1 },
               baseURL: model.baseURL,
               responseSummary: signal.aborted
-                ? "Many Minds task cancelled"
-                : "Many Minds task failed",
+                ? t("ai.manyMinds.log.cancelled")
+                : t("ai.manyMinds.log.failed"),
               responseDetails: {
                 batchId: currentBatch.id,
                 taskId: task.id,
@@ -316,7 +332,7 @@ export const ManyMindsDialog = ({
             prompt: effectivePrompt,
             params: { ...task.params, n: 1 },
             baseURL: model.baseURL,
-            responseSummary: "Many Minds task succeeded",
+            responseSummary: t("ai.manyMinds.log.succeeded"),
             responseDetails: {
               batchId: currentBatch.id,
               taskId: task.id,
@@ -347,6 +363,13 @@ export const ManyMindsDialog = ({
 
   useEffect(() => {
     if (!open || !persistenceScopeId) {
+      return;
+    }
+    // The dialog stays mounted while closed, so its scheduler keeps running.
+    // Reopening must reuse it: rebuilding would abort the live (paid) tasks
+    // and hydrate() would mark them "interrupted by page refresh".
+    const live = schedulerRef.current?.getBatch();
+    if (live && live.persistenceScopeId === persistenceScopeId) {
       return;
     }
     let active = true;
@@ -459,7 +482,19 @@ export const ManyMindsDialog = ({
     prompt,
   ]);
 
+  const batchIsActive = batch?.status === "running";
+
   const startBatch = useCallback(async () => {
+    // A second click would build a new scheduler and dispose (abort) the
+    // running one, so ignore it while a batch is starting or running.
+    if (
+      startingRef.current ||
+      schedulerRef.current?.getBatch()?.status === "running"
+    ) {
+      return;
+    }
+    startingRef.current = true;
+    setIsStarting(true);
     try {
       const model = imageModels.find((item) => item.id === modelId);
       if (!model) {
@@ -491,6 +526,9 @@ export const ManyMindsDialog = ({
     } catch (error) {
       setMessageIsError(true);
       setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      startingRef.current = false;
+      setIsStarting(false);
     }
   }, [
     count,
@@ -594,14 +632,20 @@ export const ManyMindsDialog = ({
     setCustomPrompt("");
   };
 
+  // One dialog at a time: hand over to AI settings on the models tab.
+  const openModelSettings = () => {
+    onClose();
+    window.dispatchEvent(createAIOpenSettingsEvent({ tab: "models" }));
+  };
+
   if (!open) {
     return null;
   }
   return (
-    <Dialog
+    <AppDialog
       className="ManyMindsDialog"
       title={t("ai.manyMinds.title")}
-      size="wide"
+      size={880}
       onCloseRequest={onClose}
     >
       <div className="ManyMinds" aria-label={t("ai.manyMinds.title")}>
@@ -643,6 +687,8 @@ export const ManyMindsDialog = ({
             <Field label={t("ai.manyMinds.model")}>
               <Select
                 value={modelId}
+                placeholder={modelPlaceholder}
+                emptyText={modelPlaceholder}
                 onChange={(event) => setModelId(event.target.value)}
               >
                 {imageModels.map((model) => (
@@ -663,6 +709,7 @@ export const ManyMindsDialog = ({
                   aria-label={`${t("ai.manyMinds.perspective")} ${index + 1}`}
                   key={index}
                   value={perspectiveIds[index] || ""}
+                  placeholder={t("ai.manyMinds.choosePerspective")}
                   onChange={(event) =>
                     setPerspectiveIds((current) => {
                       const next = [...current];
@@ -673,7 +720,7 @@ export const ManyMindsDialog = ({
                 >
                   {perspectives.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.name}
+                      {getPerspectiveLabel(item)}
                     </option>
                   ))}
                 </Select>
@@ -716,6 +763,21 @@ export const ManyMindsDialog = ({
               </div>
             </div>
           </details>
+          {!imageModels.length && (
+            <Callout
+              tone="warning"
+              live={false}
+              action={
+                <UiButton size="sm" onClick={openModelSettings}>
+                  {t("ai.common.openSettings")}
+                </UiButton>
+              }
+            >
+              {t("ai.workbench.status.notice.addModel", {
+                mediaType: t("ai.common.image").toLowerCase(),
+              })}
+            </Callout>
+          )}
           {message && (
             <Callout tone={messageIsError ? "danger" : "info"}>
               {message}
@@ -725,7 +787,10 @@ export const ManyMindsDialog = ({
             <UiButton
               variant="primary"
               onClick={() => void startBatch()}
-              disabled={!persistenceScopeId || !imageModels.length}
+              loading={isStarting}
+              disabled={
+                !persistenceScopeId || !imageModels.length || batchIsActive
+              }
             >
               {t("ai.manyMinds.generate", { count })}
             </UiButton>
@@ -740,12 +805,29 @@ export const ManyMindsDialog = ({
                   total: batch.taskOrder.length,
                 })}
               </strong>
-              <UiButton
-                size="sm"
-                onClick={() => schedulerRef.current?.cancelBatch()}
-              >
-                {t("ai.manyMinds.cancelBatch")}
-              </UiButton>
+              {batchIsActive && (
+                <UiButton
+                  size="sm"
+                  variant="danger"
+                  onClick={() =>
+                    void (async () => {
+                      const confirmed = await confirmAction(
+                        t("ai.manyMinds.cancelBatchConfirm"),
+                        {
+                          title: t("ai.manyMinds.cancelBatch"),
+                          confirmLabel: t("ai.manyMinds.cancelBatch"),
+                          danger: true,
+                        },
+                      );
+                      if (confirmed) {
+                        schedulerRef.current?.cancelBatch();
+                      }
+                    })()
+                  }
+                >
+                  {t("ai.manyMinds.cancelBatch")}
+                </UiButton>
+              )}
             </div>
             <div
               className={`ManyMinds__grid ManyMinds__grid--${batch.taskOrder.length}`}
@@ -759,7 +841,7 @@ export const ManyMindsDialog = ({
                   <article
                     className={`ManyMinds__task is-${task.status}`}
                     key={task.id}
-                    aria-label={`${task.perspective.name}: ${t(
+                    aria-label={`${getPerspectiveLabel(task.perspective)}: ${t(
                       `ai.manyMinds.status.${task.status}`,
                     )}`}
                   >
@@ -777,7 +859,7 @@ export const ManyMindsDialog = ({
                         }
                       />
                       <span className="ManyMinds__taskName">
-                        {task.perspective.name}
+                        {getPerspectiveLabel(task.perspective)}
                       </span>
                     </label>
                     <Badge
@@ -789,11 +871,17 @@ export const ManyMindsDialog = ({
                     {previews[task.id] && (
                       <img
                         src={previews[task.id]}
-                        alt={task.perspective.name}
+                        alt={getPerspectiveLabel(task.perspective)}
                       />
                     )}
-                    {task.error && (
-                      <Callout tone="danger">{task.error}</Callout>
+                    {task.status === "interrupted" ? (
+                      <Callout tone="warning" live={false}>
+                        {t("ai.manyMinds.interruptedNotice")}
+                      </Callout>
+                    ) : (
+                      task.error && (
+                        <Callout tone="danger">{task.error}</Callout>
+                      )
                     )}
                     {task.cancellationMayHaveIncurredCost && (
                       <Callout tone="warning" live={false}>
@@ -803,6 +891,8 @@ export const ManyMindsDialog = ({
                     <Select
                       aria-label={t("ai.manyMinds.model")}
                       value={task.modelId}
+                      placeholder={modelPlaceholder}
+                      emptyText={modelPlaceholder}
                       disabled={
                         task.status === "running" || task.status === "succeeded"
                       }
@@ -837,7 +927,7 @@ export const ManyMindsDialog = ({
                     >
                       {perspectives.map((perspective) => (
                         <option key={perspective.id} value={perspective.id}>
-                          {perspective.name}
+                          {getPerspectiveLabel(perspective)}
                         </option>
                       ))}
                     </Select>
@@ -916,7 +1006,23 @@ export const ManyMindsDialog = ({
                         variant="ghost"
                         className="ManyMinds__delete"
                         onClick={() =>
-                          schedulerRef.current?.deleteTask(task.id)
+                          void (async () => {
+                            // Deleting a running task aborts a paid request.
+                            if (
+                              task.status === "running" &&
+                              !(await confirmAction(
+                                t("ai.manyMinds.deleteRunningConfirm"),
+                                {
+                                  title: t("ai.manyMinds.delete"),
+                                  confirmLabel: t("ai.manyMinds.delete"),
+                                  danger: true,
+                                },
+                              ))
+                            ) {
+                              return;
+                            }
+                            schedulerRef.current?.deleteTask(task.id);
+                          })()
                         }
                       >
                         {t("ai.manyMinds.delete")}
@@ -951,6 +1057,6 @@ export const ManyMindsDialog = ({
           </section>
         )}
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

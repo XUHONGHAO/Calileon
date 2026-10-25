@@ -5,18 +5,19 @@ import {
   Excalidraw,
   ExcalidrawAPIProvider,
 } from "@excalidraw/excalidraw";
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { getLanguage, t } from "@excalidraw/excalidraw/i18n";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement } from "@excalidraw/element/types";
 
 import {
+  AppDialog,
   Callout,
   DialogActions,
   Field,
   SegmentedControl,
   UiButton,
+  confirmAction,
 } from "../../ui";
 
 import { styleIcons } from "./icons";
@@ -145,14 +146,34 @@ export const SynesthesiaDialog = ({
     session.current = next;
     void next.start();
   };
-  const close = () => {
+  // Artwork that could not be written to the canvas would be lost on close:
+  // ask first, and only then drop it (otherwise the dialog could never close
+  // while the canvas keeps refusing the write).
+  const beforeClose = async () => {
     session.current?.stop();
     if (!pending.current.length) {
-      onClose();
+      return true;
     }
+    const discard = await confirmAction(text("discardPending"), {
+      title: text("discardPendingTitle"),
+      confirmLabel: text("discard"),
+      cancelLabel: t("ai.common.cancel"),
+      danger: true,
+    });
+    if (discard) {
+      pending.current = [];
+    }
+    return discard;
   };
   return (
-    <Dialog title={text("title")} onCloseRequest={close} size="wide">
+    <AppDialog
+      title={text("title")}
+      onBeforeClose={beforeClose}
+      onCloseRequest={onClose}
+      size="regular"
+      // A stray backdrop click must not end a recording.
+      closeOnClickOutside={!busy}
+    >
       <div className="SynesthesiaDialog">
         <Callout live={false}>{text("privacy")}</Callout>
         <SegmentedControl
@@ -274,6 +295,6 @@ export const SynesthesiaDialog = ({
           )}
         </DialogActions>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

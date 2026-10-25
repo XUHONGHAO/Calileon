@@ -9,6 +9,7 @@ import { STORAGE_KEYS } from "../../app_constants";
 import { saveAIAgentConfig } from "../../ai/agentConfig";
 import { loadChatHistory } from "../../ai/chatHistory";
 import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
+import { AI_OPEN_SETTINGS_EVENT } from "../../ai/workflowEvents";
 
 import {
   ChatMessageView,
@@ -22,6 +23,33 @@ import type { ChatMessage } from "../../ai/types";
 vi.mock("../../ai/customAgentAdapter", () => ({
   sendMessageToGeneralAgent: vi.fn(),
 }));
+
+// jsdom has no layout: give the list fixed metrics and a writable scrollTop.
+const mockScrollMetrics = (
+  element: HTMLElement,
+  metrics: { scrollHeight: number; clientHeight: number },
+) => {
+  Object.defineProperty(element, "scrollHeight", {
+    configurable: true,
+    get: () => metrics.scrollHeight,
+  });
+  Object.defineProperty(element, "clientHeight", {
+    configurable: true,
+    get: () => metrics.clientHeight,
+  });
+  Object.defineProperty(element, "scrollTop", {
+    configurable: true,
+    writable: true,
+    value: 0,
+  });
+};
+
+const typeAndSend = (text: string) => {
+  fireEvent.change(screen.getByLabelText("Message"), {
+    target: { value: text },
+  });
+  fireEvent.keyDown(screen.getByLabelText("Message"), { key: "Enter" });
+};
 
 const createAssistantMessage = (
   overrides: Partial<ChatMessage> = {},
@@ -400,6 +428,37 @@ describe("CustomAgentChat", () => {
     });
   });
 
+  it("dismisses the agent, skills and history popups with Escape or an outside click", async () => {
+    render(<CustomAgentChat excalidrawAPI={null} />);
+
+    const agentButton = screen.getByRole("button", { name: "Agent" });
+    await waitFor(() => expect(agentButton).toBeEnabled());
+    fireEvent.click(agentButton);
+    const agentMenu = screen.getByRole("menu", { name: "Agent" });
+    expect(
+      screen.getByRole("menuitemradio", { name: "General Agent" }),
+    ).toHaveAttribute("aria-checked", "true");
+    fireEvent.keyDown(agentMenu, { key: "Escape" });
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(agentButton).toHaveAttribute("aria-expanded", "false");
+
+    const skillsButton = screen.getByRole("button", { name: "Skills" });
+    fireEvent.click(skillsButton);
+    expect(skillsButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menu", { name: "Skills" })).toHaveTextContent(
+      "No Skills configured.",
+    );
+    fireEvent.pointerDown(screen.getByLabelText("Message"));
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Recent chats" }));
+    const historyPanel = screen.getByRole("dialog", { name: "Recent chats" });
+    const search = screen.getByRole("searchbox", { name: "Search history" });
+    expect(document.activeElement).toBe(search);
+    fireEvent.keyDown(search, { key: "Escape" });
+    expect(historyPanel).not.toBeInTheDocument();
+  });
+
   it("does not persist chat history for every streamed chunk", async () => {
     vi.mocked(sendMessageToGeneralAgent).mockImplementation(
       async ({ onChunk }) => {
@@ -442,47 +501,76 @@ describe("CustomAgentChat", () => {
     );
   });
 
-  it("scrolls to the latest message after sending a chat message", async () => {
-    const originalScrollIntoView = Element.prototype.scrollIntoView;
-    const scrollIntoView = vi.fn();
-    Object.defineProperty(Element.prototype, "scrollIntoView", {
-      configurable: true,
-      value: scrollIntoView,
-    });
+  it("scrolls the message list to the latest message after sending", async () => {
     vi.mocked(sendMessageToGeneralAgent).mockResolvedValue({
       content: "Auto scrolled response",
       error: null,
     });
 
+    const { container } = render(<CustomAgentChat excalidrawAPI={null} />);
+    const list = container.querySelector<HTMLElement>(
+      ".CustomAgentChat__messages",
+    )!;
+    mockScrollMetrics(list, { scrollHeight: 900, clientHeight: 300 });
+
+    await waitFor(() => {
+      expect(loadChatHistory().conversations).toHaveLength(1);
+    });
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Keep latest visible" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Message"), { key: "Enter" });
+
+    await waitFor(() => {
+      expect(screen.getByText("Auto scrolled response")).toBeInTheDocument();
+    });
+    expect(list.scrollTop).toBe(900);
+  });
+
+  it("does not pull the reader down while streaming once they scrolled up", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let emit: (chunk: string) => void = () => {};
+    vi.mocked(sendMessageToGeneralAgent).mockImplementation(({ onChunk }) => {
+      emit = (chunk) => onChunk?.(chunk);
+      return new Promise(() => {});
+    });
+
     try {
-      render(<CustomAgentChat excalidrawAPI={null} />);
+      const { container } = render(<CustomAgentChat excalidrawAPI={null} />);
+      const list = container.querySelector<HTMLElement>(
+        ".CustomAgentChat__messages",
+      )!;
+      mockScrollMetrics(list, { scrollHeight: 900, clientHeight: 300 });
 
-      await waitFor(() => {
-        expect(loadChatHistory().conversations).toHaveLength(1);
-      });
-
-      scrollIntoView.mockClear();
       fireEvent.change(screen.getByLabelText("Message"), {
-        target: { value: "Keep latest visible" },
+        target: { value: "Long answer please" },
       });
-      fireEvent.keyDown(screen.getByLabelText("Message"), {
-        key: "Enter",
-        code: "Enter",
-      });
+      fireEvent.keyDown(screen.getByLabelText("Message"), { key: "Enter" });
+      await screen.findByRole("button", { name: "Stop generating" });
+      expect(list.scrollTop).toBe(900);
 
-      await waitFor(() => {
-        expect(screen.getByText("Auto scrolled response")).toBeInTheDocument();
-      });
-      expect(scrollIntoView).toHaveBeenCalledWith({ block: "end" });
+      // The reader scrolls up to re-read something.
+      list.scrollTop = 100;
+      fireEvent.scroll(list);
+      emit("More streamed text");
+      await vi.advanceTimersByTimeAsync(150);
+      await screen.findByText("More streamed text");
+      expect(list.scrollTop).toBe(100);
+
+      // Back near the bottom: following resumes.
+      list.scrollTop = 580;
+      fireEvent.scroll(list);
+      emit(" and more");
+      await vi.advanceTimersByTimeAsync(150);
+      await screen.findByText("More streamed text and more");
+      expect(list.scrollTop).toBe(900);
     } finally {
-      Object.defineProperty(Element.prototype, "scrollIntoView", {
-        configurable: true,
-        value: originalScrollIntoView,
-      });
+      vi.useRealTimers();
     }
   });
 
   it("deletes a chat message from the next agent context", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     vi.mocked(sendMessageToGeneralAgent)
       .mockResolvedValueOnce({
         content: "Invalid context",
@@ -519,6 +607,7 @@ describe("CustomAgentChat", () => {
     await waitFor(() => {
       expect(screen.queryByText("Invalid context")).not.toBeInTheDocument();
     });
+    expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(
       loadChatHistory().conversations[0].messages.some(
         (message) => message.content === "Invalid context",
@@ -576,11 +665,11 @@ describe("CustomAgentChat", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "Cancel" }),
+        screen.getByRole("button", { name: "Stop generating" }),
       ).toBeInTheDocument();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop generating" }));
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(
@@ -593,6 +682,72 @@ describe("CustomAgentChat", () => {
     expect(loadChatHistory().conversations[0].messages.at(-1)?.content).toBe(
       "Partial answer",
     );
+  });
+
+  it("drops an empty reply bubble when canceled before any output", async () => {
+    vi.mocked(sendMessageToGeneralAgent).mockImplementation(
+      ({ signal }) =>
+        new Promise((resolve) => {
+          signal?.addEventListener("abort", () => {
+            resolve({
+              content: "",
+              error: Object.assign(new Error("Request aborted"), {
+                status: 499,
+              }),
+            });
+          });
+        }),
+    );
+
+    render(<CustomAgentChat excalidrawAPI={null} />);
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Explain this board" },
+    });
+    fireEvent.keyDown(screen.getByLabelText("Message"), { key: "Enter" });
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Stop generating" }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Response canceled.",
+      );
+    });
+    expect(screen.queryByText("Thinking...")).not.toBeInTheDocument();
+    expect(
+      loadChatHistory().conversations[0].messages.map((m) => m.role),
+    ).toEqual(["user"]);
+  });
+
+  it("saves the streamed part of a reply when unmounted mid-stream", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const signals: AbortSignal[] = [];
+    vi.mocked(sendMessageToGeneralAgent).mockImplementation(
+      ({ onChunk, signal }) => {
+        signals.push(signal!);
+        onChunk?.("Half an ans");
+        return new Promise(() => {});
+      },
+    );
+
+    try {
+      const { unmount } = render(<CustomAgentChat excalidrawAPI={null} />);
+      fireEvent.change(screen.getByLabelText("Message"), {
+        target: { value: "Explain this board" },
+      });
+      fireEvent.keyDown(screen.getByLabelText("Message"), { key: "Enter" });
+      await screen.findByRole("button", { name: "Stop generating" });
+
+      // Before the 100 ms preview flush: the chunk only lives in a ref.
+      unmount();
+
+      expect(signals[0]?.aborted).toBe(true);
+      expect(loadChatHistory().conversations[0].messages.at(-1)?.content).toBe(
+        "Half an ans",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps Shift+Enter available for multiline input", async () => {
@@ -630,5 +785,159 @@ describe("CustomAgentChat", () => {
       expect(loadChatHistory().conversations).toHaveLength(0);
     });
     expect(screen.getByRole("status")).toHaveTextContent("All chats cleared.");
+  });
+  it("puts the text back and offers Retry when a request fails", async () => {
+    vi.mocked(sendMessageToGeneralAgent)
+      .mockResolvedValueOnce({
+        content: "",
+        error: new Error("Upstream exploded"),
+      })
+      .mockResolvedValueOnce({ content: "Second try worked", error: null });
+
+    render(<CustomAgentChat excalidrawAPI={null} />);
+    await waitFor(() => {
+      expect(loadChatHistory().conversations).toHaveLength(1);
+    });
+    typeAndSend("Summarise the board");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Upstream exploded",
+    );
+    expect(screen.getByLabelText("Message")).toHaveValue("Summarise the board");
+    // The failed turn is not left in the history (Retry would duplicate it).
+    expect(loadChatHistory().conversations[0].messages).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await screen.findByText("Second try worked");
+    expect(
+      loadChatHistory().conversations[0].messages.map((m) => [
+        m.role,
+        m.content,
+      ]),
+    ).toEqual([
+      ["user", "Summarise the board"],
+      ["assistant", "Second try worked"],
+    ]);
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("has a visible Send button that turns into Stop while generating", async () => {
+    let finish: () => void = () => {};
+    vi.mocked(sendMessageToGeneralAgent).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = () => resolve({ content: "Done", error: null });
+        }),
+    );
+    render(<CustomAgentChat excalidrawAPI={null} />);
+
+    const send = await screen.findByRole("button", { name: "Send message" });
+    expect(send).toHaveTextContent("Send");
+    expect(send).toHaveClass("UiButton--primary");
+    expect(send).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Message"), {
+      target: { value: "Click to send" },
+    });
+    expect(send).toBeEnabled();
+    fireEvent.click(send);
+
+    const stop = await screen.findByRole("button", { name: "Stop generating" });
+    expect(stop).toHaveTextContent("Stop");
+    expect(stop).toHaveClass("UiButton--danger");
+    expect(sendMessageToGeneralAgent).toHaveBeenCalledTimes(1);
+
+    finish();
+    await screen.findByText("Done");
+    expect(
+      screen.getByRole("button", { name: "Send message" }),
+    ).toBeInTheDocument();
+  });
+
+  it("can send again right after Stop, before the adapter settles", async () => {
+    vi.mocked(sendMessageToGeneralAgent)
+      // Ignores the abort signal: never settles.
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValueOnce({ content: "Fresh answer", error: null });
+
+    render(<CustomAgentChat excalidrawAPI={null} />);
+    typeAndSend("First");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Stop generating" }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Response canceled.");
+
+    typeAndSend("Second");
+    await screen.findByText("Fresh answer");
+    expect(sendMessageToGeneralAgent).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks before deleting a message and keeps it when declined", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    vi.mocked(sendMessageToGeneralAgent).mockResolvedValue({
+      content: "Keep me",
+      error: null,
+    });
+    render(<CustomAgentChat excalidrawAPI={null} />);
+    typeAndSend("Question");
+    await screen.findByText("Keep me");
+
+    const deleteButtons = screen.getAllByRole("button", {
+      name: "Delete message",
+    });
+    fireEvent.click(deleteButtons[deleteButtons.length - 1]);
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+    expect(confirmSpy.mock.calls[0][0]).toMatch(/Delete this message/);
+    expect(screen.getByText("Keep me")).toBeInTheDocument();
+    expect(loadChatHistory().conversations[0].messages).toHaveLength(2);
+  });
+
+  it("asks before deleting a chat from the history list", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValueOnce(false);
+    render(<CustomAgentChat excalidrawAPI={null} />);
+    await waitFor(() => {
+      expect(loadChatHistory().conversations).toHaveLength(1);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Recent chats" }));
+    const deleteChat = screen.getByRole("button", {
+      name: "Delete chat New chat",
+    });
+    fireEvent.click(deleteChat);
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+    expect(loadChatHistory().conversations).toHaveLength(1);
+
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.click(deleteChat);
+    await waitFor(() => {
+      expect(loadChatHistory().conversations).toHaveLength(0);
+    });
+  });
+
+  it("links the no-agent notice to the agents tab of AI settings", async () => {
+    saveAIAgentConfig({
+      textAgents: [],
+      visionAgents: [],
+      llmAgents: [],
+      customAgents: [],
+      skills: [],
+      defaultTextAgentId: null,
+      defaultVisionAgentId: null,
+      defaultLLMAgentId: null,
+      defaultCustomAgentId: null,
+      useTextAgentForVision: false,
+    });
+    const onOpen = vi.fn();
+    window.addEventListener(AI_OPEN_SETTINGS_EVENT, onOpen);
+
+    try {
+      render(<CustomAgentChat excalidrawAPI={null} />);
+      fireEvent.click(screen.getByRole("button", { name: "Open AI Settings" }));
+      expect(onOpen).toHaveBeenCalledTimes(1);
+      expect(onOpen.mock.calls[0][0].detail).toEqual({ tab: "agents" });
+    } finally {
+      window.removeEventListener(AI_OPEN_SETTINGS_EVENT, onOpen);
+    }
   });
 });

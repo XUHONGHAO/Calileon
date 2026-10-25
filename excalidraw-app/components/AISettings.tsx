@@ -53,12 +53,14 @@ import {
 import {
   AIProxyConfigError,
   AI_PROXY_CONFIG_UPDATED_EVENT,
+  DEFAULT_AI_PROXY_CONFIG,
   getAIGatewayEndpoint,
   getRuntimeDefaultAIGatewayEndpoint,
   getRuntimeDefaultAIProxyEndpoint,
   loadAIProxyConfig,
   resetAIProxyConfig,
   saveAIProxyConfig,
+  validateAIProxyEndpoint,
 } from "../ai/proxyConfig";
 import {
   testAIProxyConnection,
@@ -218,10 +220,18 @@ const FIELD_MAPPING_FORM_FIELDS: Array<{
   { key: "n", labelKey: "ai.settings.fieldMapping.n", placeholder: "n" },
 ];
 
+// `baseline` is a snapshot of the draft (plus the "set as default" choice)
+// taken when the editor opened; it tells Back/close whether there is anything
+// to lose.
 type EditorState =
   | { mode: "list" }
-  | { mode: "create"; draft: AIModelDraft }
-  | { mode: "edit"; draft: AIModelDraft; indexes: number[] };
+  | { mode: "create"; draft: AIModelDraft; baseline: string }
+  | {
+      mode: "edit";
+      draft: AIModelDraft;
+      indexes: number[];
+      baseline: string;
+    };
 
 type AIModelDraft = Omit<AIImageModel, "requestTimeoutSeconds"> & {
   requestTimeoutSeconds: string;
@@ -239,8 +249,8 @@ type AgentSettingsSubTab = "base" | "skills";
 
 type AgentEditorState =
   | { mode: "list" }
-  | { mode: "create"; draft: AIAgent }
-  | { mode: "edit"; draft: AIAgent };
+  | { mode: "create"; draft: AIAgent; baseline: string }
+  | { mode: "edit"; draft: AIAgent; baseline: string };
 
 type SkillDraft = Omit<AISkill, "triggers"> & {
   triggers: string;
@@ -248,13 +258,91 @@ type SkillDraft = Omit<AISkill, "triggers"> & {
 
 type SkillEditorState =
   | { mode: "list" }
-  | { mode: "create"; draft: SkillDraft }
-  | { mode: "edit"; draft: SkillDraft };
+  | { mode: "create"; draft: SkillDraft; baseline: string }
+  | { mode: "edit"; draft: SkillDraft; baseline: string };
 
 type TemplateEditorState =
   | { mode: "list" }
-  | { mode: "create"; draft: PromptTemplateDraft }
-  | { mode: "edit"; draft: PromptTemplateDraft; templateId: string };
+  | { mode: "create"; draft: PromptTemplateDraft; baseline: string }
+  | {
+      mode: "edit";
+      draft: PromptTemplateDraft;
+      templateId: string;
+      baseline: string;
+    };
+
+/**
+ * Field-level validation errors, keyed `<editor>.<field>`. The matching
+ * control carries `data-field="<key>"` so a failed submit can focus it.
+ */
+type FieldErrorKey =
+  | "model.siteName"
+  | "model.baseURL"
+  | "model.model"
+  | "agent.name"
+  | "agent.baseURL"
+  | "agent.model"
+  | "skill.name"
+  | "skill.description"
+  | "template.label"
+  | "template.template"
+  | "template.modes"
+  | "network.endpoint"
+  | "network.gatewayEndpoint";
+type FieldErrors = Partial<Record<FieldErrorKey, string>>;
+
+const snapshotDraft = (draft: unknown, extra?: unknown) =>
+  JSON.stringify({ draft, extra });
+
+/** Host of a base URL, used to tell whether a saved API key belongs to it. */
+const getURLHost = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    return new URL(trimmed).host.toLowerCase();
+  } catch {
+    return trimmed.toLowerCase();
+  }
+};
+
+/**
+ * A key typed for one provider must not silently travel to another host
+ * when a preset (or provider) switches the base URL.
+ */
+const shouldDropAPIKey = (
+  previousBaseURL: string,
+  nextBaseURL: string,
+  apiKey: string,
+) =>
+  !!apiKey &&
+  !!previousBaseURL.trim() &&
+  getURLHost(previousBaseURL) !== getURLHost(nextBaseURL);
+
+/** Network draft identity, ignoring whitespace and empty route choices. */
+const getProxyConfigSignature = (config: AIProxyConfigV2) =>
+  JSON.stringify({
+    mode: config.mode,
+    endpoint: config.endpoint.trim(),
+    accessToken: config.accessToken,
+    gatewayEndpoint: config.gatewayEndpoint.trim(),
+    managedRoutes: Object.entries(config.managedRoutes || {})
+      .filter(([, value]) => !!value)
+      .sort(([a], [b]) => a.localeCompare(b)),
+  });
+
+/**
+ * Shared "discard unsaved changes?" prompt for Back inside the settings and
+ * for closing the settings dialog.
+ */
+export const confirmDiscardAISettingsChanges = () =>
+  confirmAction(t("ai.settings.messages.discardChangesConfirm"), {
+    title: t("ai.settings.messages.discardChangesTitle"),
+    confirmLabel: t("ai.settings.messages.discardChanges"),
+    cancelLabel: t("ai.settings.messages.keepEditing"),
+    danger: true,
+  });
 
 type PromptTemplateDraft = {
   label: string;
@@ -329,11 +417,19 @@ const createAgentDraftFromProviderPreset = (
   const presetSystemPrompt =
     type === "llm" ? "" : preset?.defaultSystemPrompts[type] || "";
 
+  const base = currentDraft || createAgentDraft(type);
+  // The generic OpenAI-compatible preset has no URL or model of its own:
+  // keep what the user already entered instead of blanking it.
+  const baseURL = preset?.baseURL || base.baseURL;
+
   return {
-    ...(currentDraft || createAgentDraft(type)),
+    ...base,
     provider,
-    baseURL: preset?.baseURL || "",
-    model: recommendedModel || "",
+    baseURL,
+    apiKey: shouldDropAPIKey(base.baseURL, baseURL, base.apiKey)
+      ? ""
+      : base.apiKey,
+    model: recommendedModel || base.model,
     name:
       provider === "openai-compatible"
         ? currentDraft?.name || ""
@@ -420,6 +516,11 @@ const createModelDraftFromProviderPreset = (
   currentDraft?: AIModelDraft,
 ): AIModelDraft => ({
   ...(currentDraft || createModelDraft(preset.mediaType)),
+  apiKey:
+    currentDraft &&
+    shouldDropAPIKey(currentDraft.baseURL, preset.baseURL, currentDraft.apiKey)
+      ? ""
+      : currentDraft?.apiKey || "",
   siteName: preset.siteName,
   baseURL: preset.baseURL,
   model: preset.model,
@@ -558,8 +659,14 @@ const getSavedModels = (
 
 export const AISettings = ({
   initialTab = "models",
+  onDirtyChange,
 }: {
   initialTab?: AISettingsTab;
+  /**
+   * Reports whether any editor (model, agent, skill, template) or the network
+   * form holds unsaved changes, so the host dialog can confirm before closing.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 }) => {
   const [config, setConfig] =
     useState<AIImageProviderConfig>(loadAIImageConfig);
@@ -585,7 +692,12 @@ export const AISettings = ({
   const [customTemplates, setCustomTemplates] = useState<PromptTemplate[]>(
     loadCustomPromptTemplates,
   );
+  // `proxyConfig` is the form draft, `savedProxyConfig` what is persisted.
+  // Outside updates refresh the saved copy and only replace an untouched draft.
   const [proxyConfig, setProxyConfig] = useState(loadAIProxyConfig);
+  const [savedProxyConfig, setSavedProxyConfig] = useState(() => proxyConfig);
+  const savedProxyConfigRef = useRef(savedProxyConfig);
+  savedProxyConfigRef.current = savedProxyConfig;
   const [isTestingProxy, setIsTestingProxy] = useState(false);
   const [managedAccountStatus, setManagedAccountStatus] = useState<
     "idle" | "loading" | "signed-out" | "ready" | "unavailable"
@@ -603,23 +715,47 @@ export const AISettings = ({
   const [managedAuditDetail, setManagedAuditDetail] =
     useState<AiGatewayAuditRecord | null>(null);
   const [deviceUserCode, setDeviceUserCode] = useState("");
+  const [isApprovingDevice, setIsApprovingDevice] = useState(false);
+  const [isUpdatingAuditConsent, setIsUpdatingAuditConsent] = useState(false);
+  const [pendingAuditAction, setPendingAuditAction] = useState<{
+    id: string;
+    action: "view" | "delete";
+  } | null>(null);
+  const managedActionPendingRef = useRef(false);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [setAsDefault, setSetAsDefault] = useState(false);
   const [setAgentAsDefault, setSetAgentAsDefault] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const templateImportInputRef = useRef<HTMLInputElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
+  // Keyed on the *saved* endpoint only: typing in the endpoint field or
+  // picking a route must not rebuild the gateway and refetch everything.
+  const savedGatewayEndpoint = savedProxyConfig.gatewayEndpoint;
   const managedGateway = useMemo(() => {
     try {
-      return getManagedGateway(proxyConfig);
+      return getManagedGateway({
+        ...DEFAULT_AI_PROXY_CONFIG,
+        gatewayEndpoint: savedGatewayEndpoint,
+      });
     } catch {
       return null;
     }
-  }, [proxyConfig]);
+  }, [savedGatewayEndpoint]);
 
   useEffect(() => {
     const handleProxyConfigUpdated = () => {
-      setProxyConfig(loadAIProxyConfig());
+      const previousSaved = savedProxyConfigRef.current;
+      const nextSaved = loadAIProxyConfig();
+      savedProxyConfigRef.current = nextSaved;
+      setSavedProxyConfig(nextSaved);
+      setProxyConfig((draft) =>
+        getProxyConfigSignature(draft) ===
+        getProxyConfigSignature(previousSaved)
+          ? nextSaved
+          : draft,
+      );
     };
 
     window.addEventListener(
@@ -649,7 +785,10 @@ export const AISettings = ({
     }
     let cancelled = false;
     const load = async () => {
-      setManagedAccountStatus("loading");
+      // A refresh keeps the ready view (and the focused control) mounted.
+      setManagedAccountStatus((current) =>
+        current === "ready" ? current : "loading",
+      );
       const backend = getCloudBackend();
       const user = await backend.auth.getCurrentUser();
       if (!user) {
@@ -739,10 +878,86 @@ export const AISettings = ({
     [],
   );
 
+  const clearFieldErrors = useCallback(
+    (scope: string, fields: readonly string[]) => {
+      setFieldErrors((current) => {
+        const keys = fields
+          .map((field) => `${scope}.${field}` as FieldErrorKey)
+          .filter((key) => current[key]);
+        if (!keys.length) {
+          return current;
+        }
+        const next = { ...current };
+        keys.forEach((key) => delete next[key]);
+        return next;
+      });
+    },
+    [],
+  );
+
+  /** Shows `message` under the field and moves focus there. */
+  const failValidation = useCallback(
+    (field: FieldErrorKey, message: string) => {
+      setFieldErrors({ [field]: message });
+      setErrorMessage("");
+      setStatusMessage("");
+      requestAnimationFrame(() => {
+        const control = document.querySelector<HTMLElement>(
+          `.AISettings [data-field="${field}"]`,
+        );
+        control?.focus();
+        control?.scrollIntoView?.({ block: "nearest" });
+      });
+    },
+    [],
+  );
+
+  const resetFeedback = useCallback(() => {
+    setStatusMessage("");
+    setErrorMessage("");
+    setFieldErrors({});
+  }, []);
+
+  const updateProxyDraft = useCallback(
+    (patch: Partial<AIProxyConfigV2>) => {
+      setProxyConfig((current) => ({ ...current, ...patch }));
+      clearFieldErrors("network", Object.keys(patch));
+    },
+    [clearFieldErrors],
+  );
+
   const persistProxyConfig = useCallback(() => {
+    // Validate the endpoint the user can see first so the error lands on it.
+    const visibleEndpointField: FieldErrorKey | null =
+      proxyConfig.mode === "byok-proxy"
+        ? "network.endpoint"
+        : proxyConfig.mode === "managed-gateway"
+        ? "network.gatewayEndpoint"
+        : null;
+    if (visibleEndpointField) {
+      try {
+        validateAIProxyEndpoint(
+          visibleEndpointField === "network.endpoint"
+            ? proxyConfig.endpoint
+            : proxyConfig.gatewayEndpoint,
+        );
+      } catch (error) {
+        if (error instanceof AIProxyConfigError) {
+          failValidation(
+            visibleEndpointField,
+            t("ai.proxy.errors.invalidEndpoint"),
+          );
+          return;
+        }
+      }
+    }
+
     try {
       const savedConfig = saveAIProxyConfig(proxyConfig);
+      savedProxyConfigRef.current = savedConfig;
+      setSavedProxyConfig(savedConfig);
       setProxyConfig(savedConfig);
+      setFieldErrors({});
       setStatusMessage(t("ai.proxy.saved"));
       setErrorMessage("");
     } catch (error: any) {
@@ -753,7 +968,7 @@ export const AISettings = ({
       );
       setStatusMessage("");
     }
-  }, [proxyConfig]);
+  }, [failValidation, proxyConfig]);
 
   const testProxy = useCallback(async () => {
     if (proxyConfig.mode !== "byok-proxy") {
@@ -782,9 +997,11 @@ export const AISettings = ({
 
   const approveDeviceCode = useCallback(async () => {
     const code = deviceUserCode.trim();
-    if (!code) {
+    if (!code || managedActionPendingRef.current) {
       return;
     }
+    managedActionPendingRef.current = true;
+    setIsApprovingDevice(true);
     try {
       if (!managedGateway) {
         throw new Error("Managed gateway is unavailable.");
@@ -796,11 +1013,21 @@ export const AISettings = ({
     } catch {
       setStatusMessage("");
       setErrorMessage(t("ai.proxy.errors.deviceApproval"));
+    } finally {
+      managedActionPendingRef.current = false;
+      setIsApprovingDevice(false);
     }
   }, [deviceUserCode, managedGateway]);
 
   const updateManagedAuditConsent = useCallback(
     async (enabled: boolean) => {
+      if (managedActionPendingRef.current) {
+        return;
+      }
+      // The checkbox is controlled by `managedAuditConsent`, which only
+      // changes on success, so a failed request leaves it where it was.
+      managedActionPendingRef.current = true;
+      setIsUpdatingAuditConsent(true);
       try {
         if (!managedGateway) {
           throw new Error("Managed gateway is unavailable.");
@@ -812,6 +1039,9 @@ export const AISettings = ({
       } catch {
         setStatusMessage("");
         setErrorMessage(t("ai.proxy.errors.managedGateway"));
+      } finally {
+        managedActionPendingRef.current = false;
+        setIsUpdatingAuditConsent(false);
       }
     },
     [managedGateway],
@@ -819,6 +1049,11 @@ export const AISettings = ({
 
   const viewManagedAudit = useCallback(
     async (auditId: string) => {
+      if (managedActionPendingRef.current) {
+        return;
+      }
+      managedActionPendingRef.current = true;
+      setPendingAuditAction({ id: auditId, action: "view" });
       try {
         if (!managedGateway) {
           throw new Error("Managed gateway is unavailable.");
@@ -830,6 +1065,9 @@ export const AISettings = ({
         setManagedAuditDetail(null);
         setStatusMessage("");
         setErrorMessage(t("ai.proxy.errors.managedGateway"));
+      } finally {
+        managedActionPendingRef.current = false;
+        setPendingAuditAction(null);
       }
     },
     [managedGateway],
@@ -837,12 +1075,20 @@ export const AISettings = ({
 
   const deleteManagedAudit = useCallback(
     async (auditId: string) => {
-      if (!managedGateway) {
+      if (!managedGateway || managedActionPendingRef.current) {
         return;
       }
-      if (!(await confirmAction(t("ai.proxy.auditDeleteConfirm")))) {
+      if (
+        !(await confirmAction(t("ai.proxy.auditDeleteConfirm"), {
+          confirmLabel: t("ai.common.delete"),
+          danger: true,
+        })) ||
+        managedActionPendingRef.current
+      ) {
         return;
       }
+      managedActionPendingRef.current = true;
+      setPendingAuditAction({ id: auditId, action: "delete" });
       try {
         await managedGateway.deleteAudit(auditId);
         setManagedAudits((current) =>
@@ -856,27 +1102,95 @@ export const AISettings = ({
       } catch {
         setStatusMessage("");
         setErrorMessage(t("ai.proxy.errors.managedGateway"));
+      } finally {
+        managedActionPendingRef.current = false;
+        setPendingAuditAction(null);
       }
     },
     [managedGateway],
   );
 
-  const restoreProxyDefaults = useCallback(() => {
+  const restoreProxyDefaults = useCallback(async () => {
+    if (
+      !(await confirmAction(t("ai.proxy.restoreDefaultsConfirm"), {
+        title: t("ai.proxy.restoreDefaults"),
+        confirmLabel: t("ai.proxy.restoreDefaultsAction"),
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     const restored = resetAIProxyConfig();
+    savedProxyConfigRef.current = restored;
+    setSavedProxyConfig(restored);
     setProxyConfig(restored);
+    setFieldErrors({});
     setStatusMessage(t("ai.proxy.restored"));
     setErrorMessage("");
   }, []);
 
+  // ------------------------------------------------------- Unsaved edits
+  const isModelEditorDirty =
+    editorState.mode !== "list" &&
+    snapshotDraft(editorState.draft, setAsDefault) !== editorState.baseline;
+  const isAgentEditorDirty =
+    agentEditorState.mode !== "list" &&
+    snapshotDraft(agentEditorState.draft, setAgentAsDefault) !==
+      agentEditorState.baseline;
+  const isSkillEditorDirty =
+    skillEditorState.mode !== "list" &&
+    snapshotDraft(skillEditorState.draft) !== skillEditorState.baseline;
+  const isTemplateEditorDirty =
+    templateEditorState.mode !== "list" &&
+    snapshotDraft(templateEditorState.draft) !== templateEditorState.baseline;
+  const isProxyConfigDirty =
+    getProxyConfigSignature(proxyConfig) !==
+    getProxyConfigSignature(savedProxyConfig);
+  const isDirty =
+    isModelEditorDirty ||
+    isAgentEditorDirty ||
+    isSkillEditorDirty ||
+    isTemplateEditorDirty ||
+    isProxyConfigDirty;
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(
+    () => () => {
+      onDirtyChange?.(false);
+    },
+    [onDirtyChange],
+  );
+
+  /** Back from an editor: confirm first when it holds unsaved edits. */
+  const leaveEditor = useCallback(async (dirty: boolean, close: () => void) => {
+    if (dirty && !(await confirmDiscardAISettingsChanges())) {
+      return;
+    }
+    close();
+    // Back unmounts with the editor; keep focus inside the dialog so Escape
+    // and Tab keep working (the confirm restores focus to the gone button).
+    window.setTimeout(() => {
+      const active = document.activeElement;
+      if (!active || active === document.body || !active.isConnected) {
+        panelRef.current?.focus({ preventScroll: true });
+      }
+    });
+  }, []);
+
   const openCreateModel = useCallback(() => {
+    const draft = createModelDraft(activeMediaType);
+    const nextSetAsDefault = !config.defaultModel;
     setEditorState({
       mode: "create",
-      draft: createModelDraft(activeMediaType),
+      draft,
+      baseline: snapshotDraft(draft, nextSetAsDefault),
     });
-    setSetAsDefault(!config.defaultModel);
-    setStatusMessage("");
-    setErrorMessage("");
-  }, [activeMediaType, config.defaultModel]);
+    setSetAsDefault(nextSetAsDefault);
+    resetFeedback();
+  }, [activeMediaType, config.defaultModel, resetFeedback]);
 
   const openEditModelGroup = useCallback(
     (group: AIModelGroup) => {
@@ -884,73 +1198,111 @@ export const AISettings = ({
         return;
       }
 
+      const draft = createModelDraftFromSavedModels(group.models);
+      const nextSetAsDefault = group.models.some(
+        (model) => config.defaultModel === model.id,
+      );
       setEditorState({
         mode: "edit",
-        draft: createModelDraftFromSavedModels(group.models),
+        draft,
         indexes: group.indexes,
+        baseline: snapshotDraft(draft, nextSetAsDefault),
       });
-      setSetAsDefault(
-        group.models.some((model) => config.defaultModel === model.id),
-      );
-      setStatusMessage("");
-      setErrorMessage("");
+      setSetAsDefault(nextSetAsDefault);
+      resetFeedback();
     },
-    [config.defaultModel],
+    [config.defaultModel, resetFeedback],
   );
 
   const closeEditor = useCallback(() => {
     setEditorState({ mode: "list" });
     setErrorMessage("");
+    setFieldErrors({});
   }, []);
 
-  const updateDraft = useCallback((patch: Partial<AIModelDraft>) => {
-    setEditorState((current) => {
-      if (current.mode === "list") {
-        return current;
+  const updateDraft = useCallback(
+    (patch: Partial<AIModelDraft>) => {
+      clearFieldErrors("model", Object.keys(patch));
+      setEditorState((current) => {
+        if (current.mode === "list") {
+          return current;
+        }
+
+        const nextMediaType = patch.mediaType || current.draft.mediaType;
+        const shouldResetCapabilities =
+          !!patch.mediaType && patch.mediaType !== current.draft.mediaType;
+        const nativeModel =
+          nextMediaType === "image"
+            ? patch.nativeModel ||
+              current.draft.nativeModel ||
+              DEFAULT_AI_IMAGE_NATIVE_MODEL
+            : undefined;
+
+        return {
+          ...current,
+          draft: {
+            ...current.draft,
+            ...patch,
+            mediaType: nextMediaType,
+            nativeModel,
+            capabilities: shouldResetCapabilities
+              ? getDefaultCapabilitiesForMediaType(nextMediaType)
+              : patch.capabilities || current.draft.capabilities,
+          },
+        };
+      });
+    },
+    [clearFieldErrors],
+  );
+
+  const applyProviderPreset = useCallback(
+    async (preset: AIModelProviderPreset) => {
+      if (editorState.mode === "list") {
+        return;
+      }
+      const { draft } = editorState;
+      const dropsKey = shouldDropAPIKey(
+        draft.baseURL,
+        preset.baseURL,
+        draft.apiKey,
+      );
+      // Applying a preset replaces the connection and model fields; on a
+      // saved item (or when it would clear a typed key) ask first.
+      if (
+        (editorState.mode === "edit" || dropsKey) &&
+        !(await confirmAction(
+          t("ai.settings.messages.applyPresetConfirm", { name: preset.name }) +
+            (dropsKey
+              ? `\n\n${t("ai.settings.messages.applyPresetClearsKey")}`
+              : ""),
+          {
+            title: t("ai.settings.messages.applyPresetTitle"),
+            confirmLabel: t("ai.common.apply"),
+            danger: false,
+          },
+        ))
+      ) {
+        return;
       }
 
-      const nextMediaType = patch.mediaType || current.draft.mediaType;
-      const shouldResetCapabilities =
-        !!patch.mediaType && patch.mediaType !== current.draft.mediaType;
-      const nativeModel =
-        nextMediaType === "image"
-          ? patch.nativeModel ||
-            current.draft.nativeModel ||
-            DEFAULT_AI_IMAGE_NATIVE_MODEL
-          : undefined;
-
-      return {
-        ...current,
-        draft: {
-          ...current.draft,
-          ...patch,
-          mediaType: nextMediaType,
-          nativeModel,
-          capabilities: shouldResetCapabilities
-            ? getDefaultCapabilitiesForMediaType(nextMediaType)
-            : patch.capabilities || current.draft.capabilities,
-        },
-      };
-    });
-  }, []);
-
-  const applyProviderPreset = useCallback((preset: AIModelProviderPreset) => {
-    setEditorState((current) => {
-      if (current.mode === "list") {
-        return current;
-      }
-
-      return {
-        ...current,
-        draft: createModelDraftFromProviderPreset(preset, current.draft),
-      };
-    });
-    setActiveMediaType(preset.mediaType);
-    setStatusMessage(
-      t("ai.settings.messages.defaultsApplied", { name: preset.name }),
-    );
-    setErrorMessage("");
-  }, []);
+      setEditorState((current) =>
+        current.mode === "list"
+          ? current
+          : {
+              ...current,
+              draft: createModelDraftFromProviderPreset(preset, current.draft),
+            },
+      );
+      setActiveMediaType(preset.mediaType);
+      setFieldErrors({});
+      setStatusMessage(
+        t("ai.settings.messages.defaultsApplied", { name: preset.name }) +
+          (dropsKey ? ` ${t("ai.settings.messages.apiKeyCleared")}` : ""),
+      );
+      setErrorMessage("");
+    },
+    [editorState],
+  );
 
   const toggleCapability = useCallback(
     (
@@ -967,11 +1319,30 @@ export const AISettings = ({
   );
 
   const removeModelGroup = useCallback(
-    (indexes: number[]) => {
+    async (indexes: number[]) => {
       const removedIndexSet = new Set(indexes);
       const removedModels = config.models.filter((_, modelIndex) =>
         removedIndexSet.has(modelIndex),
       );
+      const first = removedModels[0];
+
+      if (
+        !first ||
+        !(await confirmAction(
+          t("ai.settings.messages.deleteModelConfirm", {
+            name: first.siteName || first.label || first.model,
+            models: formatModelGroupNames(removedModels),
+          }),
+          {
+            title: t("ai.common.delete"),
+            confirmLabel: t("ai.common.delete"),
+            danger: true,
+          },
+        ))
+      ) {
+        return;
+      }
+
       const models = config.models.filter(
         (_, modelIndex) => !removedIndexSet.has(modelIndex),
       );
@@ -1033,20 +1404,23 @@ export const AISettings = ({
     const draft = savedModels[0];
 
     if (!editorState.draft.siteName.trim()) {
-      setErrorMessage(t("ai.settings.messages.siteNameRequired"));
-      setStatusMessage("");
+      failValidation(
+        "model.siteName",
+        t("ai.settings.messages.siteNameRequired"),
+      );
       return;
     }
 
     if (!editorState.draft.baseURL.trim()) {
-      setErrorMessage(t("ai.settings.messages.baseURLRequired"));
-      setStatusMessage("");
+      failValidation(
+        "model.baseURL",
+        t("ai.settings.messages.baseURLRequired"),
+      );
       return;
     }
 
     if (!savedModels.length || !draft) {
-      setErrorMessage(t("ai.settings.messages.modelIdsRequired"));
-      setStatusMessage("");
+      failValidation("model.model", t("ai.settings.messages.modelIdsRequired"));
       return;
     }
 
@@ -1096,26 +1470,28 @@ export const AISettings = ({
       setActiveMediaType(draft.mediaType);
       setEditorState({ mode: "list" });
     }
-  }, [config, editorState, persistConfig, setAsDefault]);
+  }, [config, editorState, failValidation, persistConfig, setAsDefault]);
 
   const openCreateAgent = useCallback(
     (type: AIAgentType, provider: AIAgentProvider = "openai-compatible") => {
       setActiveAgentSubTab("base");
-      setAgentEditorState({
-        mode: "create",
-        draft: createAgentDraftFromProviderPreset(provider, type),
-      });
-      setSetAgentAsDefault(
+      const draft = createAgentDraftFromProviderPreset(provider, type);
+      const nextSetAsDefault =
         type === "text"
           ? !agentConfig.defaultTextAgentId
           : type === "vision"
           ? !agentConfig.defaultVisionAgentId
-          : !agentConfig.defaultLLMAgentId,
-      );
-      setStatusMessage("");
-      setErrorMessage("");
+          : !agentConfig.defaultLLMAgentId;
+      setAgentEditorState({
+        mode: "create",
+        draft,
+        baseline: snapshotDraft(draft, nextSetAsDefault),
+      });
+      setSetAgentAsDefault(nextSetAsDefault);
+      resetFeedback();
     },
     [
+      resetFeedback,
       agentConfig.defaultLLMAgentId,
       agentConfig.defaultTextAgentId,
       agentConfig.defaultVisionAgentId,
@@ -1125,21 +1501,23 @@ export const AISettings = ({
   const openEditAgent = useCallback(
     (agent: AIAgent) => {
       setActiveAgentSubTab("base");
-      setAgentEditorState({
-        mode: "edit",
-        draft: { ...agent, systemPrompt: agent.systemPrompt || "" },
-      });
-      setSetAgentAsDefault(
+      const draft = { ...agent, systemPrompt: agent.systemPrompt || "" };
+      const nextSetAsDefault =
         agent.type === "text"
           ? agent.id === agentConfig.defaultTextAgentId
           : agent.type === "vision"
           ? agent.id === agentConfig.defaultVisionAgentId
-          : agent.id === agentConfig.defaultLLMAgentId,
-      );
-      setStatusMessage("");
-      setErrorMessage("");
+          : agent.id === agentConfig.defaultLLMAgentId;
+      setAgentEditorState({
+        mode: "edit",
+        draft,
+        baseline: snapshotDraft(draft, nextSetAsDefault),
+      });
+      setSetAgentAsDefault(nextSetAsDefault);
+      resetFeedback();
     },
     [
+      resetFeedback,
       agentConfig.defaultLLMAgentId,
       agentConfig.defaultTextAgentId,
       agentConfig.defaultVisionAgentId,
@@ -1149,48 +1527,84 @@ export const AISettings = ({
   const closeAgentEditor = useCallback(() => {
     setAgentEditorState({ mode: "list" });
     setErrorMessage("");
+    setFieldErrors({});
   }, []);
 
-  const updateAgentDraft = useCallback((patch: Partial<AIAgent>) => {
-    setAgentEditorState((current) => {
-      if (current.mode === "list") {
-        return current;
+  const updateAgentDraft = useCallback(
+    (patch: Partial<AIAgent>) => {
+      clearFieldErrors("agent", Object.keys(patch));
+      setAgentEditorState((current) => {
+        if (current.mode === "list") {
+          return current;
+        }
+
+        return {
+          ...current,
+          draft: {
+            ...current.draft,
+            ...patch,
+          },
+        };
+      });
+    },
+    [clearFieldErrors],
+  );
+
+  // Used by both the preset cards and the Provider select, so the two paths
+  // follow the same confirm and API-key rules.
+  const applyAgentProviderPreset = useCallback(
+    async (provider: AIAgentProvider) => {
+      if (agentEditorState.mode === "list") {
+        return;
+      }
+      const { draft } = agentEditorState;
+      const next = createAgentDraftFromProviderPreset(
+        provider,
+        draft.type,
+        draft,
+      );
+      const dropsKey = !!draft.apiKey && !next.apiKey;
+      const name =
+        AGENT_PROVIDER_OPTIONS.find((option) => option.value === provider)
+          ?.label || provider;
+      if (
+        (agentEditorState.mode === "edit" || dropsKey) &&
+        !(await confirmAction(
+          t("ai.settings.messages.applyPresetConfirm", { name }) +
+            (dropsKey
+              ? `\n\n${t("ai.settings.messages.applyPresetClearsKey")}`
+              : ""),
+          {
+            title: t("ai.settings.messages.applyPresetTitle"),
+            confirmLabel: t("ai.common.apply"),
+            danger: false,
+          },
+        ))
+      ) {
+        return;
       }
 
-      return {
-        ...current,
-        draft: {
-          ...current.draft,
-          ...patch,
-        },
-      };
-    });
-  }, []);
-
-  const applyAgentProviderPreset = useCallback((provider: AIAgentProvider) => {
-    setAgentEditorState((current) => {
-      if (current.mode === "list") {
-        return current;
-      }
-
-      return {
-        ...current,
-        draft: createAgentDraftFromProviderPreset(
-          provider,
-          current.draft.type,
-          current.draft,
-        ),
-      };
-    });
-    setStatusMessage(
-      t("ai.settings.messages.defaultsApplied", {
-        name:
-          AGENT_PROVIDER_OPTIONS.find((option) => option.value === provider)
-            ?.label || provider,
-      }),
-    );
-    setErrorMessage("");
-  }, []);
+      setAgentEditorState((current) =>
+        current.mode === "list"
+          ? current
+          : {
+              ...current,
+              draft: createAgentDraftFromProviderPreset(
+                provider,
+                current.draft.type,
+                current.draft,
+              ),
+            },
+      );
+      setFieldErrors({});
+      setStatusMessage(
+        t("ai.settings.messages.defaultsApplied", { name }) +
+          (dropsKey ? ` ${t("ai.settings.messages.apiKeyCleared")}` : ""),
+      );
+      setErrorMessage("");
+    },
+    [agentEditorState],
+  );
 
   const submitAgentDraft = useCallback(() => {
     if (agentEditorState.mode === "list") {
@@ -1200,20 +1614,20 @@ export const AISettings = ({
     const draft = normalizeAgentDraftForSave(agentEditorState.draft);
 
     if (!draft.name.trim()) {
-      setErrorMessage(t("ai.settings.messages.agentNameRequired"));
-      setStatusMessage("");
+      failValidation("agent.name", t("ai.settings.messages.agentNameRequired"));
       return;
     }
 
     if (!draft.baseURL.trim()) {
-      setErrorMessage(t("ai.settings.messages.baseURLRequired"));
-      setStatusMessage("");
+      failValidation(
+        "agent.baseURL",
+        t("ai.settings.messages.baseURLRequired"),
+      );
       return;
     }
 
     if (!draft.model.trim()) {
-      setErrorMessage(t("ai.settings.messages.modelRequired"));
-      setStatusMessage("");
+      failValidation("agent.model", t("ai.settings.messages.modelRequired"));
       return;
     }
 
@@ -1231,7 +1645,13 @@ export const AISettings = ({
     if (savedConfig) {
       setAgentEditorState({ mode: "list" });
     }
-  }, [agentConfig, agentEditorState, persistAgentConfig, setAgentAsDefault]);
+  }, [
+    agentConfig,
+    agentEditorState,
+    failValidation,
+    persistAgentConfig,
+    setAgentAsDefault,
+  ]);
 
   const removeAgent = useCallback(
     async (agent: AIAgent) => {
@@ -1276,46 +1696,56 @@ export const AISettings = ({
 
   const openCreateSkill = useCallback(() => {
     setActiveAgentSubTab("skills");
+    const draft = createSkillDraft();
     setSkillEditorState({
       mode: "create",
-      draft: createSkillDraft(),
+      draft,
+      baseline: snapshotDraft(draft),
     });
-    setStatusMessage("");
-    setErrorMessage("");
-  }, []);
+    resetFeedback();
+  }, [resetFeedback]);
 
-  const openEditSkill = useCallback((skill: AISkill) => {
-    setActiveAgentSubTab("skills");
-    setSkillEditorState({
-      mode: "edit",
-      draft: createSkillDraftFromSkill(skill),
-    });
-    setStatusMessage("");
-    setErrorMessage("");
-  }, []);
+  const openEditSkill = useCallback(
+    (skill: AISkill) => {
+      setActiveAgentSubTab("skills");
+      const draft = createSkillDraftFromSkill(skill);
+      setSkillEditorState({
+        mode: "edit",
+        draft,
+        baseline: snapshotDraft(draft),
+      });
+      resetFeedback();
+    },
+    [resetFeedback],
+  );
 
   const closeSkillEditor = useCallback(() => {
     setSkillEditorState({ mode: "list" });
     setErrorMessage("");
+    setFieldErrors({});
   }, []);
 
-  const updateSkillDraft = useCallback((patch: Partial<SkillDraft>) => {
-    setSkillEditorState((current) => {
-      if (current.mode === "list") {
-        return current;
-      }
+  const updateSkillDraft = useCallback(
+    (patch: Partial<SkillDraft>) => {
+      clearFieldErrors("skill", Object.keys(patch));
+      setSkillEditorState((current) => {
+        if (current.mode === "list") {
+          return current;
+        }
 
-      return {
-        ...current,
-        draft: {
-          ...current.draft,
-          ...patch,
-        },
-      };
-    });
-    setStatusMessage("");
-    setErrorMessage("");
-  }, []);
+        return {
+          ...current,
+          draft: {
+            ...current.draft,
+            ...patch,
+          },
+        };
+      });
+      setStatusMessage("");
+      setErrorMessage("");
+    },
+    [clearFieldErrors],
+  );
 
   const submitSkillDraft = useCallback(() => {
     if (skillEditorState.mode === "list") {
@@ -1325,8 +1755,7 @@ export const AISettings = ({
     const draft = normalizeSkillDraftForSave(skillEditorState.draft);
 
     if (!draft.name) {
-      setErrorMessage(t("ai.settings.messages.skillNameRequired"));
-      setStatusMessage("");
+      failValidation("skill.name", t("ai.settings.messages.skillNameRequired"));
       return;
     }
 
@@ -1337,14 +1766,15 @@ export const AISettings = ({
           skill.name.toLowerCase() === draft.name.toLowerCase(),
       )
     ) {
-      setErrorMessage(t("ai.settings.messages.skillNameUnique"));
-      setStatusMessage("");
+      failValidation("skill.name", t("ai.settings.messages.skillNameUnique"));
       return;
     }
 
     if (!draft.description) {
-      setErrorMessage(t("ai.settings.messages.skillDescriptionRequired"));
-      setStatusMessage("");
+      failValidation(
+        "skill.description",
+        t("ai.settings.messages.skillDescriptionRequired"),
+      );
       return;
     }
 
@@ -1358,7 +1788,7 @@ export const AISettings = ({
     if (savedConfig) {
       setSkillEditorState({ mode: "list" });
     }
-  }, [agentConfig, persistAgentConfig, skillEditorState]);
+  }, [agentConfig, failValidation, persistAgentConfig, skillEditorState]);
 
   const removeSkill = useCallback(
     async (skill: AISkill) => {
@@ -1383,35 +1813,42 @@ export const AISettings = ({
   );
 
   const openCreateTemplate = useCallback(() => {
+    const draft = createPromptTemplateDraft();
     setTemplateEditorState({
       mode: "create",
-      draft: createPromptTemplateDraft(),
+      draft,
+      baseline: snapshotDraft(draft),
     });
-    setStatusMessage("");
-    setErrorMessage("");
-  }, []);
+    resetFeedback();
+  }, [resetFeedback]);
 
-  const openEditTemplate = useCallback((template: PromptTemplate) => {
-    if (template.isBuiltIn) {
-      return;
-    }
+  const openEditTemplate = useCallback(
+    (template: PromptTemplate) => {
+      if (template.isBuiltIn) {
+        return;
+      }
 
-    setTemplateEditorState({
-      mode: "edit",
-      templateId: template.id,
-      draft: createPromptTemplateDraftFromTemplate(template),
-    });
-    setStatusMessage("");
-    setErrorMessage("");
-  }, []);
+      const draft = createPromptTemplateDraftFromTemplate(template);
+      setTemplateEditorState({
+        mode: "edit",
+        templateId: template.id,
+        draft,
+        baseline: snapshotDraft(draft),
+      });
+      resetFeedback();
+    },
+    [resetFeedback],
+  );
 
   const closeTemplateEditor = useCallback(() => {
     setTemplateEditorState({ mode: "list" });
     setErrorMessage("");
+    setFieldErrors({});
   }, []);
 
   const updateTemplateDraft = useCallback(
     (patch: Partial<PromptTemplateDraft>) => {
+      clearFieldErrors("template", Object.keys(patch));
       setTemplateEditorState((current) => {
         if (current.mode === "list") {
           return current;
@@ -1428,30 +1865,34 @@ export const AISettings = ({
       setStatusMessage("");
       setErrorMessage("");
     },
-    [],
+    [clearFieldErrors],
   );
 
-  const toggleTemplateMode = useCallback((mode: AIImageGenerationMode) => {
-    setTemplateEditorState((current) => {
-      if (current.mode === "list") {
-        return current;
-      }
+  const toggleTemplateMode = useCallback(
+    (mode: AIImageGenerationMode) => {
+      clearFieldErrors("template", ["modes"]);
+      setTemplateEditorState((current) => {
+        if (current.mode === "list") {
+          return current;
+        }
 
-      const modes = current.draft.modes.includes(mode)
-        ? current.draft.modes.filter((item) => item !== mode)
-        : [...current.draft.modes, mode];
+        const modes = current.draft.modes.includes(mode)
+          ? current.draft.modes.filter((item) => item !== mode)
+          : [...current.draft.modes, mode];
 
-      return {
-        ...current,
-        draft: {
-          ...current.draft,
-          modes,
-        },
-      };
-    });
-    setStatusMessage("");
-    setErrorMessage("");
-  }, []);
+        return {
+          ...current,
+          draft: {
+            ...current.draft,
+            modes,
+          },
+        };
+      });
+      setStatusMessage("");
+      setErrorMessage("");
+    },
+    [clearFieldErrors],
+  );
 
   const submitTemplateDraft = useCallback(() => {
     if (templateEditorState.mode === "list") {
@@ -1461,20 +1902,26 @@ export const AISettings = ({
     const draft = templateEditorState.draft;
 
     if (!draft.label.trim()) {
-      setErrorMessage(t("ai.settings.messages.templateLabelRequired"));
-      setStatusMessage("");
+      failValidation(
+        "template.label",
+        t("ai.settings.messages.templateLabelRequired"),
+      );
       return;
     }
 
     if (!draft.template.trim()) {
-      setErrorMessage(t("ai.settings.messages.templateContentRequired"));
-      setStatusMessage("");
+      failValidation(
+        "template.template",
+        t("ai.settings.messages.templateContentRequired"),
+      );
       return;
     }
 
     if (!draft.modes.length) {
-      setErrorMessage(t("ai.settings.messages.templateModeRequired"));
-      setStatusMessage("");
+      failValidation(
+        "template.modes",
+        t("ai.settings.messages.templateModeRequired"),
+      );
       return;
     }
 
@@ -1497,7 +1944,7 @@ export const AISettings = ({
         : t("ai.settings.messages.templateCreated"),
     );
     setErrorMessage("");
-  }, [templateEditorState]);
+  }, [failValidation, templateEditorState]);
 
   const removeTemplate = useCallback(async (template: PromptTemplate) => {
     if (
@@ -1571,6 +2018,7 @@ export const AISettings = ({
     >
       <TabList
         idPrefix="ai-settings-media"
+        className="AISettings__subTabs"
         label={t("ai.settings.modelList.ariaLabel")}
         value={activeMediaType}
         onChange={setActiveMediaType}
@@ -1676,6 +2124,7 @@ export const AISettings = ({
   const renderAgentSubTabs = () => (
     <TabList
       idPrefix="ai-settings-agents"
+      className="AISettings__subTabs"
       label={t("ai.settings.agents.sectionsAriaLabel")}
       value={activeAgentSubTab}
       onChange={(value) => {
@@ -1894,11 +2343,20 @@ export const AISettings = ({
 
     const { draft } = agentEditorState;
     const providerPreset = getAIAgentProviderPreset(draft.provider);
+    // Saved key, new host: warn that the key is about to travel with it.
+    const savedAgent =
+      agentEditorState.mode === "edit"
+        ? (JSON.parse(agentEditorState.baseline).draft as AIAgent)
+        : null;
+    const agentKeyHostChanged =
+      !!savedAgent &&
+      draft.apiKey === savedAgent.apiKey &&
+      shouldDropAPIKey(savedAgent.baseURL, draft.baseURL, draft.apiKey);
 
     return (
       <>
         {renderEditorHeader(
-          closeAgentEditor,
+          () => void leaveEditor(isAgentEditorDirty, closeAgentEditor),
           t("ai.settings.agentEditor.heading", {
             mode: `${
               agentEditorState.mode === "edit"
@@ -1941,8 +2399,10 @@ export const AISettings = ({
             <Field
               label={t("ai.settings.agentEditor.agentName")}
               hint={t("ai.settings.agentEditor.agentNameHint")}
+              error={fieldErrors["agent.name"]}
             >
               <TextInput
+                data-field="agent.name"
                 value={draft.name}
                 placeholder={t("ai.settings.agentEditor.agentNamePlaceholder")}
                 onChange={(event) =>
@@ -1971,8 +2431,12 @@ export const AISettings = ({
               </Select>
             </Field>
 
-            <Field label={t("ai.settings.agentEditor.baseURL")}>
+            <Field
+              label={t("ai.settings.agentEditor.baseURL")}
+              error={fieldErrors["agent.baseURL"]}
+            >
               <TextInput
+                data-field="agent.baseURL"
                 value={draft.baseURL}
                 placeholder="https://api.example.com/v1"
                 onChange={(event) =>
@@ -1983,7 +2447,11 @@ export const AISettings = ({
 
             <Field
               label={t("ai.settings.agentEditor.apiKey")}
-              hint={t("ai.settings.agentEditor.plainTextStorage")}
+              hint={
+                agentKeyHostChanged
+                  ? t("ai.settings.messages.apiKeyHostChanged")
+                  : t("ai.settings.agentEditor.plainTextStorage")
+              }
             >
               <TextInput
                 value={draft.apiKey}
@@ -1995,8 +2463,12 @@ export const AISettings = ({
               />
             </Field>
 
-            <Field label={t("ai.settings.agentEditor.model")}>
+            <Field
+              label={t("ai.settings.agentEditor.model")}
+              error={fieldErrors["agent.model"]}
+            >
               <TextInput
+                data-field="agent.model"
                 value={draft.model}
                 placeholder={draft.type === "vision" ? "gpt-4o" : "gpt-4o-mini"}
                 onChange={(event) =>
@@ -2098,7 +2570,7 @@ export const AISettings = ({
     return (
       <>
         {renderEditorHeader(
-          closeSkillEditor,
+          () => void leaveEditor(isSkillEditorDirty, closeSkillEditor),
           t("ai.settings.skillEditor.heading", {
             mode:
               skillEditorState.mode === "edit"
@@ -2109,8 +2581,12 @@ export const AISettings = ({
 
         <div className="AISettings__form">
           <div className="AISettings__formGrid">
-            <Field label={t("ai.settings.skillEditor.skillName")}>
+            <Field
+              label={t("ai.settings.skillEditor.skillName")}
+              error={fieldErrors["skill.name"]}
+            >
               <TextInput
+                data-field="skill.name"
                 value={draft.name}
                 placeholder={t("ai.settings.skillEditor.skillNamePlaceholder")}
                 onChange={(event) =>
@@ -2121,8 +2597,12 @@ export const AISettings = ({
 
             {renderIconSelect(draft.icon, (icon) => updateSkillDraft({ icon }))}
 
-            <Field label={t("ai.settings.skillEditor.description")}>
+            <Field
+              label={t("ai.settings.skillEditor.description")}
+              error={fieldErrors["skill.description"]}
+            >
               <TextInput
+                data-field="skill.description"
                 value={draft.description}
                 placeholder={t(
                   "ai.settings.skillEditor.descriptionPlaceholder",
@@ -2340,15 +2820,19 @@ export const AISettings = ({
     return (
       <>
         {renderEditorHeader(
-          closeTemplateEditor,
+          () => void leaveEditor(isTemplateEditorDirty, closeTemplateEditor),
           templateEditorState.mode === "edit"
             ? t("ai.settings.templates.editTemplate")
             : t("ai.settings.templates.newTemplate"),
         )}
 
         <div className="AISettings__form">
-          <Field label={t("ai.settings.templates.label")}>
+          <Field
+            label={t("ai.settings.templates.label")}
+            error={fieldErrors["template.label"]}
+          >
             <TextInput
+              data-field="template.label"
               value={draft.label}
               onChange={(event) =>
                 updateTemplateDraft({ label: event.target.value })
@@ -2359,8 +2843,10 @@ export const AISettings = ({
           <Field
             label={t("ai.settings.templates.content")}
             hint={t("ai.settings.templates.placeholderHint")}
+            error={fieldErrors["template.template"]}
           >
             <TextArea
+              data-field="template.template"
               value={draft.template}
               rows={5}
               onChange={(event) =>
@@ -2369,20 +2855,38 @@ export const AISettings = ({
             />
           </Field>
 
-          <fieldset className="AISettings__checkboxGroup">
+          <fieldset
+            className="AISettings__checkboxGroup"
+            aria-invalid={fieldErrors["template.modes"] ? true : undefined}
+            aria-describedby={
+              fieldErrors["template.modes"]
+                ? "ai-settings-template-modes-error"
+                : undefined
+            }
+          >
             <legend className="AISettings__visuallyHidden">
               {t("ai.common.mode")}
             </legend>
-            {TEMPLATE_MODE_OPTIONS.map((option) => (
+            {TEMPLATE_MODE_OPTIONS.map((option, index) => (
               <label className="AISettings__checkbox" key={option.value}>
                 <input
                   type="checkbox"
+                  data-field={index === 0 ? "template.modes" : undefined}
                   checked={draft.modes.includes(option.value)}
                   onChange={() => toggleTemplateMode(option.value)}
                 />
                 <span>{t(option.labelKey)}</span>
               </label>
             ))}
+            {fieldErrors["template.modes"] && (
+              <p
+                className="UiField__error AISettings__groupError"
+                id="ai-settings-template-modes-error"
+                role="alert"
+              >
+                {fieldErrors["template.modes"]}
+              </p>
+            )}
           </fieldset>
 
           <div className="AISettings__formGrid">
@@ -2440,6 +2944,15 @@ export const AISettings = ({
 
     const { draft } = editorState;
     const selectedPreset = getPresetById(draft.endpointPresetId);
+    // Saved key, new host: warn that the key is about to travel with it.
+    const savedModel =
+      editorState.mode === "edit"
+        ? (JSON.parse(editorState.baseline).draft as AIModelDraft)
+        : null;
+    const modelKeyHostChanged =
+      !!savedModel &&
+      draft.apiKey === savedModel.apiKey &&
+      shouldDropAPIKey(savedModel.baseURL, draft.baseURL, draft.apiKey);
     const fieldMappingCount = Object.values(draft.fieldMapping || {}).filter(
       Boolean,
     ).length;
@@ -2485,7 +2998,7 @@ export const AISettings = ({
     return (
       <>
         {renderEditorHeader(
-          closeEditor,
+          () => void leaveEditor(isModelEditorDirty, closeEditor),
           editorState.mode === "edit"
             ? t("ai.settings.modelEditor.editModel")
             : t("ai.settings.modelEditor.newModel"),
@@ -2516,8 +3029,12 @@ export const AISettings = ({
             className="AISettings__formSection"
             title={t("ai.settings.modelEditor.connection")}
           >
-            <Field label={t("ai.settings.modelEditor.siteName")}>
+            <Field
+              label={t("ai.settings.modelEditor.siteName")}
+              error={fieldErrors["model.siteName"]}
+            >
               <TextInput
+                data-field="model.siteName"
                 value={draft.siteName}
                 onChange={(event) =>
                   updateDraft({ siteName: event.target.value })
@@ -2525,8 +3042,12 @@ export const AISettings = ({
               />
             </Field>
 
-            <Field label={t("ai.settings.modelEditor.baseURL")}>
+            <Field
+              label={t("ai.settings.modelEditor.baseURL")}
+              error={fieldErrors["model.baseURL"]}
+            >
               <TextInput
+                data-field="model.baseURL"
                 value={draft.baseURL}
                 onChange={(event) =>
                   updateDraft({ baseURL: event.target.value })
@@ -2537,7 +3058,11 @@ export const AISettings = ({
 
             <Field
               label={t("ai.settings.modelEditor.apiKey")}
-              hint={t("ai.settings.modelEditor.plainTextStorage")}
+              hint={
+                modelKeyHostChanged
+                  ? t("ai.settings.messages.apiKeyHostChanged")
+                  : t("ai.settings.modelEditor.plainTextStorage")
+              }
             >
               <TextInput
                 value={draft.apiKey}
@@ -2568,8 +3093,10 @@ export const AISettings = ({
             <Field
               label={t("ai.settings.modelEditor.modelIds")}
               hint={t("ai.settings.modelEditor.modelIdsHint")}
+              error={fieldErrors["model.model"]}
             >
               <TextArea
+                data-field="model.model"
                 value={draft.model}
                 rows={3}
                 onChange={(event) => updateDraft({ model: event.target.value })}
@@ -2872,12 +3399,7 @@ export const AISettings = ({
                 type="radio"
                 name="ai-network-mode"
                 checked={proxyConfig.mode === option.mode}
-                onChange={() =>
-                  setProxyConfig((current) => ({
-                    ...current,
-                    mode: option.mode,
-                  }))
-                }
+                onChange={() => updateProxyDraft({ mode: option.mode })}
               />
               <span>
                 <strong>{option.title}</strong>
@@ -2891,6 +3413,7 @@ export const AISettings = ({
           <div className="AISettings__formGrid">
             <Field
               label={t("ai.proxy.endpoint")}
+              error={fieldErrors["network.endpoint"]}
               hint={
                 <span className="AISettings__metaLines">
                   <span>{t("ai.proxy.endpointHint")}</span>
@@ -2903,13 +3426,11 @@ export const AISettings = ({
               }
             >
               <TextInput
+                data-field="network.endpoint"
                 value={proxyConfig.endpoint}
                 placeholder={t("ai.proxy.endpointPlaceholder")}
                 onChange={(event) =>
-                  setProxyConfig((current) => ({
-                    ...current,
-                    endpoint: event.target.value,
-                  }))
+                  updateProxyDraft({ endpoint: event.target.value })
                 }
               />
             </Field>
@@ -2923,10 +3444,7 @@ export const AISettings = ({
                 autoComplete="off"
                 value={proxyConfig.accessToken}
                 onChange={(event) =>
-                  setProxyConfig((current) => ({
-                    ...current,
-                    accessToken: event.target.value,
-                  }))
+                  updateProxyDraft({ accessToken: event.target.value })
                 }
               />
             </Field>
@@ -2937,18 +3455,17 @@ export const AISettings = ({
           <>
             <Field
               label={t("ai.proxy.gatewayEndpoint")}
+              error={fieldErrors["network.gatewayEndpoint"]}
               hint={t("ai.proxy.runtimeDefault", {
                 endpoint: runtimeDefaultGatewayEndpoint,
               })}
             >
               <TextInput
+                data-field="network.gatewayEndpoint"
                 value={proxyConfig.gatewayEndpoint}
                 placeholder="/ai-gateway/v1"
                 onChange={(event) =>
-                  setProxyConfig((current) => ({
-                    ...current,
-                    gatewayEndpoint: event.target.value,
-                  }))
+                  updateProxyDraft({ gatewayEndpoint: event.target.value })
                 }
               />
             </Field>
@@ -2982,13 +3499,12 @@ export const AISettings = ({
                         <Select
                           value={proxyConfig.managedRoutes[capability] || ""}
                           onChange={(event) =>
-                            setProxyConfig((current) => ({
-                              ...current,
+                            updateProxyDraft({
                               managedRoutes: {
-                                ...current.managedRoutes,
+                                ...proxyConfig.managedRoutes,
                                 [capability]: event.target.value,
                               },
-                            }))
+                            })
                           }
                         >
                           <option value="">{t("ai.proxy.selectRoute")}</option>
@@ -3041,8 +3557,10 @@ export const AISettings = ({
                       <input
                         type="checkbox"
                         checked={managedAuditConsent}
+                        disabled={isUpdatingAuditConsent}
+                        aria-busy={isUpdatingAuditConsent || undefined}
                         onChange={(event) =>
-                          updateManagedAuditConsent(event.target.checked)
+                          void updateManagedAuditConsent(event.target.checked)
                         }
                       />
                       <span>{t("ai.proxy.auditConsent")}</span>
@@ -3064,6 +3582,11 @@ export const AISettings = ({
                                 <UiButton
                                   size="sm"
                                   variant="ghost"
+                                  loading={
+                                    pendingAuditAction?.id === audit.id &&
+                                    pendingAuditAction.action === "view"
+                                  }
+                                  disabled={!!pendingAuditAction}
                                   onClick={() =>
                                     void viewManagedAudit(audit.id)
                                   }
@@ -3073,6 +3596,11 @@ export const AISettings = ({
                                 <UiButton
                                   size="sm"
                                   variant="danger"
+                                  loading={
+                                    pendingAuditAction?.id === audit.id &&
+                                    pendingAuditAction.action === "delete"
+                                  }
+                                  disabled={!!pendingAuditAction}
                                   onClick={() =>
                                     void deleteManagedAudit(audit.id)
                                   }
@@ -3115,7 +3643,8 @@ export const AISettings = ({
                   </Field>
                   <UiButton
                     disabled={!deviceUserCode.trim()}
-                    onClick={approveDeviceCode}
+                    loading={isApprovingDevice}
+                    onClick={() => void approveDeviceCode()}
                   >
                     {t("ai.proxy.approveDevice")}
                   </UiButton>
@@ -3132,9 +3661,19 @@ export const AISettings = ({
         <DialogActions
           className="AISettings__footer"
           leading={
-            <UiButton variant="ghost" onClick={restoreProxyDefaults}>
-              {t("ai.proxy.restoreDefaults")}
-            </UiButton>
+            <>
+              <UiButton
+                variant="ghost"
+                onClick={() => void restoreProxyDefaults()}
+              >
+                {t("ai.proxy.restoreDefaults")}
+              </UiButton>
+              {isProxyConfigDirty && (
+                <span className="AISettings__unsaved" role="status">
+                  {t("ai.settings.messages.unsavedChanges")}
+                </span>
+              )}
+            </>
           }
         >
           <UiButton
@@ -3170,6 +3709,7 @@ export const AISettings = ({
 
       <div
         {...getTabPanelProps("ai-settings", activeSettingsTab)}
+        ref={panelRef}
         className="AISettings__panel"
         tabIndex={-1}
       >

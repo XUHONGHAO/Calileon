@@ -1,6 +1,5 @@
 import React from "react";
 
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
@@ -11,6 +10,7 @@ import {
 } from "../data/vault";
 
 import {
+  AppDialog,
   Badge,
   Callout,
   DialogActions,
@@ -19,6 +19,7 @@ import {
   ListRow,
   Select,
   UiButton,
+  confirmAction,
 } from "./ui";
 
 import "./VaultShareDialog.scss";
@@ -40,6 +41,7 @@ type ManagedInvitation = VaultShareInvitationMetadata & {
 type VaultShareFeedback =
   | { kind: "idle" }
   | { kind: "success"; message: string }
+  | { kind: "warning"; message: string }
   | { kind: "error"; code: VaultErrorCode };
 
 export interface VaultShareTarget {
@@ -179,11 +181,20 @@ export const VaultShareDialog = ({
         ...current,
         { ...result.metadata, state: "active" },
       ]);
-      await copyBearerLink(result.link);
-      setFeedback({
-        kind: "success",
-        message: t("vault.share.createdAndCopied"),
-      });
+      // The invitation exists now: a clipboard failure is not a create
+      // failure (a retry would mint a second invitation).
+      try {
+        await copyBearerLink(result.link);
+        setFeedback({
+          kind: "success",
+          message: t("vault.share.createdAndCopied"),
+        });
+      } catch {
+        setFeedback({
+          kind: "warning",
+          message: t("vault.share.createdCopyFailed"),
+        });
+      }
     } catch (error) {
       setFeedback({ kind: "error", code: getStableShareError(error) });
     } finally {
@@ -193,6 +204,14 @@ export const VaultShareDialog = ({
 
   const revokeInvitation = React.useCallback(
     async (invitationId: string) => {
+      if (
+        !(await confirmAction(t("vault.share.revokeConfirm"), {
+          title: t("vault.share.revokeConfirmTitle"),
+          confirmLabel: t("vault.share.revoke"),
+        }))
+      ) {
+        return;
+      }
       setFeedback({ kind: "idle" });
       setInvitations((current) =>
         current.map((invitation) =>
@@ -242,7 +261,7 @@ export const VaultShareDialog = ({
   }
 
   return (
-    <Dialog
+    <AppDialog
       title={t("vault.share.title")}
       onCloseRequest={onClose}
       size="small"
@@ -295,6 +314,9 @@ export const VaultShareDialog = ({
 
         {feedback.kind === "success" && (
           <Callout tone="success">{feedback.message}</Callout>
+        )}
+        {feedback.kind === "warning" && (
+          <Callout tone="warning">{feedback.message}</Callout>
         )}
         {feedback.kind === "error" && (
           <Callout tone="danger" details={feedback.code}>
@@ -362,6 +384,6 @@ export const VaultShareDialog = ({
           )}
         </DialogSection>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

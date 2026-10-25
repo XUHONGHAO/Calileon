@@ -1,3 +1,5 @@
+import type { TranslationKeys } from "@excalidraw/excalidraw/i18n";
+
 import { createManyMindsId, type ManyMindsPerspective } from "./manyMindsTypes";
 
 const STORAGE_KEY = "excalidraw-many-minds-perspectives-v1";
@@ -105,7 +107,37 @@ export const BUILTIN_MANY_MINDS_PERSPECTIVES: readonly ManyMindsPerspective[] =
       "story",
       "Make the image imply a clearer moment, context, or visual story.",
     ),
+    // Nine built-ins so the largest (9-view) grid can be filled by default.
+    builtIn(
+      "medium",
+      "Medium",
+      "brush",
+      "Reinterpret the subject in a clearly different visual medium or rendering technique.",
+    ),
   ]);
+
+const BUILTIN_PERSPECTIVE_IDS = new Set(
+  BUILTIN_MANY_MINDS_PERSPECTIVES.map((perspective) => perspective.id),
+);
+
+/** i18n key for a built-in perspective's display name, or null for custom. */
+export const getBuiltInManyMindsPerspectiveNameKey = (perspectiveId: string) =>
+  BUILTIN_PERSPECTIVE_IDS.has(perspectiveId)
+    ? (`ai.manyMinds.perspectiveNames.${perspectiveId}` as TranslationKeys)
+    : null;
+
+/**
+ * Default perspective ids for a grid of `count` views: the built-ins in
+ * order, wrapping round if a grid is ever larger than the built-in set.
+ */
+export const getDefaultManyMindsPerspectiveIds = (count: number) =>
+  Array.from(
+    { length: count },
+    (_, index) =>
+      BUILTIN_MANY_MINDS_PERSPECTIVES[
+        index % BUILTIN_MANY_MINDS_PERSPECTIVES.length
+      ].id,
+  );
 
 const sanitizePerspective = (
   perspective: ManyMindsPerspective,

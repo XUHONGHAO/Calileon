@@ -53,6 +53,13 @@
   --ui-control-md: 2.25rem; // 36px  default buttons, inputs, selects
   --ui-control-lg: 2.5rem; // 40px  primary dialog actions
 
+  // Text-entry focus (inputs, textareas, selects, prompt editors): the canvas
+  // selection teal, so a focused field never reads as a flame/danger error.
+  // Buttons and tabs keep --ui-focus-outline. --brand-teal is themed in
+  // brand.scss (light #1f9e8f, dark #3cc8b4).
+  --ui-field-focus: var(--brand-teal, #1f9e8f);
+  --ui-field-focus-ring: 0 0 0 1px var(--ui-field-focus);
+
   // Text tones.
   --ui-text: var(--text-primary-color);
   --ui-text-secondary: var(--text-secondary-color);

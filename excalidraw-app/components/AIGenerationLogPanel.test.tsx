@@ -110,4 +110,28 @@ describe("AIGenerationLogPanel", () => {
     });
     expect(screen.getByText("Prompt copied.")).toBeInTheDocument();
   });
+
+  it("hides the clear-logs header while there are no logs", () => {
+    render(<AIGenerationLogPanel />);
+
+    expect(screen.getByText("No generation logs.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Clear logs" })).toBeNull();
+  });
+
+  it("asks before clearing logs and keeps them when declined", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValueOnce(false);
+    saveAIGenerationLogs([createGenerationLog()]);
+    render(<AIGenerationLogPanel />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Clear logs" }));
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByRole("button", { name: /fixture-native-model/ }),
+    ).toBeInTheDocument();
+
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.click(screen.getByRole("button", { name: "Clear logs" }));
+    expect(await screen.findByText("No generation logs.")).toBeInTheDocument();
+    confirmSpy.mockRestore();
+  });
 });

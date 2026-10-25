@@ -19,10 +19,13 @@
  *  - resetLuminaGame     恢复进入 play 时的关卡几何快照（M3b 起）
  */
 
+import { useEffect, useRef, useState } from "react";
+
 import {
   arrayToMap,
   DEFAULT_ELEMENT_STROKE_COLOR_PALETTE,
   DEFAULT_ELEMENT_STROKE_PICKS,
+  KEYS,
   viewportCoordsToSceneCoords,
 } from "@excalidraw/common";
 
@@ -60,7 +63,9 @@ import { t } from "../i18n";
 
 import { RadioSelection } from "../components/RadioSelection";
 import { ColorPicker } from "../components/ColorPicker/ColorPicker";
+import { TopPicks } from "../components/ColorPicker/TopPicks";
 import { Range } from "../components/Range";
+import { useStylesPanelMode } from "../components/App";
 
 import {
   applyLuminaGameResetSnapshot,
@@ -441,6 +446,10 @@ export const actionChangeLightProps = register<Partial<LuminaLightData>>({
     );
 
     const types: LuminaLightType[] = ["point", "spot", "sun"];
+    // In the compact/mobile panels this fieldset sits inside a popover that is
+    // itself driven by `appState.openPopup`; the full ColorPicker would take
+    // that slot and unmount its own parent. Offer the swatches inline instead.
+    const isCompactPanel = useStylesPanelMode() !== "full";
 
     return (
       <fieldset className="lumina-light-panel">
@@ -464,17 +473,32 @@ export const actionChangeLightProps = register<Partial<LuminaLightData>>({
           />
         </div>
 
-        <ColorPicker
-          topPicks={DEFAULT_ELEMENT_STROKE_PICKS}
-          palette={DEFAULT_ELEMENT_STROKE_COLOR_PALETTE}
-          type="elementStroke"
-          label={t("labels.lumina.light.color")}
-          color={color}
-          onChange={(value) => updateData({ color: value })}
-          elements={elements}
-          appState={appState}
-          updateData={updateData}
-        />
+        {isCompactPanel ? (
+          <div
+            className="lumina-light-color"
+            role="group"
+            aria-label={t("labels.lumina.light.color")}
+          >
+            <TopPicks
+              type="elementStroke"
+              topPicks={DEFAULT_ELEMENT_STROKE_PICKS}
+              activeColor={color}
+              onChange={(value) => updateData({ color: value })}
+            />
+          </div>
+        ) : (
+          <ColorPicker
+            topPicks={DEFAULT_ELEMENT_STROKE_PICKS}
+            palette={DEFAULT_ELEMENT_STROKE_COLOR_PALETTE}
+            type="elementStroke"
+            label={t("labels.lumina.light.color")}
+            color={color}
+            onChange={(value) => updateData({ color: value })}
+            elements={elements}
+            appState={appState}
+            updateData={updateData}
+          />
+        )}
 
         <Range
           label={t("labels.lumina.light.intensity")}
@@ -546,6 +570,57 @@ export const actionChangeLightProps = register<Partial<LuminaLightData>>({
     );
   },
 });
+
+/**
+ * 约束面板的文本框：输入期间只改本地草稿，失焦或回车时才提交一次。
+ * 否则每个字都会触发 perform 的 trim（打不出 "level 1" 中间的空格），
+ * 并各记一条撤销记录。Esc 放弃草稿、恢复已提交的值。
+ */
+const LuminaConstraintTextInput = ({
+  value,
+  onCommit,
+  testId,
+}: {
+  value: string;
+  onCommit: (value: string) => void;
+  testId: string;
+}) => {
+  const [draft, setDraft] = useState(value);
+  const committedRef = useRef(value);
+
+  // 选区或撤销改变了已提交的值时，同步草稿。
+  useEffect(() => {
+    committedRef.current = value;
+    setDraft(value);
+  }, [value]);
+
+  const commit = (next: string) => {
+    if (next !== committedRef.current) {
+      committedRef.current = next;
+      onCommit(next);
+    }
+  };
+
+  return (
+    <input
+      value={draft}
+      onChange={(event) => setDraft(event.currentTarget.value)}
+      onBlur={(event) => commit(event.currentTarget.value)}
+      onKeyDown={(event) => {
+        if (event.nativeEvent.isComposing) {
+          return;
+        }
+        if (event.key === KEYS.ENTER) {
+          event.preventDefault();
+          commit(event.currentTarget.value);
+        } else if (event.key === KEYS.ESCAPE) {
+          setDraft(committedRef.current);
+        }
+      }}
+      data-testid={testId}
+    />
+  );
+};
 
 const LUMINA_GAME_ROLE_LABEL_KEYS: Record<
   "none" | "target" | "emitter" | "shadowTarget" | "treasure",
@@ -849,23 +924,19 @@ export const actionChangeLuminaGameConstraint =
 
           <label>
             {t("labels.lumina.game.constraints.puzzleId")}
-            <input
+            <LuminaConstraintTextInput
               value={puzzleId ?? ""}
-              onChange={(event) =>
-                updateData({ puzzleId: event.currentTarget.value })
-              }
-              data-testid="lumina-game-puzzle-id"
+              onCommit={(value) => updateData({ puzzleId: value })}
+              testId="lumina-game-puzzle-id"
             />
           </label>
 
           <label>
             {t("labels.lumina.game.constraints.elementLabel")}
-            <input
+            <LuminaConstraintTextInput
               value={label ?? ""}
-              onChange={(event) =>
-                updateData({ label: event.currentTarget.value })
-              }
-              data-testid="lumina-game-label"
+              onCommit={(value) => updateData({ label: value })}
+              testId="lumina-game-label"
             />
           </label>
         </fieldset>

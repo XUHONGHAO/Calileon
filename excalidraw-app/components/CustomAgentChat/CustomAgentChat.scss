@@ -40,8 +40,7 @@
 
   .CustomAgentChat__sectionTitle,
   .CustomAgentChat__messageMeta,
-  .CustomAgentChat__empty,
-  .CustomAgentChat__conversation small {
+  .CustomAgentChat__empty {
     color: var(--app-sidebar-muted-text, var(--text-secondary-color));
     font-size: var(--ui-font-xs);
   }
@@ -125,43 +124,27 @@
     overflow: hidden;
   }
 
-  .CustomAgentChat__historyPopover {
-    --history-row-height: 2.35rem;
+  // Agent / skills / history popups. Surface, rows and keyboard come from
+  // `Popover` + `.UiPopover`; they are portalled to the editor root, so these
+  // rules must not be nested under `.CustomAgentChat`.
+  // Doubled with .UiPopover: stylesheet order against ui.scss isn't fixed.
+  .UiPopover.CustomAgentChat__picker {
+    min-width: 12rem;
+    max-width: min(18rem, calc(100vw - 1rem));
+  }
 
-    position: absolute;
-    right: 0;
-    bottom: calc(100% + 0.4rem);
-    left: auto;
-    z-index: var(--zIndex-ui-styles-popup);
-    display: grid;
-    gap: var(--ui-space-1);
-    width: min(12rem, 100%);
-    max-height: min(13.125rem, 38vh);
+  .UiPopover.CustomAgentChat__history {
+    width: min(20rem, calc(100vw - 1rem));
+    max-width: none;
   }
 
   .CustomAgentChat__historySearch {
-    width: 100%;
-    min-width: 0;
-    height: 1.75rem;
-    box-sizing: border-box;
-    border: 1px solid var(--app-sidebar-panel-border, var(--button-gray-1));
-    border-radius: var(--ui-radius-md);
-    padding: 0 var(--ui-space-2);
-    color: var(--text-primary-color);
-    background: var(--app-sidebar-control-bg, var(--sidebar-bg-color));
-    font: inherit;
-    font-size: var(--ui-font-xs);
+    flex: 0 0 auto;
   }
 
-  .CustomAgentChat__historyList {
-    display: flex;
-    flex-direction: column;
-    gap: var(--ui-space-0_5);
-    min-height: 0;
-    max-height: 10.275rem;
-    overflow-y: scroll;
-    padding-right: var(--ui-space-0_5);
-    scrollbar-gutter: stable;
+  .CustomAgentChat__conversationDelete {
+    flex: 0 0 auto;
+    color: var(--ui-text-secondary);
   }
 
   .CustomAgentChat__sectionTitle {
@@ -170,19 +153,7 @@
     text-transform: uppercase;
   }
 
-  .CustomAgentChat__conversation {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 1.35rem;
-    align-items: start;
-    gap: var(--ui-space-0_5);
-    min-height: var(--history-row-height);
-    background: transparent;
-  }
-
-  .CustomAgentChat__conversationSelect,
-  .CustomAgentChat__conversationDelete,
-  .CustomAgentChat__inlineAction,
-  .CustomAgentChat__popover button {
+  .CustomAgentChat__inlineAction {
     border: 0;
     border-radius: var(--ui-radius-md);
     color: var(--text-primary-color);
@@ -192,34 +163,6 @@
     &:hover {
       background: var(--app-sidebar-control-hover-bg, var(--button-gray-2));
     }
-  }
-
-  .CustomAgentChat__conversationSelect {
-    display: grid;
-    gap: 1px;
-    min-width: 0;
-    padding: var(--ui-space-1) var(--ui-space-1_5);
-    text-align: left;
-
-    strong,
-    small {
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-  }
-
-  .CustomAgentChat__conversation.is-selected
-    .CustomAgentChat__conversationSelect {
-    background: var(--color-surface-primary-container);
-  }
-
-  .CustomAgentChat__conversationDelete {
-    width: 1.35rem;
-    height: 1.35rem;
-    margin: var(--ui-space-1) var(--ui-space-0_5) 0 0;
-    padding: 0;
-    font-size: var(--ui-font-xs);
   }
 
   .CustomAgentChat__chat {
@@ -398,6 +341,25 @@
     color: var(--ui-text-secondary);
   }
 
+  // Textarea + Send/Stop. The button sits at the bottom edge so it lines up
+  // with the last line of a short message.
+  .CustomAgentChat__inputRow {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: var(--ui-space-2);
+    min-width: 0;
+  }
+
+  .CustomAgentChat__input {
+    display: block;
+    min-width: 0;
+  }
+
+  .CustomAgentChat__sendButton {
+    min-width: var(--ui-control-lg);
+  }
+
   .CustomAgentChat__input textarea {
     width: 100%;
     min-height: 5rem;
@@ -410,6 +372,18 @@
     color: var(--text-primary-color);
     background: var(--app-sidebar-control-bg, var(--island-bg-color));
     font: inherit;
+  }
+
+  // Text entry focuses teal like .UiInput (the flame outline reads as an
+  // error). Doubled class (0,4,1 with .excalidraw) beats the generic
+  // `.CustomAgentChat textarea:focus-visible` rule above and upstream's
+  // `.excalidraw textarea:not(.excalidraw-wysiwyg):focus` (0,3,1) flame
+  // border regardless of stylesheet order.
+  .CustomAgentChat__input.CustomAgentChat__input textarea:focus,
+  .CustomAgentChat__input.CustomAgentChat__input textarea:focus-visible {
+    outline: none;
+    border-color: var(--ui-field-focus);
+    box-shadow: var(--ui-field-focus-ring);
   }
 
   .CustomAgentChat__messageActions {
@@ -436,64 +410,6 @@
     }
   }
 
-  // Shared popover surface (agent / skills / history).
-  .CustomAgentChat__popover,
-  .CustomAgentChat__historyPopover {
-    box-sizing: border-box;
-    border: 1px solid var(--ui-border);
-    border-radius: var(--ui-radius-lg);
-    padding: var(--ui-space-1_5);
-    background: var(--ui-surface);
-    color: var(--ui-text);
-    box-shadow: var(--shadow-island);
-  }
-
-  .CustomAgentChat__popover {
-    position: absolute;
-    bottom: calc(100% + var(--ui-space-1_5));
-    left: 0;
-    z-index: var(--zIndex-ui-styles-popup);
-    display: grid;
-    align-content: start;
-    gap: var(--ui-space-0_5);
-    width: min(14rem, 100%);
-    max-height: 15rem;
-    overflow-y: auto;
-
-    button {
-      min-width: 0;
-      min-height: 2rem;
-      padding: 0 var(--ui-space-2);
-      overflow: hidden;
-      font: inherit;
-      font-size: var(--ui-font-sm);
-      text-align: left;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-
-      &.is-selected {
-        color: var(--color-on-primary-container);
-        background: var(--color-surface-primary-container);
-        font-weight: var(--ui-weight-medium);
-      }
-    }
-
-    .CustomAgentChat__empty {
-      padding: var(--ui-space-1) var(--ui-space-2);
-    }
-  }
-
-  .CustomAgentChat__popoverTitle {
-    padding: var(--ui-space-1) var(--ui-space-2);
-    color: var(--ui-text-secondary);
-    font-size: var(--ui-font-xs);
-    font-weight: var(--ui-weight-semibold);
-  }
-
-  .CustomAgentChat__popover--agent {
-    width: min(14rem, 100%);
-  }
-
   .CustomAgentChat__message {
     flex: 0 0 auto;
     overflow-wrap: anywhere;
@@ -502,11 +418,6 @@
   @media (max-width: 520px) {
     .CustomAgentChat {
       padding: var(--ui-space-3);
-    }
-
-    .CustomAgentChat__historyPopover {
-      right: 0;
-      left: 0;
     }
 
     .CustomAgentChat__composerToolbar {

@@ -1,14 +1,11 @@
 @import "../../packages/excalidraw/css/variables.module.scss";
 
 .excalidraw {
-  .collab-errors-button {
-    width: 26px;
-    height: 26px;
-    margin-inline-end: 1rem;
-
-    color: var(--color-danger);
-
+  // Doubled class: wins over the UiButton defaults regardless of load order.
+  .UiButton.collab-errors-button {
+    margin-inline-end: var(--ui-space-2);
     flex-shrink: 0;
+    --ui-btn-fg: var(--ui-danger-fg);
   }
 
   .collab-errors-button-shake {

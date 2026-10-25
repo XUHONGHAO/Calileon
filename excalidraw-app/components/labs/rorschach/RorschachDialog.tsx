@@ -1,4 +1,3 @@
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { getSelectedElements } from "@excalidraw/element";
 import React, {
@@ -24,7 +23,7 @@ import {
 import { createRorschachSession } from "../../../ai/rorschachSession";
 import { insertRorschachResultIntoCanvas } from "../../../ai/rorschachCanvas";
 
-import { Badge, Callout, DialogActions, UiButton } from "../../ui";
+import { AppDialog, Badge, Callout, DialogActions, UiButton } from "../../ui";
 
 import { RORSCHACH_PERSONA_ICONS, RorschachIcon } from "./icons";
 
@@ -125,6 +124,13 @@ export const RorschachDialog = ({
     return () => cancelAnimationFrame(frame);
   }, [open]);
   const [busy, setBusy] = useState(false);
+  /**
+   * Set synchronously on the first click: `running` only flips once the
+   * runner has recorded an attempt, after the (async) selection capture, so a
+   * double click would otherwise send two paid requests.
+   */
+  const startingRef = useRef(false);
+  const [starting, setStarting] = useState(false);
   /** Guards against a double click inserting the same result twice. */
   const [inserting, setInserting] = useState(false);
 
@@ -205,9 +211,11 @@ export const RorschachDialog = ({
 
   const beginRun = useCallback(
     async (mode: RorschachRunMode) => {
-      if (!excalidrawAPI) {
+      if (!excalidrawAPI || startingRef.current) {
         return;
       }
+      startingRef.current = true;
+      setStarting(true);
       setInputError("");
       setInsertNotice("");
       setNeedsSettings(null);
@@ -218,6 +226,8 @@ export const RorschachDialog = ({
       try {
         snapshot = await capture({ excalidrawAPI });
       } catch (error) {
+        startingRef.current = false;
+        setStarting(false);
         setInputError(
           error instanceof Error
             ? error.message
@@ -225,7 +235,15 @@ export const RorschachDialog = ({
         );
         return;
       }
+      startingRef.current = false;
+      setStarting(false);
+      // Closed (or switched to Vault mode) while capturing: send nothing.
+      if (runnerRef.current !== active) {
+        return;
+      }
       setBusy(true);
+      // `start` records its attempt synchronously, so `running` now guards
+      // the buttons for the rest of the run.
       await active.start({
         image: snapshot,
         personaId,
@@ -349,7 +367,7 @@ export const RorschachDialog = ({
     session.history.filter((entry) => entry === reading).length > 1;
 
   return (
-    <Dialog
+    <AppDialog
       className="RorschachDialog"
       title={
         <span className="RorschachDialog__title">
@@ -360,10 +378,11 @@ export const RorschachDialog = ({
         </span>
       }
       size="regular"
+      // A stray backdrop click must not throw away a paid reading.
+      closeOnClickOutside={!running && !starting}
       onCloseRequest={onClose}
       // Dialog focuses its 2nd focusable (assuming a close button), which
       // lit up the 2nd persona as if selected. Focus the active one instead.
-      autofocus={false}
     >
       <div className="Rorschach" aria-label={t("labs.rorschach.title")}>
         <p className="Rorschach__intro">{t("labs.rorschach.intro")}</p>
@@ -490,7 +509,7 @@ export const RorschachDialog = ({
             <UiButton
               variant="primary"
               onClick={() => void beginRun("read-and-draw")}
-              disabled={!selectionCount || running}
+              disabled={!selectionCount || running || starting}
               loading={running && session.runMode === "read-and-draw"}
             >
               {t("labs.rorschach.actionReadAndDraw")}
@@ -502,7 +521,7 @@ export const RorschachDialog = ({
           <div className="Rorschach__actionGroup">
             <UiButton
               onClick={() => void beginRun("read-only")}
-              disabled={!selectionCount || running}
+              disabled={!selectionCount || running || starting}
               loading={running && session.runMode === "read-only"}
             >
               {t("labs.rorschach.actionReadOnly")}
@@ -527,7 +546,7 @@ export const RorschachDialog = ({
         {attempt && (
           <DialogActions>
             {attempt.readingStatus === "failed" && (
-              <UiButton onClick={retryReading} disabled={running}>
+              <UiButton onClick={retryReading} disabled={running || starting}>
                 {t("labs.rorschach.retryReading")}
               </UiButton>
             )}
@@ -536,7 +555,7 @@ export const RorschachDialog = ({
                 <UiButton
                   variant="ghost"
                   onClick={() => void beginRun(session.runMode)}
-                  disabled={running}
+                  disabled={running || starting}
                 >
                   {t("labs.rorschach.readAgain")}
                 </UiButton>
@@ -581,6 +600,6 @@ export const RorschachDialog = ({
           </span>
         </p>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

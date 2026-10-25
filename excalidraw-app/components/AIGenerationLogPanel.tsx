@@ -8,7 +8,7 @@ import {
   loadAIGenerationLogs,
 } from "../ai/generationLog";
 
-import { Badge, Callout, UiButton } from "./ui";
+import { Badge, Callout, confirmAction, UiButton } from "./ui";
 
 import "./AIGenerationLogPanel.scss";
 
@@ -37,6 +37,7 @@ export const AIGenerationLogPanel = ({
     useState<AIGenerationLogEntry[]>(loadAIGenerationLogs);
   const [expandedLogId, setExpandedLogId] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
+  const [statusIsError, setStatusIsError] = useState(false);
 
   useEffect(() => {
     const reloadLogs = () => {
@@ -57,7 +58,15 @@ export const AIGenerationLogPanel = ({
     [expandedLogId, logs],
   );
 
-  const clearLogs = () => {
+  const clearLogs = async () => {
+    const confirmed = await confirmAction(t("ai.generationLog.clearConfirm"), {
+      title: t("ai.generationLog.clear"),
+      confirmLabel: t("ai.common.clear"),
+      danger: true,
+    });
+    if (!confirmed) {
+      return;
+    }
     clearAIGenerationLogs();
     setExpandedLogId("");
     setStatusMessage("");
@@ -65,26 +74,30 @@ export const AIGenerationLogPanel = ({
 
   const reuseLog = (log: AIGenerationLogEntry) => {
     onReuseLog?.(log);
+    setStatusIsError(false);
     setStatusMessage(t("ai.generationLog.settingsSent"));
   };
 
   const copyPrompt = async (log: AIGenerationLogEntry) => {
-    await copyTextToSystemClipboard(log.prompt);
-    setStatusMessage(t("ai.generationLog.promptCopied"));
+    try {
+      await copyTextToSystemClipboard(log.prompt);
+      setStatusIsError(false);
+      setStatusMessage(t("ai.generationLog.promptCopied"));
+    } catch {
+      setStatusIsError(true);
+      setStatusMessage(t("alerts.couldNotCopyToClipboard"));
+    }
   };
 
   return (
     <div className="AIGenerationLogPanel">
-      <div className="AIGenerationLogPanel__header">
-        <UiButton
-          variant="danger"
-          size="sm"
-          onClick={clearLogs}
-          disabled={!logs.length}
-        >
-          {t("ai.generationLog.clear")}
-        </UiButton>
-      </div>
+      {logs.length > 0 && (
+        <div className="AIGenerationLogPanel__header">
+          <UiButton variant="danger" size="sm" onClick={() => void clearLogs()}>
+            {t("ai.generationLog.clear")}
+          </UiButton>
+        </div>
+      )}
 
       {!logs.length && (
         <div className="AIGenerationLogPanel__emptyState">
@@ -93,7 +106,10 @@ export const AIGenerationLogPanel = ({
       )}
 
       {statusMessage && (
-        <Callout tone="success" className="AIGenerationLogPanel__message">
+        <Callout
+          tone={statusIsError ? "danger" : "success"}
+          className="AIGenerationLogPanel__message"
+        >
           {statusMessage}
         </Callout>
       )}

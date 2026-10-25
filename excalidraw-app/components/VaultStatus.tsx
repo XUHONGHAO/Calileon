@@ -247,9 +247,34 @@ export const VaultStatus = ({
   onReviewConflict?: () => void;
 }) => {
   const pendingAttachments = attachmentPending ?? 0;
+  const failedAttachments = attachmentFailed ?? 0;
+  const baseTone = getUiTone(syncStatus, autosaveUnsyncedReason, recoveryState);
+  const details: { text: string; testId: string }[] = [];
+  if (pendingAttachments > 0) {
+    details.push({
+      text: t("vault.status.attachmentsPending", {
+        pending: pendingAttachments,
+      }),
+      testId: "vault-attachments-pending",
+    });
+  }
+  if (failedAttachments > 0) {
+    details.push({
+      text: t("vault.status.attachmentsFailed", { failed: failedAttachments }),
+      testId: "vault-attachments-failed",
+    });
+  }
   return (
     <VaultStatusPill
-      tone={getUiTone(syncStatus, autosaveUnsyncedReason, recoveryState)}
+      // Failed uploads need attention even when the scene itself synced.
+      tone={
+        failedAttachments > 0 &&
+        (baseTone === "success" ||
+          baseTone === "info" ||
+          baseTone === "neutral")
+          ? "warning"
+          : baseTone
+      }
       legacyTone={getStatusTone(syncStatus, recoveryState)}
       role={role}
       label={
@@ -257,18 +282,7 @@ export const VaultStatus = ({
           ? getRecoveryLabel(recoveryState)
           : getSyncLabel(syncStatus, autosaveUnsyncedReason)
       }
-      details={
-        pendingAttachments > 0
-          ? [
-              {
-                text: t("vault.status.attachmentsPending", {
-                  pending: pendingAttachments,
-                }),
-                testId: "vault-attachments-pending",
-              },
-            ]
-          : undefined
-      }
+      details={details.length > 0 ? details : undefined}
       action={
         recoveryState === "conflict" &&
         onReviewConflict && (

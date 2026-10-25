@@ -268,6 +268,13 @@
   }
 
   .UiInput {
+    // Panel rules often style fields with `outline: var(--ui-focus-outline)`
+    // (and win on specificity). Both vars resolve on `.excalidraw` to the
+    // flame primary, which reads as an error on a text field, so redeclare
+    // them here: any focus ring drawn on a field is the selection teal.
+    --focus-ring-color: var(--ui-field-focus);
+    --ui-focus-outline: 2px solid var(--focus-ring-color);
+
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
@@ -293,10 +300,16 @@
       border-color: var(--color-border-outline);
     }
 
-    &:focus-visible {
+    // Teal on any focus (not only :focus-visible): fields always show where
+    // the caret is, and teal never reads as an error. Doubled class (0,4,0):
+    // upstream `.excalidraw textarea:not(.excalidraw-wysiwyg):focus` and
+    // `.excalidraw input[type="text"]:focus` (0,3,1 / 0,3,1) set a flame
+    // `--color-brand-hover` border and otherwise win.
+    &.UiInput:focus,
+    &.UiInput:focus-visible {
       outline: none;
-      border-color: var(--color-primary);
-      box-shadow: 0 0 0 1px var(--color-primary);
+      border-color: var(--ui-field-focus);
+      box-shadow: var(--ui-field-focus-ring);
     }
 
     &[aria-invalid="true"] {
@@ -532,20 +545,9 @@
 }
 .excalidraw {
   // ---------------------------------------------------------- Action menu
+  // Card, placement and motion come from .UiPopover (sizing override sits
+  // after it); this block styles the menu items.
   .UiActionMenu {
-    position: fixed;
-    z-index: var(--zIndex-popup);
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
-    min-width: 10rem;
-    max-width: min(18rem, calc(100vw - 1rem));
-    padding: var(--ui-space-1);
-    border: 1px solid var(--ui-border);
-    border-radius: var(--ui-radius-lg);
-    background: var(--ui-surface);
-    box-shadow: var(--shadow-island);
-
     &__item {
       display: flex;
       align-items: center;
@@ -790,5 +792,308 @@
     line-height: var(--ui-line-normal);
     overflow-wrap: anywhere;
     white-space: pre-line;
+  }
+
+  // -------------------------------------------------------------- Popover
+  // One surface for every app popup: select listboxes, action menus, the
+  // assistant pickers. Same card as the Shelf Life date picker: hairline
+  // border, island shadow, lg radius, 4px inner padding, rows on md radius.
+  .UiPopover {
+    position: fixed;
+    z-index: var(--zIndex-popup);
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-0_5);
+    box-sizing: border-box;
+    max-width: min(22rem, calc(100vw - 1rem));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--ui-space-1);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface);
+    box-shadow: var(--shadow-island);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+    font-size: var(--ui-font-sm);
+    outline: none;
+    transform-origin: top center;
+    animation: UiPopover-in var(--ui-transition-fast, 0.12s) ease-out;
+
+    &--top {
+      transform-origin: bottom center;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      animation: none;
+    }
+  }
+
+  // Action menus open from a trailing "more" button: grow from the right.
+  .UiPopover.UiActionMenu {
+    min-width: 10rem;
+    max-width: min(18rem, calc(100vw - 1rem));
+    transform-origin: top right;
+
+    &.UiPopover--top {
+      transform-origin: bottom right;
+    }
+  }
+
+  .UiPopover__item {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--ui-space-2);
+    box-sizing: border-box;
+    width: 100%;
+    min-height: var(--ui-control-md);
+    margin: 0;
+    padding: 0 var(--ui-space-2) 0 var(--ui-space-3);
+    border: 0;
+    border-radius: var(--ui-radius-md);
+    background: transparent;
+    color: var(--ui-text);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    user-select: none;
+
+    &.is-active,
+    &:hover:not(:disabled):not(.is-disabled) {
+      background: var(--ui-surface-sunken);
+    }
+
+    // Keyboard highlight: the sunken fill alone is ~1.1:1, add a ring.
+    &:focus-visible {
+      outline: none;
+      background: var(--ui-surface-sunken);
+      box-shadow: inset 0 0 0 2px var(--focus-ring-color);
+    }
+
+    // Selected: flame text and check, like the picker's chosen day without
+    // the full fill (a filled row in a long list is too loud).
+    &.is-selected {
+      color: var(--color-primary);
+      font-weight: var(--ui-weight-medium);
+    }
+
+    &.is-disabled,
+    &:disabled {
+      color: var(--ui-text-disabled);
+      cursor: not-allowed;
+    }
+  }
+
+  .UiPopover__label {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .UiPopover__empty {
+    padding: var(--ui-space-2) var(--ui-space-3);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+  }
+
+  .UiPopover__check {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  // Popups anchored to a trailing button grow from the right.
+  .UiPopover--end {
+    transform-origin: top right;
+
+    &.UiPopover--top {
+      transform-origin: bottom right;
+    }
+  }
+
+  .UiPopover__heading {
+    flex: 0 0 auto;
+    padding: var(--ui-space-1) var(--ui-space-3) var(--ui-space-0_5);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
+  }
+
+  .UiPopover__separator {
+    flex: 0 0 auto;
+    height: 1px;
+    margin: var(--ui-space-0_5) var(--ui-space-1);
+    background: var(--ui-border);
+  }
+
+  // Secondary text after the label (a category, a count).
+  .UiPopover__meta {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-regular);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  // Leading glyph (emoji, thumbnail, index).
+  .UiPopover__lead {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+  }
+
+  // Title over a meta line (history rows).
+  .UiPopover__item--stacked {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0;
+    padding-block: var(--ui-space-1);
+
+    .UiPopover__label,
+    .UiPopover__meta {
+      display: block;
+      flex: none;
+    }
+  }
+
+  // An item with trailing actions (e.g. delete) on the same row.
+  .UiPopover__row {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: var(--ui-space-0_5);
+    min-width: 0;
+
+    > .UiPopover__item {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  // Search field pinned above a scrolling list.
+  .UiPopover--panel {
+    gap: var(--ui-space-1);
+    overflow: hidden;
+  }
+
+  .UiPopover__list {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--ui-space-0_5);
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  // --------------------------------------------------------------- Select
+  .UiSelect {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    padding-inline-end: var(--ui-space-2);
+    text-align: start;
+    cursor: pointer;
+
+    &:disabled {
+      cursor: not-allowed;
+    }
+
+    &--open {
+      border-color: var(--ui-field-focus);
+      box-shadow: var(--ui-field-focus-ring);
+    }
+
+    &--placeholder .UiSelect__value {
+      color: var(--ui-text-secondary);
+    }
+  }
+
+  .UiSelect__value {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .UiSelect__chevron {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 1rem;
+    height: 1rem;
+    color: var(--ui-text-secondary);
+    transition: transform var(--ui-transition);
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  .UiSelect--open .UiSelect__chevron {
+    transform: rotate(180deg);
+  }
+
+  // ------------------------------------------------------------ AppDialog
+  // The surface takes focus on open so no control shows a ring before Tab.
+  .AppDialog__surface:focus,
+  .AppDialog__surface:focus-visible {
+    outline: none;
+  }
+
+  // Layout-neutral: dialogs keep laying out their own children.
+  .AppDialog__content {
+    display: contents;
+  }
+
+  // Sits on the title row, outside the <h2>; positioned against the Island
+  // (position: relative). The Island's padding is 40px on desktop and the
+  // title is ~1.25rem tall, so this centres the button on the title line.
+  .AppDialog .Dialog__title {
+    padding-inline-end: var(--ui-space-8);
+  }
+
+  .AppDialog__close {
+    position: absolute;
+    top: calc(2.5rem - var(--ui-space-1));
+    right: var(--ui-space-6);
+    z-index: 1;
+    color: var(--ui-text-secondary);
+
+    &:hover:not(:disabled) {
+      color: var(--ui-text);
+    }
+  }
+
+  // Phones: the editor Dialog renders its own full-screen close button.
+  .AppDialog.Dialog--fullscreen .AppDialog__close {
+    display: none;
+  }
+}
+
+@keyframes UiPopover-in {
+  from {
+    opacity: 0;
+    transform: translateY(-2px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

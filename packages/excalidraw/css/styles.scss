@@ -256,10 +256,16 @@ body.excalidraw-cursor-resize * {
   // 材质按钮承载的是文字而非图标，需要宽度自适应文字、横排换行，
   // 否则会套用固定小方块尺寸导致文字溢出。
   .lumina-material-buttonList {
+    flex-wrap: wrap;
+
     button {
       width: auto;
       height: auto;
+      // Text buttons: keep the 2rem control floor and let long role names
+      // ("Shadow target") wrap instead of widening the panel.
       min-width: 0;
+      min-height: 2rem;
+      max-width: 100%;
       padding: 0.375rem 0.625rem;
     }
 
@@ -268,9 +274,24 @@ body.excalidraw-cursor-resize * {
       align-items: center;
       justify-content: center;
       font-size: 0.75rem;
-      line-height: 1;
-      white-space: nowrap;
+      line-height: 1.2;
+      white-space: normal;
+      text-align: center;
     }
+  }
+
+  // Compact/mobile shape-action popovers carrying the Lumina panels outgrow
+  // short viewports; scroll inside the space Radix says is available.
+  .properties-content:has(.lumina-material-buttonList) > .Island {
+    max-height: var(--radix-popover-content-available-height, 70vh);
+    overflow-y: auto;
+  }
+
+  // Compact/mobile light panel: inline swatches instead of a nested popover.
+  .lumina-light-color .color-picker__top-picks {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    gap: 0.25rem;
   }
 
   .App-top-bar {

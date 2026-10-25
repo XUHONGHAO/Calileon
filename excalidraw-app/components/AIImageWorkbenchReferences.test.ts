@@ -6,7 +6,9 @@ import { getAIWorkbenchReferenceManifestKey } from "../ai/workbenchPersistenceSc
 import {
   appendSelectedImageSources,
   clearReferenceWeight,
+  createReferenceIndexMap,
   markMissingReferenceElements,
+  remapPromptReferences,
   reindexReferenceImages,
   loadPersistedReferenceState,
   persistReferenceState,
@@ -191,6 +193,31 @@ describe("AIImageWorkbenchReferences", () => {
     ]);
     expect(validatePromptReferences("use 图 3", 2)).toEqual([
       "Warning: #3 not found (2 references).",
+    ]);
+  });
+
+  it("rewrites #n tokens after a reorder and marks removed ones invalid", () => {
+    const ref = (createdAt: number) =>
+      ({ createdAt } as unknown as AIImageSourceEnhanced);
+    const [a, b, c] = [ref(10), ref(20), ref(30)];
+
+    // Move #3 to the front: c, a, b.
+    const moved = createReferenceIndexMap([a, b, c], [c, a, b]);
+    expect(remapPromptReferences("put #1 left of #3, 图 2 behind", moved)).toBe(
+      "put #2 left of #1, 图 3 behind",
+    );
+
+    // Delete #2: a, c.
+    const removed = createReferenceIndexMap([a, b, c], [a, c]);
+    expect(remapPromptReferences("#1 and #2 and image 3 and #7", removed)).toBe(
+      "#1 and #? and image 2 and #7",
+    );
+    expect(tokenizePromptReferences("#? here", 2)[0]).toEqual({
+      text: "#?",
+      type: "invalid-reference",
+    });
+    expect(validatePromptReferences("use #?", 2)).toEqual([
+      "Warning: a referenced image was removed (#?).",
     ]);
   });
 

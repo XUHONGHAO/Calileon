@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import {
+  EraserIcon,
+  FreedrawIcon,
+  RedoIcon,
+  UndoIcon,
+} from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
+import { getShortcutKey } from "@excalidraw/excalidraw/shortcut";
 
 import { MASK_BRUSH_SIZE_LIMITS } from "../ai/maskCanvas";
 import {
@@ -25,8 +32,14 @@ type AIMaskEditingOverlayProps = {
   zoomValue: number;
   maskPreviewDataURL: string | null;
   isDonePending: boolean;
+  canUndo?: boolean;
+  canRedo?: boolean;
   theme?: "light" | "dark";
   onBrushSizeChange: (size: number) => void;
+  /** Brush/eraser toggle; the `E` shortcut stays as well. */
+  onErasingChange?: (isErasing: boolean) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
   onDone: () => void | Promise<void>;
   onCancel: () => void;
   onMaskPointerDown: (clientX: number, clientY: number) => void;
@@ -44,8 +57,13 @@ export const AIMaskEditingOverlay = ({
   zoomValue,
   maskPreviewDataURL,
   isDonePending,
+  canUndo = false,
+  canRedo = false,
   theme = "light",
   onBrushSizeChange,
+  onErasingChange,
+  onUndo,
+  onRedo,
   onDone,
   onCancel,
   onMaskPointerDown,
@@ -78,12 +96,11 @@ export const AIMaskEditingOverlay = ({
     [onMaskPointerUp],
   );
 
+  // Start on the overlay itself, not on "Done": Space (held to pan in the
+  // editor) or Enter must not submit the mask the moment editing opens.
+  // Tab then walks into the toolbars.
   useEffect(() => {
-    overlayRef.current
-      ?.querySelector<HTMLElement>(
-        "button:not([disabled]), input:not([disabled])",
-      )
-      ?.focus();
+    overlayRef.current?.focus({ preventScroll: true });
   }, []);
 
   useEffect(() => {
@@ -266,8 +283,8 @@ export const AIMaskEditingOverlay = ({
       <div
         className={`excalidraw theme--${theme} AIMaskEditingOverlay__chrome`}
       >
-        <div className="AIMaskEditingOverlay__toolbar" role="status">
-          <span>
+        <div className="AIMaskEditingOverlay__toolbar" role="toolbar">
+          <span aria-live="polite">
             {isErasing
               ? t("ai.workbench.maskEditor.erasing")
               : t("ai.workbench.maskEditor.drawing")}
@@ -275,46 +292,110 @@ export const AIMaskEditingOverlay = ({
           <div className="AIMaskEditingOverlay__buttons">
             <UiButton
               variant="primary"
-              disabled={isDonePending}
+              loading={isDonePending}
               onClick={onDone}
             >
               {t("ai.workbench.maskEditor.done")}
             </UiButton>
-            <UiButton disabled={isDonePending} onClick={onCancel}>
+            {/* Stays enabled while "Done" exports: cancelling aborts it,
+                exactly like Escape. */}
+            <UiButton onClick={onCancel}>
               {t("ai.workbench.maskEditor.cancel")}
             </UiButton>
           </div>
         </div>
 
-        <div className="AIMaskEditingOverlay__brushToolbar">
-          <label>
-            <span>
-              {t("ai.workbench.maskEditor.brushSize", { size: brushSize })}
-            </span>
-            <input
-              type="range"
-              min={MASK_BRUSH_SIZE_LIMITS.min}
-              max={MASK_BRUSH_SIZE_LIMITS.max}
-              value={brushSize}
-              aria-label={t("ai.workbench.maskEditor.brushSizeLabel")}
-              onChange={(event) =>
-                onBrushSizeChange(Number(event.currentTarget.value))
-              }
-            />
-          </label>
-        </div>
+        {/* Phones stack the preview on top of the brush toolbar here, so a
+            taller toolbar can never slide under the preview. */}
+        <div className="AIMaskEditingOverlay__bottomStack">
+          {maskPreviewDataURL && (
+            <aside className="AIMaskEditingOverlay__preview">
+              <div className="AIMaskEditingOverlay__previewTitle">
+                {t("ai.workbench.maskEditor.preview")}
+              </div>
+              <img
+                src={maskPreviewDataURL}
+                alt={t("ai.workbench.maskEditor.preview")}
+              />
+            </aside>
+          )}
 
-        {maskPreviewDataURL && (
-          <aside className="AIMaskEditingOverlay__preview">
-            <div className="AIMaskEditingOverlay__previewTitle">
-              {t("ai.workbench.maskEditor.preview")}
+          <div className="AIMaskEditingOverlay__brushToolbar">
+            <div className="AIMaskEditingOverlay__toolRow">
+              <div
+                className="AIMaskEditingOverlay__tools"
+                role="group"
+                aria-label={t("ai.workbench.maskEditor.tools")}
+              >
+                <UiButton
+                  size="sm"
+                  variant="ghost"
+                  icon={FreedrawIcon}
+                  className="AIMaskEditingOverlay__tool"
+                  aria-pressed={!isErasing}
+                  title={t("ai.workbench.maskEditor.toolShortcut")}
+                  disabled={isDonePending}
+                  onClick={() => onErasingChange?.(false)}
+                >
+                  {t("ai.workbench.maskEditor.brush")}
+                </UiButton>
+                <UiButton
+                  size="sm"
+                  variant="ghost"
+                  icon={EraserIcon}
+                  className="AIMaskEditingOverlay__tool"
+                  aria-pressed={isErasing}
+                  title={t("ai.workbench.maskEditor.toolShortcut")}
+                  disabled={isDonePending}
+                  onClick={() => onErasingChange?.(true)}
+                >
+                  {t("ai.workbench.maskEditor.eraser")}
+                </UiButton>
+              </div>
+              <div className="AIMaskEditingOverlay__history">
+                <UiButton
+                  size="sm"
+                  variant="ghost"
+                  iconOnly
+                  icon={UndoIcon}
+                  aria-label={t("ai.workbench.maskEditor.undo")}
+                  title={`${t(
+                    "ai.workbench.maskEditor.undo",
+                  )} (${getShortcutKey("CtrlOrCmd+Z")})`}
+                  disabled={!canUndo || isDonePending}
+                  onClick={onUndo}
+                />
+                <UiButton
+                  size="sm"
+                  variant="ghost"
+                  iconOnly
+                  icon={RedoIcon}
+                  aria-label={t("ai.workbench.maskEditor.redo")}
+                  title={`${t(
+                    "ai.workbench.maskEditor.redo",
+                  )} (${getShortcutKey("CtrlOrCmd+Y")})`}
+                  disabled={!canRedo || isDonePending}
+                  onClick={onRedo}
+                />
+              </div>
             </div>
-            <img
-              src={maskPreviewDataURL}
-              alt={t("ai.workbench.maskEditor.preview")}
-            />
-          </aside>
-        )}
+            <label>
+              <span>
+                {t("ai.workbench.maskEditor.brushSize", { size: brushSize })}
+              </span>
+              <input
+                type="range"
+                min={MASK_BRUSH_SIZE_LIMITS.min}
+                max={MASK_BRUSH_SIZE_LIMITS.max}
+                value={brushSize}
+                aria-label={t("ai.workbench.maskEditor.brushSizeLabel")}
+                onChange={(event) =>
+                  onBrushSizeChange(Number(event.currentTarget.value))
+                }
+              />
+            </label>
+          </div>
+        </div>
       </div>
     </div>
   );

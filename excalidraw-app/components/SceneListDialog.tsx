@@ -1,7 +1,5 @@
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { getCloudBackend } from "../data/cloud";
 import { getCloudShareLink } from "../data/cloud/cloudShareLinks";
@@ -9,6 +7,7 @@ import { getCloudShareLink } from "../data/cloud/cloudShareLinks";
 import "./SceneListDialog.scss";
 
 import {
+  AppDialog,
   Badge,
   Callout,
   DialogActions,
@@ -72,6 +71,8 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   const [shareMode, setShareMode] = useState<ShareMode>("read");
 
   const backend = getCloudBackend();
+  const openRef = useRef(open);
+  openRef.current = open;
 
   const loadScenes = useCallback(async () => {
     if (!backend.capabilities.sceneStorage) {
@@ -137,6 +138,10 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     setError(null);
     try {
       const scene = await backend.scenes.load(id);
+      // Closed from elsewhere while loading: don't replace the canvas.
+      if (!openRef.current) {
+        return;
+      }
       await onOpenScene(scene);
       onClose();
     } catch (err) {
@@ -166,8 +171,13 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     }
   };
 
-  const handleRemove = async (id: string) => {
-    if (!(await confirmAction(t("cloud.scenes.deleteConfirm")))) {
+  const handleRemove = async ({ id, title }: SceneSummary) => {
+    if (
+      !(await confirmAction(t("cloud.scenes.deleteConfirmScene", { title }), {
+        title: t("cloud.scenes.deleteConfirmTitle"),
+        confirmLabel: t("cloud.scenes.delete"),
+      }))
+    ) {
       return;
     }
 
@@ -222,7 +232,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   };
 
   const handleCopyShare = async (share: ShareLink) => {
-    setBusyShareId(share.id);
+    setBusyShareId(`copy-${share.id}`);
     setError(null);
     try {
       await navigator.clipboard.writeText(
@@ -241,12 +251,18 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   const handleRevokeShare = async (share: ShareLink) => {
     if (
       !sharingScene ||
-      !(await confirmAction(t("cloud.share.revokeConfirm")))
+      !(await confirmAction(
+        t("cloud.share.revokeConfirmScene", { title: sharingScene.title }),
+        {
+          title: t("cloud.share.revokeConfirmTitle"),
+          confirmLabel: t("cloud.share.revoke"),
+        },
+      ))
     ) {
       return;
     }
 
-    setBusyShareId(share.id);
+    setBusyShareId(`revoke-${share.id}`);
     setError(null);
     try {
       await backend.shares.revoke(share.id);
@@ -262,11 +278,27 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     event: React.KeyboardEvent<HTMLInputElement>,
     id: string,
   ) => {
+    if (event.nativeEvent.isComposing) {
+      event.stopPropagation();
+      return;
+    }
+    if (event.key === "Escape") {
+      // Escape leaves rename mode; it doesn't close the whole dialog.
+      event.preventDefault();
+      event.stopPropagation();
+      cancelRename();
+      return;
+    }
     event.stopPropagation();
-    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+    if (event.key === "Enter") {
       event.preventDefault();
       void handleRename(id);
     }
+  };
+
+  const cancelRename = () => {
+    setRenamingSceneId(null);
+    setRenameTitle("");
   };
 
   const renderStatus = (message: string) => (
@@ -303,7 +335,8 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
       {shareLoading ? (
         renderStatus(t("cloud.share.loading"))
       ) : shareLinks.length === 0 ? (
-        renderStatus(t("cloud.share.empty"))
+        // A failed load shows the error above, not "no links yet".
+        !error && renderStatus(t("cloud.share.empty"))
       ) : (
         <ul className="SceneListDialog__list">
           {shareLinks.map((share) => (
@@ -327,7 +360,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
                   <>
                     <UiButton
                       size="sm"
-                      loading={busyShareId === share.id}
+                      loading={busyShareId === `copy-${share.id}`}
                       disabled={busyShareId !== null}
                       onClick={() => void handleCopyShare(share)}
                     >
@@ -336,6 +369,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
                     <UiButton
                       size="sm"
                       variant="danger"
+                      loading={busyShareId === `revoke-${share.id}`}
                       disabled={busyShareId !== null}
                       onClick={() => void handleRevokeShare(share)}
                     >
@@ -375,14 +409,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
           }
           actions={
             <>
-              <UiButton
-                size="sm"
-                onClick={() => {
-                  setRenamingSceneId(null);
-                  setRenameTitle("");
-                }}
-                disabled={isBusy}
-              >
+              <UiButton size="sm" onClick={cancelRename} disabled={isBusy}>
                 {t("cloud.scenes.cancelRename")}
               </UiButton>
               <UiButton
@@ -423,7 +450,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
     }
     menu.push({
       label: t("cloud.scenes.delete"),
-      onSelect: () => void handleRemove(scene.id),
+      onSelect: () => void handleRemove(scene),
       danger: true,
       disabled: rowDisabled,
     });
@@ -459,25 +486,15 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
   const listBusy = sharingScene ? shareLoading : loading;
 
   return (
-    <Dialog
+    <AppDialog
       className="SceneListDialogModal"
       size="small"
       closeOnClickOutside={false}
+      busy={busySceneId !== null}
       onCloseRequest={onClose}
       title={t("cloud.scenes.title")}
     >
       <div className="SceneListDialog">
-        <UiButton
-          className="SceneListDialog__close"
-          variant="ghost"
-          size="sm"
-          iconOnly
-          icon={CloseIcon}
-          aria-label={t("buttons.close")}
-          title={t("buttons.close")}
-          onClick={onClose}
-        />
-
         <p className="SceneListDialog__description">
           {sharingScene
             ? t("cloud.share.description", { title: sharingScene.title })
@@ -491,7 +508,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
         ) : loading ? (
           renderStatus(t("cloud.scenes.loading"))
         ) : scenes.length === 0 ? (
-          renderStatus(t("cloud.scenes.empty"))
+          !error && renderStatus(t("cloud.scenes.empty"))
         ) : (
           <ul className="SceneListDialog__list">
             {scenes.map(renderSceneRow)}
@@ -504,7 +521,7 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
               <UiButton
                 variant="ghost"
                 onClick={sharingScene ? stopSharing : onBack}
-                disabled={listBusy}
+                disabled={listBusy || busySceneId !== null}
               >
                 {t("cloud.scenes.back")}
               </UiButton>
@@ -517,12 +534,12 @@ export const SceneListDialog: React.FC<SceneListDialogProps> = ({
                 ? void loadShares(sharingScene.id)
                 : void loadScenes()
             }
-            disabled={listBusy}
+            disabled={listBusy || busySceneId !== null}
           >
             {t("cloud.scenes.refresh")}
           </UiButton>
         </DialogActions>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

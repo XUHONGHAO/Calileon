@@ -1,9 +1,8 @@
 import React from "react";
 
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 
-import { Callout, DialogActions, UiButton } from "./ui";
+import { AppDialog, Callout, DialogActions, UiButton } from "./ui";
 
 import "./VaultConflictDialog.scss";
 
@@ -57,7 +56,7 @@ export const VaultConflictDialog = ({
   };
 
   return (
-    <Dialog
+    <AppDialog
       title={t("vault.conflict.title")}
       onCloseRequest={onClose}
       size="small"
@@ -137,6 +136,6 @@ export const VaultConflictDialog = ({
           </UiButton>
         </DialogActions>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

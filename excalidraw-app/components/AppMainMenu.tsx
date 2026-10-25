@@ -10,7 +10,6 @@ import {
   PlusIcon,
   SingleFileBoardIcon,
 } from "@excalidraw/excalidraw/components/icons";
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { MainMenu } from "@excalidraw/excalidraw/index";
 import React from "react";
@@ -32,7 +31,8 @@ import { BRAND_PAGE_URLS } from "../brand-pages/routes";
 import { readVaultClientConfig } from "../data/vault";
 import { isVaultV2Enabled } from "../data/vault/v2/flag";
 
-import { AISettings } from "./AISettings";
+import { AISettings, confirmDiscardAISettingsChanges } from "./AISettings";
+import { AppDialog } from "./ui";
 import { ManyMindsDialog } from "./ManyMindsDialog";
 
 import { CastDialog } from "./CastDialog";
@@ -73,6 +73,17 @@ export const AppMainMenu: React.FC<{
     React.useState(false);
   const [initialAISettingsTab, setInitialAISettingsTab] =
     React.useState<AISettingsTab>("models");
+  // Unsaved edits inside AI settings: Esc, the backdrop and the close button
+  // all confirm before throwing them away.
+  const aiSettingsDirtyRef = React.useRef(false);
+  const handleAISettingsDirtyChange = React.useCallback((dirty: boolean) => {
+    aiSettingsDirtyRef.current = dirty;
+  }, []);
+  const confirmCloseAISettings = React.useCallback(
+    async () =>
+      !aiSettingsDirtyRef.current || (await confirmDiscardAISettingsChanges()),
+    [],
+  );
 
   const [showLabs, setShowLabs] = useShowLabs();
   const { isAuthAvailable, isSignedIn } = useCloudAuth();
@@ -142,21 +153,23 @@ export const AppMainMenu: React.FC<{
         <MainMenu.DefaultItems.Help />
         <MainMenu.DefaultItems.ClearCanvas />
         <MainMenu.Separator />
+        {/* Vault is a storage/security feature, not a Lab: turning Labs off
+            must not hide the way into an encrypted board. */}
+        {vaultEnabled && (
+          <MainMenu.Item
+            icon={LockedIcon}
+            onSelect={() => setIsVaultDependencyDialogOpen(true)}
+            data-testid="vault-menu-item"
+            aria-label={t("vault.menu")}
+          >
+            {t("vault.menu")}
+          </MainMenu.Item>
+        )}
         {showLabs && (
           <MainMenu.DefaultItems.ExperimentalFeatures>
             <MainMenu.DefaultItems.ExperimentalFeatures.Lumina />
             <MainMenu.DefaultItems.ExperimentalFeatures.Echo />
             <MainMenu.DefaultItems.ExperimentalFeatures.LineTone />
-            {vaultEnabled && (
-              <MainMenu.Item
-                icon={LockedIcon}
-                onSelect={() => setIsVaultDependencyDialogOpen(true)}
-                data-testid="vault-menu-item"
-                aria-label={t("vault.menu")}
-              >
-                {t("vault.menu")}
-              </MainMenu.Item>
-            )}
             {!props.externalFeaturesDisabled && (
               <>
                 <MainMenu.Item
@@ -317,17 +330,19 @@ export const AppMainMenu: React.FC<{
       </MainMenu>
 
       {!props.externalFeaturesDisabled && isAISettingsOpen && (
-        <Dialog
+        <AppDialog
           className="AISettingsDialog"
           title={t("ai.common.settings")}
           size="wide"
+          onBeforeClose={confirmCloseAISettings}
           onCloseRequest={() => setIsAISettingsOpen(false)}
         >
           <AISettings
             key={initialAISettingsTab}
             initialTab={initialAISettingsTab}
+            onDirtyChange={handleAISettingsDirtyChange}
           />
-        </Dialog>
+        </AppDialog>
       )}
       <CastDialog
         open={!props.externalFeaturesDisabled && isCastDialogOpen}

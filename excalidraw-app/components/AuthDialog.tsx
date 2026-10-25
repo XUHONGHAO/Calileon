@@ -12,8 +12,6 @@
  * which is already sanitized for direct display (NFR-SEC).
  */
 
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -32,6 +30,7 @@ import { readCloudDeploymentConfig } from "../data/cloud/deploymentConfig";
 
 import { AccountAvatarSettings } from "./AccountAvatarSettings";
 import {
+  AppDialog,
   Callout,
   DialogActions,
   DialogSection,
@@ -97,6 +96,19 @@ const getAvailabilityLabel = (available: boolean) =>
 const getCollabRoomStatusLabel = (room: CollabRoomRecord | null) =>
   room ? t("cloud.collabRooms.active") : t("cloud.collabRooms.empty");
 
+/** Resolves false instead of throwing; no clipboard API counts as a failure. */
+const copyText = async (text: string) => {
+  try {
+    if (!navigator.clipboard?.writeText) {
+      return false;
+    }
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 export type CloudSceneRemoteUpdateState =
   | { status: "idle" }
   | { status: "checking" }
@@ -136,11 +148,19 @@ export interface AuthDialogProps {
   onCheckCurrentCloudScene?: () => void | Promise<void>;
   /** Reloads the current cloud whiteboard from the backend. */
   onRefreshCurrentCloudScene?: () => void | Promise<void>;
-  /** Starts local realtime collaboration after creating a cloud room binding. */
+  /**
+   * Starts local realtime collaboration after creating a cloud room binding.
+   * Throw when the session did not start: the dialog then revokes the binding.
+   */
   onStartCollabRoom?: (room: {
     roomId: string;
     roomKey: string;
   }) => void | Promise<void>;
+  /**
+   * Returns why a live session can't start right now (already collaborating,
+   * AI video on the canvas, ...). Checked before any room binding is created.
+   */
+  getCollabRoomStartBlocker?: () => string | null;
   /** Refresh token shared with other collaboration controls. */
   collabRoomRefreshKey?: number;
   /** Called after a cloud collaboration room binding changes. */
@@ -163,6 +183,7 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   onCheckCurrentCloudScene,
   onRefreshCurrentCloudScene,
   onStartCollabRoom,
+  getCollabRoomStartBlocker,
   collabRoomRefreshKey,
   onCollabRoomChanged,
   onCollabRoomRevoked,
@@ -185,6 +206,8 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   const [creatingCollabRoom, setCreatingCollabRoom] = useState(false);
   const [revokingCollabRoom, setRevokingCollabRoom] = useState(false);
   const [collabRoomLink, setCollabRoomLink] = useState<string | null>(null);
+  // Non-error guidance shown inside the room card (start blocked, copy failed).
+  const [collabRoomNotice, setCollabRoomNotice] = useState<string | null>(null);
   const [sceneStats, setSceneStats] = useState<
     | { status: "idle" | "loading" | "unavailable" }
     | {
@@ -484,29 +507,35 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     setCreatingCollabRoom(false);
     setRevokingCollabRoom(false);
     setSavingEncryptedCloudScene(false);
+    setCollabRoomNotice(null);
   };
 
+  const dialogBusy =
+    submitting ||
+    signingOut ||
+    savingCloudScene ||
+    checkingCurrentScene ||
+    refreshingCurrentScene ||
+    refreshingEmbedStats ||
+    refreshingCollabRoom ||
+    creatingCollabRoom ||
+    revokingCollabRoom ||
+    savingEncryptedCloudScene;
+
   const handleClose = () => {
-    if (
-      submitting ||
-      signingOut ||
-      savingCloudScene ||
-      checkingCurrentScene ||
-      refreshingCurrentScene ||
-      refreshingEmbedStats ||
-      refreshingCollabRoom ||
-      creatingCollabRoom ||
-      revokingCollabRoom ||
-      savingEncryptedCloudScene
-    ) {
+    if (dialogBusy) {
       return;
     }
     reset();
     onClose();
   };
 
+  // Keep typing from triggering editor shortcuts, but let Escape through so
+  // it still closes the dialog.
   const stopShortcutPropagation = (event: React.KeyboardEvent) => {
-    event.stopPropagation();
+    if (event.key !== "Escape") {
+      event.stopPropagation();
+    }
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -603,9 +632,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     }
 
     setSavingCloudScene(true);
+    setError(null);
     try {
       await onSaveCloudScene();
       await loadSceneStats();
+    } catch (err) {
+      // A toast would render under this dialog; show the failure here.
+      setError(toDialogError(err, t("cloud.scenes.saveFailed")));
     } finally {
       setSavingCloudScene(false);
     }
@@ -625,9 +658,12 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     }
 
     setSavingEncryptedCloudScene(true);
+    setError(null);
     try {
       await onSaveEncryptedCloudScene();
       await loadSceneStats();
+    } catch (err) {
+      setError(toDialogError(err, t("cloud.e2e.saveFailed")));
     } finally {
       setSavingEncryptedCloudScene(false);
     }
@@ -754,19 +790,39 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       return;
     }
 
-    setCreatingCollabRoom(true);
     setError(null);
+    setCollabRoomNotice(null);
+    // Check before creating the binding: a blocked start would otherwise
+    // leave a binding (and a copied link) that nobody hosts.
+    const blocker = getCollabRoomStartBlocker?.() ?? null;
+    if (blocker) {
+      setCollabRoomNotice(blocker);
+      return;
+    }
+
+    setCreatingCollabRoom(true);
     try {
       const { roomId, roomKey } =
         await shareLink.generateCollaborationLinkData();
-      await backend.collabRooms.createForScene({
+      const created = await backend.collabRooms.createForScene({
         sceneId: activeCloudScene.id,
         roomId,
       });
+      try {
+        await onStartCollabRoom?.({ roomId, roomKey });
+      } catch (err) {
+        // The session didn't start: drop the binding we just made.
+        await backend.collabRooms.revoke(created.id).catch(() => {});
+        await loadCollabRoomStats();
+        throw err;
+      }
       const link = shareLink.getCollaborationLink({ roomId, roomKey });
-      await onStartCollabRoom?.({ roomId, roomKey });
       setCollabRoomLink(link);
-      await navigator.clipboard?.writeText(link);
+      // The room exists now; a clipboard failure must not look like a
+      // create failure or skip the refresh below.
+      if (!(await copyText(link))) {
+        setCollabRoomNotice(t("cloud.collabRooms.createdCopyFailed"));
+      }
       await loadCollabRoomStats();
       onCollabRoomChanged?.();
     } catch (err) {
@@ -780,10 +836,9 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     if (!collabRoomLink) {
       return;
     }
-    try {
-      await navigator.clipboard?.writeText(collabRoomLink);
-    } catch (err) {
-      setError(toDialogError(err, t("cloud.collabRooms.copyFailed")));
+    setCollabRoomNotice(null);
+    if (!(await copyText(collabRoomLink))) {
+      setCollabRoomNotice(t("cloud.collabRooms.copyFailed"));
     }
   };
 
@@ -799,13 +854,23 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
       revokingCollabRoom ||
       collabRoomStats.status !== "ready" ||
       !collabRoomStats.room ||
-      !(await confirmAction(t("cloud.collabRooms.revokeConfirm")))
+      !(await confirmAction(
+        t("cloud.collabRooms.revokeConfirmScene", {
+          title:
+            activeCloudScene?.title ?? t("cloud.auth.currentCloudWhiteboard"),
+        }),
+        {
+          title: t("cloud.collabRooms.revokeConfirmTitle"),
+          confirmLabel: t("cloud.collabRooms.revoke"),
+        },
+      ))
     ) {
       return;
     }
 
     setRevokingCollabRoom(true);
     setError(null);
+    setCollabRoomNotice(null);
     try {
       const room = collabRoomStats.room;
       await getCloudBackend().collabRooms.revoke(room.id);
@@ -930,21 +995,6 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     ? t("cloud.auth.accountTitle")
     : t("cloud.auth.signInTitle");
 
-  // Kept out of the <h2> so the heading's accessible name is only the title.
-  // On phones the editor's Dialog renders its own close button instead.
-  const closeButton = (
-    <UiButton
-      className="AuthDialog__close"
-      variant="ghost"
-      iconOnly
-      icon={CloseIcon}
-      aria-label={t("buttons.close")}
-      title={t("buttons.close")}
-      onClick={handleClose}
-      disabled={submitting || sceneBusy}
-    />
-  );
-
   const errorCallout = error && (
     <Callout tone="danger" details={error.code}>
       {error.message}
@@ -959,10 +1009,11 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
 
   if (!isSignedIn) {
     return (
-      <Dialog
+      <AppDialog
         className="AuthDialogModal"
         size="small"
         closeOnClickOutside={false}
+        busy={dialogBusy}
         onCloseRequest={handleClose}
         title={dialogTitle}
       >
@@ -971,7 +1022,6 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
           onSubmit={handleSubmit}
           onKeyDown={stopShortcutPropagation}
         >
-          {closeButton}
           <div className="AuthDialog__scrollBody">
             <p className="AuthDialog__intro">{t("cloud.auth.signInIntro")}</p>
 
@@ -1020,20 +1070,20 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
             </UiButton>
           </DialogActions>
         </form>
-      </Dialog>
+      </AppDialog>
     );
   }
 
   return (
-    <Dialog
+    <AppDialog
       className="AuthDialogModal"
       size="small"
       closeOnClickOutside={false}
+      busy={dialogBusy}
       onCloseRequest={handleClose}
       title={dialogTitle}
     >
       <div className="AuthDialog AuthDialog--account">
-        {closeButton}
         <div className="AuthDialog__scrollBody">
           <p className="AuthDialog__intro">{t("cloud.auth.accountIntro")}</p>
 
@@ -1221,6 +1271,9 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
               </div>
               {collabRoomStats.status === "error" &&
                 renderStatsError(collabRoomStats)}
+              {collabRoomNotice && (
+                <Callout tone="warning">{collabRoomNotice}</Callout>
+              )}
               <div className="AuthDialog__sectionActions">
                 <UiButton
                   size="sm"
@@ -1352,7 +1405,19 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
         </div>
 
         {(onSaveCloudScene || onSaveEncryptedCloudScene) && (
-          <DialogActions className="AuthDialog__actions">
+          <DialogActions
+            className="AuthDialog__actions"
+            leading={
+              isCollaborationActive && (
+                <p
+                  className="AuthDialog__actionsHint"
+                  id="cloud-auth-save-hint"
+                >
+                  {t("cloud.scenes.saveSkippedCollab")}
+                </p>
+              )
+            }
+          >
             {onSaveEncryptedCloudScene && (
               <UiButton
                 onClick={() => void handleSaveEncryptedCloudScene()}
@@ -1362,6 +1427,9 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                   savingEncryptedCloudScene ||
                   isCollaborationActive ||
                   !getCloudBackend().capabilities.encryptedCloudStorage
+                }
+                aria-describedby={
+                  isCollaborationActive ? "cloud-auth-save-hint" : undefined
                 }
               >
                 {savingEncryptedCloudScene
@@ -1379,6 +1447,9 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
                   savingEncryptedCloudScene ||
                   isCollaborationActive
                 }
+                aria-describedby={
+                  isCollaborationActive ? "cloud-auth-save-hint" : undefined
+                }
               >
                 {t("cloud.scenes.saveToCloud")}
               </UiButton>
@@ -1386,6 +1457,6 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
           </DialogActions>
         )}
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

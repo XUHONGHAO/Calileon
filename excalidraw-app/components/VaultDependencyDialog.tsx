@@ -1,6 +1,5 @@
 import React from "react";
 
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import Spinner from "@excalidraw/excalidraw/components/Spinner";
 import { t } from "@excalidraw/excalidraw/i18n";
 
@@ -15,7 +14,7 @@ import {
 } from "../data/vault";
 import { createSupabaseVaultBackend } from "../data/cloud";
 
-import { Callout, DialogActions, UiButton } from "./ui";
+import { AppDialog, Callout, DialogActions, UiButton } from "./ui";
 
 import "./VaultDependencyDialog.scss";
 
@@ -174,11 +173,12 @@ export const VaultDependencyDialog = ({
   }
 
   return (
-    <Dialog
+    <AppDialog
       title={t("vault.dependency.title")}
       onCloseRequest={onClose}
       size="small"
       closeOnClickOutside={false}
+      busy={isCreating !== false}
     >
       <div className="VaultDependencyDialog">
         <p className="VaultDependencyDialog__description">
@@ -264,6 +264,6 @@ export const VaultDependencyDialog = ({
           )}
         </DialogActions>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

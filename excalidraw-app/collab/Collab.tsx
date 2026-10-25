@@ -56,6 +56,7 @@ import type {
 import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
 
 import { appJotaiStore, atom } from "../app-jotai";
+import { confirmAction } from "../components/ui/confirm";
 import {
   CURSOR_SYNC_TIMEOUT,
   FILE_UPLOAD_MAX_BYTES,
@@ -439,7 +440,24 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     }
   };
 
-  stopCollaboration = (keepRemoteState = true) => {
+  /**
+   * Resolves `false` when the user cancels the "overwrite local drawing?"
+   * prompt; nothing is torn down in that case. Without that prompt
+   * (`keepRemoteState === false`, Vault) it runs synchronously.
+   */
+  stopCollaboration = async (keepRemoteState = true): Promise<boolean> => {
+    const isVault = !!(this.portal.vaultRealtimeSession || this.vaultTransport);
+    if (
+      keepRemoteState &&
+      !isVault &&
+      !(await confirmAction(t("alerts.collabStopOverridePrompt"), {
+        title: t("roomDialog.button_stopSession"),
+        confirmLabel: t("roomDialog.button_stopSession"),
+      }))
+    ) {
+      return false;
+    }
+
     this.queueBroadcastAllElements.cancel();
     this.queueSaveToPersistence.cancel();
     this.loadImageFiles.cancel();
@@ -453,10 +471,11 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       this.vaultAttachmentOnlineHandler = null;
     }
     this.resetErrorIndicator(true);
+    this.decryptFailureNotified = false;
 
     if (this.portal.vaultRealtimeSession || this.vaultTransport) {
       this.destroySocketClient();
-      return;
+      return true;
     }
 
     if (!this.portal.vaultRealtimeSession) {
@@ -478,7 +497,8 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       window.history.pushState({}, APP_NAME, window.location.origin);
       LocalData.fileStorage.reset();
       this.destroySocketClient();
-    } else if (window.confirm(t("alerts.collabStopOverridePrompt"))) {
+    } else {
+      // Confirmed above.
       // hack to ensure that we prefer we disregard any new browser state
       // that could have been saved in other tabs while we were collaborating
       resetBrowserStateVersions();
@@ -502,6 +522,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         captureUpdate: CaptureUpdateAction.NEVER,
       });
     }
+    return true;
   };
 
   private destroySocketClient = (opts?: { isUnload: boolean }) => {
@@ -564,7 +585,15 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       );
       return JSON.parse(decodedData);
     } catch (error) {
-      window.alert(t("alerts.decryptFailed"));
+      // A bad key fails every message: no blocking alert per message. Show
+      // the indicator, and the dialog once per session.
+      const message = t("alerts.decryptFailed");
+      this.setErrorIndicator(message);
+      // Synchronous flag: failures arrive back to back, faster than setState.
+      if (!this.decryptFailureNotified) {
+        this.decryptFailureNotified = true;
+        this.setErrorDialog(message);
+      }
       console.error(error);
       return {
         type: WS_SUBTYPES.INVALID_RESPONSE,
@@ -573,6 +602,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
   };
 
   private fallbackInitializationHandler: null | (() => any) = null;
+
+  /** Decrypt-failure dialog already shown in this session. */
+  private decryptFailureNotified = false;
 
   private handleVaultRealtimeMessage = async (
     message: VaultRealtimeDecodedMessage,

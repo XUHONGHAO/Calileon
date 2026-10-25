@@ -1,9 +1,11 @@
+import { ErrorDialog } from "@excalidraw/excalidraw/components/ErrorDialog";
 import { Tooltip } from "@excalidraw/excalidraw/components/Tooltip";
 import { warning } from "@excalidraw/excalidraw/components/icons";
 import clsx from "clsx";
 import { useEffect, useRef, useState } from "react";
 
 import { atom } from "../app-jotai";
+import { UiButton } from "../components/ui";
 
 import "./CollabError.scss";
 
@@ -20,6 +22,7 @@ export const collabErrorIndicatorAtom = atom<ErrorIndicator>({
 
 const CollabError = ({ collabError }: { collabError: ErrorIndicator }) => {
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
   const clearAnimationRef = useRef<string | number>(0);
 
   useEffect(() => {
@@ -37,16 +40,30 @@ const CollabError = ({ collabError }: { collabError: ErrorIndicator }) => {
     return null;
   }
 
+  // The tooltip covers hover; the button makes the message reachable by
+  // keyboard and touch (it opens the full text in a dialog).
   return (
-    <Tooltip label={collabError.message} long={true}>
-      <div
-        className={clsx("collab-errors-button", {
-          "collab-errors-button-shake": isAnimating,
-        })}
-      >
-        {warning}
-      </div>
-    </Tooltip>
+    <>
+      <Tooltip label={collabError.message} long={true}>
+        <UiButton
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon={warning}
+          aria-label={collabError.message}
+          aria-haspopup="dialog"
+          className={clsx("collab-errors-button", {
+            "collab-errors-button-shake": isAnimating,
+          })}
+          onClick={() => setIsDialogOpen(true)}
+        />
+      </Tooltip>
+      {isDialogOpen && (
+        <ErrorDialog onClose={() => setIsDialogOpen(false)}>
+          {collabError.message}
+        </ErrorDialog>
+      )}
+    </>
   );
 };
 

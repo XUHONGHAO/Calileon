@@ -8,6 +8,7 @@ import {
 } from "@excalidraw/excalidraw/tests/test-utils";
 
 import ExcalidrawApp from "../App";
+import { chooseSelectOption } from "../components/ui/testing";
 
 describe("Test LanguageList", () => {
   it("rerenders UI on language change", async () => {
@@ -19,15 +20,13 @@ describe("Test LanguageList", () => {
     expect(screen.queryByTitle(/thin/i)).not.toBeNull();
     fireEvent.click(document.querySelector(".dropdown-menu-button")!);
 
-    fireEvent.change(document.querySelector(".dropdown-select__language")!, {
-      target: { value: "de-DE" },
-    });
+    const language = () =>
+      document.querySelector<HTMLElement>(".dropdown-select__language")!;
+    chooseSelectOption(language(), "Deutsch");
     // switching to german, `thin` label should no longer exist
     await waitFor(() => expect(screen.queryByTitle(/thin/i)).toBeNull());
     // reset language
-    fireEvent.change(document.querySelector(".dropdown-select__language")!, {
-      target: { value: defaultLang.code },
-    });
+    chooseSelectOption(language(), defaultLang.label);
     // switching back to English
     await waitFor(() => expect(screen.queryByTitle(/thin/i)).not.toBeNull());
   });

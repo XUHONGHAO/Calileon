@@ -185,3 +185,52 @@ it("warns about past dates and reports locked notes separately", async () => {
   ).toBeTruthy();
   act(() => closeLabsFeature("shelfLife"));
 });
+
+it("does not show the last cleanup result after reopening", async () => {
+  // No ConfirmHost here, so confirmAction falls back to window.confirm.
+  const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+  let api!: ExcalidrawImperativeAPI;
+  const Wrapper = () => {
+    const [value, setValue] = React.useState<ExcalidrawImperativeAPI | null>(
+      null,
+    );
+    return (
+      <Excalidraw
+        onExcalidrawAPI={(next) => {
+          if (next) {
+            api = next as ExcalidrawImperativeAPI;
+            setValue(api);
+          }
+        }}
+      >
+        <ShelfLifeHost excalidrawAPI={value} externalFeaturesDisabled />
+      </Excalidraw>
+    );
+  };
+  await render(<Wrapper />);
+  act(() =>
+    api.updateScene({
+      elements: syncInvalidIndices([
+        API.createElement({
+          type: "rectangle",
+          customData: { shelfLife: life },
+        }),
+      ]),
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    }),
+  );
+  act(() => openLabsFeature("shelfLife"));
+  await act(async () => {
+    fireEvent.click(
+      screen.getByRole("button", { name: t("labs.shelfLife.tear") }),
+    );
+  });
+  const done = t("labs.shelfLife.done", { count: 1 });
+  expect(screen.getByText(done, { exact: false })).toBeInTheDocument();
+
+  act(() => closeLabsFeature("shelfLife"));
+  act(() => openLabsFeature("shelfLife"));
+  expect(screen.queryByText(done, { exact: false })).toBeNull();
+  act(() => closeLabsFeature("shelfLife"));
+  confirmSpy.mockRestore();
+});

@@ -1,48 +1,12 @@
-.EmbedListDialogModal {
-  .Modal__content {
-    overflow: hidden;
-  }
-
-  .Island {
-    display: flex;
-    flex-direction: column;
-    max-height: 100%;
-    min-height: 0;
-    width: 100%;
-    overflow: hidden;
-    position: relative;
-  }
-
-  .Dialog__title {
-    padding-right: var(--ui-space-8);
-  }
-
-  .Dialog__content {
-    min-height: 0;
-    overflow: hidden;
-  }
-
-  &.Dialog--fullscreen {
-    .EmbedListDialog__close {
-      display: none;
-    }
-  }
-}
+// The list scrolls on its own; the modal itself stays scrollable as a
+// fallback so the create form is never clipped (landscape phones, 200% zoom).
 
 .excalidraw .EmbedListDialog {
   display: flex;
   flex-direction: column;
   gap: var(--ui-space-3);
-  max-height: calc(100vh - 5rem);
   min-height: 0;
   min-width: 0;
-
-  .EmbedListDialog__close {
-    position: absolute;
-    top: var(--ui-space-3);
-    right: var(--ui-space-3);
-    color: var(--ui-text-secondary);
-  }
 
   .EmbedListDialog__description {
     margin: 0;

@@ -2,17 +2,20 @@ import { DEFAULT_SIDEBAR } from "@excalidraw/common";
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 import {
+  CloseIcon,
   copyIcon,
   messageCircleIcon,
   PlusIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { convertToExcalidrawElements } from "@excalidraw/element";
+import clsx from "clsx";
 import {
   memo,
   useCallback,
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -36,8 +39,17 @@ import {
 } from "../../ai/chatHistory";
 import { hasMermaidCodeBlock } from "../../ai/codeBlockDetector";
 import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
+import { createAIOpenSettingsEvent } from "../../ai/workflowEvents";
 
-import { Callout, confirmAction } from "../ui";
+import {
+  Callout,
+  confirmAction,
+  Popover,
+  PopoverHeading,
+  TextInput,
+  UiButton,
+} from "../ui";
+import { uiCheckIcon } from "../ui/icons";
 
 import "./CustomAgentChat.scss";
 
@@ -99,6 +111,8 @@ const trashIcon = (
 
 const ASSISTANT_CANVAS_TEXT_LINE_LENGTH = 72;
 const STREAM_PREVIEW_FLUSH_MS = 100;
+// Auto-scroll only while the reader is this close to the bottom (px).
+const STICK_TO_BOTTOM_THRESHOLD = 48;
 
 const updateConversationById = (
   history: CustomAgentChatHistory,
@@ -147,6 +161,8 @@ export const CustomAgentChat = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  // The last send failed and its text was put back in the composer.
+  const [canRetry, setCanRetry] = useState(false);
   const [isAgentMenuOpen, setIsAgentMenuOpen] = useState(false);
   const [isSkillsPanelOpen, setIsSkillsPanelOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
@@ -168,7 +184,24 @@ export const CustomAgentChat = ({
   const lastIncomingPromptIdRef = useRef<number | null>(null);
   const lastIncomingSkillIdRef = useRef<number | null>(null);
   const didAutoCreateConversationRef = useRef(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesRef = useRef<HTMLDivElement | null>(null);
+  const stickToBottomRef = useRef(true);
+  const lastScrollConversationRef = useRef<{
+    id: string;
+    count: number;
+  } | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+  const agentButtonRef = useRef<HTMLButtonElement>(null);
+  const skillsButtonRef = useRef<HTMLButtonElement>(null);
+  const historyButtonRef = useRef<HTMLButtonElement>(null);
+  const historySearchRef = useRef<HTMLInputElement>(null);
+  const popoverId = useId();
+  const agentMenuId = `${popoverId}-agents`;
+  const skillsMenuId = `${popoverId}-skills`;
+  const historyPanelId = `${popoverId}-history`;
+  const closeAgentMenu = useCallback(() => setIsAgentMenuOpen(false), []);
+  const closeSkillsMenu = useCallback(() => setIsSkillsPanelOpen(false), []);
+  const closeHistory = useCallback(() => setIsHistoryOpen(false), []);
 
   const activeConversation = useMemo(
     () =>
@@ -195,20 +228,43 @@ export const CustomAgentChat = ({
         : null,
     [activeConversation?.pendingSkillId, agentConfig.skills],
   );
-  const messagesScrollKey = useMemo(() => {
-    const lastMessage = activeConversation?.messages.at(-1);
+  const scrollConversationId = activeConversation?.id || "";
+  const scrollMessageCount = activeConversation?.messages.length || 0;
+  const scrollLastLength = activeConversation?.messages.at(-1)?.content.length;
 
-    return [
-      activeConversation?.id || "",
-      activeConversation?.messages.length || 0,
-      lastMessage?.id || "",
-      lastMessage?.content.length || 0,
-    ].join(":");
-  }, [activeConversation]);
-
+  // Follow the stream only while the reader is at the bottom; a new message
+  // or a conversation switch always jumps down. Set scrollTop on the list
+  // itself (scrollIntoView also scrolled the sidebar and the page).
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView?.({ block: "end" });
-  }, [messagesScrollKey]);
+    const list = messagesRef.current;
+    if (!list) {
+      return;
+    }
+    const previous = lastScrollConversationRef.current;
+    const isNewContent =
+      !previous ||
+      previous.id !== scrollConversationId ||
+      previous.count < scrollMessageCount;
+    lastScrollConversationRef.current = {
+      id: scrollConversationId,
+      count: scrollMessageCount,
+    };
+
+    if (isNewContent || stickToBottomRef.current) {
+      list.scrollTop = list.scrollHeight;
+      stickToBottomRef.current = true;
+    }
+  }, [scrollConversationId, scrollMessageCount, scrollLastLength]);
+
+  const onMessagesScroll = useCallback(() => {
+    const list = messagesRef.current;
+    if (!list) {
+      return;
+    }
+    stickToBottomRef.current =
+      list.scrollHeight - list.scrollTop - list.clientHeight <
+      STICK_TO_BOTTOM_THRESHOLD;
+  }, []);
 
   const conversationSearchIndex = useMemo(() => {
     return new Map(
@@ -286,7 +342,7 @@ export const CustomAgentChat = ({
   const updateActiveConversation = useCallback(
     (
       updater: (conversation: ChatConversation) => ChatConversation,
-      sourceHistory = history,
+      sourceHistory = historyRef.current,
     ) => {
       if (!sourceHistory.activeConversationId) {
         return sourceHistory;
@@ -296,7 +352,7 @@ export const CustomAgentChat = ({
         sourceHistory,
       });
     },
-    [history, updateConversation],
+    [updateConversation],
   );
 
   const createNewConversation = useCallback(
@@ -307,6 +363,7 @@ export const CustomAgentChat = ({
       if (!nextAgentId) {
         setErrorMessage(t("ai.assistant.messages.needGeneralAgent"));
         setStatusMessage("");
+        setCanRetry(false);
         return null;
       }
 
@@ -315,12 +372,13 @@ export const CustomAgentChat = ({
         pendingSkillId,
       };
       const nextHistory = {
-        conversations: [conversation, ...history.conversations],
+        conversations: [conversation, ...historyRef.current.conversations],
         activeConversationId: conversation.id,
       };
 
       persistHistory(nextHistory);
       setInputValue("");
+      setCanRetry(false);
       setIsAgentMenuOpen(false);
       setIsSkillsPanelOpen(false);
       setIsHistoryOpen(false);
@@ -328,7 +386,7 @@ export const CustomAgentChat = ({
       setErrorMessage("");
       return conversation;
     },
-    [agentConfig, history.conversations, persistHistory],
+    [agentConfig, persistHistory],
   );
 
   const clearStreamPreviewTimeout = useCallback(() => {
@@ -377,21 +435,44 @@ export const CustomAgentChat = ({
     [flushStreamPreview],
   );
 
+  // Stops the request and settles its reply right away: the streamed part is
+  // persisted, an empty bubble is dropped (it would read "Thinking..." with
+  // no actions). The request slot is released at once, so a new message can
+  // be sent before the adapter acknowledges the abort; the old request's own
+  // completion then sees a different id and bails.
   const abortActiveGeneration = useCallback(() => {
     const activeRequest = activeRequestRef.current;
 
     if (!activeRequest) {
-      return;
+      return false;
     }
 
+    clearStreamPreviewTimeout();
+    const partial = streamedContentRef.current;
+    updateConversation(activeRequest.conversationId, (conversation) => ({
+      ...conversation,
+      messages: partial
+        ? conversation.messages.map((message) =>
+            message.id === activeRequest.assistantMessageId
+              ? { ...message, content: partial }
+              : message,
+          )
+        : conversation.messages.filter(
+            (message) => message.id !== activeRequest.assistantMessageId,
+          ),
+      updatedAt: Date.now(),
+    }));
+
     activeRequest.canceled = true;
-    activeRequest.controller.abort();
+    activeRequestRef.current = null;
     abortControllerRef.current = null;
+    activeRequest.controller.abort();
 
     if (mountedRef.current) {
       setIsGenerating(false);
     }
-  }, []);
+    return true;
+  }, [clearStreamPreviewTimeout, updateConversation]);
 
   useEffect(() => {
     const reloadConfig = () => {
@@ -416,8 +497,11 @@ export const CustomAgentChat = ({
 
     return () => {
       mountedRef.current = false;
-      clearStreamPreviewTimeout();
+      // Closing the sidebar unmounts the chat mid-stream. The preview so far
+      // only lives in a ref, so abort persists it (or drops the empty bubble);
+      // the request's own completion path bails once unmounted.
       abortActiveGeneration();
+      clearStreamPreviewTimeout();
     };
   }, [abortActiveGeneration, clearStreamPreviewTimeout]);
 
@@ -456,49 +540,78 @@ export const CustomAgentChat = ({
     (conversationId: string) => {
       abortActiveGeneration();
       persistHistory({
-        ...history,
+        ...historyRef.current,
         activeConversationId: conversationId,
       });
       setInputValue("");
+      setCanRetry(false);
       setIsAgentMenuOpen(false);
       setIsSkillsPanelOpen(false);
       setIsHistoryOpen(false);
       setStatusMessage("");
       setErrorMessage("");
     },
-    [abortActiveGeneration, history, persistHistory],
+    [abortActiveGeneration, persistHistory],
   );
 
   const deleteConversation = useCallback(
-    (conversationId: string) => {
+    async (conversationId: string, title: string) => {
+      const confirmed = await confirmAction(
+        t("ai.assistant.messages.deleteChatConfirm", { title }),
+        {
+          title: t("ai.assistant.deleteChat"),
+          confirmLabel: t("ai.common.delete"),
+          danger: true,
+        },
+      );
+      if (!confirmed) {
+        return false;
+      }
+
       if (
         activeRequestRef.current?.conversationId === conversationId ||
-        history.activeConversationId === conversationId
+        historyRef.current.activeConversationId === conversationId
       ) {
         abortActiveGeneration();
       }
 
-      const nextConversations = history.conversations.filter(
+      const current = historyRef.current;
+      const nextConversations = current.conversations.filter(
         (conversation) => conversation.id !== conversationId,
       );
       const nextActiveConversationId =
-        history.activeConversationId === conversationId
+        current.activeConversationId === conversationId
           ? nextConversations[0]?.id || null
-          : history.activeConversationId;
+          : current.activeConversationId;
 
       persistHistory({
         conversations: nextConversations,
         activeConversationId: nextActiveConversationId,
       });
+      return true;
     },
-    [abortActiveGeneration, history, persistHistory],
+    [abortActiveGeneration, persistHistory],
   );
 
   const deleteMessage = useCallback(
-    (messageId: string) => {
-      const activeRequest = activeRequestRef.current;
+    async (messageId: string) => {
+      const isGeneratingMessage =
+        activeRequestRef.current?.assistantMessageId === messageId;
+      const confirmed = await confirmAction(
+        isGeneratingMessage
+          ? t("ai.assistant.messages.deleteGeneratingMessageConfirm")
+          : t("ai.assistant.messages.deleteMessageConfirm"),
+        {
+          title: t("ai.assistant.deleteMessage"),
+          confirmLabel: t("ai.common.delete"),
+          danger: true,
+        },
+      );
+      if (!confirmed) {
+        return;
+      }
 
-      if (activeRequest?.assistantMessageId === messageId) {
+      if (activeRequestRef.current?.assistantMessageId === messageId) {
         abortActiveGeneration();
       }
 
@@ -514,7 +627,13 @@ export const CustomAgentChat = ({
   );
 
   const clearAllConversations = useCallback(async () => {
-    if (!(await confirmAction(t("ai.assistant.messages.clearAllConfirm")))) {
+    if (
+      !(await confirmAction(t("ai.assistant.messages.clearAllConfirm"), {
+        title: t("ai.assistant.clearChats"),
+        confirmLabel: t("ai.common.clear"),
+        danger: true,
+      }))
+    ) {
       return;
     }
 
@@ -524,6 +643,7 @@ export const CustomAgentChat = ({
       activeConversationId: null,
     });
     setInputValue("");
+    setCanRetry(false);
     setStatusMessage(t("ai.assistant.messages.allChatsCleared"));
     setErrorMessage("");
     setIsAgentMenuOpen(false);
@@ -626,7 +746,7 @@ export const CustomAgentChat = ({
       activeConversationId: nextConversation.id,
       conversations: [
         nextConversation,
-        ...history.conversations.filter(
+        ...historyRef.current.conversations.filter(
           (item) => item.id !== nextConversation.id,
         ),
       ],
@@ -636,6 +756,7 @@ export const CustomAgentChat = ({
     setInputValue("");
     setStatusMessage("");
     setErrorMessage("");
+    setCanRetry(false);
     setIsGenerating(true);
 
     const abortController = new AbortController();
@@ -695,14 +816,23 @@ export const CustomAgentChat = ({
     activeRequestRef.current = null;
 
     if (result.error) {
-      if (activeRequest.canceled || isAbortRequestError(result.error)) {
+      // A user Stop is settled in abortActiveGeneration (the id check above
+      // returns). This branch covers an abort raised by the adapter itself.
+      if (isAbortRequestError(result.error)) {
+        const partial = streamedContentRef.current;
+        // An empty cancelled reply would render as a permanent "Thinking..."
+        // bubble with no actions, so drop it like the failure path does.
         updateConversation(activeRequest.conversationId, (current) => ({
           ...current,
-          messages: current.messages.map((message) =>
-            message.id === activeRequest.assistantMessageId
-              ? { ...message, content: streamedContentRef.current }
-              : message,
-          ),
+          messages: partial
+            ? current.messages.map((message) =>
+                message.id === activeRequest.assistantMessageId
+                  ? { ...message, content: partial }
+                  : message,
+              )
+            : current.messages.filter(
+                (message) => message.id !== activeRequest.assistantMessageId,
+              ),
           updatedAt: Date.now(),
         }));
         setStatusMessage(t("ai.assistant.messages.responseCanceled"));
@@ -710,13 +840,26 @@ export const CustomAgentChat = ({
         return;
       }
 
-      updateConversation(activeRequest.conversationId, (current) => ({
-        ...current,
-        messages: current.messages.filter(
-          (message) => message.id !== activeRequest.assistantMessageId,
-        ),
-        updatedAt: Date.now(),
-      }));
+      // Failed: take the turn back out of the history and put the text back
+      // in the composer, so Retry (or Enter) resends it without a duplicate.
+      updateConversation(activeRequest.conversationId, (current) => {
+        const messages = current.messages.filter(
+          (message) =>
+            message.id !== activeRequest.assistantMessageId &&
+            message.id !== userMessage.id,
+        );
+        return {
+          ...current,
+          messages,
+          title: messages.length ? current.title : conversation.title,
+          pendingSkillId: conversation.pendingSkillId,
+          updatedAt: Date.now(),
+        };
+      });
+      setInputValue((current) =>
+        current.trim() ? `${content}\n\n${current}` : content,
+      );
+      setCanRetry(true);
       setErrorMessage(
         result.error.message || t("ai.assistant.messages.requestFailed"),
       );
@@ -748,7 +891,6 @@ export const CustomAgentChat = ({
     clearStreamPreviewTimeout,
     createNewConversation,
     flushStreamPreview,
-    history.conversations,
     inputValue,
     isGenerating,
     persistHistory,
@@ -757,13 +899,23 @@ export const CustomAgentChat = ({
   ]);
 
   const cancelGeneration = useCallback(() => {
-    abortActiveGeneration();
+    if (abortActiveGeneration()) {
+      setStatusMessage(t("ai.assistant.messages.responseCanceled"));
+      setErrorMessage("");
+      setCanRetry(false);
+    }
   }, [abortActiveGeneration]);
 
   const copyChatText = useCallback(async (text: string) => {
-    await copyTextToSystemClipboard(text);
-    setStatusMessage(t("ai.common.copied"));
-    setErrorMessage("");
+    try {
+      await copyTextToSystemClipboard(text);
+      setStatusMessage(t("ai.common.copied"));
+      setErrorMessage("");
+    } catch {
+      setStatusMessage("");
+      setErrorMessage(t("alerts.couldNotCopyToClipboard"));
+    }
+    setCanRetry(false);
   }, []);
 
   const sendPromptToWorkbench = useCallback(
@@ -779,6 +931,23 @@ export const CustomAgentChat = ({
     },
     [excalidrawAPI, onSendPromptToWorkbench],
   );
+
+  const wasGeneratingRef = useRef(false);
+  useEffect(() => {
+    if (wasGeneratingRef.current && !isGenerating) {
+      const active = document.activeElement;
+      const chat = inputRef.current?.closest(".CustomAgentChat");
+      // Only take focus back from nowhere or from inside the chat panel.
+      if (!active || active === document.body || chat?.contains(active)) {
+        inputRef.current?.focus();
+      }
+    }
+    wasGeneratingRef.current = isGenerating;
+  }, [isGenerating]);
+
+  const openAgentSettings = useCallback(() => {
+    window.dispatchEvent(createAIOpenSettingsEvent({ tab: "agents" }));
+  }, []);
 
   const insertMermaid = useCallback(
     async (definition: string) => {
@@ -851,13 +1020,22 @@ export const CustomAgentChat = ({
           tone="warning"
           live={false}
           className="CustomAgentChat__notice"
+          action={
+            <UiButton size="sm" onClick={openAgentSettings}>
+              {t("ai.common.openSettings")}
+            </UiButton>
+          }
         >
           {t("ai.assistant.noticeNoAgents")}
         </Callout>
       )}
 
       <section className="CustomAgentChat__chat">
-        <div className="CustomAgentChat__messages">
+        <div
+          ref={messagesRef}
+          className="CustomAgentChat__messages"
+          onScroll={onMessagesScroll}
+        >
           {!activeConversation?.messages.length && (
             <div className="CustomAgentChat__empty">
               {t("ai.assistant.startConversation", {
@@ -878,107 +1056,165 @@ export const CustomAgentChat = ({
               canInsertToCanvas={!!excalidrawAPI}
             />
           ))}
-          <div ref={messagesEndRef} aria-hidden="true" />
         </div>
 
         <div className="CustomAgentChat__composer">
           <div className="CustomAgentChat__composerToolbar">
-            {isAgentMenuOpen && (
-              <div
-                className="CustomAgentChat__popover CustomAgentChat__popover--agent"
-                aria-label={t("ai.assistant.agent")}
-              >
-                <strong className="CustomAgentChat__popoverTitle">
-                  {t("ai.assistant.agent")}
-                </strong>
-                {agentConfig.llmAgents.map((agent) => (
+            <Popover
+              open={isAgentMenuOpen}
+              onClose={closeAgentMenu}
+              anchorRef={agentButtonRef}
+              role="menu"
+              id={agentMenuId}
+              aria-label={t("ai.assistant.agent")}
+              placement="top-start"
+              className="CustomAgentChat__picker"
+            >
+              <PopoverHeading>{t("ai.assistant.agent")}</PopoverHeading>
+              {agentConfig.llmAgents.map((agent) => {
+                const checked = agent.id === activeConversation?.agentId;
+                return (
                   <button
                     key={agent.id}
                     type="button"
-                    className={
-                      agent.id === activeConversation?.agentId
-                        ? "is-selected"
-                        : undefined
-                    }
+                    role="menuitemradio"
+                    aria-checked={checked}
+                    className={clsx("UiPopover__item", {
+                      "is-selected": checked,
+                    })}
                     title={agent.name}
                     onClick={() => switchAgent(agent.id)}
                   >
-                    {agent.name}
+                    <span className="UiPopover__label">{agent.name}</span>
+                    <span className="UiPopover__check" aria-hidden="true">
+                      {checked ? uiCheckIcon : null}
+                    </span>
                   </button>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </Popover>
 
-            {isHistoryOpen && (
-              <section
-                className="CustomAgentChat__historyPopover"
-                aria-label={t("ai.assistant.recentChats")}
-              >
-                <input
-                  className="CustomAgentChat__historySearch"
-                  type="search"
-                  value={historySearch}
-                  placeholder={t("ai.assistant.searchHistory")}
-                  onChange={(event) => setHistorySearch(event.target.value)}
-                />
-                <div className="CustomAgentChat__historyList">
-                  {filteredConversations.length === 0 && (
-                    <div className="CustomAgentChat__empty">
-                      {history.conversations.length === 0
-                        ? t("ai.assistant.noChatsYet")
-                        : t("ai.assistant.noChatsFound")}
-                    </div>
+            <Popover
+              open={isSkillsPanelOpen}
+              onClose={closeSkillsMenu}
+              anchorRef={skillsButtonRef}
+              role="menu"
+              id={skillsMenuId}
+              aria-label={t("ai.assistant.skills")}
+              placement="top-start"
+              className="CustomAgentChat__picker"
+            >
+              <PopoverHeading>{t("ai.assistant.skills")}</PopoverHeading>
+              {agentConfig.skills.length === 0 && (
+                <div className="UiPopover__empty" role="presentation">
+                  {t("ai.assistant.noSkills")}
+                </div>
+              )}
+              {agentConfig.skills.map((skill) => (
+                <button
+                  key={skill.id}
+                  type="button"
+                  role="menuitem"
+                  className="UiPopover__item"
+                  title={skill.name}
+                  onClick={() => selectSkill(skill)}
+                >
+                  {skill.icon && (
+                    <span className="UiPopover__lead" aria-hidden="true">
+                      {skill.icon}
+                    </span>
                   )}
-                  {filteredConversations.map((conversation) => (
-                    <div
-                      key={conversation.id}
-                      className={
-                        conversation.id === activeConversation?.id
-                          ? "CustomAgentChat__conversation is-selected"
-                          : "CustomAgentChat__conversation"
-                      }
-                    >
+                  <span className="UiPopover__label">{skill.name}</span>
+                </button>
+              ))}
+            </Popover>
+
+            <Popover
+              open={isHistoryOpen}
+              onClose={closeHistory}
+              anchorRef={historyButtonRef}
+              role="dialog"
+              id={historyPanelId}
+              aria-label={t("ai.assistant.recentChats")}
+              placement="top-end"
+              initialFocusRef={historySearchRef}
+              maxHeight={360}
+              className="UiPopover--panel CustomAgentChat__history"
+            >
+              <TextInput
+                ref={historySearchRef}
+                className="CustomAgentChat__historySearch"
+                type="search"
+                value={historySearch}
+                aria-label={t("ai.assistant.searchHistory")}
+                placeholder={t("ai.assistant.searchHistory")}
+                onChange={(event) => setHistorySearch(event.target.value)}
+              />
+              <div className="UiPopover__list">
+                {filteredConversations.length === 0 && (
+                  <div className="UiPopover__empty">
+                    {history.conversations.length === 0
+                      ? t("ai.assistant.noChatsYet")
+                      : t("ai.assistant.noChatsFound")}
+                  </div>
+                )}
+                {filteredConversations.map((conversation) => {
+                  const isCurrent = conversation.id === activeConversation?.id;
+                  const title = getConversationTitle(conversation, t);
+                  return (
+                    <div key={conversation.id} className="UiPopover__row">
                       <button
                         type="button"
-                        className="CustomAgentChat__conversationSelect"
-                        aria-current={
-                          conversation.id === activeConversation?.id
-                            ? "true"
-                            : undefined
-                        }
+                        className={clsx(
+                          "UiPopover__item",
+                          "UiPopover__item--stacked",
+                          { "is-selected": isCurrent },
+                        )}
+                        aria-current={isCurrent ? "true" : undefined}
+                        title={title}
                         onClick={() => switchConversation(conversation.id)}
                       >
-                        <strong>{getConversationTitle(conversation, t)}</strong>
-                        <small>
+                        <span className="UiPopover__label">{title}</span>
+                        <span className="UiPopover__meta">
                           {formatRelativeTime(conversation.updatedAt, t)}
-                        </small>
+                        </span>
                       </button>
-                      <button
-                        type="button"
+                      <UiButton
+                        variant="ghost"
+                        size="sm"
+                        iconOnly
+                        icon={CloseIcon}
                         className="CustomAgentChat__conversationDelete"
                         title={t("ai.assistant.deleteChat")}
                         aria-label={t("ai.assistant.deleteChatNamed", {
-                          title: getConversationTitle(conversation, t),
+                          title,
                         })}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          deleteConversation(conversation.id);
-                        }}
-                      >
-                        x
-                      </button>
+                        onClick={() =>
+                          void deleteConversation(conversation.id, title).then(
+                            (deleted) => {
+                              // The row (and the focused button) went away.
+                              if (deleted) {
+                                historySearchRef.current?.focus();
+                              }
+                            },
+                          )
+                        }
+                      />
                     </div>
-                  ))}
-                </div>
-              </section>
-            )}
+                  );
+                })}
+              </div>
+            </Popover>
 
             <div className="CustomAgentChat__composerControls">
               <button
+                ref={agentButtonRef}
                 type="button"
                 className="CustomAgentChat__toolbarButton CustomAgentChat__agentButton"
                 disabled={!activeConversation || !agentConfig.llmAgents.length}
+                aria-haspopup="menu"
                 aria-expanded={isAgentMenuOpen}
+                aria-controls={isAgentMenuOpen ? agentMenuId : undefined}
                 aria-label={t("ai.assistant.agent")}
                 onClick={() => {
                   setIsAgentMenuOpen((open) => !open);
@@ -1004,8 +1240,12 @@ export const CustomAgentChat = ({
                 </span>
               </button>
               <button
+                ref={skillsButtonRef}
                 type="button"
                 className="CustomAgentChat__toolbarButton"
+                aria-haspopup="menu"
+                aria-expanded={isSkillsPanelOpen}
+                aria-controls={isSkillsPanelOpen ? skillsMenuId : undefined}
                 onClick={() => {
                   setIsSkillsPanelOpen((open) => !open);
                   setIsAgentMenuOpen(false);
@@ -1037,11 +1277,14 @@ export const CustomAgentChat = ({
                 </span>
               </button>
               <button
+                ref={historyButtonRef}
                 type="button"
                 title={t("ai.assistant.recentChats")}
                 aria-label={t("ai.assistant.recentChats")}
                 className="CustomAgentChat__iconButton"
+                aria-haspopup="dialog"
                 aria-expanded={isHistoryOpen}
+                aria-controls={isHistoryOpen ? historyPanelId : undefined}
                 onClick={() => {
                   setIsHistoryOpen((open) => !open);
                   setIsAgentMenuOpen(false);
@@ -1059,62 +1302,60 @@ export const CustomAgentChat = ({
               >
                 {trashIcon}
               </button>
-              {isGenerating && (
-                <button type="button" onClick={cancelGeneration}>
-                  {t("ai.common.cancel")}
-                </button>
-              )}
             </div>
           </div>
 
-          <label className="CustomAgentChat__input">
-            <textarea
-              aria-label={t("ai.assistant.message")}
-              value={inputValue}
-              rows={4}
-              disabled={isGenerating || !agentConfig.llmAgents.length}
-              placeholder={
-                pendingSkill?.initialPrompt
-                  ? t("ai.assistant.skillInputPlaceholder")
-                  : t("ai.assistant.inputPlaceholder")
-              }
-              onChange={(event) => setInputValue(event.target.value)}
-              onKeyDown={(event) => {
-                if (
-                  event.key !== "Enter" ||
-                  event.nativeEvent.isComposing ||
-                  event.shiftKey
-                ) {
-                  return;
+          <div className="CustomAgentChat__inputRow">
+            <label className="CustomAgentChat__input">
+              <textarea
+                ref={inputRef}
+                aria-label={t("ai.assistant.message")}
+                value={inputValue}
+                rows={4}
+                disabled={isGenerating || !agentConfig.llmAgents.length}
+                placeholder={
+                  pendingSkill?.initialPrompt
+                    ? t("ai.assistant.skillInputPlaceholder")
+                    : t("ai.assistant.inputPlaceholder")
                 }
+                onChange={(event) => setInputValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (
+                    event.key !== "Enter" ||
+                    event.nativeEvent.isComposing ||
+                    event.shiftKey
+                  ) {
+                    return;
+                  }
 
-                event.preventDefault();
-                sendMessage();
-              }}
-            />
-          </label>
-
-          {isSkillsPanelOpen && (
-            <div className="CustomAgentChat__popover">
-              <strong className="CustomAgentChat__popoverTitle">
-                {t("ai.assistant.skills")}
-              </strong>
-              {agentConfig.skills.length === 0 && (
-                <span className="CustomAgentChat__empty">
-                  {t("ai.assistant.noSkills")}
-                </span>
-              )}
-              {agentConfig.skills.map((skill) => (
-                <button
-                  key={skill.id}
-                  type="button"
-                  onClick={() => selectSkill(skill)}
-                >
-                  {skill.icon} {skill.name}
-                </button>
-              ))}
-            </div>
-          )}
+                  event.preventDefault();
+                  sendMessage();
+                }}
+              />
+            </label>
+            {isGenerating ? (
+              <UiButton
+                variant="danger"
+                size="sm"
+                className="CustomAgentChat__sendButton"
+                aria-label={t("ai.assistant.stopGenerating")}
+                onClick={cancelGeneration}
+              >
+                {t("ai.assistant.stop")}
+              </UiButton>
+            ) : (
+              <UiButton
+                variant="primary"
+                size="sm"
+                className="CustomAgentChat__sendButton"
+                aria-label={t("ai.assistant.sendMessage")}
+                disabled={!inputValue.trim() || !agentConfig.llmAgents.length}
+                onClick={() => void sendMessage()}
+              >
+                {t("ai.assistant.send")}
+              </UiButton>
+            )}
+          </div>
         </div>
       </section>
 
@@ -1125,6 +1366,13 @@ export const CustomAgentChat = ({
             errorMessage
               ? "CustomAgentChat__message is-error"
               : "CustomAgentChat__message"
+          }
+          action={
+            errorMessage && canRetry && inputValue.trim() && !isGenerating ? (
+              <UiButton size="sm" onClick={() => void sendMessage()}>
+                {t("ai.assistant.retry")}
+              </UiButton>
+            ) : undefined
           }
         >
           {errorMessage || statusMessage}

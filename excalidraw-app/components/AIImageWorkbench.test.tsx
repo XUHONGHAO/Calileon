@@ -20,7 +20,11 @@ import {
 } from "../ai/videoCanvas";
 import { loadPendingVideoTasks } from "../ai/videoTaskStore";
 
-import { AIImageWorkbench } from "./AIImageWorkbench";
+import {
+  AIImageWorkbench,
+  createInitialAIImageWorkbenchDraftState,
+} from "./AIImageWorkbench";
+import { sendPromptToWorkbenchDraft } from "./AIImageWorkbenchDraft";
 
 import type {
   AIImageGenerationOutput,
@@ -216,12 +220,10 @@ const typePrompt = (value: string) => {
   fireEvent.input(editor);
 };
 
+// The video prompt is the same contenteditable PromptEditor as images.
 const prepareVideoGeneration = (prompt = "A paper plane taking flight") => {
   fireEvent.click(screen.getByRole("button", { name: "Video" }));
-  fireEvent.change(
-    screen.getByPlaceholderText("Describe the video to generate..."),
-    { target: { value: prompt } },
-  );
+  typePrompt(prompt);
 };
 
 describe("AIImageWorkbench", () => {
@@ -1298,13 +1300,15 @@ describe("AIImageWorkbench", () => {
   });
 
   it("enables video generation controls while audio stays preview-only", () => {
+    saveAIImageConfig(createVideoConfig());
     render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
 
     fireEvent.click(screen.getByRole("button", { name: "Video" }));
 
-    expect(
-      screen.getByPlaceholderText("Describe the video to generate..."),
-    ).not.toBeDisabled();
+    expect(screen.getByLabelText("Prompt")).toHaveAttribute(
+      "contenteditable",
+      "true",
+    );
     expect(
       screen.getByRole("button", { name: "Generate video" }),
     ).toBeInTheDocument();
@@ -1821,5 +1825,330 @@ describe("AIImageWorkbench", () => {
       ).toBeInTheDocument();
     });
     expect(insertGeneratedImageIntoCanvas).not.toHaveBeenCalled();
+  });
+
+  // ---- UI polish round 2, group B (58e3 P1) --------------------------------
+
+  const threeImageAPI = () =>
+    createExcalidrawAPI({
+      selectedElementIds: { "image-1": true, "image-2": true, "image-3": true },
+      elements: [1, 2, 3].map((n) => ({
+        id: `image-${n}`,
+        type: "image",
+        fileId: `file-${n}`,
+        width: 100,
+        height: 80,
+        isDeleted: false,
+      })),
+      files: Object.fromEntries(
+        [1, 2, 3].map((n) => [
+          `file-${n}`,
+          { dataURL: generatedOutput.dataURL, mimeType: "image/png" },
+        ]),
+      ),
+    });
+
+  const promptText = () => screen.getByLabelText("Prompt").textContent;
+
+  it("confirms before clearing generated assets", async () => {
+    vi.mocked(generateImagesWithOpenAIAdapter).mockResolvedValue([
+      generatedOutput,
+    ]);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    typePrompt("Keep these assets");
+    fireEvent.click(screen.getByRole("button", { name: "Generate image" }));
+    await waitFor(() => {
+      expect(screen.getByAltText("generated asset #1")).toBeInTheDocument();
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear generated assets" }),
+    );
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByAltText("generated asset #1")).toBeInTheDocument();
+
+    confirmSpy.mockReturnValue(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Clear generated assets" }),
+    );
+    await waitFor(() => {
+      expect(screen.queryByAltText("generated asset #1")).toBeNull();
+    });
+  });
+
+  it("confirms a batch delete above the same threshold as Clear", async () => {
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(<AIImageWorkbench excalidrawAPI={threeImageAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    await waitFor(() => {
+      expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(3);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Batch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete selected" }));
+
+    await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(3);
+
+    confirmSpy.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Delete selected" }));
+    await waitFor(() => {
+      expect(screen.queryAllByAltText(/^Reference #/)).toHaveLength(0);
+    });
+  });
+
+  it("rewrites #n after a removal, and Undo restores image and prompt", async () => {
+    render(<AIImageWorkbench excalidrawAPI={threeImageAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    await waitFor(() => {
+      expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(3);
+    });
+    typePrompt("put #1 next to #2 and #3");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove reference #2" }),
+    );
+
+    expect(promptText()).toBe("put #1 next to #? and #2");
+    expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(2);
+    expect(
+      screen.getByText("Warning: a referenced image was removed (#?)."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+
+    expect(promptText()).toBe("put #1 next to #2 and #3");
+    expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("reorders references with Alt+Arrow and keeps #n on the same image", async () => {
+    render(<AIImageWorkbench excalidrawAPI={threeImageAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    await waitFor(() => {
+      expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(3);
+    });
+    typePrompt("#1 left of #3");
+
+    const firstThumb = screen.getByRole("button", {
+      name: /^Reference #1:/,
+    });
+    fireEvent.keyDown(firstThumb, { key: "ArrowRight", altKey: true });
+
+    // The old #1 is now #2; the old #3 keeps its place.
+    expect(promptText()).toBe("#2 left of #3");
+    expect(screen.getByText("Moved to #2.")).toBeInTheDocument();
+  });
+
+  it("removes a reference with Backspace and moves focus to Undo", async () => {
+    render(<AIImageWorkbench excalidrawAPI={threeImageAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    await waitFor(() => {
+      expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(3);
+    });
+
+    const thumb = screen.getByRole("button", { name: /^Reference #3:/ });
+    // The thumbnail is a plain button; it holds no other control.
+    expect(thumb.querySelector("button, input")).toBeNull();
+    fireEvent.keyDown(thumb, { key: "Backspace" });
+
+    expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(2);
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Undo" })).toHaveFocus();
+    });
+  });
+
+  it("ignores a second Add-selection click while exporting", async () => {
+    let resolveExport: ((value: any) => void) | null = null;
+    vi.mocked(exportSelectionToReferenceSource).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveExport = resolve;
+        }),
+    );
+
+    render(
+      <AIImageWorkbench
+        excalidrawAPI={createExcalidrawAPI({
+          selectedElementIds: { "shape-1": true },
+          elements: [{ id: "shape-1", type: "rectangle", isDeleted: false }],
+        })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+
+    const add = screen.getByRole("button", {
+      name: "Add current selection to references",
+    });
+    act(() => {
+      fireEvent.click(add);
+      fireEvent.click(add);
+    });
+    expect(exportSelectionToReferenceSource).toHaveBeenCalledTimes(1);
+    expect(add).toBeDisabled();
+
+    await act(async () => {
+      resolveExport?.({
+        source: {
+          elementId: "shape-1",
+          file: new File(["x"], "x.png", { type: "image/png" }),
+          dataURL: generatedOutput.dataURL,
+          index: 1,
+          sourceType: "canvas",
+          createdAt: 42,
+        },
+      });
+    });
+    expect(screen.getAllByAltText(/^Reference #/)).toHaveLength(1);
+  });
+
+  it("drops an Add-selection result when the board changed meanwhile", async () => {
+    let resolveExport: ((value: any) => void) | null = null;
+    vi.mocked(exportSelectionToReferenceSource).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveExport = resolve;
+        }),
+    );
+    const api = createExcalidrawAPI({
+      selectedElementIds: { "shape-1": true },
+      elements: [{ id: "shape-1", type: "rectangle", isDeleted: false }],
+    });
+
+    const { rerender } = render(
+      <AIImageWorkbench excalidrawAPI={api} persistenceScopeId="local:a" />,
+    );
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Generate image" }),
+      ).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Add current selection to references",
+      }),
+    );
+
+    rerender(
+      <AIImageWorkbench excalidrawAPI={api} persistenceScopeId="local:b" />,
+    );
+    await act(async () => {
+      resolveExport?.({
+        source: {
+          elementId: "shape-1",
+          file: new File(["x"], "x.png", { type: "image/png" }),
+          dataURL: generatedOutput.dataURL,
+          index: 1,
+          sourceType: "canvas",
+          createdAt: 43,
+        },
+      });
+    });
+    expect(screen.queryAllByAltText(/^Reference #/)).toHaveLength(0);
+  });
+
+  it("shows one Cancel and a busy primary button while generating", async () => {
+    vi.mocked(generateImagesWithOpenAIAdapter).mockImplementation(
+      () => new Promise(() => {}),
+    );
+
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    typePrompt("Slow one");
+    fireEvent.click(screen.getByRole("button", { name: "Generate image" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Generating..." }),
+      ).toHaveAttribute("aria-busy", "true");
+    });
+    expect(screen.getAllByRole("button", { name: "Cancel" })).toHaveLength(1);
+  });
+
+  it("announces errors as an alert placed before the primary button", async () => {
+    vi.mocked(generateImagesWithOpenAIAdapter).mockRejectedValue(
+      new Error("Provider exploded"),
+    );
+
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    typePrompt("Boom");
+    fireEvent.click(screen.getByRole("button", { name: "Generate image" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Provider exploded");
+    const primary = screen.getByRole("button", { name: "Generate image" });
+    expect(
+      alert.compareDocumentPosition(primary) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it("turns the primary action into Open AI Settings when no model is set up", () => {
+    saveAIImageConfig({ ...createImageConfig(), models: [], defaultModel: "" });
+    const onOpenSettings = vi.fn();
+    window.addEventListener("excalidraw:open-ai-settings", onOpenSettings);
+
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+
+    expect(screen.queryByRole("button", { name: "Generate image" })).toBeNull();
+    // Mode buttons are not all greyed out when there is simply no model.
+    expect(screen.getByRole("button", { name: "Reference" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Open AI Settings" }));
+    expect(onOpenSettings).toHaveBeenCalledTimes(1);
+
+    window.removeEventListener("excalidraw:open-ai-settings", onOpenSettings);
+  });
+
+  it("shares the prompt across image modes", () => {
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    typePrompt("one prompt for all");
+
+    fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
+    expect(promptText()).toBe("one prompt for all");
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    expect(promptText()).toBe("one prompt for all");
+  });
+
+  it("offers Restore after an external write replaced a typed prompt", () => {
+    // Same wiring as AppSidebar: the parent owns the draft and an external
+    // hand-off (assistant -> workbench) rewrites it.
+    const Harness = () => {
+      const [draft, setDraft] = React.useState(
+        createInitialAIImageWorkbenchDraftState,
+      );
+      return (
+        <>
+          <button
+            type="button"
+            onClick={() =>
+              setDraft((current) =>
+                sendPromptToWorkbenchDraft(current, "from the assistant"),
+              )
+            }
+          >
+            external write
+          </button>
+          <AIImageWorkbench
+            excalidrawAPI={createExcalidrawAPI()}
+            draftState={draft}
+            onDraftStateChange={setDraft}
+          />
+        </>
+      );
+    };
+
+    render(<Harness />);
+    typePrompt("my own careful prompt");
+    fireEvent.click(screen.getByRole("button", { name: "external write" }));
+
+    expect(promptText()).toBe("from the assistant");
+    fireEvent.click(screen.getByRole("button", { name: "Restore previous" }));
+    expect(promptText()).toBe("my own careful prompt");
+    expect(
+      screen.queryByRole("button", { name: "Restore previous" }),
+    ).not.toBeInTheDocument();
   });
 });

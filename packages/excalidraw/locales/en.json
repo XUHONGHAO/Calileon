@@ -197,7 +197,13 @@
         "label": "Preview view",
         "fit": "Fit drawing",
         "follow": "Recorded view"
-      }
+      },
+      "discardConfirmTitle": "Discard recording?",
+      "discardConfirm": "This recording has not been exported or saved to the cloud. Discarding it cannot be undone.",
+      "replaceConfirmTitle": "Replace recording?",
+      "replace": "Replace",
+      "replaceByRecording": "The current recording has not been exported or saved to the cloud. Starting a new recording discards it.",
+      "replaceByImport": "The current recording has not been exported or saved to the cloud. Importing this CastScript discards it."
     },
     "textAlign": "Text align",
     "edges": "Edges",
@@ -395,13 +401,17 @@
       "exportFailed": "Could not export the single-file board. Your current board is unchanged.",
       "saveFailed": "Could not save the single-file board. Your edits are still available in this page.",
       "saveAsFailed": "Could not save a new copy. Your edits are still available in this page.",
-      "invalidFile": "The selected file is not a compatible single-file board."
+      "invalidFile": "The selected file is not a compatible single-file board.",
+      "runtimeFailed": "Could not load the single-file runtime. Check your connection and try again."
     },
     "success": {
       "exported": "Single-file board exported.",
       "saved": "Single-file board saved.",
       "savedAs": "New single-file board saved."
-    }
+    },
+    "loadingRuntime": "Preparing the export…",
+    "retry": "Try again",
+    "exportAnyway": "Export anyway"
   },
   "elementLink": {
     "title": "Link to object",
@@ -980,6 +990,26 @@
         "selectRegion": "Select one or more canvas elements.",
         "promptRequired": "Enter a text request.",
         "perspectivesRequired": "Choose a perspective for every task."
+      },
+      "choosePerspective": "Choose a perspective",
+      "cancelBatchConfirm": "Cancel every unfinished task in this batch? Running requests may already have been charged.",
+      "deleteRunningConfirm": "This task is still running. Delete it and stop the request? The provider may already have charged for it.",
+      "interruptedNotice": "Interrupted by page refresh. Retry explicitly to continue.",
+      "log": {
+        "succeeded": "Many Minds task succeeded",
+        "failed": "Many Minds task failed",
+        "cancelled": "Many Minds task cancelled"
+      },
+      "perspectiveNames": {
+        "clarify": "Clarify",
+        "simplify": "Simplify",
+        "expand": "Expand",
+        "reframe": "Reframe",
+        "contrast": "Contrast",
+        "atmosphere": "Atmosphere",
+        "material": "Material",
+        "narrative": "Narrative",
+        "medium": "Medium"
       }
     },
     "common": {
@@ -1101,7 +1131,9 @@
         "codeHint": "Enter the code exactly as shown in the single-file window.",
         "approving": "Approving…",
         "approved": "Device approved. You can return to the single-file window."
-      }
+      },
+      "restoreDefaultsConfirm": "This switches back to browser direct mode and removes the saved proxy endpoint, access token, gateway endpoint and route choices. This can't be undone.",
+      "restoreDefaultsAction": "Restore defaults"
     },
     "sidebar": {
       "workbenchTitle": "AI Workbench",
@@ -1173,7 +1205,8 @@
         "mode": "Mode",
         "completed": "Completed",
         "summary": "Summary"
-      }
+      },
+      "clearConfirm": "Clear all generation logs? This can't be undone."
     },
     "workbench": {
       "title": "Generate",
@@ -1272,7 +1305,18 @@
         "brushSizeLabel": "Brush size",
         "preview": "Mask preview",
         "selectSavedImage": "Select a saved image before editing a mask.",
-        "imageUnavailable": "The selected image is no longer available."
+        "imageUnavailable": "The selected image is no longer available.",
+        "tools": "Mask tool",
+        "brush": "Brush",
+        "eraser": "Eraser",
+        "toolShortcut": "Press E to switch",
+        "undo": "Undo",
+        "redo": "Redo",
+        "discardTitle": "Discard mask strokes?",
+        "discardConfirm": "The strokes you drew in this session will be lost.",
+        "discard": "Discard strokes",
+        "keepDrawing": "Keep drawing",
+        "exportFailed": "Couldn't create the mask. Try again."
       },
       "referenceStrength": "Reference strength",
       "locked": "Locked",
@@ -1348,7 +1392,8 @@
           "succeeded": "Succeeded",
           "failed": "Failed",
           "canceled": "Canceled",
-          "inserted": "Inserted"
+          "inserted": "Inserted",
+          "notReady": "Not ready"
         },
         "notice": {
           "addModel": "Add {{mediaType}} model in AI Settings.",
@@ -1367,7 +1412,15 @@
       "editMaskOnCanvas": "Edit mask on canvas",
       "reEditMaskOnCanvas": "Re-edit mask on canvas",
       "removeMissingReferences": "Remove missing references or add an available reference image.",
-      "insertGeneratedAssetFailed": "Could not insert generated asset."
+      "insertGeneratedAssetFailed": "Could not insert generated asset.",
+      "removedReferenceWarning": "Warning: a referenced image was removed (#?).",
+      "referenceMoved": "Moved to #{{index}}.",
+      "referenceRemoved": "Reference #{{index}} removed.",
+      "referenceKeyboardHint": "Alt+Left or Alt+Right moves the reference; Delete removes it.",
+      "deleteSelectedReferencesConfirm": "Delete {{count}} selected references?",
+      "clearGeneratedAssetsConfirm": "Clear {{count}} generated assets? This can't be undone.",
+      "promptReplaced": "The prompt was replaced.",
+      "restorePreviousPrompt": "Restore previous"
     },
     "settings": {
       "tabs": {
@@ -1633,7 +1686,18 @@
         "templatesImportedCount": "{{count}} templates imported.",
         "templatesExported": "Templates exported.",
         "templateImportFailed": "Could not import prompt templates.",
-        "deleteTemplateConfirm": "Delete prompt template \"{{label}}\"?"
+        "deleteTemplateConfirm": "Delete prompt template \"{{label}}\"?",
+        "deleteModelConfirm": "Delete \"{{name}}\" ({{models}})? This can't be undone.",
+        "discardChangesTitle": "Discard unsaved changes?",
+        "discardChangesConfirm": "You have changes that haven't been saved. If you leave now, they will be lost.",
+        "discardChanges": "Discard changes",
+        "keepEditing": "Keep editing",
+        "unsavedChanges": "Unsaved changes",
+        "applyPresetTitle": "Apply preset?",
+        "applyPresetConfirm": "Apply the \"{{name}}\" preset? It replaces the current connection and model fields.",
+        "applyPresetClearsKey": "The preset points to a different host, so the API key you entered will be cleared. Enter the key for the new provider.",
+        "apiKeyCleared": "The API key was cleared because the host changed.",
+        "apiKeyHostChanged": "The Base URL now points to a different host. The saved API key will be sent there. Replace it if it belongs to another provider."
       }
     },
     "assistant": {
@@ -1704,8 +1768,15 @@
         "insertedMermaid": "Inserted Mermaid diagram.",
         "insertMermaidFailed": "Could not insert Mermaid diagram.",
         "noExcalidrawElements": "No Excalidraw elements were generated.",
-        "insertedAssistantText": "Inserted assistant text."
-      }
+        "insertedAssistantText": "Inserted assistant text.",
+        "deleteChatConfirm": "Delete the chat \"{{title}}\"? This can't be undone.",
+        "deleteMessageConfirm": "Delete this message? It will also be removed from the context sent to the agent.",
+        "deleteGeneratingMessageConfirm": "This reply is still being generated. Stop it and delete the message?"
+      },
+      "stop": "Stop",
+      "sendMessage": "Send message",
+      "stopGenerating": "Stop generating",
+      "retry": "Retry"
     }
   },
   "quickSearch": {
@@ -1855,7 +1926,11 @@
       "roomId": "Room: {{roomId}}",
       "secureContextRequired": "Live collaboration encryption requires localhost or HTTPS. Open this app from localhost, or serve the LAN IP over HTTPS.",
       "title": "Live collaboration room",
-      "unavailable": "Unavailable"
+      "unavailable": "Unavailable",
+      "alreadyCollaborating": "A live session is already running. Stop it before creating a new room link.",
+      "createdCopyFailed": "The room was created and the session started, but the link could not be copied. Copy it manually from this dialog.",
+      "revokeConfirmTitle": "Revoke room link",
+      "revokeConfirmScene": "Revoke the live collaboration room for \"{{title}}\"? The old room link will stop working."
     },
     "e2e": {
       "missingKey": "This encrypted cloud whiteboard cannot be opened in this browser because its key is missing.",
@@ -1899,7 +1974,9 @@
       "invalidPayload": "This cloud whiteboard cannot be opened.",
       "assetLoadFailed": "Some cloud images could not be loaded.",
       "openedAssetsFailed": "Cloud whiteboard opened, but some images could not be loaded.",
-      "genericError": "Cloud whiteboards are unavailable. Please try again."
+      "genericError": "Cloud whiteboards are unavailable. Please try again.",
+      "deleteConfirmTitle": "Delete whiteboard",
+      "deleteConfirmScene": "Delete the cloud whiteboard \"{{title}}\"?"
     },
     "share": {
       "action": "Share",
@@ -1921,7 +1998,11 @@
       "saved": "Saved to shared cloud whiteboard.",
       "unavailable": "Cloud sharing is not configured.",
       "create": "Create link",
-      "permission": "Link access"
+      "permission": "Link access",
+      "revokeConfirmTitle": "Revoke share link",
+      "revokeConfirmScene": "Revoke this share link for \"{{title}}\"? Anyone using it loses access.",
+      "createdCopyFailed": "The link was created but could not be copied. Use Copy in the list below.",
+      "signInRequired": "Sign in to create and manage cloud share links."
     },
     "embed": {
       "action": "Embed",
@@ -2075,7 +2156,10 @@
         "revoked": "This Vault access has been revoked.",
         "unavailable": "The encrypted Vault invitation service is unavailable.",
         "internal": "The Vault invitation action failed. No bearer secret was logged or persisted."
-      }
+      },
+      "revokeConfirmTitle": "Revoke invitation",
+      "revokeConfirm": "Revoke this invitation? Its link stops working and sessions opened with it are disconnected.",
+      "createdCopyFailed": "The invitation was created but could not be copied. Use Copy link in the list below."
     },
     "status": {
       "localSaved": "Saved on this device",
@@ -2093,7 +2177,8 @@
       "conflict": "Unsynced local branch needs review",
       "revoked": "Access revoked",
       "expired": "Access expired",
-      "closed": "Closed"
+      "closed": "Closed",
+      "attachmentsFailed": "{{failed}} attachment(s) failed to upload"
     },
     "v2": {
       "create": "Create empty Vault v2",
@@ -2317,7 +2402,10 @@
       "timeLimit": "Five-minute limit reached. Artwork kept.",
       "elementLimit": "600-element limit reached. Artwork kept.",
       "commitError": "Could not insert artwork. Retry before closing.",
-      "empty": "Nothing was loud enough to draw, so nothing was added."
+      "empty": "Nothing was loud enough to draw, so nothing was added.",
+      "discardPendingTitle": "Discard artwork?",
+      "discardPending": "The artwork has not been added to the board yet. Closing now discards it.",
+      "discard": "Discard"
     }
   },
   "voice": {

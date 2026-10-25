@@ -4,7 +4,6 @@ import {
   ExcalidrawAPIProvider,
   sceneCoordsToViewportCoords,
 } from "@excalidraw/excalidraw";
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { Range } from "@excalidraw/excalidraw/components/Range";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
 import { EditorLocalStorage } from "@excalidraw/excalidraw/data/EditorLocalStorage";
@@ -40,7 +39,14 @@ import {
 import { getCloudBackend } from "../data/cloud";
 
 import { CastRecordingBar } from "./CastRecordingBar";
-import { Badge, Callout, SegmentedControl, UiButton } from "./ui";
+import {
+  AppDialog,
+  Badge,
+  Callout,
+  SegmentedControl,
+  UiButton,
+  confirmAction,
+} from "./ui";
 
 import "./CastDialog.scss";
 
@@ -424,8 +430,23 @@ export const CastDialog: React.FC<{
     return () => observer.disconnect();
   }, [script, seek, viewMode]);
 
-  const startRecording = () => {
+  // A stopped recording lives only in memory until it is exported or saved
+  // to the cloud; ask before anything throws it away.
+  const confirmReplaceUnsaved = (message: string) =>
+    script && !isSaved
+      ? confirmAction(message, {
+          title: t("labels.cast.replaceConfirmTitle"),
+          confirmLabel: t("labels.cast.replace"),
+          cancelLabel: t("ai.common.cancel"),
+          danger: true,
+        })
+      : Promise.resolve(true);
+
+  const startRecording = async () => {
     if (!excalidrawAPI) {
+      return;
+    }
+    if (!(await confirmReplaceUnsaved(t("labels.cast.replaceByRecording")))) {
       return;
     }
     const recorder = new CastRecorder({
@@ -553,7 +574,18 @@ export const CastDialog: React.FC<{
     }
   };
 
-  const discardRecording = () => {
+  const discardRecording = async () => {
+    if (
+      !isSaved &&
+      !(await confirmAction(t("labels.cast.discardConfirm"), {
+        title: t("labels.cast.discardConfirmTitle"),
+        confirmLabel: t("labels.cast.discard"),
+        cancelLabel: t("ai.common.cancel"),
+        danger: true,
+      }))
+    ) {
+      return;
+    }
     narrationRef.current?.discard();
     narrationRef.current = null;
     setIsNarrating(false);
@@ -572,6 +604,10 @@ export const CastDialog: React.FC<{
   const importScript = async (file: File) => {
     try {
       const nextScript = deserializeCastScript(await file.text());
+      // Ask only once the file is known to be valid.
+      if (!(await confirmReplaceUnsaved(t("labels.cast.replaceByImport")))) {
+        return;
+      }
       recorderRef.current = null;
       setScript(nextScript);
       setRecorderState("stopped");
@@ -645,11 +681,10 @@ export const CastDialog: React.FC<{
   );
 
   return (
-    <Dialog
+    <AppDialog
       className="CastDialog"
       title={t("labels.cast.title")}
-      size="wide"
-      autofocus={false}
+      size="regular"
       closeOnClickOutside={false}
       onCloseRequest={onClose}
     >
@@ -674,7 +709,7 @@ export const CastDialog: React.FC<{
             </UiButton>
             <UiButton
               variant="primary"
-              onClick={startRecording}
+              onClick={() => void startRecording()}
               disabled={!excalidrawAPI}
               data-testid="cast-start-recording"
             >
@@ -848,7 +883,7 @@ export const CastDialog: React.FC<{
               <UiButton
                 variant="danger"
                 className="CastDialog__discard"
-                onClick={discardRecording}
+                onClick={() => void discardRecording()}
                 data-testid="cast-discard"
               >
                 {t("labels.cast.discard")}
@@ -891,6 +926,6 @@ export const CastDialog: React.FC<{
           <div className="CastDialog__empty">{t("labels.cast.empty")}</div>
         )}
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

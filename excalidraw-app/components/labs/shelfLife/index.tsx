@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { MainMenu } from "@excalidraw/excalidraw";
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { createIcon } from "@excalidraw/excalidraw/components/icons";
 import { getLanguage, t } from "@excalidraw/excalidraw/i18n";
 import {
@@ -15,7 +14,7 @@ import {
 
 import type { ShelfLifePreset } from "@excalidraw/element";
 
-import { UiButton, Field, Callout, confirmAction } from "../../ui";
+import { AppDialog, Callout, Field, UiButton, confirmAction } from "../../ui";
 import {
   openLabsFeature,
   closeLabsFeature,
@@ -102,6 +101,8 @@ export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!open) {
+      // The host stays mounted: don't show last time's result on reopen.
+      setMessage("");
       return;
     }
     // Wait a frame: the closing main menu restores focus on its way out.
@@ -242,13 +243,12 @@ export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
     "sevenDays",
   ];
   return (
-    <Dialog
+    <AppDialog
       title={t("labs.shelfLife.title")}
       onCloseRequest={() => closeLabsFeature("shelfLife")}
       size="small"
       // Dialog would focus the 2nd focusable (it assumes a close button);
       // focus the panel itself so Esc works even when every button is off.
-      autofocus={false}
     >
       <div
         className="shelf-life"
@@ -355,6 +355,6 @@ export const ShelfLifeHost = ({ excalidrawAPI: api }: LabsHostProps) => {
           </div>
         )}
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

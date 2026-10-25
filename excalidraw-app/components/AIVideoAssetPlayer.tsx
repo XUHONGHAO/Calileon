@@ -29,25 +29,40 @@ export const AIVideoAssetPlayer = ({
     useState<VideoPlaybackURLResolution | null>(null);
   const [failed, setFailed] = useState(false);
   const retryCountRef = useRef(0);
+  // Callers pass an inline resolver, so it changes identity on every parent
+  // render. Keep it in a ref: depending on it re-ran the effect each render,
+  // which reset the one-retry budget and re-requested the URL.
+  const resolveAssetRef = useRef(resolveAsset);
+  resolveAssetRef.current = resolveAsset;
+  // Drops responses from an older load (asset change, retry, unmount).
+  const requestSeqRef = useRef(0);
 
   const load = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     setFailed(false);
     try {
       const next = await resolveCachedVideoPlaybackURL({
         contextId,
         assetId,
-        resolver: resolveAsset,
+        resolver: () => resolveAssetRef.current(),
       });
-      setResolution(next);
+      if (seq === requestSeqRef.current) {
+        setResolution(next);
+      }
     } catch {
-      setResolution(null);
-      setFailed(true);
+      if (seq === requestSeqRef.current) {
+        setResolution(null);
+        setFailed(true);
+      }
     }
-  }, [assetId, contextId, resolveAsset]);
+  }, [assetId, contextId]);
 
   useEffect(() => {
     retryCountRef.current = 0;
     void load();
+    return () => {
+      requestSeqRef.current += 1;
+    };
   }, [load]);
 
   if (!resolution) {

@@ -177,7 +177,13 @@
       "cloudUnavailable": "請先登入並將目前白板綁定到雲端，再儲存錄製。",
       "unsupportedVersion": "不支援此 CastScript 版本。",
       "invalidScript": "所選檔案不是有效的 CastScript。",
-      "cloudError": "無法將錄製儲存到雲端。"
+      "cloudError": "無法將錄製儲存到雲端。",
+      "discardConfirmTitle": "捨棄錄製？",
+      "discardConfirm": "這段錄製尚未匯出或儲存到雲端。捨棄後無法復原。",
+      "replaceConfirmTitle": "取代目前錄製？",
+      "replace": "取代",
+      "replaceByRecording": "目前錄製尚未匯出或儲存到雲端。開始新的錄製會捨棄它。",
+      "replaceByImport": "目前錄製尚未匯出或儲存到雲端。匯入這個 CastScript 會捨棄它。"
     },
     "textAlign": "文字對齊",
     "edges": "邊緣",
@@ -347,13 +353,17 @@
       "exportFailed": "無法匯出單檔案白板，目前白板未被修改。",
       "saveFailed": "無法儲存單檔案白板，你的編輯仍保留在目前頁面中。",
       "saveAsFailed": "無法另存新副本，你的編輯仍保留在目前頁面中。",
-      "invalidFile": "所選檔案不是相容的單檔案白板。"
+      "invalidFile": "所選檔案不是相容的單檔案白板。",
+      "runtimeFailed": "無法載入單一檔案執行環境。請檢查網路後重試。"
     },
     "success": {
       "exported": "單檔案白板已匯出。",
       "saved": "單檔案白板已儲存。",
       "savedAs": "新的單檔案白板已儲存。"
-    }
+    },
+    "loadingRuntime": "正在準備匯出…",
+    "retry": "重試",
+    "exportAnyway": "仍然匯出"
   },
   "elementLink": {
     "title": "連結至物件",
@@ -899,6 +909,26 @@
         "selectRegion": "請選擇一個或多個畫布元素。",
         "promptRequired": "請輸入文字要求。",
         "perspectivesRequired": "請為每個任務選擇視角。"
+      },
+      "choosePerspective": "選擇視角",
+      "cancelBatchConfirm": "取消本批次所有未完成的任務？執行中的請求可能已被 provider 計費。",
+      "deleteRunningConfirm": "該任務仍在執行。要刪除它並停止請求嗎？provider 可能已經計費。",
+      "interruptedNotice": "頁面重新整理導致中斷。請明確重試以繼續。",
+      "log": {
+        "succeeded": "異世界視角任務成功",
+        "failed": "異世界視角任務失敗",
+        "cancelled": "異世界視角任務已取消"
+      },
+      "perspectiveNames": {
+        "clarify": "釐清",
+        "simplify": "簡化",
+        "expand": "擴展",
+        "reframe": "換個角度",
+        "contrast": "對比",
+        "atmosphere": "氛圍",
+        "material": "材質",
+        "narrative": "敘事",
+        "medium": "媒介"
       }
     },
     "common": {
@@ -1020,7 +1050,9 @@
         "codeHint": "請準確輸入單檔案視窗中顯示的裝置碼。",
         "approving": "正在核准…",
         "approved": "裝置已核准。現在可以返回單檔案視窗。"
-      }
+      },
+      "restoreDefaultsConfirm": "這會切回瀏覽器直連，並刪除已儲存的代理位址、存取權杖、閘道位址和路由選擇。此操作無法復原。",
+      "restoreDefaultsAction": "還原預設"
     },
     "sidebar": {
       "workbenchTitle": "AI 工作台",
@@ -1092,7 +1124,8 @@
         "mode": "模式",
         "completed": "完成時間",
         "summary": "摘要"
-      }
+      },
+      "clearConfirm": "清空所有生成記錄？此操作無法復原。"
     },
     "workbench": {
       "title": "創意生成",
@@ -1189,7 +1222,18 @@
         "cancel": "取消",
         "brushSize": "筆刷大小：{{size}}px",
         "brushSizeLabel": "筆刷大小",
-        "preview": "遮罩預覽"
+        "preview": "遮罩預覽",
+        "tools": "遮罩工具",
+        "brush": "筆刷",
+        "eraser": "橡皮擦",
+        "toolShortcut": "按 E 切換",
+        "undo": "復原",
+        "redo": "重做",
+        "discardTitle": "放棄遮罩筆畫？",
+        "discardConfirm": "本次繪製的筆畫將會遺失。",
+        "discard": "放棄筆畫",
+        "keepDrawing": "繼續繪製",
+        "exportFailed": "遮罩產生失敗，請重試。"
       },
       "referenceStrength": "參考強度",
       "locked": "已鎖定",
@@ -1255,7 +1299,8 @@
           "succeeded": "成功",
           "failed": "失敗",
           "canceled": "已取消",
-          "inserted": "已插入"
+          "inserted": "已插入",
+          "notReady": "未就緒"
         },
         "notice": {
           "addModel": "請在 AI 設定中新增{{mediaType}}模型。",
@@ -1270,7 +1315,15 @@
         "reuseSettings": "重用{{asset}}的生成設定",
         "copyPrompt": "複製{{asset}}的提示詞",
         "download": "下載{{asset}}"
-      }
+      },
+      "removedReferenceWarning": "警告：引用的參考圖已被移除（#?）。",
+      "referenceMoved": "已移到 #{{index}}。",
+      "referenceRemoved": "已移除參考圖 #{{index}}。",
+      "referenceKeyboardHint": "Alt+← 或 Alt+→ 移動參考圖，Delete 移除。",
+      "deleteSelectedReferencesConfirm": "刪除選取的 {{count}} 張參考圖？",
+      "clearGeneratedAssetsConfirm": "清空 {{count}} 個生成結果？此操作無法復原。",
+      "promptReplaced": "提示詞已被取代。",
+      "restorePreviousPrompt": "還原原提示詞"
     },
     "settings": {
       "tabs": {
@@ -1536,7 +1589,18 @@
         "templatesImportedCount": "已匯入 {{count}} 個範本。",
         "templatesExported": "範本已匯出。",
         "templateImportFailed": "無法匯入提示詞範本。",
-        "deleteTemplateConfirm": "刪除提示詞範本「{{label}}」？"
+        "deleteTemplateConfirm": "刪除提示詞範本「{{label}}」？",
+        "deleteModelConfirm": "刪除「{{name}}」（{{models}}）？此操作無法復原。",
+        "discardChangesTitle": "放棄未儲存的變更？",
+        "discardChangesConfirm": "還有變更尚未儲存，現在離開會遺失這些變更。",
+        "discardChanges": "放棄變更",
+        "keepEditing": "繼續編輯",
+        "unsavedChanges": "有未儲存的變更",
+        "applyPresetTitle": "套用預設？",
+        "applyPresetConfirm": "套用「{{name}}」預設？目前的連線和模型欄位會被取代。",
+        "applyPresetClearsKey": "此預設指向另一個主機，已填寫的 API Key 會被清空，請填寫新服務商的 Key。",
+        "apiKeyCleared": "主機已變更，API Key 已清空。",
+        "apiKeyHostChanged": "Base URL 已指向另一個主機，已儲存的 API Key 會傳送到那裡。如果它屬於其他服務商，請替換。"
       }
     },
     "assistant": {
@@ -1607,8 +1671,15 @@
         "insertedMermaid": "已插入 Mermaid 圖表。",
         "insertMermaidFailed": "無法插入 Mermaid 圖表。",
         "noExcalidrawElements": "沒有生成 Excalidraw 元素。",
-        "insertedAssistantText": "已插入助手文字。"
-      }
+        "insertedAssistantText": "已插入助手文字。",
+        "deleteChatConfirm": "刪除聊天「{{title}}」？此操作無法復原。",
+        "deleteMessageConfirm": "刪除這則訊息？它也會從傳送給智能體的上下文中移除。",
+        "deleteGeneratingMessageConfirm": "這則回覆仍在生成中。要停止生成並刪除這則訊息嗎？"
+      },
+      "stop": "停止",
+      "sendMessage": "傳送訊息",
+      "stopGenerating": "停止生成",
+      "retry": "重試"
     }
   },
   "quickSearch": {
@@ -1713,7 +1784,10 @@
         "revoked": "目前的 Vault 存取已遭撤銷。",
         "unavailable": "加密 Vault 邀請服務無法使用。",
         "internal": "Vault 邀請操作失敗。系統未記錄或持久化 bearer secret。"
-      }
+      },
+      "revokeConfirmTitle": "撤銷邀請",
+      "revokeConfirm": "撤銷這個邀請？邀請連結將失效，透過它開啟的工作階段會被中斷。",
+      "createdCopyFailed": "邀請已建立，但複製失敗。請在下方清單中點選「複製連結」。"
     },
     "status": {
       "localSaved": "已保存在此裝置",
@@ -1731,7 +1805,8 @@
       "conflict": "存在未同步本機修改，需要處理分叉",
       "revoked": "存取已撤銷",
       "expired": "存取已過期",
-      "closed": "已關閉"
+      "closed": "已關閉",
+      "attachmentsFailed": "{{failed}} 個附件上傳失敗"
     },
     "conflict": {
       "title": "存在本地分支，需要處理分叉",
@@ -1911,7 +1986,28 @@
       "timeLimit": "已達五分鐘上限，作品已保留。",
       "elementLimit": "已達 600 個元素上限，作品已保留。",
       "commitError": "作品插入失敗，請在關閉前重試。",
-      "empty": "聲音太小，沒有畫出內容，未新增任何元素。"
+      "empty": "聲音太小，沒有畫出內容，未新增任何元素。",
+      "discardPendingTitle": "放棄作品？",
+      "discardPending": "作品尚未加入白板。現在關閉會放棄它。",
+      "discard": "放棄"
+    }
+  },
+  "cloud": {
+    "collabRooms": {
+      "alreadyCollaborating": "已有即時協作工作階段正在進行。請先結束工作階段，再建立新的房間連結。",
+      "createdCopyFailed": "房間已建立，工作階段已開始，但連結複製失敗。請在此對話框中手動複製。",
+      "revokeConfirmTitle": "撤銷房間連結",
+      "revokeConfirmScene": "撤銷「{{title}}」的即時協作房間？原房間連結將失效。"
+    },
+    "share": {
+      "revokeConfirmTitle": "撤銷分享連結",
+      "revokeConfirmScene": "撤銷「{{title}}」的這個分享連結？使用該連結的人將無法再存取。",
+      "createdCopyFailed": "連結已建立，但複製失敗。請在下方清單中點選「複製」。",
+      "signInRequired": "登入後才能建立和管理雲端分享連結。"
+    },
+    "scenes": {
+      "deleteConfirmTitle": "刪除白板",
+      "deleteConfirmScene": "刪除雲端白板「{{title}}」？"
     }
   },
   "voice": {

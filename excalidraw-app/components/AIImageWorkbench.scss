@@ -26,11 +26,13 @@
     min-width: 0;
     max-width: 100%;
     font-size: var(--ui-font-sm);
+    // Width rules below follow the sidebar's width, not the viewport's
+    // (a 390px phone and a narrow docked sidebar need the same layout).
+    container: ai-workbench / inline-size;
   }
 
   .AIImageWorkbench button,
   .AIImageWorkbench input,
-  .AIImageWorkbench select,
   .AIImageWorkbench textarea {
     transition: background-color var(--ui-transition),
       border-color var(--ui-transition), box-shadow var(--ui-transition),
@@ -71,7 +73,7 @@
 
   .AIImageWorkbench__statusStrip {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
     gap: var(--ui-space-1);
     min-width: 0;
 
@@ -85,9 +87,9 @@
       font-size: var(--ui-font-xs);
       font-weight: var(--ui-weight-semibold);
       line-height: 1.25;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      // Wrap rather than truncate: the full value was only in `title`, which
+      // touch screens never show.
+      overflow-wrap: anywhere;
 
       strong {
         margin-right: var(--ui-space-1);
@@ -190,14 +192,14 @@
     gap: var(--ui-space-1_5);
     min-width: 0;
 
-    span {
+    // Direct child only: the Select trigger has spans of its own.
+    > span {
       color: var(--text-primary-color);
       font-size: var(--ui-font-xs);
       font-weight: var(--ui-weight-semibold);
     }
 
     input,
-    select,
     textarea {
       box-sizing: border-box;
       width: 100%;
@@ -235,9 +237,8 @@
     min-width: 0;
 
     &.has-warning .AIImageWorkbench__promptInput {
-      border-color: var(--color-warning-darker);
-      box-shadow: 0 0 0 1px
-        color-mix(in srgb, var(--color-warning-darker) 20%, transparent);
+      border-color: var(--ui-warning-border);
+      box-shadow: 0 0 0 1px var(--ui-warning-border);
     }
   }
 
@@ -273,6 +274,13 @@
       border-color: var(--color-border-outline-variant);
     }
 
+    // A contenteditable <div>, so the button/input/textarea rule above
+    // doesn't reach it.
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+
     // Placeholder for the empty editor (a contenteditable has no native one).
     &[data-empty]::before {
       content: attr(data-placeholder);
@@ -291,14 +299,8 @@
     font-weight: var(--ui-weight-semibold);
 
     &.is-invalid {
-      color: var(--color-danger, #e03131);
+      color: var(--ui-danger-fg);
     }
-  }
-
-  .AIImageWorkbench__promptInput.has-warning {
-    border-color: var(--color-warning-darker);
-    box-shadow: 0 0 0 1px
-      color-mix(in srgb, var(--color-warning-darker) 20%, transparent);
   }
 
   .AIImageWorkbench__templateRow,
@@ -331,86 +333,41 @@
     justify-content: flex-end;
   }
 
-  .AIImageWorkbench__templateMenu,
-  .AIImageWorkbench__referencePicker {
-    box-sizing: border-box;
-    display: grid;
-    gap: var(--ui-space-1_5);
-    min-width: 0;
-    border: 1px solid var(--default-border-color);
-    border-radius: var(--ui-radius-lg);
-    padding: var(--ui-space-2);
-    background: var(--app-sidebar-control-bg, var(--island-bg-color));
-    color: var(--text-primary-color);
-    box-shadow: var(--shadow-island);
-  }
-
-  .AIImageWorkbench__referencePicker {
-    position: absolute;
-    z-index: var(--zIndex-ui-styles-popup);
-    top: calc(100% - 0.2rem);
-    left: 0;
-    right: 0;
+  // Template menu and `#n` picker: `Popover` on the shared `.UiPopover`
+  // surface, portalled to the editor root (so not nested in the workbench).
+  // Doubled with .UiPopover: stylesheet order against ui.scss isn't fixed.
+  .UiPopover.AIImageWorkbench__templateMenu {
+    min-width: 14rem;
+    max-width: min(20rem, calc(100vw - 1rem));
   }
 
   .AIImageWorkbench__templateGroup {
-    display: grid;
-    gap: var(--ui-space-1);
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-0_5);
     min-width: 0;
   }
 
-  .AIImageWorkbench__templateGroupLabel {
-    color: var(--text-primary-color);
-    font-size: var(--ui-font-xs);
-    font-weight: var(--ui-weight-semibold);
-    letter-spacing: 0;
-    opacity: 0.68;
-    text-transform: uppercase;
-  }
-
-  .AIImageWorkbench__templateItem,
-  .AIImageWorkbench__referencePickerItem {
-    display: grid;
-    min-width: 0;
-    border: 0;
-    border-radius: var(--ui-radius-md);
-    padding: var(--ui-space-1_5) var(--ui-space-2);
-    background: transparent;
-    color: var(--text-primary-color);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-
-    &:hover,
-    &.is-active {
-      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
-    }
-
-    span,
-    small {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    small {
-      font-size: var(--ui-font-xs);
-      opacity: 0.65;
-    }
+  .UiPopover.AIImageWorkbench__referencePicker {
+    max-width: calc(100vw - 1rem);
   }
 
   .AIImageWorkbench__referencePickerItem {
-    grid-template-columns: 2.2rem 2.4rem minmax(0, 1fr);
-    align-items: center;
-    gap: var(--ui-space-2);
+    min-height: var(--ui-control-lg);
+    padding-block: var(--ui-space-1);
+
+    .UiPopover__lead {
+      min-width: 1.75rem;
+      font-weight: var(--ui-weight-semibold);
+    }
 
     img {
-      width: 2.2rem;
-      height: 2.2rem;
+      flex: 0 0 auto;
+      width: 2rem;
+      height: 2rem;
       border-radius: var(--ui-radius-sm);
       object-fit: cover;
-      background: var(--default-bg-color);
+      background: var(--ui-surface-sunken);
     }
   }
 
@@ -426,8 +383,14 @@
     min-width: 0;
   }
 
+  // Three columns only where they fit: at the 366px sidebar each column was
+  // ~100px, too narrow for a 10-digit seed or "Auto" labels.
   .AIImageWorkbench__grid--three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  }
+
+  .AIImageWorkbench__field--wide {
+    grid-column: 1 / -1;
   }
 
   .AIImageWorkbench__seedField {
@@ -446,7 +409,7 @@
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    width: 2rem;
+    width: var(--ui-control-md);
     padding: 0;
     border: 1px solid var(--default-border-color);
     border-radius: var(--ui-radius-lg);
@@ -470,25 +433,77 @@
     }
   }
 
-  // UiButton primary, kept in view at the bottom of the scrolling panel.
-  .AIImageWorkbench__primaryButton {
+  // Message, running tasks and the primary button, kept in view at the
+  // bottom of the scrolling panel. `bottom` cancels the panel's bottom
+  // padding so the opaque dock reaches the scrollport edge; with `bottom: 0`
+  // content showed through the strip below the button.
+  .AIImageWorkbench__dock {
     position: sticky;
-    bottom: 0;
+    bottom: calc(-1 * var(--ui-space-4));
     z-index: 1;
+    display: flex;
     flex: 0 0 auto;
-    box-shadow: 0 -0.25rem 0.75rem var(--sidebar-bg-color);
+    flex-direction: column;
+    gap: var(--ui-space-2);
+    min-width: 0;
+    padding: var(--ui-space-2) 0 var(--ui-space-4);
+    background: var(--sidebar-bg-color);
+    box-shadow: 0 calc(-1 * var(--ui-space-3)) var(--ui-space-3)
+      calc(-1 * var(--ui-space-2)) var(--sidebar-bg-color);
+  }
 
-    // Content scrolls underneath, so a disabled sticky button must stay
-    // opaque: mix the muted look into the colors instead of using opacity.
-    &.UiButton:disabled {
+  .AIImageWorkbench__primaryButton {
+    flex: 0 0 auto;
+
+    // Disabled: a neutral, opaque surface. Mixing the dark-theme flame
+    // (#ff8a5c) into the sidebar made a brown block with dark text.
+    &.UiButton:disabled:not(.UiButton--loading) {
       opacity: 1;
-      --ui-btn-bg: color-mix(
-        in srgb,
-        var(--color-primary) 45%,
-        var(--sidebar-bg-color)
-      );
-      --ui-btn-border: transparent;
+      --ui-btn-bg: var(--ui-surface-raised);
+      --ui-btn-fg: var(--ui-text-disabled);
+      --ui-btn-border: var(--ui-border);
     }
+
+    // Loading: still the primary action, just busy.
+    &.UiButton--loading:disabled {
+      opacity: 1;
+    }
+  }
+
+  // #21: running image/video tasks, one row each with its Cancel.
+  .AIImageWorkbench__videoTasks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+    min-width: 0;
+  }
+
+  .AIImageWorkbench__videoTask {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2);
+    min-width: 0;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-md);
+    padding: var(--ui-space-1) var(--ui-space-1) var(--ui-space-1)
+      var(--ui-space-2);
+    background: var(--ui-surface-sunken);
+  }
+
+  .AIImageWorkbench__videoTaskLabel {
+    min-width: 0;
+    overflow: hidden;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .AIImageWorkbench__noticeActions {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-1);
   }
 
   .AIImageWorkbench__inlineStatus {
@@ -525,7 +540,7 @@
     justify-content: flex-end;
 
     button:not(.UiButton) {
-      min-height: 1.8rem;
+      min-height: var(--ui-control-sm);
       border: 1px solid var(--default-border-color);
       border-radius: var(--ui-radius-md);
       padding: var(--ui-space-1) var(--ui-space-2);
@@ -670,7 +685,7 @@
 
     button {
       min-width: 0;
-      min-height: 1.65rem;
+      min-height: var(--ui-control-sm);
       border: 1px solid var(--default-border-color);
       border-radius: var(--ui-radius-md);
       padding: var(--ui-space-0_5) var(--ui-space-1);
@@ -734,6 +749,9 @@
 
   .AIImageWorkbench__referenceCard {
     position: relative;
+    // Own stacking context: the badge / x z-indexes stay inside the card
+    // instead of painting over the sticky dock as the card scrolls under it.
+    isolation: isolate;
     box-sizing: border-box;
     display: grid;
     grid-template-rows: 4rem auto auto;
@@ -754,11 +772,6 @@
       box-shadow: var(--shadow-island);
     }
 
-    &:focus-visible {
-      outline: var(--ui-focus-outline);
-      outline-offset: var(--ui-focus-outline-offset);
-    }
-
     &.is-dragging {
       opacity: 0.48;
     }
@@ -769,6 +782,19 @@
     }
   }
 
+  .AIImageWorkbench__referenceThumbButton {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    height: 4rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ui-radius-md);
+    background: none;
+    cursor: pointer;
+  }
+
   .AIImageWorkbench__referenceBadge,
   .AIImageWorkbench__referenceWeightBadge {
     position: absolute;
@@ -776,7 +802,8 @@
     top: 0.25rem;
     border-radius: var(--ui-radius-pill);
     padding: var(--ui-space-0_5) var(--ui-space-1_5);
-    color: #fff;
+    // On-primary text: white on the dark-theme flame was ~2.3:1.
+    color: var(--color-surface-lowest);
     font-size: var(--ui-font-xs);
     font-weight: var(--ui-weight-semibold);
     line-height: 1.25;
@@ -787,16 +814,18 @@
     background: var(--color-primary);
 
     &.is-warning {
-      // Dark text: white on amber fails contrast at this size.
-      background: var(--color-warning-dark);
-      color: var(--color-gray-90);
+      border: 1px solid var(--ui-warning-border);
+      background: var(--ui-warning-bg);
+      color: var(--ui-warning-fg);
     }
   }
 
   .AIImageWorkbench__referenceWeightBadge {
-    top: 1.65rem;
+    top: calc(var(--ui-control-sm) + var(--ui-space-1_5));
     right: 0.25rem;
-    background: var(--color-gray-60);
+    border: 1px solid var(--ui-border);
+    background: var(--ui-surface-raised);
+    color: var(--ui-text);
   }
 
   .AIImageWorkbench__referenceRemoveButton {
@@ -807,8 +836,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 1.25rem;
-    height: 1.25rem;
+    width: var(--ui-control-sm);
+    height: var(--ui-control-sm);
     border: 1px solid var(--default-border-color);
     border-radius: var(--ui-radius-pill);
     padding: 0;
@@ -820,10 +849,17 @@
     line-height: 1;
     cursor: pointer;
 
+    svg {
+      width: var(--ui-font-sm);
+      height: var(--ui-font-sm);
+    }
+
+    // --color-danger-color is a near-black (#2a0f19) in dark mode.
     &:hover,
     &:focus-visible {
-      border-color: var(--color-danger-color);
-      color: var(--color-danger-color);
+      border-color: var(--ui-danger-border);
+      background: var(--ui-danger-bg);
+      color: var(--ui-danger-fg);
     }
   }
 
@@ -848,10 +884,11 @@
     height: 4rem;
     border-radius: var(--ui-radius-md);
     object-fit: cover;
-    background: linear-gradient(45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
-      linear-gradient(-45deg, rgba(0, 0, 0, 0.06) 25%, transparent 25%),
-      linear-gradient(45deg, transparent 75%, rgba(0, 0, 0, 0.06) 75%),
-      linear-gradient(-45deg, transparent 75%, rgba(0, 0, 0, 0.06) 75%);
+    --ai-checker: color-mix(in srgb, var(--ui-text) 8%, transparent);
+    background: linear-gradient(45deg, var(--ai-checker) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--ai-checker) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--ai-checker) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--ai-checker) 75%);
     background-position: 0 0, 0 0.35rem, 0.35rem -0.35rem, -0.35rem 0;
     background-size: 0.7rem 0.7rem;
   }
@@ -879,7 +916,7 @@
   .AIImageWorkbench__referenceCardActions {
     button {
       min-width: 0;
-      min-height: 1.45rem;
+      min-height: var(--ui-control-sm);
       border: 0;
       border-radius: var(--ui-radius-sm);
       padding: var(--ui-space-0_5) var(--ui-space-1);
@@ -1010,7 +1047,8 @@
     }
   }
 
-  @media (max-width: 360px) {
+  // Very narrow panel (what the old 360px viewport rule meant).
+  @container ai-workbench (max-width: 20rem) {
     .AIImageWorkbench__statusStrip,
     .AIImageWorkbench__grid,
     .AIImageWorkbench__actions,
@@ -1020,8 +1058,10 @@
     }
   }
 
-  @media (max-width: 520px), (max-height: 860px) {
-    .AIImageWorkbench__primaryButton {
+  // Only genuinely short screens (landscape phones) give up the sticky dock;
+  // the old 860px cut-off disabled it on every 800px-tall laptop.
+  @media (max-height: 560px) {
+    .AIImageWorkbench__dock {
       position: static;
       box-shadow: none;
     }
@@ -1030,7 +1070,6 @@
   @media (prefers-reduced-motion: reduce) {
     .AIImageWorkbench button,
     .AIImageWorkbench input,
-    .AIImageWorkbench select,
     .AIImageWorkbench textarea,
     .AIImageWorkbench__assetCard,
     .AIImageWorkbench__referenceCard {

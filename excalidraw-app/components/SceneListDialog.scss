@@ -1,19 +1,4 @@
 // Shared by SceneListDialog and AITaskListDialog.
-.SceneListDialogModal {
-  .Island {
-    position: relative;
-  }
-
-  .Dialog__title {
-    padding-right: var(--ui-space-8);
-  }
-
-  &.Dialog--fullscreen {
-    .SceneListDialog__close {
-      display: none;
-    }
-  }
-}
 
 .excalidraw .SceneListDialog {
   display: flex;
@@ -23,13 +8,6 @@
   max-width: 100%;
   min-width: 0;
   overflow-x: hidden;
-
-  .SceneListDialog__close {
-    position: absolute;
-    top: var(--ui-space-3);
-    right: var(--ui-space-3);
-    color: var(--ui-text-secondary);
-  }
 
   .SceneListDialog__description {
     margin: 0;
