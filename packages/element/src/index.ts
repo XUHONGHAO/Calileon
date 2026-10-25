@@ -82,6 +82,7 @@ export * from "./lumina/helpers";
 export * from "./echo";
 export * from "./lineTone";
 export * from "./shelfLife";
+export * from "./audio";
 export * from "./mutateElement";
 export * from "./newElement";
 export * from "./positionElementsOnGrid";

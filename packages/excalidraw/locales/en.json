@@ -168,6 +168,17 @@
       "savingCloud": "Saving…",
       "savedCloud": "Saved to cloud",
       "discard": "Discard recording",
+      "narration": {
+        "toggle": "Also record the microphone",
+        "hint": "Narration up to 30 minutes; the drawing keeps recording after that.",
+        "recording": "Recording microphone",
+        "included": "With narration",
+        "busy": "The microphone is in use, so this recording has no sound.",
+        "failed": "The microphone could not be opened, so this recording has no sound.",
+        "limit": "Narration reached 30 minutes; the drawing is still being recorded.",
+        "interrupted": "The microphone was disconnected; narration stopped.",
+        "processing": "Saving narration…"
+      },
       "status": {
         "idle": "Ready to record",
         "recording": "Recording",
@@ -540,7 +551,8 @@
     "extraTools": "More tools",
     "generate": "Generate",
     "mermaidToExcalidraw": "Mermaid to Calileon",
-    "convertElementType": "Toggle shape type"
+    "convertElementType": "Toggle shape type",
+    "voice": "Voice message"
   },
   "element": {
     "rectangle": "Rectangle",
@@ -556,7 +568,8 @@
     "magicframe": "Wireframe to code",
     "embeddable": "Web Embed",
     "selection": "Selection",
-    "iframe": "IFrame"
+    "iframe": "IFrame",
+    "audio": "Voice message"
   },
   "headings": {
     "canvasActions": "Canvas actions",
@@ -572,6 +585,7 @@
     "freeDraw": "Click and drag, release when you're finished",
     "text": "Tip: you can also add text by double-clicking anywhere with the selection tool",
     "embeddable": "Click-drag to create a website embed",
+    "voice": "Click anywhere to record a voice message (up to 60 seconds). Click a shape to attach it.",
     "text_selected": "Double-click or press {{shortcut}} to edit text",
     "text_editing": "Press {{shortcut_1}} or {{shortcut_2}} to finish editing",
     "linearElementMulti": "Click on last point or press {{shortcut_1}} or {{shortcut_2}} to finish",
@@ -1982,6 +1996,29 @@
       "unavailable": "Cloud AI tasks are not configured.",
       "untitled": "Untitled AI task",
       "updatedAt": "Updated {{date}}"
+    },
+    "avatar": {
+      "title": "Avatar",
+      "description": "Shown next to your voice messages. Messages keep the avatar they were recorded with.",
+      "preview": "Avatar preview",
+      "glyph": "Character",
+      "glyphHint": "One Chinese character or one letter A–Z.",
+      "invalid": "Use one Chinese character or one letter A–Z.",
+      "color": "Background",
+      "save": "Save avatar",
+      "reset": "Use default",
+      "saved": "Avatar saved",
+      "saveFailed": "Couldn't save the avatar. Try again.",
+      "colors": {
+        "teal": "Teal",
+        "blue": "Blue",
+        "indigo": "Indigo",
+        "purple": "Purple",
+        "green": "Green",
+        "olive": "Olive",
+        "navy": "Navy",
+        "slate": "Slate"
+      }
     }
   },
   "vault": {
@@ -2276,10 +2313,79 @@
       "tooLarge": "Choose a file smaller than 50 MiB.",
       "fileError": "This audio format cannot be played. Try another file.",
       "audioError": "Unable to start audio. Check your device and file, then try again.",
+      "micBusy": "The microphone is in use by a voice message. Finish the recording and try again.",
       "timeLimit": "Five-minute limit reached. Artwork kept.",
       "elementLimit": "600-element limit reached. Artwork kept.",
       "commitError": "Could not insert artwork. Retry before closing.",
       "empty": "Nothing was loud enough to draw, so nothing was added."
+    }
+  },
+  "voice": {
+    "host": {
+      "detach": "Detach from element",
+      "attached": "Attached to the element below"
+    },
+    "recordingLabel": "Recording voice message",
+    "requesting": "Waiting for microphone…",
+    "recording": "Recording",
+    "saving": "Saving…",
+    "stop": "Stop and send",
+    "discard": "Discard",
+    "microphone": "Microphone",
+    "defaultMicrophone": "Default microphone",
+    "switchMicrophoneHint": "Switching the microphone restarts the recording.",
+    "remaining": "{{seconds}}s left",
+    "play": "Play voice message",
+    "pause": "Pause voice message",
+    "playing": "Playing voice message",
+    "paused": "Voice message paused",
+    "saved": "Voice message added",
+    "discarded": "Recording discarded",
+    "tooShort": "Too short. Hold on for at least a second.",
+    "notLoaded": "This voice message hasn't finished loading yet.",
+    "playbackError": "Couldn't play this voice message.",
+    "insertError": "Couldn't add the voice message.",
+    "outdatedCollaborators": "Someone in this room uses an older version. Recording is paused until everyone updates.",
+    "vaultV2Unavailable": "Voice messages aren't available in this Vault yet.",
+    "errors": {
+      "unsupported": "This browser can't record audio here. A secure (HTTPS) page is required.",
+      "blocked": "Microphone access is blocked for this site.",
+      "permission": "Microphone permission was denied. Allow it in the browser settings and try again.",
+      "noDevice": "No microphone was found.",
+      "busy": "The microphone is being used by another app or feature.",
+      "audioError": "Couldn't start recording. Check your microphone and try again."
+    },
+    "transcription": {
+      "label": "Live transcription",
+      "turnOn": "Turn live transcription on",
+      "turnOff": "Turn live transcription off",
+      "language": "Recognition language",
+      "listening": "Listening…",
+      "notice": "Live transcription uses your browser's speech service. Your voice may be sent to the browser vendor (Google or Microsoft) for recognition.",
+      "accept": "Transcribe",
+      "decline": "Don't transcribe",
+      "downloadConsent": "This Vault only transcribes on this device. Your browser needs to download a language pack once; this contacts the browser vendor but uploads no audio.",
+      "download": "Download",
+      "downloading": "Downloading the language pack… recording continues.",
+      "localUnavailable": "Transcription isn't supported in this mode. Recording continues.",
+      "failed": "Transcription isn't available right now. Recording continues.",
+      "saved": "Transcript saved"
+    },
+    "transcript": {
+      "show": "Show transcript",
+      "title": "Transcript",
+      "insertAsText": "Insert as text",
+      "inserted": "Transcript inserted as text"
+    },
+    "dictation": {
+      "start": "Voice input",
+      "stop": "Stop voice input",
+      "listening": "Listening…",
+      "notice": "Voice input uses your browser's speech service. Your voice may be sent to the browser vendor (Google or Microsoft).",
+      "accept": "Continue",
+      "cancel": "Cancel",
+      "unavailable": "Voice input isn't available right now.",
+      "localUnavailable": "Voice input isn't supported in this mode."
     }
   }
 }

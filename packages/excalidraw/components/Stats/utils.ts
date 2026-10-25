@@ -5,7 +5,11 @@ import {
   isBindingElement,
   unbindBindingElement,
 } from "@excalidraw/element";
-import { isFrameLikeElement } from "@excalidraw/element";
+import {
+  getAttachedAudioElements,
+  isAudioElement,
+  isFrameLikeElement,
+} from "@excalidraw/element";
 
 import {
   getSelectedGroupIds,
@@ -47,6 +51,13 @@ export const isPropertyEditable = (
   property: keyof ExcalidrawElement,
 ) => {
   if (property === "angle" && isFrameLikeElement(element)) {
+    return false;
+  }
+  // audio width encodes duration (ADR 0034)
+  if (
+    isAudioElement(element) &&
+    (property === "width" || property === "height" || property === "angle")
+  ) {
     return false;
   }
   return true;
@@ -183,6 +194,21 @@ export const moveElement = (
         },
         { informMutation: shouldInformMutation, isDragging: false },
       );
+  }
+
+  // voice notes follow their host unless they're moved themselves
+  for (const audio of getAttachedAudioElements(
+    originalElementsMap,
+    new Set([originalElement.id]),
+  )) {
+    const latestAudio = elementsMap.get(audio.id);
+    if (latestAudio && !appState.selectedElementIds[audio.id]) {
+      scene.mutateElement(
+        latestAudio,
+        { x: audio.x + changeInX, y: audio.y + changeInY },
+        { informMutation: shouldInformMutation, isDragging: false },
+      );
+    }
   }
 
   if (isFrameLikeElement(originalElement)) {

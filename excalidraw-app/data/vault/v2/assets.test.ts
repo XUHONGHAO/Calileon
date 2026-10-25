@@ -143,6 +143,44 @@ describe("VaultV2Assets (W5)", () => {
     author.store?.close();
   });
 
+  it("uploads a voice bubble's audio and fetches it for a peer (ADR 0034)", async () => {
+    const server = new FakeAssetServer();
+    const audioFile = {
+      ...imageFile(),
+      mimeType: "audio/webm",
+      dataURL: "data:audio/webm;base64,dm9pY2UtYnl0ZXM=",
+    } as BinaryFileData;
+    const audio = (status: "pending" | "saved") =>
+      ({
+        ...imageElement("voice-1", FILE_ID, status),
+        type: "audio",
+        source: "recording",
+        duration: 3000,
+        peaks: [],
+        transcript: null,
+        author: null,
+      } as unknown as ExcalidrawElement);
+
+    const author = await make(server, "editor");
+    author.editor.elements = [audio("pending")];
+    author.editor.files = { [FILE_ID]: audioFile };
+    author.assets.attach(author.editor);
+    await author.assets.run();
+    expect(statusOf(author.editor, "voice-1")).toBe("saved");
+
+    const viewer = await make(server, "viewer");
+    viewer.editor.elements = author.editor.elements;
+    viewer.assets.attach(viewer.editor);
+    await viewer.assets.run();
+    expect(viewer.editor.files[FILE_ID]).toMatchObject({
+      mimeType: "audio/webm",
+      dataURL: audioFile.dataURL,
+    });
+    author.assets.dispose();
+    viewer.assets.dispose();
+    author.store?.close();
+  });
+
   it("does not fetch images that are still pending at their author", async () => {
     const server = new FakeAssetServer();
     const viewer = await make(server, "viewer");

@@ -24,7 +24,12 @@ values (
     'image/svg+xml',
     'application/json',
     'video/mp4',
-    'video/webm'
+    'video/webm',
+    -- Voice messages and generated audio (ADR 0034).
+    'audio/webm',
+    'audio/mp4',
+    'audio/mpeg',
+    'audio/ogg'
   ]
 )
 on conflict (id) do update set

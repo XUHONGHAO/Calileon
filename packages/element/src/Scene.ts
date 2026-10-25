@@ -81,7 +81,11 @@ const validateIndicesThrottled = throttle(
 const hashSelectionOpts = (
   opts: Parameters<InstanceType<typeof Scene>["getSelectedElements"]>[0],
 ) => {
-  const keys = ["includeBoundTextElement", "includeElementsInFrames"] as const;
+  const keys = [
+    "includeBoundTextElement",
+    "includeElementsInFrames",
+    "includeAttachedAudio",
+  ] as const;
 
   type HashableKeys = Omit<typeof opts, "selectedElementIds" | "elements">;
 
@@ -187,6 +191,7 @@ export class Scene {
     // selection-related options
     includeBoundTextElement?: boolean;
     includeElementsInFrames?: boolean;
+    includeAttachedAudio?: boolean;
   }): NonDeleted<ExcalidrawElement>[] {
     const hash = hashSelectionOpts(opts);
 

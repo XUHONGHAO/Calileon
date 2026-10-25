@@ -2017,6 +2017,13 @@ export const fixDuplicatedBindingsAfterDuplication = (
       });
     }
 
+    // a voice note copied without its host becomes a free bubble
+    if ("hostId" in duplicateElement && duplicateElement.hostId) {
+      Object.assign(duplicateElement, {
+        hostId: origIdToDuplicateId.get(duplicateElement.hostId) ?? null,
+      });
+    }
+
     if ("endBinding" in duplicateElement && duplicateElement.endBinding) {
       const newEndBindingId = origIdToDuplicateId.get(
         duplicateElement.endBinding.elementId,

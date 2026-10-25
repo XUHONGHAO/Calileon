@@ -1,3 +1,4 @@
+import { CAST_NARRATION_MAX_DURATION, isNarrationMimeType } from "./narration";
 import { CAST_SCRIPT_VERSION, type CastScriptV1 } from "./types";
 
 export class UnsupportedCastVersionError extends Error {}
@@ -26,6 +27,21 @@ const isFiles = (value: unknown) =>
       typeof file.id === "string" &&
       typeof file.dataURL === "string",
   );
+
+/**
+ * Only an inline base64 audio payload of a known type, so an imported script
+ * can't point the player at a URL or smuggle another content type.
+ */
+const isNarration = (value: unknown, script: Record<string, unknown>) =>
+  isRecord(value) &&
+  isNarrationMimeType(value.mimeType) &&
+  typeof value.dataURL === "string" &&
+  value.dataURL.startsWith(`data:${value.mimeType};base64,`) &&
+  isNonNegativeNumber(value.offsetMs) &&
+  value.offsetMs <= (script.durationMs as number) &&
+  isNonNegativeNumber(value.durationMs) &&
+  value.durationMs > 0 &&
+  value.durationMs <= CAST_NARRATION_MAX_DURATION;
 
 const hasSafeAppState = (value: unknown) => {
   if (!isRecord(value)) {
@@ -160,6 +176,10 @@ const validate = (value: unknown): CastScriptV1 => {
       throw new InvalidCastScriptError("Invalid Cast checkpoint");
     }
     previousCheckpointAt = checkpoint.at;
+  }
+
+  if (value.narration !== undefined && !isNarration(value.narration, value)) {
+    throw new InvalidCastScriptError("Invalid Cast narration");
   }
 
   return value as unknown as CastScriptV1;

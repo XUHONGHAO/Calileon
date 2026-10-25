@@ -153,6 +153,17 @@
       "savingCloud": "正在儲存…",
       "savedCloud": "已儲存到雲端",
       "discard": "捨棄錄製",
+      "narration": {
+        "toggle": "同時錄麥克風",
+        "hint": "講解最長 30 分鐘，超過後只繼續錄畫面。",
+        "recording": "正在錄麥克風",
+        "included": "含講解",
+        "busy": "麥克風正被佔用，這次錄製沒有聲音。",
+        "failed": "無法開啟麥克風，這次錄製沒有聲音。",
+        "limit": "講解已滿 30 分鐘，畫面仍在繼續錄製。",
+        "interrupted": "麥克風已中斷，講解已停止。",
+        "processing": "正在儲存講解…"
+      },
       "status": {
         "idle": "可以開始錄製",
         "recording": "正在錄製",
@@ -486,7 +497,8 @@
     "hand": "手形（平移工具）",
     "extraTools": "更多工具",
     "mermaidToExcalidraw": "Mermaid 至 Calileon",
-    "convertElementType": ""
+    "convertElementType": "",
+    "voice": "語音訊息"
   },
   "element": {
     "rectangle": "矩形",
@@ -502,7 +514,8 @@
     "magicframe": "線框稿轉為程式碼",
     "embeddable": "嵌入網站",
     "selection": "已選項目",
-    "iframe": "IFrame框架"
+    "iframe": "IFrame框架",
+    "audio": "語音訊息"
   },
   "headings": {
     "canvasActions": "canvas 動作",
@@ -518,6 +531,7 @@
     "freeDraw": "點擊並拖曳來繪圖，放開即結束",
     "text": "提示：亦可使用選取工具在任何地方雙擊來加入文字",
     "embeddable": "點擊並拖移以建立嵌入網站",
+    "voice": "點擊畫布任意位置開始錄語音（最長 60 秒），點在元素上會吸附到該元素",
     "text_selected": "",
     "text_editing": "",
     "linearElementMulti": "",
@@ -1893,10 +1907,79 @@
       "tooLarge": "請選擇小於 50 MiB 的檔案。",
       "fileError": "無法播放此音訊格式，請更換檔案。",
       "audioError": "無法啟動音訊，請檢查裝置或檔案後重試。",
+      "micBusy": "麥克風正被語音訊息使用，請結束錄音後再試。",
       "timeLimit": "已達五分鐘上限，作品已保留。",
       "elementLimit": "已達 600 個元素上限，作品已保留。",
       "commitError": "作品插入失敗，請在關閉前重試。",
       "empty": "聲音太小，沒有畫出內容，未新增任何元素。"
+    }
+  },
+  "voice": {
+    "host": {
+      "detach": "解除吸附",
+      "attached": "已吸附到下方元素"
+    },
+    "recordingLabel": "正在錄製語音訊息",
+    "requesting": "正在開啟麥克風…",
+    "recording": "錄音中",
+    "saving": "正在儲存…",
+    "stop": "停止並傳送",
+    "discard": "捨棄",
+    "microphone": "麥克風",
+    "defaultMicrophone": "預設麥克風",
+    "switchMicrophoneHint": "切換麥克風會重新開始錄音。",
+    "remaining": "還剩 {{seconds}} 秒",
+    "play": "播放語音訊息",
+    "pause": "暫停語音訊息",
+    "playing": "正在播放語音訊息",
+    "paused": "語音訊息已暫停",
+    "saved": "語音訊息已新增",
+    "discarded": "錄音已捨棄",
+    "tooShort": "說話時間太短，至少錄一秒。",
+    "notLoaded": "這則語音還沒載入完成。",
+    "playbackError": "無法播放這則語音。",
+    "insertError": "語音訊息新增失敗。",
+    "outdatedCollaborators": "房間內有成員版本過舊，暫不可錄音，等大家重新整理後即可使用。",
+    "vaultV2Unavailable": "目前的 Vault 暫不支援語音訊息。",
+    "errors": {
+      "unsupported": "目前頁面無法錄音，需要安全的 HTTPS 頁面。",
+      "blocked": "此網站的麥克風權限已被停用。",
+      "permission": "麥克風權限遭拒，請在瀏覽器設定中允許後重試。",
+      "noDevice": "找不到麥克風。",
+      "busy": "麥克風正被其他應用程式或功能使用。",
+      "audioError": "無法開始錄音，請檢查麥克風後重試。"
+    },
+    "transcription": {
+      "label": "即時轉寫",
+      "turnOn": "開啟即時轉寫",
+      "turnOff": "關閉即時轉寫",
+      "language": "辨識語言",
+      "listening": "正在聽…",
+      "notice": "即時轉寫使用瀏覽器內建的語音辨識，語音可能會傳送到瀏覽器廠商（Google / Microsoft）的辨識服務。",
+      "accept": "轉寫",
+      "decline": "不再轉寫",
+      "downloadConsent": "此 Vault 只在本機轉寫。瀏覽器需要下載一次語言包，會向瀏覽器廠商發出一次請求，但不會上傳音訊。",
+      "download": "下載",
+      "downloading": "正在下載語言包…錄音照常進行。",
+      "localUnavailable": "此模式不支援轉寫，錄音照常進行。",
+      "failed": "暫時無法轉寫，錄音照常進行。",
+      "saved": "轉寫已儲存"
+    },
+    "transcript": {
+      "show": "查看轉寫",
+      "title": "轉寫",
+      "insertAsText": "插入為文字",
+      "inserted": "已插入為文字"
+    },
+    "dictation": {
+      "start": "語音輸入",
+      "stop": "停止語音輸入",
+      "listening": "正在聽…",
+      "notice": "語音輸入使用瀏覽器內建的語音辨識，語音可能會傳送到瀏覽器廠商（Google / Microsoft）的辨識服務。",
+      "accept": "繼續",
+      "cancel": "取消",
+      "unavailable": "暫時無法使用語音輸入。",
+      "localUnavailable": "此模式不支援語音輸入。"
     }
   }
 }

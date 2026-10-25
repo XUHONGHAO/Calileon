@@ -30,6 +30,7 @@ import {
   getShelfLifeData,
   updateShelfLifeCustomData,
   updateLineToneCustomData,
+  restoreAudioFields,
 } from "@excalidraw/element";
 import { normalizeFixedPoint } from "@excalidraw/element";
 import {
@@ -64,6 +65,7 @@ import type {
   ElementsMap,
   ElementsMapOrArray,
   ExcalidrawArrowElement,
+  ExcalidrawAudioElement,
   ExcalidrawBindableElement,
   ExcalidrawElbowArrowElement,
   ExcalidrawElement,
@@ -184,6 +186,8 @@ export const AllowedExcalidrawActiveTools: Record<
   hand: true,
   laser: false,
   magicframe: false,
+  // a reload never resumes a recording
+  voice: false,
 };
 
 export type RestoredDataState = {
@@ -505,6 +509,25 @@ export const restoreElement = (
         scale: element.scale || [1, 1],
         crop: element.crop ?? null,
       });
+    case "audio": {
+      const audio = restoreAudioFields(
+        element as unknown as Record<string, unknown>,
+      );
+      if (!audio) {
+        return null;
+      }
+      const { width, height, angle, ...fields } = audio;
+      const restored = restoreElementWithProperties(element, {
+        status:
+          element.status === "saved" || element.status === "error"
+            ? element.status
+            : "pending",
+        fileId: typeof element.fileId === "string" ? element.fileId : null,
+        ...fields,
+      });
+      // geometry is clamped, never recomputed from duration (ADR 0034 §1)
+      return { ...restored, width, height, angle };
+    }
     case "line":
     // @ts-ignore LEGACY type
     // eslint-disable-next-line no-fallthrough
@@ -851,6 +874,15 @@ export const restoreElements = <T extends ExcalidrawElement>(
   for (const element of restoredElements) {
     if (element.frameId) {
       repairFrameMembership(element, restoredElementsMap);
+    }
+
+    // a voice note whose host is missing becomes a free bubble (ADR 0034 R5)
+    if (
+      element.type === "audio" &&
+      element.hostId &&
+      !restoredElementsMap.has(element.hostId)
+    ) {
+      (element as Mutable<ExcalidrawAudioElement>).hostId = null;
     }
 
     if (isTextElement(element) && element.containerId) {

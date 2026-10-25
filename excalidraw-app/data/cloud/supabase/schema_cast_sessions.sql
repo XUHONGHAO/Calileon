@@ -7,17 +7,24 @@
 -- It does not implement capture, playback, or server-side video transcoding.
 -- ============================================================================
 
+-- Append, never replace: schema_assets.sql runs first and sets the full list
+-- (including audio, ADR 0034); replacing it here dropped those types.
 update storage.buckets
-set allowed_mime_types = array[
-  'image/png',
-  'image/jpeg',
-  'image/webp',
-  'image/gif',
-  'image/svg+xml',
-  'application/json',
-  'video/mp4',
-  'video/webm'
-]
+set allowed_mime_types = array(
+  select distinct unnest(
+    coalesce(allowed_mime_types, array[]::text[])
+    || array[
+      'image/png',
+      'image/jpeg',
+      'image/webp',
+      'image/gif',
+      'image/svg+xml',
+      'application/json',
+      'video/mp4',
+      'video/webm'
+    ]
+  )
+)
 where id = 'excalidraw-assets';
 
 create table if not exists public.cast_sessions (

@@ -124,6 +124,31 @@
   justify-content: flex-end;
 }
 
+// "Also record the microphone" (ADR 0034 R5)
+.CastDialog__narration {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-1);
+  font-size: var(--ui-font-sm);
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    width: fit-content;
+    cursor: pointer;
+  }
+
+  input {
+    accent-color: var(--color-primary);
+  }
+}
+
+.CastDialog__narrationHint {
+  margin: 0;
+  color: var(--ui-text-secondary);
+}
+
 .CastDialog__discard {
   margin-inline-end: auto;
 }
@@ -211,6 +236,16 @@
   &__time {
     color: var(--ui-text-secondary);
     font-variant-numeric: tabular-nums;
+  }
+
+  &__mic {
+    display: inline-flex;
+    color: var(--color-danger);
+
+    svg {
+      width: 1rem;
+      height: 1rem;
+    }
   }
 
   .UiButton {

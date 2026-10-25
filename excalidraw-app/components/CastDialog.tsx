@@ -7,8 +7,9 @@ import {
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { Range } from "@excalidraw/excalidraw/components/Range";
 import { getDefaultAppState } from "@excalidraw/excalidraw/appState";
+import { EditorLocalStorage } from "@excalidraw/excalidraw/data/EditorLocalStorage";
 import { t } from "@excalidraw/excalidraw/i18n";
-import { getVersion } from "@excalidraw/common";
+import { EDITOR_LS_KEYS, getVersion } from "@excalidraw/common";
 import { getCommonBounds } from "@excalidraw/element";
 import React from "react";
 
@@ -25,20 +26,26 @@ import {
   CastPlayer,
   CastRecorder,
   UnsupportedCastVersionError,
+  createNarrationURL,
   deserializeCastScript,
+  isNarrationPreferred,
   saveCastScriptToCloud,
   serializeCastScript,
+  setNarrationPreferred,
+  startCastNarration,
   subscribeCastPointerUpdate,
+  syncNarration,
 } from "../cast";
 
 import { getCloudBackend } from "../data/cloud";
 
 import { CastRecordingBar } from "./CastRecordingBar";
-import { Callout, SegmentedControl, UiButton } from "./ui";
+import { Badge, Callout, SegmentedControl, UiButton } from "./ui";
 
 import "./CastDialog.scss";
 
 import type {
+  CastNarrationSession,
   CastPlaybackSnapshot,
   CastRecorderState,
   CastSceneSnapshot,
@@ -145,6 +152,8 @@ export const CastDialog: React.FC<{
   const playbackAnchorRef = React.useRef({ at: 0, startedAt: 0 });
   const currentTimeRef = React.useRef(0);
   const lastEphemeralSceneAtRef = React.useRef(-Infinity);
+  const narrationRef = React.useRef<CastNarrationSession | null>(null);
+  const narrationAudioRef = React.useRef<HTMLAudioElement | null>(null);
 
   const [recorderState, setRecorderState] =
     React.useState<CastRecorderState>("idle");
@@ -166,6 +175,11 @@ export const CastDialog: React.FC<{
   >("idle");
 
   const [viewMode, setViewMode] = React.useState<PreviewViewMode>("fit");
+  // ADR 0034 R5: off by default, remembered
+  const [withNarration, setWithNarration] =
+    React.useState(isNarrationPreferred);
+  const [isNarrating, setIsNarrating] = React.useState(false);
+  const [narrationPending, setNarrationPending] = React.useState(false);
 
   const player = React.useMemo(
     () => (script ? new CastPlayer(script) : null),
@@ -307,8 +321,45 @@ export const CastDialog: React.FC<{
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isSaved, recorderState, script]);
 
+  // narration audio for the loaded script, followed by the replay clock
+  const narration = script?.narration ?? null;
+  React.useEffect(() => {
+    if (!narration) {
+      return;
+    }
+    const url = createNarrationURL(narration);
+    const audio = new Audio(url);
+    audio.preload = "auto";
+    // 0.5×/2× speech stays at its natural pitch
+    audio.preservesPitch = true;
+    narrationAudioRef.current = audio;
+    return () => {
+      audio.pause();
+      audio.removeAttribute("src");
+      URL.revokeObjectURL(url);
+      if (narrationAudioRef.current === audio) {
+        narrationAudioRef.current = null;
+      }
+    };
+  }, [narration]);
+
+  const syncNarrationAudio = React.useCallback(
+    (timeMs: number, playing: boolean) => {
+      const audio = narrationAudioRef.current;
+      if (audio && narration) {
+        syncNarration(audio, narration, {
+          timeMs,
+          playing,
+          speed: playbackSpeed,
+        });
+      }
+    },
+    [narration, playbackSpeed],
+  );
+
   React.useEffect(() => {
     if (!isPlaying || !player) {
+      syncNarrationAudio(currentTimeRef.current, false);
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
         animationFrameRef.current = null;
@@ -326,10 +377,12 @@ export const CastDialog: React.FC<{
         (now - playbackAnchorRef.current.startedAt) * playbackSpeed;
       if (nextTime >= player.getDurationMs()) {
         seek(player.getDurationMs());
+        syncNarrationAudio(player.getDurationMs(), false);
         setIsPlaying(false);
         return;
       }
       seek(nextTime);
+      syncNarrationAudio(nextTime, true);
       animationFrameRef.current = requestAnimationFrame(tick);
     };
     animationFrameRef.current = requestAnimationFrame(tick);
@@ -339,13 +392,22 @@ export const CastDialog: React.FC<{
         animationFrameRef.current = null;
       }
     };
-  }, [isPlaying, playbackSpeed, player, seek]);
+  }, [isPlaying, playbackSpeed, player, seek, syncNarrationAudio]);
 
   React.useEffect(() => {
     if (script && previewAPIRef.current) {
       seek(currentTime);
     }
   }, [currentTime, script, seek]);
+
+  // a narration still recording must give the microphone back
+  React.useEffect(
+    () => () => {
+      narrationRef.current?.discard();
+      narrationRef.current = null;
+    },
+    [],
+  );
 
   // Re-fit when the preview resizes (window resize, phone rotation).
   React.useEffect(() => {
@@ -373,6 +435,12 @@ export const CastDialog: React.FC<{
     });
     recorder.start(readSceneSnapshot(excalidrawAPI));
     recorderRef.current = recorder;
+    narrationRef.current?.discard();
+    narrationRef.current = withNarration
+      ? startNarration(recorder, excalidrawAPI)
+      : null;
+    setIsNarrating(!!narrationRef.current);
+    setNarrationPending(false);
     setScript(null);
     setCurrentTime(0);
     setElapsedMs(0);
@@ -382,7 +450,43 @@ export const CastDialog: React.FC<{
     setErrorMessage(null);
   };
 
+  /** mic problems never stop the drawing from being recorded */
+  const startNarration = (
+    recorder: CastRecorder,
+    api: ExcalidrawImperativeAPI,
+  ) => {
+    const notify = (message: string) =>
+      api.setToast({ message, duration: 5000, closable: true });
+    const session = startCastNarration({
+      getScriptTime: () => recorder.getElapsedMs(),
+      deviceId: EditorLocalStorage.get<string>(
+        EDITOR_LS_KEYS.VOICE_INPUT_DEVICE,
+      ),
+      onFailure: () => {
+        setIsNarrating(false);
+        notify(t("labels.cast.narration.failed"));
+      },
+      onEnded: (reason) => {
+        // keep what was recorded; it's attached when the Cast stops
+        void session?.finish();
+        setIsNarrating(false);
+        notify(
+          t(
+            reason === "limit"
+              ? "labels.cast.narration.limit"
+              : "labels.cast.narration.interrupted",
+          ),
+        );
+      },
+    });
+    if (!session) {
+      notify(t("labels.cast.narration.busy"));
+    }
+    return session;
+  };
+
   const pauseRecording = () => {
+    narrationRef.current?.pause();
     recorderRef.current?.pause();
     setElapsedMs(recorderRef.current?.getElapsedMs() ?? elapsedMs);
     setRecorderState("paused");
@@ -393,6 +497,7 @@ export const CastDialog: React.FC<{
       return;
     }
     recorderRef.current?.resume(readSceneSnapshot(excalidrawAPI));
+    narrationRef.current?.resume();
     setRecorderState("recording");
   };
 
@@ -413,6 +518,30 @@ export const CastDialog: React.FC<{
     setCurrentTime(0);
     setIsPlaying(false);
     setIsSaved(false);
+
+    const narrationSession = narrationRef.current;
+    narrationRef.current = null;
+    setIsNarrating(false);
+    if (narrationSession) {
+      setNarrationPending(true);
+      void narrationSession.finish().then((narration) => {
+        setNarrationPending(false);
+        if (!narration) {
+          return;
+        }
+        setScript((current) =>
+          current?.id === nextScript.id
+            ? {
+                ...current,
+                narration: {
+                  ...narration,
+                  offsetMs: Math.min(narration.offsetMs, current.durationMs),
+                },
+              }
+            : current,
+        );
+      });
+    }
   };
 
   // The bar lives outside the canvas, so canvas pointer updates stop at its
@@ -425,6 +554,10 @@ export const CastDialog: React.FC<{
   };
 
   const discardRecording = () => {
+    narrationRef.current?.discard();
+    narrationRef.current = null;
+    setIsNarrating(false);
+    setNarrationPending(false);
     recorderRef.current = null;
     setScript(null);
     setRecorderState("idle");
@@ -498,6 +631,7 @@ export const CastDialog: React.FC<{
         onResume={resumeRecording}
         onStop={stopRecording}
         onPointerOver={hideRecordedPointer}
+        narrating={isNarrating}
       />
     );
   }
@@ -562,6 +696,24 @@ export const CastDialog: React.FC<{
           </div>
         </div>
 
+        <div className="CastDialog__narration">
+          <label>
+            <input
+              type="checkbox"
+              checked={withNarration}
+              onChange={(event) => {
+                setWithNarration(event.target.checked);
+                setNarrationPreferred(event.target.checked);
+              }}
+              data-testid="cast-narration-toggle"
+            />
+            {t("labels.cast.narration.toggle")}
+          </label>
+          <p className="CastDialog__narrationHint">
+            {t("labels.cast.narration.hint")}
+          </p>
+        </div>
+
         {errorMessage && <Callout tone="danger">{errorMessage}</Callout>}
 
         {script && player ? (
@@ -578,6 +730,15 @@ export const CastDialog: React.FC<{
                   { value: "follow", label: t("labels.cast.view.follow") },
                 ]}
               />
+              {narrationPending ? (
+                <Badge>{t("labels.cast.narration.processing")}</Badge>
+              ) : (
+                script.narration && (
+                  <Badge tone="info">
+                    {t("labels.cast.narration.included")}
+                  </Badge>
+                )
+              )}
               <span className="CastDialog__previewTime">
                 {formatTime(currentTime)} / {formatTime(script.durationMs)}
               </span>
@@ -647,6 +808,7 @@ export const CastDialog: React.FC<{
                   onClick={() => {
                     setIsPlaying(false);
                     seek(0);
+                    syncNarrationAudio(0, false);
                   }}
                 >
                   {t("labels.cast.restart")}
@@ -679,6 +841,7 @@ export const CastDialog: React.FC<{
               onChange={(value) => {
                 setIsPlaying(false);
                 seek(value);
+                syncNarrationAudio(value, false);
               }}
             />
             <div className="CastDialog__footerActions">
@@ -692,7 +855,11 @@ export const CastDialog: React.FC<{
               </UiButton>
               <UiButton
                 onClick={() => void saveToCloud()}
-                disabled={!cloudSaveAvailable || cloudState === "saving"}
+                disabled={
+                  !cloudSaveAvailable ||
+                  cloudState === "saving" ||
+                  narrationPending
+                }
                 loading={cloudState === "saving"}
                 title={
                   cloudSaveAvailable
@@ -713,6 +880,7 @@ export const CastDialog: React.FC<{
                   downloadScript(script);
                   setIsSaved(true);
                 }}
+                disabled={narrationPending}
                 data-testid="cast-export"
               >
                 {t("labels.cast.export")}

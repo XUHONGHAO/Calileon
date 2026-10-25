@@ -30,6 +30,7 @@ import {
 } from "../data/cloud";
 import { readCloudDeploymentConfig } from "../data/cloud/deploymentConfig";
 
+import { AccountAvatarSettings } from "./AccountAvatarSettings";
 import {
   Callout,
   DialogActions,
@@ -1104,6 +1105,8 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
               </button>
             </div>
           </DialogSection>
+
+          <AccountAvatarSettings />
 
           {activeCloudScene && (
             <DialogSection

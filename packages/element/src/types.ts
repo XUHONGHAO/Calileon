@@ -145,12 +145,15 @@ export type ImageCrop = {
   naturalHeight: number;
 };
 
+/** whether the file referenced by a file-backed element is persisted */
+export type FileElementStatus = "pending" | "saved" | "error";
+
 export type ExcalidrawImageElement = _ExcalidrawElementBase &
   Readonly<{
     type: "image";
     fileId: FileId | null;
     /** whether respective file is persisted */
-    status: "pending" | "saved" | "error";
+    status: FileElementStatus;
     /** X and Y scale factors <-1, 1>, used for image axis flipping */
     scale: [number, number];
     /** whether an element is cropped */
@@ -161,6 +164,62 @@ export type InitializedExcalidrawImageElement = MarkNonNullable<
   ExcalidrawImageElement,
   "fileId"
 >;
+
+export type AudioAvatar = Readonly<{
+  /** one of AUDIO_AVATAR_COLORS */
+  color: string;
+  /** a single CJK ideograph or a single A-Z letter */
+  glyph: string;
+}>;
+
+export type AudioAuthor = Readonly<{
+  name: string;
+  avatar: AudioAvatar | null;
+}>;
+
+export type AudioTranscript = Readonly<{
+  text: string;
+  lang: string;
+  /** the recognition mode that was requested, not the engine actually used */
+  mode: "auto" | "local-only";
+}>;
+
+/**
+ * A voice message or generated audio clip (ADR 0034). Width is derived from
+ * duration at creation time only; restore clamps but never recomputes it.
+ */
+export type ExcalidrawAudioElement = _ExcalidrawElementBase &
+  Readonly<{
+    type: "audio";
+    fileId: FileId | null;
+    status: FileElementStatus;
+    source: "recording" | "generated";
+    /** milliseconds */
+    duration: number;
+    /** normalized 0..1 waveform, AUDIO_PEAKS_COUNT values */
+    peaks: readonly number[];
+    transcript: AudioTranscript | null;
+    /** display-only snapshot taken at creation, never an account id */
+    author: AudioAuthor | null;
+    /**
+     * element this voice note is attached to: the bubble moves with it and is
+     * deleted with it. One-way like `frameId`; the host doesn't list it.
+     */
+    hostId: ExcalidrawElement["id"] | null;
+  }>;
+
+export type InitializedExcalidrawAudioElement = MarkNonNullable<
+  ExcalidrawAudioElement,
+  "fileId"
+>;
+
+export type ExcalidrawFileBackedElement =
+  | ExcalidrawImageElement
+  | ExcalidrawAudioElement;
+
+export type InitializedExcalidrawFileBackedElement =
+  | InitializedExcalidrawImageElement
+  | InitializedExcalidrawAudioElement;
 
 export type ExcalidrawFrameElement = _ExcalidrawElementBase & {
   type: "frame";
@@ -198,6 +257,7 @@ export type ExcalidrawRectanguloidElement =
   | ExcalidrawIframeLikeElement
   | ExcalidrawFrameLikeElement
   | ExcalidrawEmbeddableElement
+  | ExcalidrawAudioElement
   | ExcalidrawSelectionElement;
 
 /**
@@ -215,7 +275,8 @@ export type ExcalidrawElement =
   | ExcalidrawFrameElement
   | ExcalidrawMagicFrameElement
   | ExcalidrawIframeElement
-  | ExcalidrawEmbeddableElement;
+  | ExcalidrawEmbeddableElement
+  | ExcalidrawAudioElement;
 
 export type ExcalidrawNonSelectionElement = Exclude<
   ExcalidrawElement,

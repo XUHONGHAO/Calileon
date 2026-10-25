@@ -17,6 +17,11 @@
     @include toolbarButtonColorStates;
   }
 
+  // a tool that can be picked but can't act right now (see its tooltip)
+  .ToolIcon.Shape--blocked .ToolIcon__icon {
+    opacity: 0.45;
+  }
+
   .ToolIcon--plain {
     background-color: transparent;
     .ToolIcon__icon {

@@ -895,6 +895,36 @@ describe("multiple selection", () => {
     expect(ellipse.angle).toEqual(0);
   });
 
+  it("moves audio bubbles without resizing them (ADR 0034)", async () => {
+    const rectangle = API.createElement({
+      type: "rectangle",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 200,
+    });
+    const audio = API.createElement({
+      type: "audio",
+      x: 300,
+      y: 100,
+      duration: 5000,
+      fileId: "voice-1",
+    } as any);
+    API.setElements([rectangle, audio]);
+    const { width, height } = audio;
+
+    UI.resize([rectangle, audio], "se", [300, 100], { shift: true });
+
+    const latest = h.elements.find(({ id }) => id === audio.id)!;
+    const latestRect = h.elements.find(({ id }) => id === rectangle.id)!;
+    // the selection grew, the rectangle followed, the audio bubble kept its size
+    expect(latestRect.width).toBeGreaterThan(200);
+    expect(latest.width).toBe(width);
+    expect(latest.height).toBe(height);
+    expect(latest.angle).toBe(0);
+    expect(latest.x).toBeGreaterThan(300);
+  });
+
   it("resizes with linear elements > 2 points", async () => {
     UI.clickTool("line");
     UI.clickByTitle("Sharp");

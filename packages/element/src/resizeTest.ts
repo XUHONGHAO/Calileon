@@ -22,7 +22,7 @@ import {
   getOmitSidesForEditorInterface,
   canResizeFromSides,
 } from "./transformHandles";
-import { isImageElement, isLinearElement } from "./typeChecks";
+import { isAudioElement, isImageElement, isLinearElement } from "./typeChecks";
 
 import type {
   TransformHandleType,
@@ -56,7 +56,7 @@ export const resizeTest = <Point extends GlobalPoint | LocalPoint>(
   pointerType: PointerType,
   editorInterface: EditorInterface,
 ): MaybeTransformHandleType => {
-  if (!appState.selectedElementIds[element.id]) {
+  if (!appState.selectedElementIds[element.id] || isAudioElement(element)) {
     return false;
   }
 

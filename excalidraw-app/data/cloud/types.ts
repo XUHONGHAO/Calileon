@@ -1,6 +1,7 @@
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type { AppState, BinaryFileData } from "@excalidraw/excalidraw/types";
 import type {
+  AudioAvatar,
   ExcalidrawElement,
   FileId,
   OrderedExcalidrawElement,
@@ -50,6 +51,11 @@ export interface AuthUser {
   avatarUrl: string | null;
   createdAt: number; // epoch ms
   lastSignInAt: number | null;
+  /**
+   * Circle avatar for voice messages (ADR 0034 §6): a preset color plus one
+   * CJK ideograph or A–Z letter. Validated on read; `null` = default avatar.
+   */
+  avatar?: AudioAvatar | null;
 }
 
 // Cloud scene payload: plaintext in the first version (decision 0004 / D1).
@@ -97,6 +103,8 @@ export type AssetType =
   | "ai-output"
   | "ai-video-output"
   | "recording"
+  // voice messages / generated audio; not "recording", which is Cast scripts
+  | "audio"
   | "export"
   | "embed-preview";
 
@@ -359,6 +367,8 @@ export interface AuthProvider {
   signIn(method: SignInMethod): Promise<AuthUser>;
   signOut(): Promise<void>;
   onAuthStateChange(cb: (user: AuthUser | null) => void): () => void; // returns unsubscribe
+  /** Saves the avatar to the account (ADR 0034 §6); absent = not supported. */
+  updateAvatar?(avatar: AudioAvatar | null): Promise<AuthUser>;
 }
 
 // —— Cloud scenes (BR-SCENE, Phase 1) ——

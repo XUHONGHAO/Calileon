@@ -1,5 +1,6 @@
 import type { AppState } from "@excalidraw/excalidraw/types";
 
+import { moveAttachedAudio } from "./audio/host";
 import { updateBoundElements } from "./binding";
 import { getCommonBoundingBox } from "./bounds";
 import { getSelectedElementsByGroup } from "./groups";
@@ -26,6 +27,7 @@ export const alignElements = (
     appState,
   );
   const selectionBoundingBox = getCommonBoundingBox(selectedElements);
+  const selectedIds = new Set(selectedElements.map((element) => element.id));
 
   return groups.flatMap((group) => {
     const translation = calculateTranslation(
@@ -33,6 +35,8 @@ export const alignElements = (
       selectionBoundingBox,
       alignment,
     );
+    // voice notes follow their hosts (ADR 0034 R5)
+    moveAttachedAudio(scene, group, translation, selectedIds);
     return group.map((element) => {
       // update element
       const updatedEle = scene.mutateElement(element, {

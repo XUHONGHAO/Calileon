@@ -18,6 +18,7 @@ import {
   isElbowArrow,
   isFrameLikeElement,
   isImageElement,
+  isAudioElement,
   isLinearElement,
 } from "./typeChecks";
 
@@ -282,7 +283,9 @@ export const getTransformHandles = (
   if (
     element.locked ||
     // Elbow arrows cannot be rotated
-    isElbowArrow(element)
+    isElbowArrow(element) ||
+    // audio width encodes duration and must not be resized or rotated
+    isAudioElement(element)
   ) {
     return {};
   }

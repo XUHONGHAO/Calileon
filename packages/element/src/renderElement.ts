@@ -77,6 +77,10 @@ import {
   LINE_TONE_MARKER_OFFSET,
 } from "./lineTone";
 import { getElementShelfLifeState, renderShelfLifeOverlay } from "./shelfLife";
+import {
+  drawAudioContentOnCanvas,
+  getAudioContentDrawOps,
+} from "./audio/render";
 
 import type {
   ExcalidrawElement,
@@ -410,6 +414,17 @@ const drawElementOnCanvas = (
       context.lineCap = "round";
 
       rc.draw(ShapeCache.generateElementShape(element, renderConfig));
+      break;
+    }
+    case "audio": {
+      context.lineJoin = "round";
+      context.lineCap = "round";
+
+      rc.draw(ShapeCache.generateElementShape(element, renderConfig));
+      drawAudioContentOnCanvas(
+        context,
+        getAudioContentDrawOps(element, renderConfig.theme),
+      );
       break;
     }
     case "arrow":
@@ -967,6 +982,7 @@ export const renderElement = (
     case "line":
     case "arrow":
     case "image":
+    case "audio":
     case "text":
     case "iframe":
     case "embeddable": {

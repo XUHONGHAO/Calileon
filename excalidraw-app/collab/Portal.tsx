@@ -1,4 +1,7 @@
-import { CaptureUpdateAction } from "@excalidraw/excalidraw";
+import {
+  CaptureUpdateAction,
+  SUPPORTED_ELEMENT_TYPE_CAPABILITIES,
+} from "@excalidraw/excalidraw";
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import { encryptData } from "@excalidraw/excalidraw/data/encryption";
 import { newElementWith } from "@excalidraw/element";
@@ -55,6 +58,8 @@ class Portal {
         this.collab.getSceneElementsIncludingDeleted(),
         /* syncAll */ true,
       );
+      // let the newcomer learn our element-type capabilities right away
+      this.collab.announcePresence();
     });
     this.socket?.on("room-user-change", (clients: SocketId[]) => {
       this.collab.setCollaborators(clients);
@@ -283,6 +288,7 @@ class Portal {
           socketId: this.socket.id as SocketId,
           userState,
           username: this.collab.state.username,
+          elementTypes: SUPPORTED_ELEMENT_TYPE_CAPABILITIES,
         },
       };
       return this._broadcastSocketData(
@@ -306,6 +312,7 @@ class Portal {
           selectedElementIds:
             this.collab.excalidrawAPI.getAppState().selectedElementIds,
           username: this.collab.state.username,
+          elementTypes: SUPPORTED_ELEMENT_TYPE_CAPABILITIES,
         },
       };
 

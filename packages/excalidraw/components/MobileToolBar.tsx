@@ -34,6 +34,7 @@ import {
   LassoIcon,
   mermaidLogoIcon,
   MagicIcon,
+  microphoneIcon,
 } from "./icons";
 
 import "./ToolIcon.scss";
@@ -157,6 +158,7 @@ export const MobileToolBar = ({
 
   const extraTools = [
     "text",
+    "voice",
     "frame",
     "embeddable",
     "laser",
@@ -187,6 +189,8 @@ export const MobileToolBar = ({
       ? laserPointerToolIcon
       : activeTool.type === "magicframe"
       ? MagicIcon
+      : activeTool.type === "voice"
+      ? microphoneIcon
       : extraToolsIcon
     : extraToolsIcon;
 
@@ -425,6 +429,17 @@ export const MobileToolBar = ({
               selected={activeTool.type === "image"}
             >
               {t("toolBar.image")}
+            </DropdownMenu.Item>
+          )}
+          {app.props.voiceOptions?.enabled && (
+            <DropdownMenu.Item
+              onSelect={() => app.setActiveTool({ type: "voice" })}
+              icon={microphoneIcon}
+              data-testid="toolbar-voice"
+              selected={activeTool.type === "voice"}
+              title={app.getVoiceRecordingBlockMessage() || undefined}
+            >
+              {t("toolBar.voice")}
             </DropdownMenu.Item>
           )}
           {!showFrameToolOutside && (

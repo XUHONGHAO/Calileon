@@ -280,3 +280,72 @@ describe("Portal Vault transport isolation", () => {
     expect(saveVaultFiles).toHaveBeenCalledOnce();
   });
 });
+
+describe("Portal element-type capabilities (ADR 0034 §10)", () => {
+  it("announces supported element types in idle and pointer presence", async () => {
+    const socket = createSocket();
+    const rootKey = generateVaultRootKey();
+    const sender = new VaultRealtimeSession({
+      vaultId,
+      rootKey,
+      role: "editor",
+    });
+    const receiver = new VaultRealtimeSession({
+      vaultId,
+      rootKey,
+      role: "editor",
+    });
+    const portal = new Portal({
+      state: { username: "Alice" },
+      excalidrawAPI: { getAppState: () => ({ selectedElementIds: {} }) },
+      getSceneElementsIncludingDeleted: () => [],
+      setCollaborators: vi.fn(),
+    } as never);
+    portal.openVaultTransport(createAdmission(sender), socket, sender);
+    portal.socketInitialized = true;
+
+    await portal.broadcastIdleChange(UserIdleState.ACTIVE);
+    await portal.broadcastMouseLocation({
+      pointer: { x: 1, y: 2, tool: "pointer" },
+      button: "up",
+    });
+
+    const payloads = await Promise.all(
+      vi.mocked(socket.emit).mock.calls.map(async ([, , envelope]) => {
+        const { payload } = await receiver.decrypt(envelope as never, {
+          sourceSocketId: socketId("socket-1"),
+          admittedSenderSessionId: sender.senderSessionId,
+        });
+        return payload as { type: string; payload: { elementTypes?: unknown } };
+      }),
+    );
+    expect(payloads.map(({ type }) => type)).toEqual([
+      WS_SUBTYPES.IDLE_STATUS,
+      WS_SUBTYPES.MOUSE_LOCATION,
+    ]);
+    for (const { payload } of payloads) {
+      expect(payload.elementTypes).toContain("audio");
+    }
+  });
+
+  it("re-announces presence when a peer joins", () => {
+    const socket = createSocket();
+    const announcePresence = vi.fn();
+    const portal = new Portal({
+      state: { username: "Alice" },
+      getSceneElementsIncludingDeleted: () => [],
+      setCollaborators: vi.fn(),
+      announcePresence,
+    } as never);
+    portal.open(socket, "room-id", "sTdLvMC_M3V8_vGa3UVRDg");
+
+    const onNewUser = vi
+      .mocked(socket.on)
+      .mock.calls.find(([event]) => event === "new-user")![1] as (
+      id: string,
+    ) => void;
+    onNewUser("peer");
+
+    expect(announcePresence).toHaveBeenCalledOnce();
+  });
+});

@@ -21,7 +21,11 @@ import {
 import { decryptData } from "@excalidraw/excalidraw/data/encryption";
 import { getVisibleSceneBounds } from "@excalidraw/element";
 import { newElementWith } from "@excalidraw/element";
-import { isImageElement, isInitializedImageElement } from "@excalidraw/element";
+// images and audio share the collab file pipeline (ADR 0034)
+import {
+  isFileBackedElement,
+  isInitializedFileBackedElement,
+} from "@excalidraw/element";
 import { AbortError } from "@excalidraw/excalidraw/errors";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { withBatchedUpdates } from "@excalidraw/excalidraw/reactUtils";
@@ -39,7 +43,7 @@ import type { ImportedDataState } from "@excalidraw/excalidraw/data/types";
 import type {
   ExcalidrawElement,
   FileId,
-  InitializedExcalidrawImageElement,
+  InitializedExcalidrawFileBackedElement,
   OrderedExcalidrawElement,
 } from "@excalidraw/element/types";
 import type {
@@ -109,6 +113,12 @@ const {
   saveUsernameToLocalStorage,
 } = localStore;
 const getCollabPersistence = () => getCloudBackend().collabPersistence;
+
+/** peer-supplied capability list; anything malformed counts as "none" */
+const parseElementTypes = (value: unknown): readonly string[] | undefined =>
+  Array.isArray(value)
+    ? value.filter((type): type is string => typeof type === "string")
+    : undefined;
 
 export const collabAPIAtom = atom<CollabAPI | null>(null);
 export const isCollaboratingAtom = atom(false);
@@ -481,7 +491,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       const elements = this.excalidrawAPI
         .getSceneElementsIncludingDeleted()
         .map((element) => {
-          if (isImageElement(element) && element.status === "saved") {
+          if (isFileBackedElement(element) && element.status === "saved") {
             return newElementWith(element, { status: "pending" });
           }
           return element;
@@ -525,7 +535,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     const unfetchedImages = opts.elements
       .filter((element) => {
         return (
-          isInitializedImageElement(element) &&
+          isInitializedFileBackedElement(element) &&
           !this.fileManager.isFileTracked(element.fileId) &&
           !element.isDeleted &&
           (opts.forceFetchFiles
@@ -534,7 +544,9 @@ class Collab extends PureComponent<CollabProps, CollabState> {
             : element.status === "saved")
         );
       })
-      .map((element) => (element as InitializedExcalidrawImageElement).fileId);
+      .map(
+        (element) => (element as InitializedExcalidrawFileBackedElement).fileId,
+      );
 
     return await this.fileManager.getFiles(unfetchedImages);
   };
@@ -576,13 +588,20 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         break;
       }
       case WS_SUBTYPES.MOUSE_LOCATION: {
-        const { pointer, button, username, selectedElementIds, socketId } =
-          data.payload;
+        const {
+          pointer,
+          button,
+          username,
+          selectedElementIds,
+          socketId,
+          elementTypes,
+        } = data.payload;
         this.updateCollaborator(socketId, {
           pointer,
           button,
           selectedElementIds,
           username,
+          elementTypes: parseElementTypes(elementTypes),
         });
         break;
       }
@@ -609,8 +628,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
         break;
       }
       case WS_SUBTYPES.IDLE_STATUS: {
-        const { userState, socketId, username } = data.payload;
-        this.updateCollaborator(socketId, { userState, username });
+        const { userState, socketId, username, elementTypes } = data.payload;
+        this.updateCollaborator(socketId, {
+          userState,
+          username,
+          elementTypes: parseElementTypes(elementTypes),
+        });
         break;
       }
       case WS_SUBTYPES.USER_FOLLOW_CHANGE:
@@ -773,6 +796,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       this.setIsCollaborating(true);
       this.setActiveRoomLink(window.location.href);
       this.initializeIdleDetector();
+      this.announcePresence();
       // Snapshot images are not embedded in the scene: fetch them now instead
       // of waiting for a peer broadcast to trigger loadVaultImageFiles.
       void this.fetchVaultImageFiles(this.vaultFileManager, {
@@ -878,7 +902,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       this.excalidrawAPI.resetScene();
     } else {
       const elements = this.excalidrawAPI.getSceneElements().map((element) => {
-        if (isImageElement(element) && element.status === "saved") {
+        if (isFileBackedElement(element) && element.status === "saved") {
           return newElementWith(element, { status: "pending" });
         }
         return element;
@@ -946,8 +970,13 @@ class Collab extends PureComponent<CollabProps, CollabState> {
             );
             break;
           case WS_SUBTYPES.MOUSE_LOCATION: {
-            const { pointer, button, username, selectedElementIds } =
-              decryptedData.payload;
+            const {
+              pointer,
+              button,
+              username,
+              selectedElementIds,
+              elementTypes,
+            } = decryptedData.payload;
 
             const socketId: SocketUpdateDataSource["MOUSE_LOCATION"]["payload"]["socketId"] =
               decryptedData.payload.socketId ||
@@ -959,6 +988,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
               button,
               selectedElementIds,
               username,
+              elementTypes: parseElementTypes(elementTypes),
             });
 
             break;
@@ -999,10 +1029,12 @@ class Collab extends PureComponent<CollabProps, CollabState> {
           }
 
           case WS_SUBTYPES.IDLE_STATUS: {
-            const { userState, socketId, username } = decryptedData.payload;
+            const { userState, socketId, username, elementTypes } =
+              decryptedData.payload;
             this.updateCollaborator(socketId, {
               userState,
               username,
+              elementTypes: parseElementTypes(elementTypes),
             });
             break;
           }
@@ -1062,7 +1094,23 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     });
   };
 
-  private initializeRoom = async ({
+  private initializeRoom = async (
+    opts:
+      | {
+          fetchScene: true;
+          roomLinkData: { roomId: string; roomKey: string } | null;
+        }
+      | { fetchScene: false; roomLinkData?: null },
+  ) => {
+    try {
+      return await this._initializeRoom(opts);
+    } finally {
+      // peers already in the room learn our capabilities (ADR 0034 §10)
+      this.announcePresence();
+    }
+  };
+
+  private _initializeRoom = async ({
     fetchScene,
     roomLinkData,
   }:
@@ -1187,7 +1235,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       opts.elements ?? this.excalidrawAPI.getSceneElementsIncludingDeleted();
     const candidateIds = elements.reduce((ids, element) => {
       if (
-        isInitializedImageElement(element) &&
+        isInitializedFileBackedElement(element) &&
         !element.isDeleted &&
         (opts.forceFetchFiles
           ? element.status !== "pending" || Date.now() - element.updated > 10000
@@ -1377,6 +1425,20 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
   onIdleStateChange = (userState: UserIdleState) => {
     this.portal.broadcastIdleChange(userState);
+  };
+
+  /**
+   * Re-broadcasts our idle state, which carries `elementTypes`, so peers can
+   * gate features old clients would drop (ADR 0034 §10).
+   */
+  announcePresence = () => {
+    this.onIdleStateChange(
+      document.hidden
+        ? UserIdleState.AWAY
+        : this.activeIntervalId
+        ? UserIdleState.ACTIVE
+        : UserIdleState.IDLE,
+    );
   };
 
   broadcastElements = (elements: readonly OrderedExcalidrawElement[]) => {

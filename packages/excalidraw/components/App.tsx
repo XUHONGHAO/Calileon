@@ -110,6 +110,10 @@ import {
   setDesktopUIMode,
   isSelectionLikeTool,
   oneOf,
+  assertNever,
+  randomId,
+  AUDIO_ELEMENT_HEIGHT,
+  AUDIO_RECORDING_MIN_DURATION,
 } from "@excalidraw/common";
 
 import {
@@ -265,7 +269,21 @@ import {
   getUncroppedWidthAndHeight,
   getActiveTextElement,
   isEligibleFrameChildType,
+  isAudioElement,
+  isAudioHostElement,
+  getAudioHost,
+  getAttachedAudioElements,
+  getAudioToFollowHosts,
+  syncAttachedAudioFrames,
+  omitAttachedAudio,
+  isFreeDrawElement,
+  moveAttachedAudio,
+  isAudioElementPlayable,
+  getAudioHitTarget,
+  newAudioElement,
 } from "@excalidraw/element";
+
+import type { AudioHitTarget } from "@excalidraw/element";
 
 import type { GlobalPoint, LocalPoint, Radians } from "@excalidraw/math";
 
@@ -293,6 +311,7 @@ import type {
   ExcalidrawElbowArrowElement,
   SceneElementsMap,
   ExcalidrawBindableElement,
+  ExcalidrawAudioElement,
 } from "@excalidraw/element/types";
 
 import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
@@ -323,6 +342,7 @@ import {
   actionToggleZenMode,
   actionUnbindText,
   actionBindText,
+  actionDetachAudio,
   actionUngroup,
   actionLink,
   actionToggleElementLock,
@@ -439,6 +459,24 @@ import { getShortcutKey } from "../shortcut";
 
 import { tryParseSpreadsheet } from "../charts";
 
+import {
+  audioPlaybackAtom,
+  audioAnnouncementAtom,
+  transcriptPopoverAtom,
+  voiceSessionAtom,
+} from "../voice/atoms";
+import { TranscriptPopover } from "../voice/TranscriptPopover";
+import { attachTextDictation } from "../speech/dictation";
+import { getSpeechRecognitionCtor } from "../speech/transcriber";
+
+import { getVoiceRecordingBlock } from "../voice/gate";
+
+import { AudioPlayer } from "../voice/player";
+
+import { PlaybackOverlay } from "../voice/PlaybackOverlay";
+
+import { RecordingOverlay } from "../voice/RecordingOverlay";
+
 import ConvertElementTypePopup, {
   getConversionTypeFromElements,
   convertElementTypePopupAtom,
@@ -466,6 +504,8 @@ import { AppStateObserver, type OnStateChange } from "./AppStateObserver";
 import { findShapeByKey } from "./shapes";
 
 import UnlockPopup from "./UnlockPopup";
+
+import type { VoiceRecording } from "../voice/recorder";
 
 import type { ExcalidrawLibraryIds } from "../data/types";
 
@@ -614,6 +654,14 @@ const YOUTUBE_VIDEO_STATES = new Map<
 
 const MAX_EMBEDDABLE_VIEWPORT_SCALE = 4;
 
+type AudioButtonHit = {
+  element: NonDeleted<ExcalidrawAudioElement>;
+  target: AudioHitTarget;
+};
+
+/** "Insert as text" wraps transcripts at least this wide (scene px) */
+const AUDIO_TRANSCRIPT_TEXT_WIDTH = 360;
+
 type VideoEmbedPreview = {
   status: "loaded";
   imageUrl: string | null;
@@ -742,6 +790,15 @@ class App extends React.Component<AppProps, AppState> {
   bindModeHandler: ReturnType<typeof setTimeout> | null = null;
 
   hitLinkElement?: NonDeletedExcalidrawElement;
+  /** audio bubble whose play button received the last pointerdown */
+  private audioButtonHit: AudioButtonHit | null = null;
+  private audioHostHoverId: string | null = null;
+  private audioAnnouncementTimer: ReturnType<typeof setTimeout> | undefined;
+  private audioPlayer = new AudioPlayer({
+    onChange: (state) => this.updateEditorAtom(audioPlaybackAtom, state),
+    onError: () =>
+      this.setToast({ message: t("voice.playbackError"), duration: 3000 }),
+  });
   lastPointerDownEvent: React.PointerEvent<HTMLElement> | null = null;
   lastPointerUpEvent: React.PointerEvent<HTMLElement> | PointerEvent | null =
     null;
@@ -2385,6 +2442,17 @@ class App extends React.Component<AppProps, AppState> {
     const showShapeSwitchPanel =
       editorJotaiStore.get(convertElementTypePopupAtom)?.type === "panel";
 
+    const voiceSession = editorJotaiStore.get(voiceSessionAtom);
+    const audioAnnouncement = editorJotaiStore.get(audioAnnouncementAtom);
+    const transcriptElementId = editorJotaiStore.get(transcriptPopoverAtom);
+    const transcriptElement = transcriptElementId
+      ? allElementsMap.get(transcriptElementId)
+      : undefined;
+    const audioPlayback = editorJotaiStore.get(audioPlaybackAtom);
+    const playingAudioElement = audioPlayback
+      ? allElementsMap.get(audioPlayback.elementId)
+      : undefined;
+
     return (
       <div
         translate="no"
@@ -2701,6 +2769,56 @@ class App extends React.Component<AppProps, AppState> {
                           )}
                           {showShapeSwitchPanel && (
                             <ConvertElementTypePopup app={this} />
+                          )}
+                          {audioPlayback &&
+                            playingAudioElement &&
+                            isAudioElement(playingAudioElement) &&
+                            isElementInViewport(
+                              playingAudioElement,
+                              this.state.width,
+                              this.state.height,
+                              this.state,
+                              elementsMap,
+                            ) && (
+                              <PlaybackOverlay
+                                element={playingAudioElement}
+                                status={audioPlayback.status}
+                                player={this.audioPlayer}
+                              />
+                            )}
+                          <span className="visually-hidden" aria-live="polite">
+                            {audioPlayback
+                              ? t(
+                                  audioPlayback.status === "playing"
+                                    ? "voice.playing"
+                                    : "voice.paused",
+                                )
+                              : ""}
+                          </span>
+                          <span className="visually-hidden" aria-live="polite">
+                            {audioAnnouncement}
+                          </span>
+                          {transcriptElement &&
+                            isAudioElement(transcriptElement) &&
+                            transcriptElement.transcript && (
+                              <TranscriptPopover
+                                element={transcriptElement}
+                                canInsert={!this.state.viewModeEnabled}
+                                onInsert={this.insertAudioTranscriptAsText}
+                                onClose={this.closeAudioTranscript}
+                              />
+                            )}
+                          {voiceSession && (
+                            <RecordingOverlay
+                              key={voiceSession.id}
+                              session={voiceSession}
+                              transcription={
+                                this.props.voiceOptions?.transcription
+                              }
+                              langCode={getLanguage().code}
+                              onFinish={this.insertAudioRecording}
+                              onCancel={this.cancelVoiceSession}
+                            />
                           )}
                         </ExcalidrawActionManagerContext.Provider>
                         {this.renderEmbeddables()}
@@ -3478,6 +3596,10 @@ class App extends React.Component<AppProps, AppState> {
 
   public componentWillUnmount() {
     this.stopShelfLifeScheduler?.();
+    this.audioPlayer.destroy();
+    editorJotaiStore.set(voiceSessionAtom, null);
+    editorJotaiStore.set(transcriptPopoverAtom, null);
+    clearTimeout(this.audioAnnouncementTimer);
     // we're recreating the api object reference so that the
     // <ExcalidrawAPIContext.Provider/> picks up on it
     this.api = { ...this.api, isDestroyed: true };
@@ -3695,6 +3817,14 @@ class App extends React.Component<AppProps, AppState> {
 
     this.appStateObserver.flush(prevState);
 
+    // forget the voice tool's hover target so it can't flash on return
+    if (
+      prevState.activeTool.type === "voice" &&
+      this.state.activeTool.type !== "voice"
+    ) {
+      this.audioHostHoverId = null;
+    }
+
     this.updateEmbeddables();
     const elements = this.scene.getElementsIncludingDeleted();
     const elementsMap = this.scene.getElementsMapIncludingDeleted();
@@ -3780,6 +3910,26 @@ class App extends React.Component<AppProps, AppState> {
 
     if (isEraserActive(prevState) && !isEraserActive(this.state)) {
       this.eraserTrail.endPath();
+    }
+
+    // switching tools, entering view mode or turning voice off discards an
+    // unfinished recording
+    if (
+      editorJotaiStore.get(voiceSessionAtom) &&
+      (this.state.activeTool.type !== "voice" ||
+        this.state.viewModeEnabled ||
+        !this.props.voiceOptions?.enabled)
+    ) {
+      this.cancelVoiceSession();
+      this.setToast({ message: t("voice.discarded"), duration: 2000 });
+    }
+
+    const audioPlayback = editorJotaiStore.get(audioPlaybackAtom);
+    if (audioPlayback) {
+      const playing = this.scene.getElement(audioPlayback.elementId);
+      this.audioPlayer.sync(
+        playing && isAudioElement(playing) ? playing : undefined,
+      );
     }
 
     if (prevProps.viewModeEnabled !== this.props.viewModeEnabled) {
@@ -5091,6 +5241,20 @@ class App extends React.Component<AppProps, AppState> {
           return;
         }
 
+        // Space stays the hold-to-pan key, so only Enter plays (ADR 0034 R3)
+        if (
+          selectedElements.length === 1 &&
+          isAudioElement(selectedElements[0]) &&
+          event.key === KEYS.ENTER &&
+          !event[KEYS.CTRL_OR_CMD]
+        ) {
+          event.preventDefault();
+          if (isAudioElementPlayable(selectedElements[0])) {
+            this.toggleAudioPlayback(selectedElements[0]);
+          }
+          return;
+        }
+
         // Shape switching
         if (event.key === KEYS.ESCAPE) {
           this.updateEditorAtom(convertElementTypePopupAtom, null);
@@ -5492,6 +5656,14 @@ class App extends React.Component<AppProps, AppState> {
             simultaneouslyUpdated: selectedElements,
           });
         });
+        // voice notes follow their hosts (ADR 0034 R5)
+        moveAttachedAudio(
+          this.scene,
+          selectedElements,
+          { x: offsetX, y: offsetY },
+          undefined,
+          { informMutation: false },
+        );
 
         this.scene.triggerUpdate();
 
@@ -5816,6 +5988,9 @@ class App extends React.Component<AppProps, AppState> {
   // We purposely widen the `tool` type so this helper can be called with
   // any tool without having to type check it
   private isToolSupported = <T extends ToolType | "custom">(tool: T) => {
+    if (tool === "voice" && !this.props.voiceOptions?.enabled) {
+      return false;
+    }
     return (
       this.props.UIOptions.tools?.[
         tool as Extract<T, keyof AppProps["UIOptions"]["tools"]>
@@ -6117,10 +6292,17 @@ class App extends React.Component<AppProps, AppState> {
       excalidrawContainer: this.excalidrawContainerRef.current,
       app: this,
       initialCaretSceneCoords,
-      onMount: this.props.onTextEditorMount
-        ? (textarea) =>
-            this.props.onTextEditorMount?.({ elementId: element.id, textarea })
-        : undefined,
+      onMount: (textarea) => {
+        const unmountHost = this.props.onTextEditorMount?.({
+          elementId: element.id,
+          textarea,
+        });
+        const detachDictation = this.attachTextDictation(textarea);
+        return () => {
+          detachDictation?.();
+          unmountHost?.();
+        };
+      },
       // when text is selected, it's hard (at least on iOS) to re-position the
       // caret (i.e. deselect). There's not much use for always selecting
       // the text on edit anyway (and users can select-all from contextmenu
@@ -7009,6 +7191,43 @@ class App extends React.Component<AppProps, AppState> {
     }
   };
 
+  /**
+   * toggles playback / opens the transcript when pointerdown and pointerup hit
+   * the same bubble button
+   */
+  private handleAudioButtonClick = (scenePointer: { x: number; y: number }) => {
+    const pressed = this.audioButtonHit;
+    this.audioButtonHit = null;
+    if (!pressed || !this.lastPointerDownEvent || !this.lastPointerUpEvent) {
+      return;
+    }
+    const draggedDistance = pointDistance(
+      pointFrom(
+        this.lastPointerDownEvent.clientX,
+        this.lastPointerDownEvent.clientY,
+      ),
+      pointFrom(
+        this.lastPointerUpEvent.clientX,
+        this.lastPointerUpEvent.clientY,
+      ),
+    );
+    if (draggedDistance > DRAGGING_THRESHOLD) {
+      return;
+    }
+    const released = this.getAudioButtonAt(scenePointer);
+    if (
+      released?.element.id !== pressed.element.id ||
+      released.target !== pressed.target
+    ) {
+      return;
+    }
+    if (released.target === "play") {
+      this.toggleAudioPlayback(released.element);
+    } else {
+      this.openAudioTranscript(released.element);
+    }
+  };
+
   private handleElementLinkClick = (
     event: React.PointerEvent<HTMLCanvasElement>,
   ) => {
@@ -7340,6 +7559,17 @@ class App extends React.Component<AppProps, AppState> {
       },
       isOverScrollBar,
     );
+
+    if (
+      this.state.activeTool.type === "voice" &&
+      !editorJotaiStore.get(voiceSessionAtom)
+    ) {
+      this.setAudioHostHighlight(
+        isOverScrollBar
+          ? null
+          : this.getAudioHostAtPosition(scenePointerX, scenePointerY),
+      );
+    }
 
     if (
       !this.state.newElement &&
@@ -7770,6 +8000,17 @@ class App extends React.Component<AppProps, AppState> {
     }
 
     if (
+      (isSelectionLikeTool(this.state.activeTool.type) ||
+        this.state.viewModeEnabled) &&
+      !this.hitLinkElement &&
+      this.getAudioButtonAt(scenePointer)
+    ) {
+      hideHyperlinkToolip();
+      setCursor(this.interactiveCanvas, CURSOR_TYPE.POINTER);
+      return;
+    }
+
+    if (
       this.hitLinkElement &&
       !this.state.selectedElementIds[this.hitLinkElement.id]
     ) {
@@ -7891,6 +8132,13 @@ class App extends React.Component<AppProps, AppState> {
     );
 
     this.elementsPendingErasure = new Set(elementsToErase);
+    // a voice note goes with its host, like bound text (ADR 0034 R5)
+    for (const audio of getAttachedAudioElements(
+      this.scene.getNonDeletedElements(),
+      this.elementsPendingErasure,
+    )) {
+      this.elementsPendingErasure.add(audio.id);
+    }
     this.triggerRender();
   };
 
@@ -8177,6 +8425,20 @@ class App extends React.Component<AppProps, AppState> {
 
     this.lastPointerDownEvent = event;
 
+    // a click on a bubble's play button (or transcript badge) acts on
+    // pointerup (also in view mode and with the hand tool); a drag starting
+    // there still moves or pans as usual
+    this.audioButtonHit =
+      event.button === POINTER_BUTTON.MAIN &&
+      !isHoldingSpace &&
+      (isSelectionLikeTool(this.state.activeTool.type) ||
+        this.state.activeTool.type === "hand" ||
+        this.state.viewModeEnabled) &&
+      !event.shiftKey &&
+      !event[KEYS.CTRL_OR_CMD]
+        ? this.getAudioButtonAt(scenePointer)
+        : null;
+
     // we must exit before we set `cursorButton` state and `savePointer`
     // else it will send pointer state & laser pointer events in collab when
     // panning
@@ -8286,7 +8548,8 @@ class App extends React.Component<AppProps, AppState> {
       this.state.activeTool.type === "selection" ||
       this.state.activeTool.type === "lasso" ||
       this.state.activeTool.type === "text" ||
-      this.state.activeTool.type === "image";
+      this.state.activeTool.type === "image" ||
+      this.state.activeTool.type === "voice";
 
     if (!allowOnPointerDown) {
       return;
@@ -8414,6 +8677,12 @@ class App extends React.Component<AppProps, AppState> {
       }
     } else if (this.state.activeTool.type === "text") {
       this.handleTextOnPointerDown(event, pointerDownState);
+    } else if (this.state.activeTool.type === "voice") {
+      // no element yet: it's created when the recording is stopped
+      this.startVoiceSession(
+        pointerDownState.origin.x,
+        pointerDownState.origin.y,
+      );
     } else if (
       this.state.activeTool.type === "arrow" ||
       this.state.activeTool.type === "line"
@@ -8528,6 +8797,8 @@ class App extends React.Component<AppProps, AppState> {
     if (this.handleIframeLikeCenterClick()) {
       return;
     }
+
+    this.handleAudioButtonClick(scenePointer);
 
     if (this.editorInterface.isTouchScreen) {
       const hitElement = this.getElementAtPosition(
@@ -10535,6 +10806,7 @@ class App extends React.Component<AppProps, AppState> {
               selectedElementIds: this.state.selectedElementIds,
               includeBoundTextElement: true,
               includeElementsInFrames: true,
+              includeAttachedAudio: true,
             });
             if (
               hitElement &&
@@ -10647,7 +10919,7 @@ class App extends React.Component<AppProps, AppState> {
               // switch selected elements to the duplicated ones
               this.setState((prevState) => ({
                 ...getSelectionStateForElements(
-                  duplicatedElements,
+                  omitAttachedAudio(duplicatedElements),
                   this.scene.getNonDeletedElements(),
                   prevState,
                 ),
@@ -11511,6 +11783,7 @@ class App extends React.Component<AppProps, AppState> {
             this.state,
             this,
           );
+          nextElements = syncAttachedAudioFrames(nextElements);
 
           this.scene.replaceAllElements(nextElements);
         }
@@ -11918,6 +12191,8 @@ class App extends React.Component<AppProps, AppState> {
       if (
         !activeTool.locked &&
         activeTool.type !== "freedraw" &&
+        // the voice tool stays active while its recording runs
+        activeTool.type !== "voice" &&
         (activeTool.type !== "lasso" ||
           // if lasso is turned on but from selection => reset to selection
           (activeTool.type === "lasso" && activeTool.fromSelection))
@@ -11946,6 +12221,15 @@ class App extends React.Component<AppProps, AppState> {
 
   private eraseElements = () => {
     let didChange = false;
+
+    // a voice note goes with its host, like bound text (ADR 0034 R5); also
+    // covers a plain click, which doesn't go through the trail
+    for (const audio of getAttachedAudioElements(
+      this.scene.getNonDeletedElements(),
+      this.elementsPendingErasure,
+    )) {
+      this.elementsPendingErasure.add(audio.id);
+    }
 
     // Binding is double accounted on both elements and if one of them is
     // deleted, the binding should be removed
@@ -12170,6 +12454,366 @@ class App extends React.Component<AppProps, AppState> {
         fileId,
       },
     );
+  };
+
+  // ---------------------------------------------------------------------------
+  // voice messages (ADR 0034)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Why the voice tool can't record right now: `null` when it can, `""` when
+   * voice is simply off (no message to show), else a localized explanation.
+   */
+  public getVoiceRecordingBlockMessage = (): string | null => {
+    const block = getVoiceRecordingBlock(
+      this.props.voiceOptions,
+      this.props.isCollaborating,
+      this.state.collaborators,
+    );
+    if (!block) {
+      return null;
+    }
+    switch (block.kind) {
+      case "host":
+        return block.message;
+      case "outdatedCollaborators":
+        return t("voice.outdatedCollaborators");
+      case "disabled":
+        return "";
+      default:
+        return assertNever(block, null);
+    }
+  };
+
+  private startVoiceSession = (sceneX: number, sceneY: number) => {
+    if (editorJotaiStore.get(voiceSessionAtom)) {
+      return;
+    }
+    const blocked = this.getVoiceRecordingBlockMessage();
+    if (blocked !== null) {
+      if (blocked) {
+        this.setToast({ message: blocked, duration: 5000, closable: true });
+      }
+      return;
+    }
+    // don't record our own playback
+    this.audioPlayer.pause();
+    // resolved now: the user may keep drawing while recording
+    const host = this.getAudioHostAtPosition(sceneX, sceneY);
+    this.updateEditorAtom(voiceSessionAtom, {
+      id: randomId(),
+      sceneX,
+      sceneY,
+      hostId: host?.id ?? null,
+    });
+    this.setAudioHostHighlight(host);
+  };
+
+  private cancelVoiceSession = () => {
+    if (editorJotaiStore.get(voiceSessionAtom)) {
+      this.updateEditorAtom(voiceSessionAtom, null);
+    }
+    this.setAudioHostHighlight(null);
+  };
+
+  /**
+   * Topmost element a voice note dropped at (x, y) attaches to. Shapes count
+   * anywhere inside their box (a transparent rectangle is still a target);
+   * strokes need a precise hit so a bounding box doesn't swallow the canvas.
+   */
+  private getAudioHostAtPosition = (x: number, y: number) => {
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const elements = this.scene.getNonDeletedElements();
+    for (let index = elements.length - 1; index >= 0; index--) {
+      let element: ExcalidrawElement | null = elements[index];
+      if (isBoundToContainer(element)) {
+        element = getContainerElement(element, elementsMap);
+      }
+      if (!isAudioHostElement(element)) {
+        continue;
+      }
+      const precise =
+        isLinearElement(element) || isFreeDrawElement(element)
+          ? hitElementItself({
+              point: pointFrom(x, y),
+              element,
+              threshold: this.getElementHitThreshold(element),
+              elementsMap,
+            })
+          : hitElementBoundingBox(
+              pointFrom(x, y),
+              element,
+              elementsMap,
+              this.getElementHitThreshold(element),
+            );
+      if (precise) {
+        return element;
+      }
+    }
+    return null;
+  };
+
+  /** element the voice tool hovers, outlined as the attach target */
+  private setAudioHostHighlight = (
+    host: NonDeleted<ExcalidrawElement> | null,
+  ) => {
+    const id = host?.id ?? null;
+    if (this.audioHostHoverId !== id) {
+      this.audioHostHoverId = id;
+      this.triggerRender(true);
+    }
+  };
+
+  /**
+   * Elements to outline for voice note attachment (ADR 0034 R5): the
+   * recording's target, else the voice tool's hover target, else the host of
+   * a single selected bubble, else the unselected bubbles attached to the
+   * selection, so either side shows what it's attached to.
+   */
+  public getAudioAttachmentHighlight = (): NonDeleted<ExcalidrawElement>[] => {
+    const elementsMap = this.scene.getNonDeletedElementsMap();
+    const sessionHostId = editorJotaiStore.get(voiceSessionAtom)?.hostId;
+    const id =
+      sessionHostId ??
+      (this.state.activeTool.type === "voice" ? this.audioHostHoverId : null);
+    if (id) {
+      const host = elementsMap.get(id);
+      return isAudioHostElement(host) ? [host] : [];
+    }
+    const selected = this.scene.getSelectedElements(this.state);
+    if (selected.length === 1 && isAudioElement(selected[0])) {
+      const host = getAudioHost(selected[0], elementsMap);
+      return host ? [host] : [];
+    }
+    return getAudioToFollowHosts(elementsMap, selected);
+  };
+
+  private insertAudioRecording = async (
+    recording: VoiceRecording,
+    transcript: ExcalidrawAudioElement["transcript"] = null,
+  ) => {
+    const session = editorJotaiStore.get(voiceSessionAtom);
+    if (!session) {
+      return;
+    }
+    if (recording.duration < AUDIO_RECORDING_MIN_DURATION) {
+      this.cancelVoiceSession();
+      this.setToast({ message: t("voice.tooShort"), duration: 3000 });
+      return;
+    }
+    try {
+      const file = new File([recording.blob], "voice-message", {
+        type: recording.mimeType,
+      });
+      const fileId = await ((this.props.generateIdForFile?.(
+        file,
+      ) as Promise<FileId>) || generateIdFromFile(file));
+      const dataURL = await getDataURL(file);
+      // the session may have been discarded while we were encoding
+      if (editorJotaiStore.get(voiceSessionAtom)?.id !== session.id) {
+        return;
+      }
+      const element = newAudioElement({
+        source: "recording",
+        duration: recording.duration,
+        peaks: recording.peaks,
+        transcript,
+        fileId,
+        status: "pending",
+        author: this.props.voiceOptions?.getAuthor?.() ?? null,
+        // centre the avatar on the click point
+        x: session.sceneX - AUDIO_ELEMENT_HEIGHT / 2,
+        y: session.sceneY - AUDIO_ELEMENT_HEIGHT / 2,
+        locked: false,
+      });
+      // the host may have been deleted while recording
+      const host = session.hostId
+        ? this.scene.getNonDeletedElementsMap().get(session.hostId)
+        : null;
+      const attachedHost = isAudioHostElement(host) ? host : null;
+      // an attached bubble shares its host's frame so frame clipping and
+      // frame moves treat them alike
+      const frameId = attachedHost
+        ? attachedHost.frameId
+        : this.getTopLayerFrameAtSceneCoords({
+            x: session.sceneX,
+            y: session.sceneY,
+          })?.id ?? null;
+      const elementWithFrame = newElementWith(element, {
+        frameId,
+        hostId: attachedHost?.id ?? null,
+      });
+
+      this.addMissingFiles([
+        {
+          id: fileId,
+          mimeType: recording.mimeType,
+          dataURL,
+          created: Date.now(),
+          lastRetrieved: Date.now(),
+        },
+      ]);
+      this.updateEditorAtom(voiceSessionAtom, null);
+      this.setAudioHostHighlight(null);
+      this.insertNewElements([elementWithFrame]);
+      this.setState((prevState) => ({
+        selectedElementIds: makeNextSelectedElementIds(
+          { [elementWithFrame.id]: true },
+          prevState,
+        ),
+        activeTool: prevState.activeTool.locked
+          ? prevState.activeTool
+          : updateActiveTool(prevState, {
+              type: prevState.preferredSelectionTool.type,
+            }),
+      }));
+      this.store.scheduleCapture();
+      resetCursor(this.interactiveCanvas);
+      this.setAudioAnnouncement(
+        [
+          t("voice.saved"),
+          attachedHost && t("voice.host.attached"),
+          transcript && t("voice.transcription.saved"),
+        ]
+          .filter(Boolean)
+          .join(". "),
+      );
+    } catch (error) {
+      console.error(error);
+      this.cancelVoiceSession();
+      this.setToast({ message: t("voice.insertError"), duration: 3000 });
+    }
+  };
+
+  /** mic button next to the text editor (ADR 0034 §8) */
+  private attachTextDictation = (textarea: HTMLTextAreaElement) => {
+    const voiceOptions = this.props.voiceOptions;
+    const container = textarea.parentElement;
+    if (
+      !voiceOptions?.enabled ||
+      voiceOptions.transcription === "off" ||
+      this.state.viewModeEnabled ||
+      !container ||
+      !getSpeechRecognitionCtor()
+    ) {
+      return null;
+    }
+    return attachTextDictation({
+      textarea,
+      container,
+      mode: voiceOptions.transcription === "local-only" ? "local-only" : "auto",
+      langCode: getLanguage().code,
+      onStart: () => this.audioPlayer.pause(),
+    });
+  };
+
+  /** the bubble button (play, transcript badge) under the pointer */
+  private getAudioButtonAt = (scenePointer: {
+    x: number;
+    y: number;
+  }): AudioButtonHit | null => {
+    const hit = this.getElementAtPosition(scenePointer.x, scenePointer.y, {
+      includeLockedElements: true,
+    });
+    if (!hit || !isAudioElement(hit)) {
+      return null;
+    }
+    const target = getAudioHitTarget(
+      hit,
+      scenePointer.x - hit.x,
+      scenePointer.y - hit.y,
+    );
+    if (target === "play" && isAudioElementPlayable(hit)) {
+      return { element: hit, target };
+    }
+    if (target === "transcript" && hit.transcript) {
+      return { element: hit, target };
+    }
+    return null;
+  };
+
+  /** screen-reader announcement for voice actions (ADR 0034 §5) */
+  private setAudioAnnouncement = (message: string) => {
+    clearTimeout(this.audioAnnouncementTimer);
+    this.updateEditorAtom(audioAnnouncementAtom, message);
+    // clear it so the same message is announced again next time
+    this.audioAnnouncementTimer = setTimeout(
+      () => this.updateEditorAtom(audioAnnouncementAtom, ""),
+      3000,
+    );
+  };
+
+  private openAudioTranscript = (element: ExcalidrawAudioElement) => {
+    this.updateEditorAtom(transcriptPopoverAtom, element.id);
+  };
+
+  private closeAudioTranscript = () => {
+    if (editorJotaiStore.get(transcriptPopoverAtom)) {
+      this.updateEditorAtom(transcriptPopoverAtom, null);
+      this.focusContainer();
+    }
+  };
+
+  /** "Insert as text": a plain text element under the bubble (ADR 0034 §5) */
+  private insertAudioTranscriptAsText = (element: ExcalidrawAudioElement) => {
+    const originalText = normalizeText(element.transcript?.text ?? "").trim();
+    if (!originalText || this.state.viewModeEnabled) {
+      return;
+    }
+    const fontSize = this.state.currentItemFontSize;
+    const fontFamily = this.state.currentItemFontFamily;
+    const fontString = getFontString({ fontSize, fontFamily });
+    const lineHeight = getLineHeight(fontFamily);
+    const maxWidth = Math.max(element.width, AUDIO_TRANSCRIPT_TEXT_WIDTH);
+    const wraps =
+      measureText(originalText, fontString, lineHeight).width > maxWidth;
+    const text = wraps
+      ? wrapText(originalText, fontString, maxWidth)
+      : originalText;
+    const textElement = newTextElement({
+      x: element.x,
+      y: element.y + element.height + 12,
+      strokeColor: this.state.currentItemStrokeColor,
+      backgroundColor: "transparent",
+      fillStyle: this.state.currentItemFillStyle,
+      strokeWidth: this.state.currentItemStrokeWidth,
+      strokeStyle: this.state.currentItemStrokeStyle,
+      roundness: null,
+      roughness: this.state.currentItemRoughness,
+      opacity: this.state.currentItemOpacity,
+      text,
+      originalText,
+      fontSize,
+      fontFamily,
+      textAlign: DEFAULT_TEXT_ALIGN,
+      verticalAlign: DEFAULT_VERTICAL_ALIGN,
+      lineHeight,
+      autoResize: !wraps,
+      frameId: element.frameId,
+      locked: false,
+    });
+    this.updateEditorAtom(transcriptPopoverAtom, null);
+    this.insertNewElements([textElement]);
+    this.store.scheduleCapture();
+    this.setState((prevState) => ({
+      selectedElementIds: makeNextSelectedElementIds(
+        { [textElement.id]: true },
+        prevState,
+      ),
+    }));
+    this.setAudioAnnouncement(t("voice.transcript.inserted"));
+    this.focusContainer();
+  };
+
+  public toggleAudioPlayback = (element: ExcalidrawAudioElement) => {
+    // a recording owns the microphone; don't play into it
+    if (editorJotaiStore.get(voiceSessionAtom)) {
+      return;
+    }
+    const file = element.fileId ? this.files[element.fileId] : undefined;
+    if (!this.audioPlayer.toggle(element, file)) {
+      this.setToast({ message: t("voice.notLoaded"), duration: 3000 });
+    }
   };
 
   private onImageToolbarButtonClick = async () => {
@@ -13134,6 +13778,7 @@ class App extends React.Component<AppProps, AppState> {
       actionTextAutoResize,
       actionUnbindText,
       actionBindText,
+      actionDetachAudio,
       actionWrapTextInContainer,
       actionUngroup,
       CONTEXT_MENU_SEPARATOR,

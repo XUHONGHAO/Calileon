@@ -1,4 +1,5 @@
 import type {
+  AUDIO_MIME_TYPES,
   IMAGE_MIME_TYPES,
   UserIdleState,
   throttleRAF,
@@ -33,6 +34,7 @@ import type {
   ExcalidrawNonSelectionElement,
   BindMode,
   ExcalidrawTextElement,
+  ExcalidrawAudioElement,
 } from "@excalidraw/element/types";
 
 import type { LuminaGameMode } from "@excalidraw/element/lumina/types";
@@ -89,6 +91,11 @@ export type Collaborator = Readonly<{
   isInCall?: boolean;
   isSpeaking?: boolean;
   isMuted?: boolean;
+  /**
+   * Element types the collaborator's client understands beyond the original
+   * set (e.g. `"audio"`). Old clients omit it; see ADR 0034 §10.
+   */
+  elementTypes?: readonly string[];
 }>;
 
 export type CollaboratorPointer = {
@@ -115,6 +122,7 @@ export type DataURL = string & { _brand: "DataURL" };
 export type BinaryFileData = {
   mimeType:
     | ValueOf<typeof IMAGE_MIME_TYPES>
+    | ValueOf<typeof AUDIO_MIME_TYPES>
     // future user or unknown file type
     | typeof MIME_TYPES.binary;
   id: FileId;
@@ -158,7 +166,8 @@ export type ToolType =
   | "frame"
   | "magicframe"
   | "embeddable"
-  | "laser";
+  | "laser"
+  | "voice";
 
 export type ElementOrToolType = ExcalidrawElementType | ToolType | "custom";
 
@@ -690,6 +699,11 @@ export interface ExcalidrawProps {
    * dimensions and size constraints for inserted images
    */
   imageOptions?: ImageOptions;
+  /**
+   * Voice messages (the `voice` tool and `audio` elements). Off by default:
+   * recordings only survive if the host persists `BinaryFiles`.
+   */
+  voiceOptions?: VoiceOptions;
   detectScroll?: boolean;
   handleKeyboardGlobally?: boolean;
   onLibraryChange?: (libraryItems: LibraryItems) => void | Promise<any>;
@@ -786,6 +800,23 @@ export type ImageOptions = Partial<{
   maxFileSizeBytes: number;
 }>;
 
+export type VoiceOptions = {
+  /** shows the `voice` tool; defaults to false */
+  enabled?: boolean;
+  /**
+   * live transcription while recording; `local-only` forces on-device
+   * recognition (Vault). Defaults to "auto".
+   */
+  transcription?: "auto" | "local-only" | "off";
+  /**
+   * when set, the tool stays visible but recording is blocked with this
+   * (already localized) explanation
+   */
+  disabledReason?: string | null;
+  /** display-only speaker snapshot stored on new recordings */
+  getAuthor?: () => ExcalidrawAudioElement["author"];
+};
+
 // NOTE at the moment, if action name corresponds to canvasAction prop, its
 // truthiness value will determine whether the action is rendered or not
 // (see manager renderAction). We also override canvasAction values in
@@ -876,6 +907,9 @@ export type AppClassProperties = {
   togglePenMode: App["togglePenMode"];
   toggleLock: App["toggleLock"];
   setActiveTool: App["setActiveTool"];
+  getVoiceRecordingBlockMessage: App["getVoiceRecordingBlockMessage"];
+  getAudioAttachmentHighlight: App["getAudioAttachmentHighlight"];
+  toggleAudioPlayback: App["toggleAudioPlayback"];
   setOpenDialog: App["setOpenDialog"];
   insertEmbeddableElement: App["insertEmbeddableElement"];
   onMagicframeToolSelect: App["onMagicframeToolSelect"];

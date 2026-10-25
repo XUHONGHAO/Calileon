@@ -2,12 +2,20 @@
 // ExcalidrawImageElement & related helpers
 // -----------------------------------------------------------------------------
 
-import { MIME_TYPES, SVG_NS } from "@excalidraw/common";
+import {
+  AUDIO_MIME_TYPES,
+  IMAGE_MIME_TYPES,
+  MIME_TYPES,
+  SVG_NS,
+} from "@excalidraw/common";
+
+import type { ValueOf } from "@excalidraw/common/utility-types";
 
 import type {
   AppClassProperties,
   DataURL,
   BinaryFiles,
+  BinaryFileData,
 } from "@excalidraw/excalidraw/types";
 
 import { isInitializedImageElement } from "./typeChecks";
@@ -17,6 +25,19 @@ import type {
   FileId,
   InitializedExcalidrawImageElement,
 } from "./types";
+
+const IMAGE_MIME_TYPE_VALUES = new Set<string>(Object.values(IMAGE_MIME_TYPES));
+const AUDIO_MIME_TYPE_VALUES = new Set<string>(Object.values(AUDIO_MIME_TYPES));
+
+export const isImageMimeType = (
+  mimeType: BinaryFileData["mimeType"],
+): mimeType is ValueOf<typeof IMAGE_MIME_TYPES> =>
+  IMAGE_MIME_TYPE_VALUES.has(mimeType);
+
+export const isAudioMimeType = (
+  mimeType: string,
+): mimeType is ValueOf<typeof AUDIO_MIME_TYPES> =>
+  AUDIO_MIME_TYPE_VALUES.has(mimeType);
 
 export const loadHTMLImageElement = (dataURL: DataURL) => {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -53,14 +74,16 @@ export const updateImageCache = async ({
         return promises.concat(
           (async () => {
             try {
-              if (fileData.mimeType === MIME_TYPES.binary) {
+              const { mimeType } = fileData;
+              // audio and unknown binaries must never be decoded as images
+              if (!isImageMimeType(mimeType)) {
                 throw new Error("Only images can be added to ImageCache");
               }
 
               const imagePromise = loadHTMLImageElement(fileData.dataURL);
               const data = {
                 image: imagePromise,
-                mimeType: fileData.mimeType,
+                mimeType,
               } as const;
               // store the promise immediately to indicate there's an in-progress
               // initialization

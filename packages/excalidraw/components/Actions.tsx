@@ -341,6 +341,7 @@ export const SelectedShapeActions = ({
             {renderAction("group")}
             {renderAction("ungroup")}
             {showLinkIcon && renderAction("hyperlink")}
+            {renderAction("detachAudio")}
             {singleImageElement && renderAction("downloadImage")}
             {showCropEditorAction && renderAction("cropEditor")}
             {showLineEditorAction && renderAction("toggleLinearEditor")}
@@ -785,6 +786,7 @@ const CombinedExtraActions = ({
                   {renderAction("group")}
                   {renderAction("ungroup")}
                   {showLinkIcon && renderAction("hyperlink")}
+                  {renderAction("detachAudio")}
                   {showCropEditorAction && renderAction("cropEditor")}
                   {showDuplicate && renderAction("duplicateSelection")}
                   {showDelete && renderAction("deleteSelectedElements")}
@@ -1137,11 +1139,15 @@ export const ShapesSwitcher = ({
           const label = t(`toolBar.${value}`);
           const letter =
             key && capitalizeString(typeof key === "string" ? key : key[0]);
-          const shortcut = letter
-            ? `${letter} ${t("helpDialog.or")} ${numericKey}`
-            : `${numericKey}`;
+          const shortcut =
+            letter && numericKey
+              ? `${letter} ${t("helpDialog.or")} ${numericKey}`
+              : letter || (numericKey ? `${numericKey}` : null);
           const keybindingLabel =
-            value === "hand" ? undefined : numericKey || letter;
+            value === "hand" ? undefined : numericKey || letter || undefined;
+          // e.g. an outdated client in the room (ADR 0034 §10)
+          const blockedReason =
+            value === "voice" ? app.getVoiceRecordingBlockMessage() : null;
 
           // when in compact styles panel mode (tablet)
           // use a ToolPopover for selection/lasso toggle as well
@@ -1180,16 +1186,25 @@ export const ShapesSwitcher = ({
 
           return (
             <ToolButton
-              className={clsx("Shape", { fillable })}
+              className={clsx("Shape", {
+                fillable,
+                "Shape--blocked": !!blockedReason,
+              })}
               key={value}
               type="radio"
               icon={icon}
               checked={activeTool.type === value}
               name="editor-current-shape"
-              title={`${capitalizeString(label)} — ${shortcut}`}
+              title={
+                blockedReason
+                  ? `${capitalizeString(label)} — ${blockedReason}`
+                  : shortcut
+                  ? `${capitalizeString(label)} — ${shortcut}`
+                  : capitalizeString(label)
+              }
               keyBindingLabel={keybindingLabel}
               aria-label={capitalizeString(label)}
-              aria-keyshortcuts={shortcut}
+              aria-keyshortcuts={shortcut ?? undefined}
               data-testid={`toolbar-${value}`}
               onPointerDown={({ pointerType }) => {
                 if (!app.state.penDetected && pointerType === "pen") {

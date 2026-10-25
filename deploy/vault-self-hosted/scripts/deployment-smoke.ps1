@@ -39,6 +39,10 @@ foreach ($requiredHeader in @(
     throw "Missing security response header: $requiredHeader"
   }
 }
+# Voice messages and speech input (ADR 0034) need same-origin microphone access.
+if (-not ($headers -match "permissions-policy:[^\r\n]*microphone=\(self\)")) {
+  throw "Permissions-Policy must allow microphone=(self)"
+}
 if (-not $AllowUntrustedCertificate -and -not ($headers -match "strict-transport-security:")) {
   throw "Missing HSTS on production HTTPS response"
 }
