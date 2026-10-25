@@ -1,7 +1,6 @@
 import React from "react";
 
 import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { isInitializedImageElement } from "@excalidraw/element";
 
@@ -20,7 +19,14 @@ import {
 
 import { loadAIProxyConfig } from "../ai/proxyConfig";
 
-import { Callout, DialogActions, Field, TextArea, UiButton } from "./ui";
+import {
+  AppDialog,
+  Callout,
+  DialogActions,
+  Field,
+  TextArea,
+  UiButton,
+} from "./ui";
 
 import "./VaultManagedAI.scss";
 
@@ -310,10 +316,12 @@ export const VaultManagedAI = ({
         {t("ai.proxy.managedTitle")}
       </UiButton>
       {open && (
-        <Dialog
+        <AppDialog
           title={t("ai.proxy.managedTitle")}
           onCloseRequest={close}
           size="small"
+          closeOnClickOutside={false}
+          busy={busy}
         >
           <div className="VaultManagedAI">
             {!review ? (
@@ -375,7 +383,7 @@ export const VaultManagedAI = ({
             )}
             {!review && error && <Callout tone="danger">{error}</Callout>}
           </div>
-        </Dialog>
+        </AppDialog>
       )}
     </>
   );

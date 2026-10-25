@@ -1,12 +1,7 @@
-.ManyMindsDialog .Dialog__content {
-  max-width: 1120px;
-}
-
+// Width comes from the dialog size; the modal scrolls, not this grid.
 .ManyMinds {
   display: grid;
   gap: var(--ui-space-5);
-  max-height: 78vh;
-  overflow: auto;
   font-size: var(--ui-font-sm);
 }
 

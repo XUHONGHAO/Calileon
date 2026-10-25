@@ -93,8 +93,9 @@ export class ManyMindsScheduler {
       if (task.status === "running") {
         task.status = "interrupted";
         task.interruptedAt = now;
-        task.error =
-          "Interrupted by page refresh. Retry explicitly to continue.";
+        // No persisted English text: the dialog renders a localized notice
+        // for the "interrupted" status.
+        task.error = undefined;
         interrupted = true;
       }
     }
@@ -154,6 +155,11 @@ export class ManyMindsScheduler {
     task.completedAt = undefined;
     task.interruptedAt = undefined;
     task.cancellationMayHaveIncurredCost = undefined;
+    // A cancelled batch never pumps again (start() skips it), so an explicit
+    // retry would sit in "queued" forever. Reopen the batch for this task.
+    if (this.batch!.status === "cancelled") {
+      this.batch!.status = "running";
+    }
     this.touch();
     if (this.runEnabled) {
       this.pump();

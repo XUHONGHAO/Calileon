@@ -34,9 +34,11 @@
     }
   }
 
+  // Hug the content (an empty list should give a short dialog) up to the
+  // space the modal allows; the panel below takes over scrolling.
   .AISettings {
     display: flex;
-    flex: 0 1 40rem;
+    flex: 0 1 auto;
     flex-direction: column;
     gap: var(--ui-space-3);
     min-width: 0;
@@ -55,6 +57,54 @@
 
   .AISettings__topTabs {
     flex: 0 0 auto;
+
+    // Let the four top tabs share a narrow dialog instead of overflowing into
+    // a hidden-scrollbar strip; labels ellipsize as a last resort.
+    .UiTabs__tab {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+  }
+
+  // Second-level tabs (media type, agent sections): an underline strip, so
+  // they read as subordinate to the segmented top-level tabs.
+  .AISettings__subTabs.UiTabs {
+    gap: var(--ui-space-3);
+    padding: 0;
+    border: 0;
+    border-bottom: 1px solid var(--ui-border);
+    border-radius: 0;
+    background: transparent;
+
+    .UiTabs__tab {
+      flex: 0 0 auto;
+      height: var(--ui-control-sm);
+      padding: 0 var(--ui-space-1);
+      border-bottom: 2px solid transparent;
+      border-radius: 0;
+      font-size: var(--ui-font-xs);
+    }
+
+    .UiTabs__tab--selected {
+      border-bottom-color: var(--color-primary);
+      background: transparent;
+      box-shadow: none;
+      color: var(--ui-text);
+    }
+  }
+
+  .AISettings__unsaved {
+    color: var(--ui-warning-fg);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-medium);
+  }
+
+  .AISettings__groupError {
+    flex: 1 1 100%;
+    margin: 0;
+    color: var(--ui-danger-fg);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
   }
 
   .AISettings__panel {

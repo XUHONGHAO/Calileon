@@ -29,6 +29,8 @@ import type {
 } from "@excalidraw/element/types";
 import type { LocalPoint } from "@excalidraw/math";
 
+import { chooseSelectOption } from "../components/ui/testing";
+
 import { STORAGE_KEYS } from "../app_constants";
 import * as maskCanvas from "../ai/maskCanvas";
 import {
@@ -575,6 +577,110 @@ describe("AI mask editing", () => {
     expect(screen.queryByTestId("mask-drawing-surface")).toBeNull();
   });
 
+  it("starts on the overlay so Space or Enter cannot submit the mask", async () => {
+    const onMaskReady = vi.fn();
+    rtlRender(<MaskEditingControllerHarness onMaskReady={onMaskReady} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start mask editing" }));
+    await flushReact();
+
+    const overlay = screen.getByRole("dialog");
+    expect(overlay).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Done" })).not.toHaveFocus();
+
+    fireEvent.keyDown(overlay, { key: " " });
+    fireEvent.keyDown(overlay, { key: "Enter" });
+    await flushReact();
+
+    expect(onMaskReady).not.toHaveBeenCalled();
+    expect(screen.getByTestId("mask-drawing-surface")).toBeInTheDocument();
+  });
+
+  it("asks before Escape or Cancel throws away drawn strokes", async () => {
+    // No ConfirmHost here, so confirmAction falls back to window.confirm.
+    const confirm = vi.fn(() => false);
+    vi.stubGlobal("confirm", confirm);
+    rtlRender(<MaskEditingControllerHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start mask editing" }));
+    await flushReact();
+    drawMaskStroke(screen.getByTestId("mask-drawing-surface"));
+    await flushReact();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await flushReact();
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("mask-drawing-surface")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await flushReact();
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("mask-drawing-surface")).toBeInTheDocument();
+
+    confirm.mockReturnValue(true);
+    fireEvent.keyDown(window, { key: "Escape" });
+    await flushReact();
+    expect(screen.queryByTestId("mask-drawing-surface")).toBeNull();
+  });
+
+  it("offers brush, eraser, undo and redo as buttons", async () => {
+    rtlRender(<MaskEditingControllerHarness />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start mask editing" }));
+    await flushReact();
+
+    const brush = screen.getByRole("button", { name: "Brush" });
+    const eraser = screen.getByRole("button", { name: "Eraser" });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    const redo = screen.getByRole("button", { name: "Redo" });
+    expect(brush).toHaveAttribute("aria-pressed", "true");
+    expect(undo).toBeDisabled();
+    expect(redo).toBeDisabled();
+
+    fireEvent.click(eraser);
+    await flushReact();
+    expect(eraser).toHaveAttribute("aria-pressed", "true");
+    screen.getByText(/Erasing mask/);
+    fireEvent.click(brush);
+    await flushReact();
+    screen.getByText(/Drawing \(white brush\)/);
+
+    drawMaskStroke(screen.getByTestId("mask-drawing-surface"));
+    await flushReact();
+    expect(undo).not.toBeDisabled();
+
+    fireEvent.click(undo);
+    await flushReact();
+    expect(undo).toBeDisabled();
+    expect(redo).not.toBeDisabled();
+
+    fireEvent.click(redo);
+    await flushReact();
+    expect(undo).not.toBeDisabled();
+    expect(redo).toBeDisabled();
+  });
+
+  it("shows a toast when the mask export fails and stays in editing", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(maskCanvas, "exportMaskAsFile").mockRejectedValue(
+      new Error("canvas tainted"),
+    );
+    const onToast = vi.fn();
+    rtlRender(<MaskEditingControllerHarness onToast={onToast} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Start mask editing" }));
+    await flushReact();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    await waitFor(() =>
+      expect(onToast).toHaveBeenCalledWith({
+        message: "Couldn't create the mask. Try again.",
+      }),
+    );
+    expect(screen.getByTestId("mask-drawing-surface")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Done" })).not.toBeDisabled();
+  });
+
   it("preserves AI image workbench draft state after the tab unmounts", () => {
     rtlRender(<PersistentWorkbenchHarness />);
 
@@ -593,7 +699,7 @@ describe("AI mask editing", () => {
     expect(document.querySelector('input[type="file"]')).toBeNull();
   });
 
-  it("keeps text, reference, and inpaint image drafts independent", () => {
+  it("shares the prompt across image modes but keeps models per mode", () => {
     const config = JSON.parse(
       localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE) || "{}",
     );
@@ -615,29 +721,27 @@ describe("AI mask editing", () => {
 
     rtlRender(<PersistentWorkbenchHarness />);
 
-    fireEvent.change(screen.getByLabelText("Model ID"), {
-      target: { value: "text-only-model" },
-    });
-    typePrompt("text prompt");
+    chooseSelectOption(screen.getByLabelText("Model ID"), /test-text-model/);
+    typePrompt("shared prompt");
 
     fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
 
-    expect(screen.getByLabelText("Model ID")).toHaveValue("inpaint-model");
-    expectPromptValue("");
+    expect(screen.getByLabelText("Model ID")).toHaveAttribute(
+      "data-value",
+      "inpaint-model",
+    );
+    expectPromptValue("shared prompt");
 
-    typePrompt("inpaint prompt");
+    typePrompt("edited in inpaint");
     fireEvent.click(screen.getByRole("button", { name: "Reference" }));
-
-    expectPromptValue("");
+    expectPromptValue("edited in inpaint");
 
     fireEvent.click(screen.getByRole("button", { name: "Text" }));
-
-    expect(screen.getByLabelText("Model ID")).toHaveValue("text-only-model");
-    expectPromptValue("text prompt");
-
-    fireEvent.click(screen.getByRole("button", { name: "Inpaint" }));
-
-    expectPromptValue("inpaint prompt");
+    expect(screen.getByLabelText("Model ID")).toHaveAttribute(
+      "data-value",
+      "text-only-model",
+    );
+    expectPromptValue("edited in inpaint");
   });
 
   it("binds saved masks to the selected image and passes strokes for re-editing", () => {
@@ -962,8 +1066,16 @@ const ReferenceQueueHarness = () => {
   );
 };
 
-const MaskEditingControllerHarness = () => {
+const MaskEditingControllerHarness = ({
+  onToast,
+  onMaskReady,
+}: {
+  onToast?: (toast: { message: string } | null) => void;
+  onMaskReady?: (payload: AIMaskReadyPayload) => void;
+} = {}) => {
   const controllerRef = useRef<AIMaskEditingControllerHandle>(null);
+  const onToastRef = useRef(onToast);
+  onToastRef.current = onToast;
   const [appState, setAppState] = useState<AppState>(() => {
     const defaultAppState = getDefaultAppState();
 
@@ -1039,7 +1151,8 @@ const MaskEditingControllerHarness = () => {
             },
           }));
         },
-        setToast: vi.fn(),
+        setToast: (toast: { message: string } | null) =>
+          onToastRef.current?.(toast),
       } as unknown as ExcalidrawImperativeAPI),
     [],
   );
@@ -1057,6 +1170,7 @@ const MaskEditingControllerHarness = () => {
       <AIMaskEditingController
         ref={controllerRef}
         excalidrawAPI={excalidrawAPI}
+        onMaskReady={onMaskReady}
       />
       <div data-testid="mask-stroke-color">
         {appState.currentItemStrokeColor}
@@ -1570,6 +1684,17 @@ const createBoundMaskStroke = () => ({
     },
   },
 });
+
+const drawMaskStroke = (surface: HTMLElement, pointerId = 1) => {
+  fireEvent.pointerDown(surface, {
+    pointerId,
+    button: 0,
+    clientX: 80,
+    clientY: 90,
+  });
+  fireEvent.pointerMove(surface, { pointerId, clientX: 110, clientY: 105 });
+  fireEvent.pointerUp(surface, { pointerId, clientX: 110, clientY: 105 });
+};
 
 const flushReact = async () => {
   await act(async () => {

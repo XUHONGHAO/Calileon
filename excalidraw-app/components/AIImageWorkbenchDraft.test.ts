@@ -2,6 +2,7 @@ import {
   applyPromptTemplateToWorkbenchDraft,
   createCopyPromptActionState,
   createSendPromptToAssistantActionState,
+  restoreReplacedPromptInWorkbenchDraft,
   reuseGenerationLogInWorkbenchDraft,
   sendPromptToWorkbenchDraft,
 } from "./AIImageWorkbenchDraft";
@@ -238,5 +239,61 @@ describe("AIImageWorkbenchDraft helpers", () => {
         aspectRatio: "16:9",
       },
     });
+  });
+
+  it("shares one prompt across the three image modes", () => {
+    const nextState = sendPromptToWorkbenchDraft(createDraftState(), "Shared");
+
+    expect(nextState.imageModes["image-to-image"].prompt).toBe("Shared");
+    expect(nextState.imageModes.inpaint.prompt).toBe("Shared");
+    // Model and params stay per mode.
+    expect(nextState.imageModes.inpaint.selectedModelId).toBe("inpaint-model");
+
+    const fromLog = reuseGenerationLogInWorkbenchDraft(
+      createDraftState(),
+      createLog(),
+    );
+    expect(fromLog.imageModes["text-to-image"]).toMatchObject({
+      selectedModelId: "text-model",
+      prompt: "Reuse this prompt",
+      negativePrompt: "avoid blur",
+    });
+  });
+
+  it("keeps an overwritten non-empty prompt recoverable", () => {
+    const empty = sendPromptToWorkbenchDraft(createDraftState(), "First");
+    expect(empty.replacedPrompt).toBeNull();
+
+    const same = sendPromptToWorkbenchDraft(empty, "First");
+    expect(same.replacedPrompt).toBeNull();
+
+    const replaced = applyPromptTemplateToWorkbenchDraft(
+      empty,
+      createTemplate({ template: "Template text", modes: ["text-to-image"] }),
+    );
+    expect(replaced.replacedPrompt).toEqual({
+      mediaType: "image",
+      prompt: "First",
+      negativePrompt: "",
+    });
+
+    const restored = restoreReplacedPromptInWorkbenchDraft(replaced);
+    expect(restored.replacedPrompt).toBeNull();
+    expect(restored.imageModes["text-to-image"].prompt).toBe("First");
+    expect(restored.imageModes.inpaint.prompt).toBe("First");
+  });
+
+  it("restores a replaced video prompt into the video draft", () => {
+    const current = createDraftState();
+    current.video = { ...current.video, prompt: "My video idea" };
+    const replaced = reuseGenerationLogInWorkbenchDraft(
+      current,
+      createLog({ mediaType: "video", mode: "text-to-video", prompt: "Log" }),
+    );
+    expect(replaced.replacedPrompt?.mediaType).toBe("video");
+
+    const restored = restoreReplacedPromptInWorkbenchDraft(replaced);
+    expect(restored.mediaType).toBe("video");
+    expect(restored.video.prompt).toBe("My video idea");
   });
 });

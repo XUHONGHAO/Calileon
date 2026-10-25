@@ -1,6 +1,5 @@
 import React from "react";
 
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
@@ -16,6 +15,7 @@ import { saveSingleFileAs } from "../single-file/saveSingleFile";
 
 import "./SingleFileDialog.scss";
 import {
+  AppDialog,
   Callout,
   DialogActions,
   DialogSection,
@@ -42,13 +42,19 @@ export const SingleFileDialog = ({
   const [runtimeTemplate, setRuntimeTemplate] = React.useState<string | null>(
     null,
   );
+  const [runtimeFailed, setRuntimeFailed] = React.useState(false);
+  /** Bumped by "Try again" to refetch the runtime template. */
+  const [loadAttempt, setLoadAttempt] = React.useState(0);
 
   React.useEffect(() => {
     if (!open) {
       return;
     }
     let cancelled = false;
+    // A reopened dialog starts clean instead of showing last time's error.
     setRuntimeTemplate(null);
+    setRuntimeFailed(false);
+    setError(null);
     fetchSingleFileRuntimeTemplate()
       .then((template) => {
         if (!cancelled) {
@@ -57,13 +63,13 @@ export const SingleFileDialog = ({
       })
       .catch(() => {
         if (!cancelled) {
-          setError(t("singleFile.errors.exportFailed"));
+          setRuntimeFailed(true);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, loadAttempt]);
 
   if (!open) {
     return null;
@@ -92,7 +98,12 @@ export const SingleFileDialog = ({
         blob.size > SINGLE_FILE_WARNING_BYTES &&
         !(await confirmAction(
           t("singleFile.sizeWarning", { size: formatBytes(blob.size) }),
-          { danger: false },
+          {
+            title: t("singleFile.sizeWarningTitle"),
+            confirmLabel: t("singleFile.exportAnyway"),
+            cancelLabel: t("buttons.cancel"),
+            danger: false,
+          },
         ))
       ) {
         return;
@@ -122,7 +133,11 @@ export const SingleFileDialog = ({
     typeof window !== "undefined" && "showOpenFilePicker" in window;
 
   return (
-    <Dialog title={t("singleFile.title")} onCloseRequest={onClose} size="small">
+    <AppDialog
+      title={t("singleFile.title")}
+      onCloseRequest={onClose}
+      size="small"
+    >
       <div className="SingleFileDialog">
         <p>{t("singleFile.description")}</p>
         <p>{t("singleFile.support")}</p>
@@ -140,6 +155,23 @@ export const SingleFileDialog = ({
           <p>{t("singleFile.fileBoundary")}</p>
         </DialogSection>
 
+        {!runtimeTemplate && !runtimeFailed && (
+          <Callout tone="info" live={false}>
+            {t("singleFile.loadingRuntime")}
+          </Callout>
+        )}
+        {runtimeFailed && (
+          <Callout
+            tone="danger"
+            action={
+              <UiButton size="sm" onClick={() => setLoadAttempt((n) => n + 1)}>
+                {t("singleFile.retry")}
+              </UiButton>
+            }
+          >
+            {t("singleFile.errors.runtimeFailed")}
+          </Callout>
+        )}
         {error && <Callout tone="danger">{error}</Callout>}
 
         <DialogActions>
@@ -154,6 +186,6 @@ export const SingleFileDialog = ({
           </UiButton>
         </DialogActions>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

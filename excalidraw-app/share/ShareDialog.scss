@@ -1,16 +1,12 @@
 @import "../../packages/excalidraw/css/variables.module.scss";
 
 .excalidraw {
+  // Scrolling is left to the Modal: a fixed 100vh box here nested a second
+  // scroll area inside it and was cut off by mobile browser toolbars.
   .ShareDialog {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
-
-    @include isMobile {
-      height: calc(100vh - 5rem);
-      min-height: 0;
-      overflow-y: auto;
-    }
 
     &__separator {
       border-top: 1px solid var(--dialog-border-color);
@@ -26,53 +22,6 @@
         transform: translateY(-1ch);
         display: inline-flex;
         line-height: 1;
-      }
-    }
-
-    &__popover {
-      @keyframes ShareDialog__popover__scaleIn {
-        from {
-          opacity: 0;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      box-sizing: border-box;
-      z-index: 100;
-
-      display: flex;
-      flex-direction: row;
-      justify-content: center;
-      align-items: flex-start;
-      padding: 0.125rem 0.5rem;
-      gap: 0.125rem;
-
-      height: 1.125rem;
-
-      border: none;
-      border-radius: 0.6875rem;
-
-      font-family: "Assistant";
-      font-style: normal;
-      font-weight: 600;
-      font-size: 0.75rem;
-      line-height: 110%;
-
-      background: var(--color-success);
-      color: var(--color-success-text);
-
-      & > svg {
-        width: 0.875rem;
-        height: 0.875rem;
-      }
-
-      transform-origin: var(--radix-popover-content-transform-origin);
-      animation: ShareDialog__popover__scaleIn 150ms ease-out;
-
-      @media (prefers-reduced-motion: reduce) {
-        animation: none;
       }
     }
 
@@ -92,9 +41,12 @@
 
       &__header {
         display: flex;
+        box-sizing: border-box;
         width: 100%;
         align-items: center;
         justify-content: center;
+        // Symmetric room for the AppDialog close button on the first line.
+        padding-inline: var(--ui-space-8);
 
         font-weight: 700;
         font-size: 1.3125rem;
@@ -214,11 +166,6 @@
       }
     }
 
-    // Destructive but low-emphasis: ghost shape, danger text.
-    .UiButton.ShareDialog__revokeLink:not(:disabled) {
-      --ui-btn-fg: var(--ui-danger-fg);
-    }
-
     &__active {
       &__share {
         display: none !important;
@@ -230,6 +177,7 @@
 
       &__header {
         margin: 0;
+        padding-inline-end: var(--ui-space-8);
       }
 
       &__linkRow {
@@ -253,9 +201,10 @@
         align-items: center;
         align-self: center;
         padding: 1rem;
+        // White stays in both themes so the code remains scannable.
         background: #fff;
-        border-radius: 0.5rem;
-        border: 1px solid #e0e0e0;
+        border-radius: var(--ui-radius-md);
+        border: 1px solid var(--ui-border);
 
         $size: 150px;
         width: $size;
@@ -273,7 +222,7 @@
       }
 
       &__description {
-        border-top: 1px solid var(--color-gray-20);
+        border-top: 1px solid var(--ui-border);
 
         padding: 0.5rem 0.5rem 0;
         font-weight: 400;

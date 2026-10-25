@@ -1,12 +1,11 @@
 import React from "react";
 
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import Spinner from "@excalidraw/excalidraw/components/Spinner";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import { VaultError } from "../data/vault/errors";
 
-import { Callout, DialogActions, UiButton } from "./ui";
+import { AppDialog, Callout, DialogActions, UiButton } from "./ui";
 
 import "./VaultMigrationControl.scss";
 
@@ -126,7 +125,7 @@ export const VaultMigrationControl = ({
           <a href={state.link}>{t("vault.migration.openNew")}</a>
         </div>
         {state.justNow && (
-          <Dialog
+          <AppDialog
             title={t("vault.migration.doneTitle")}
             onCloseRequest={() => setState({ ...state, justNow: false })}
             size="small"
@@ -153,7 +152,7 @@ export const VaultMigrationControl = ({
                 </UiButton>
               </DialogActions>
             </div>
-          </Dialog>
+          </AppDialog>
         )}
       </>
     );
@@ -174,11 +173,12 @@ export const VaultMigrationControl = ({
         {t("vault.migration.start")}
       </UiButton>
       {state.kind !== "idle" && (
-        <Dialog
+        <AppDialog
           title={t("vault.migration.title")}
-          onCloseRequest={state.kind === "running" ? () => {} : close}
+          onCloseRequest={close}
           size="small"
           closeOnClickOutside={false}
+          busy={state.kind === "running"}
         >
           <div className="VaultMigrationControl" data-testid="vault-migration">
             <p className="VaultMigrationControl__description">
@@ -215,7 +215,7 @@ export const VaultMigrationControl = ({
               </UiButton>
             </DialogActions>
           </div>
-        </Dialog>
+        </AppDialog>
       )}
     </>
   );

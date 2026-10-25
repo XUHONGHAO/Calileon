@@ -10,6 +10,8 @@ import { vi } from "vitest";
 
 import { SceneListDialog } from "./SceneListDialog";
 
+import { chooseSelectOption } from "./ui/testing";
+
 import type { SceneRecord, SceneSummary } from "../data/cloud";
 
 const backendMock = vi.hoisted((): { backend: any } => ({
@@ -43,7 +45,8 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.scenes.cancelRename": "Cancel",
       "cloud.scenes.current": "Current whiteboard",
       "cloud.scenes.delete": "Delete",
-      "cloud.scenes.deleteConfirm": "Delete this cloud whiteboard?",
+      "cloud.scenes.deleteConfirmScene": `Delete the cloud whiteboard "${replacement?.title}"?`,
+      "cloud.scenes.deleteConfirmTitle": "Delete whiteboard",
       "cloud.scenes.description": "Manage cloud whiteboards.",
       "cloud.scenes.empty": "No cloud whiteboards yet.",
       "cloud.scenes.genericError": "Cloud whiteboards are unavailable.",
@@ -70,7 +73,8 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "cloud.share.modeWrite": "Writable link",
       "cloud.share.revoke": "Revoke",
       "cloud.share.revoked": "Revoked",
-      "cloud.share.revokeConfirm": "Revoke this share link?",
+      "cloud.share.revokeConfirmScene": `Revoke this share link for "${replacement?.title}"?`,
+      "cloud.share.revokeConfirmTitle": "Revoke share link",
       "cloud.share.unavailable": "Cloud sharing is not configured.",
       "cloud.embed.action": "Embed",
       "ui.moreActions": "More actions",
@@ -256,8 +260,9 @@ describe("SceneListDialog", () => {
     await waitFor(() => {
       expect(backendMock.backend.scenes.remove).toHaveBeenCalledWith("scene-1");
     });
+    // The prompt names the whiteboard being deleted.
     expect(window.confirm).toHaveBeenCalledWith(
-      "Delete this cloud whiteboard?",
+      'Delete the cloud whiteboard "Roadmap"?',
     );
     await waitFor(() => {
       expect(backendMock.backend.scenes.list).toHaveBeenCalledTimes(2);
@@ -303,9 +308,7 @@ describe("SceneListDialog", () => {
         screen.getByRole("button", { name: "Create link" }),
       ).not.toBeDisabled();
     });
-    fireEvent.change(screen.getByLabelText("Link access"), {
-      target: { value: "write" },
-    });
+    chooseSelectOption(screen.getByLabelText("Link access"), "Writable link");
     fireEvent.click(screen.getByRole("button", { name: "Create link" }));
     await waitFor(() => {
       expect(backendMock.backend.shares.create).toHaveBeenCalledWith({
@@ -330,7 +333,52 @@ describe("SceneListDialog", () => {
     await waitFor(() => {
       expect(backendMock.backend.shares.revoke).toHaveBeenCalledWith("share-1");
     });
-    expect(window.confirm).toHaveBeenCalledWith("Revoke this share link?");
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Revoke this share link for "Roadmap"?',
+    );
+  });
+
+  it("shows a load error without also claiming there are no share links", async () => {
+    backendMock.backend.shares.listByScene.mockRejectedValueOnce(
+      new Error("Share service is down"),
+    );
+    renderDialog();
+
+    await clickMenuItem("Share");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Share service is down",
+    );
+    expect(screen.queryByText("No share links yet.")).not.toBeInTheDocument();
+  });
+
+  it("shows a load error without also claiming there are no whiteboards", async () => {
+    backendMock.backend.scenes.list.mockRejectedValueOnce(
+      new Error("Scene service is down"),
+    );
+    renderDialog();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Scene service is down",
+    );
+    expect(
+      screen.queryByText("No cloud whiteboards yet."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("cancels rename on Escape without closing the dialog", async () => {
+    const onClose = vi.fn();
+    renderDialog({ onClose });
+
+    await clickMenuItem("Rename");
+    const input = screen.getByLabelText("Whiteboard title");
+    fireEvent.change(input, { target: { value: "Draft" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+
+    expect(screen.queryByLabelText("Whiteboard title")).not.toBeInTheDocument();
+    expect(screen.getByText("Roadmap")).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(backendMock.backend.scenes.rename).not.toHaveBeenCalled();
   });
 
   it("copies encrypted share links with the local key", async () => {

@@ -6,6 +6,7 @@ import { t } from "@excalidraw/excalidraw/i18n";
 
 import { UiButton } from "./UiButton";
 import { uiMoreIcon } from "./icons";
+import { getPopoverHost, usePopover } from "./usePopover";
 
 export type ActionMenuItem = {
   label: string;
@@ -29,7 +30,6 @@ export const ActionMenu = ({
   className?: string;
 }) => {
   const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<{ top: number; left: number }>();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -40,43 +40,25 @@ export const ActionMenu = ({
       triggerRef.current?.focus();
     }
   }, []);
+  const dismiss = useCallback(() => close(false), [close]);
 
+  const { style: menuStyle, position } = usePopover({
+    open,
+    onClose: dismiss,
+    triggerRef,
+    popupRef: menuRef,
+    placement: "bottom-end",
+  });
+
+  // Focus the first item once the menu has been measured and placed.
+  const placed = !!position;
   useEffect(() => {
-    if (!open) {
-      return;
+    if (open && placed) {
+      menuRef.current
+        ?.querySelector<HTMLButtonElement>("button:not(:disabled)")
+        ?.focus({ preventScroll: true });
     }
-    const trigger = triggerRef.current;
-    const menu = menuRef.current;
-    if (!trigger || !menu) {
-      return;
-    }
-    const rect = trigger.getBoundingClientRect();
-    const menuWidth = menu.offsetWidth;
-    const menuHeight = menu.offsetHeight;
-    const below = rect.bottom + 4 + menuHeight <= window.innerHeight;
-    setPosition({
-      top: below ? rect.bottom + 4 : Math.max(8, rect.top - 4 - menuHeight),
-      left: Math.min(
-        Math.max(8, rect.right - menuWidth),
-        window.innerWidth - menuWidth - 8,
-      ),
-    });
-    menu.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
-
-    const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (!menu.contains(target) && !trigger.contains(target)) {
-        close(false);
-      }
-    };
-    const onScroll = () => close(false);
-    document.addEventListener("pointerdown", onPointerDown, true);
-    window.addEventListener("resize", onScroll);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      window.removeEventListener("resize", onScroll);
-    };
-  }, [open, close]);
+  }, [open, placed]);
 
   const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     const buttons = Array.from(
@@ -103,8 +85,7 @@ export const ActionMenu = ({
     }
   };
 
-  const host =
-    triggerRef.current?.closest<HTMLElement>(".excalidraw") ?? document.body;
+  const host = getPopoverHost(triggerRef.current);
 
   return (
     <>
@@ -129,11 +110,10 @@ export const ActionMenu = ({
             id={menuId}
             role="menu"
             aria-label={label}
-            className="UiActionMenu"
-            style={{
-              top: position?.top ?? -9999,
-              left: position?.left ?? -9999,
-            }}
+            className={clsx("UiPopover", "UiActionMenu", {
+              "UiPopover--top": position?.side === "top",
+            })}
+            style={menuStyle}
             onKeyDown={onMenuKeyDown}
           >
             {items.map((item) => (

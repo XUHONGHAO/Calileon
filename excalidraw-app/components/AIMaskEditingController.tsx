@@ -52,6 +52,7 @@ import {
 import { createMaskViewportGeometry } from "../ai/maskViewportGeometry";
 
 import { AIMaskEditingOverlay } from "./AIMaskEditingOverlay";
+import { confirmAction } from "./ui";
 
 import type { AIMaskEditingState, AIMaskReadyPayload } from "../ai/types";
 import type { AIMaskSourceGeometry } from "../ai/maskGeometry";
@@ -103,6 +104,8 @@ export const AIMaskEditingController = forwardRef<
   const [isCompletingMask, setIsCompletingMask] = useState(false);
   const isCompletingMaskRef = useRef(false);
   const exitMaskEditingRef = useRef<(cancelled: boolean) => void>(() => {});
+  const requestCancelRef = useRef<() => void>(() => {});
+  const isConfirmingDiscardRef = useRef(false);
   const mountedRef = useRef(true);
   const maskSessionTokenRef = useRef(0);
   const maskExportControllerRef = useRef<AbortController | null>(null);
@@ -122,6 +125,19 @@ export const AIMaskEditingController = forwardRef<
       activeTargetGeometrySignatureRef.current = null;
     };
   }, []);
+
+  // While editing, the full-screen sidebar overlay on phones would cover the
+  // image and the mask toolbars; the stylesheet hides it (still mounted, so a
+  // running generation keeps going) while this class is on <body>.
+  useEffect(() => {
+    if (aiMaskEditingState.mode !== "editing") {
+      return;
+    }
+    document.body.classList.add(MASK_EDITING_BODY_CLASS);
+    return () => {
+      document.body.classList.remove(MASK_EDITING_BODY_CLASS);
+    };
+  }, [aiMaskEditingState.mode]);
 
   const getMaskTargetViewportBounds = useCallback(
     (targetImageId: string): AIMaskEditingTargetBounds | null => {
@@ -269,10 +285,19 @@ export const AIMaskEditingController = forwardRef<
       const key = event.key.toLowerCase();
       const isControlTarget = isMaskEditingControlTarget(event.target);
 
+      // The discard confirm owns the keyboard (its own Escape, Tab, Enter);
+      // only keep editor shortcuts from reaching the canvas underneath.
+      if (isConfirmingDiscardRef.current) {
+        if (!CONFIRM_DIALOG_KEYS.has(key)) {
+          event.stopPropagation();
+        }
+        return;
+      }
+
       if (key === "escape") {
         event.preventDefault();
         event.stopPropagation();
-        exitMaskEditingRef.current(true);
+        requestCancelRef.current();
         return;
       }
 
@@ -392,6 +417,45 @@ export const AIMaskEditingController = forwardRef<
 
   exitMaskEditingRef.current = exitMaskEditing;
 
+  /**
+   * Cancel button and Escape: one path. Strokes drawn in this session are
+   * only thrown away after a confirm; an in-flight export is aborted by the
+   * exit itself, so cancelling stays available while "Done" is pending.
+   */
+  const requestCancelMaskEditing = useCallback(async () => {
+    if (isConfirmingDiscardRef.current) {
+      return;
+    }
+    if (maskSession.undoStack.length > 0) {
+      isConfirmingDiscardRef.current = true;
+      let confirmed = false;
+      try {
+        confirmed = await confirmAction(
+          t("ai.workbench.maskEditor.discardConfirm"),
+          {
+            title: t("ai.workbench.maskEditor.discardTitle"),
+            confirmLabel: t("ai.workbench.maskEditor.discard"),
+            cancelLabel: t("ai.workbench.maskEditor.keepDrawing"),
+            danger: true,
+          },
+        );
+      } finally {
+        isConfirmingDiscardRef.current = false;
+      }
+      if (!confirmed) {
+        // Back to the drawing surface rather than wherever the dialog left
+        // focus (often <body>, where Space would reach the canvas).
+        document
+          .querySelector<HTMLElement>(".AIMaskEditingOverlay")
+          ?.focus({ preventScroll: true });
+        return;
+      }
+    }
+    exitMaskEditingRef.current(true);
+  }, [maskSession.undoStack.length]);
+
+  requestCancelRef.current = () => void requestCancelMaskEditing();
+
   const handleMaskEditingDone = useCallback(async () => {
     if (
       !excalidrawAPI ||
@@ -474,6 +538,9 @@ export const AIMaskEditingController = forwardRef<
       ) {
         isCompletingMaskRef.current = false;
         setIsCompletingMask(false);
+        excalidrawAPI.setToast({
+          message: t("ai.workbench.maskEditor.exportFailed"),
+        });
       }
     } finally {
       if (maskExportControllerRef.current === exportController) {
@@ -677,10 +744,15 @@ export const AIMaskEditingController = forwardRef<
       zoomValue={maskEditingZoomValue}
       maskPreviewDataURL={maskPreviewDataURL}
       isDonePending={isCompletingMask}
+      canUndo={maskSession.undoStack.length > 0}
+      canRedo={maskSession.redoStack.length > 0}
       theme={excalidrawAPI?.getAppState().theme}
       onBrushSizeChange={setMaskBrushSize}
+      onErasingChange={setIsMaskErasing}
+      onUndo={() => setMaskSession(undoAIMaskSession)}
+      onRedo={() => setMaskSession(redoAIMaskSession)}
       onDone={handleMaskEditingDone}
-      onCancel={() => exitMaskEditing(true)}
+      onCancel={() => void requestCancelMaskEditing()}
       onMaskPointerDown={handleMaskPointerDown}
       onMaskPointerMove={handleMaskPointerMove}
       onMaskPointerUp={handleMaskPointerUp}
@@ -928,6 +1000,10 @@ const getMaskTargetGeometrySignature = (image: ExcalidrawImageElement) =>
     scale: image.scale,
     crop: image.crop,
   });
+
+const MASK_EDITING_BODY_CLASS = "is-ai-mask-editing";
+
+const CONFIRM_DIALOG_KEYS = new Set(["escape", "tab", "enter", " "]);
 
 const isMaskEditingRangeTarget = (target: EventTarget | null) =>
   target instanceof HTMLInputElement && target.type === "range";

@@ -80,14 +80,5 @@ export const TextArea = forwardRef<
 ));
 TextArea.displayName = "TextArea";
 
-export const Select = forwardRef<
-  HTMLSelectElement,
-  React.SelectHTMLAttributes<HTMLSelectElement>
->(({ className, ...rest }, ref) => (
-  <select
-    ref={ref}
-    {...rest}
-    className={clsx("UiInput", "UiInput--select", className)}
-  />
-));
-Select.displayName = "Select";
+// The app dropdown lives in ./Select (custom listbox, not the OS menu).
+export { Select } from "./Select";

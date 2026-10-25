@@ -320,6 +320,32 @@ describe("RorschachDialog", () => {
     expect(harness.describe.mock.calls[0][0].systemPrompt).toMatch(/mystic/i);
   });
 
+  it("sends one request when the run button is double-clicked during capture", async () => {
+    let finishCapture: () => void = () => {};
+    const captured = harness.capture.getMockImplementation()!;
+    harness.capture.mockImplementationOnce(
+      (...args: unknown[]) =>
+        new Promise((resolve) => {
+          finishCapture = () => resolve(captured(...args));
+        }),
+    );
+    renderDialog(harness);
+    const run = screen.getByRole("button", { name: /just one line/i });
+    fireEvent.click(run);
+    fireEvent.click(run);
+    expect(run.hasAttribute("disabled")).toBe(true);
+    expect(
+      screen
+        .getByRole("button", { name: /what does it see/i })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+
+    finishCapture();
+    await waitFor(() => expect(harness.describe).toHaveBeenCalledTimes(1));
+    expect(harness.capture).toHaveBeenCalledTimes(1);
+    expect(harness.resolveTransport).toHaveBeenCalledTimes(1);
+  });
+
   it("cancels a running request and drops its late result", async () => {
     let resolveDescribe: (value: { text: string }) => void = () => {};
     harness.describe.mockImplementationOnce(

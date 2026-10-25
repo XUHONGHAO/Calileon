@@ -1,6 +1,5 @@
 import { trackEvent } from "@excalidraw/excalidraw/analytics";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
 import { FilledButton } from "@excalidraw/excalidraw/components/FilledButton";
 import { TextField } from "@excalidraw/excalidraw/components/TextField";
 import {
@@ -25,6 +24,7 @@ import { getCloudBackend, shareLink } from "../data/cloud";
 import { getCloudShareLink } from "../data/cloud/cloudShareLinks";
 
 import {
+  AppDialog,
   Badge,
   Callout,
   ListRow,
@@ -75,14 +75,24 @@ export type ShareDialogProps = {
   inputTargetId: string | null;
   onExportToBackend: OnExportToBackend;
   onSaveCloudScene?: () => void | Promise<void>;
+  /** Opens cloud sign-in (shown when sharing needs an account). */
+  onSignIn?: () => void;
+  /**
+   * Starts the live session for a freshly created room binding. Throw when it
+   * did not start: the dialog then revokes the binding.
+   */
   onStartCollabRoom?: (room: {
     roomId: string;
     roomKey: string;
   }) => void | Promise<void>;
+  /** Why a live session can't start now; checked before creating a binding. */
+  getCollabRoomStartBlocker?: () => string | null;
   collabRoomRefreshKey?: number;
   onCollabRoomChanged?: () => void;
   onCollabRoomRevoked?: (room: CollabRoomRecord) => void | Promise<void>;
   type: ShareDialogType;
+  /** Guidance that must survive the switch to the active-room view. */
+  onRoomNotice?: (notice: string | null) => void;
 };
 
 const ActiveRoomDialog = ({
@@ -90,11 +100,13 @@ const ActiveRoomDialog = ({
   activeRoomLink,
   handleClose,
   inputTargetId,
+  notice,
 }: {
   collabAPI: CollabAPI;
   activeRoomLink: string;
   handleClose: () => void;
   inputTargetId: string | null;
+  notice?: string | null;
 }) => {
   const { t } = useI18n();
   const [, setJustCopied] = useState(false);
@@ -107,11 +119,14 @@ const ActiveRoomDialog = ({
     : null;
   const linkToShare = inputTargetRoomLink || activeRoomLink;
 
+  /** Resolves false when the clipboard write failed. */
   const copyRoomLink = async () => {
     try {
       await copyTextToSystemClipboard(linkToShare);
     } catch (e) {
       collabAPI.setCollabError(t("errors.copyToSystemClipboardFailed"));
+      ref.current?.select();
+      return false;
     }
 
     setJustCopied(true);
@@ -125,6 +140,7 @@ const ActiveRoomDialog = ({
     }, 3000);
 
     ref.current?.select();
+    return true;
   };
 
   const shareRoomLink = async () => {
@@ -155,8 +171,16 @@ const ActiveRoomDialog = ({
         placeholder={t("labels.yourName")}
         label={t("labels.yourName")}
         onChange={collabAPI.setUsername}
-        onKeyDown={(event) => event.key === KEYS.ENTER && handleClose()}
+        onKeyDown={(event) => {
+          // The name is saved as you type; Enter just finishes editing
+          // instead of closing the whole dialog.
+          if (event.key === KEYS.ENTER && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            event.currentTarget.blur();
+          }
+        }}
       />
+      {notice && <Callout tone="warning">{notice}</Callout>}
       <div className="ShareDialog__active__linkRow">
         <TextField
           ref={ref}
@@ -184,9 +208,10 @@ const ActiveRoomDialog = ({
           label={t("buttons.copyLink")}
           icon={copyIcon}
           status={copyStatus}
-          onClick={() => {
-            copyRoomLink();
-            onCopy();
+          onClick={async () => {
+            if (await copyRoomLink()) {
+              onCopy();
+            }
           }}
         />
       </div>
@@ -212,9 +237,10 @@ const ActiveRoomDialog = ({
           color="danger"
           label={t("roomDialog.button_stopSession")}
           icon={playerStopFilledIcon}
-          onClick={() => {
+          onClick={async () => {
             trackEvent("share", "room closed");
-            collabAPI.stopCollaboration();
+            // Resolves after the user answers the stop prompt.
+            await collabAPI.stopCollaboration();
             if (!collabAPI.isCollaborating()) {
               handleClose();
             }
@@ -233,10 +259,18 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
   const activeCloudScene = props.activeCloudScene ?? null;
   const backend = getCloudBackend();
   const [cloudError, setCloudError] = useState<string | null>(null);
+  // Non-error guidance shown inside the card it belongs to.
+  const [roomNotice, setRoomNotice] = useState<string | null>(null);
+  const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [savingCloudScene, setSavingCloudScene] = useState(false);
   const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
   const [shareLoading, setShareLoading] = useState(false);
+  // Listing failed: show it instead of a misleading "no links yet".
+  const [shareListError, setShareListError] = useState<string | null>(null);
   const [busyShareId, setBusyShareId] = useState<string | null>(null);
+  // Synchronous guard: two quick clicks both run before a re-render.
+  const startingSessionRef = useRef(false);
+  const [startingSession, setStartingSession] = useState(false);
   const [collabRoomStats, setCollabRoomStats] = useState<
     | { status: "idle" | "loading" | "unavailable" }
     | { status: "ready"; room: CollabRoomRecord | null }
@@ -246,20 +280,26 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
   const [creatingCollabRoom, setCreatingCollabRoom] = useState(false);
   const [revokingCollabRoom, setRevokingCollabRoom] = useState(false);
 
+  const activeCloudSceneTitle =
+    activeCloudScene?.title ?? t("cloud.auth.currentCloudWhiteboard");
+  // Why share links can't be managed here, if they can't.
+  const cloudShareBlockedReason = !isSignedIn
+    ? t("cloud.share.signInRequired")
+    : !backend.capabilities.share
+    ? t("cloud.share.unavailable")
+    : null;
+
   const loadCloudShareLinks = useCallback(
     async (isCancelled: () => boolean = () => false) => {
-      if (!isSignedIn || !activeCloudScene) {
+      // Signed out / not configured: the card shows the reason instead.
+      if (!isSignedIn || !activeCloudScene || !backend.capabilities.share) {
         setShareLinks([]);
-        return;
-      }
-      if (!backend.capabilities.share) {
-        setCloudError(t("cloud.share.unavailable"));
-        setShareLinks([]);
+        setShareListError(null);
         return;
       }
 
       setShareLoading(true);
-      setCloudError(null);
+      setShareListError(null);
       try {
         const links = await backend.shares.listByScene(activeCloudScene.id);
         if (!isCancelled()) {
@@ -267,7 +307,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
         }
       } catch (error) {
         if (!isCancelled()) {
-          setCloudError(
+          setShareListError(
             error instanceof Error
               ? error.message
               : t("cloud.share.unavailable"),
@@ -339,16 +379,27 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
 
     setBusyShareId(`create-${mode}`);
     setCloudError(null);
+    setShareNotice(null);
     try {
       const link = await backend.shares.create({
         sceneId: activeCloudScene.id,
         mode,
       });
-      await copyCloudShare(link);
+      // The link exists now. A clipboard failure must not read as a create
+      // failure (users would retry and make duplicates) or skip the refresh.
+      let copied = true;
+      try {
+        await copyCloudShare(link);
+      } catch {
+        copied = false;
+      }
       await loadCloudShareLinks();
+      if (!copied) {
+        setShareNotice(t("cloud.share.createdCopyFailed"));
+      }
     } catch (error) {
       setCloudError(
-        error instanceof Error ? error.message : t("cloud.share.copyFailed"),
+        error instanceof Error ? error.message : t("cloud.share.unavailable"),
       );
     } finally {
       setBusyShareId(null);
@@ -356,7 +407,7 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
   };
 
   const handleCopyCloudShare = async (link: ShareLink) => {
-    setBusyShareId(link.id);
+    setBusyShareId(`copy-${link.id}`);
     setCloudError(null);
     try {
       await copyCloudShare(link);
@@ -368,11 +419,19 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
   };
 
   const handleRevokeCloudShare = async (link: ShareLink) => {
-    if (!(await confirmAction(t("cloud.share.revokeConfirm")))) {
+    if (
+      !(await confirmAction(
+        t("cloud.share.revokeConfirmScene", { title: activeCloudSceneTitle }),
+        {
+          title: t("cloud.share.revokeConfirmTitle"),
+          confirmLabel: t("cloud.share.revoke"),
+        },
+      ))
+    ) {
       return;
     }
 
-    setBusyShareId(link.id);
+    setBusyShareId(`revoke-${link.id}`);
     setCloudError(null);
     try {
       await backend.shares.revoke(link.id);
@@ -413,26 +472,49 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
       activeCloudScene &&
       backend.capabilities.collabRoomBinding
     ) {
-      setCreatingCollabRoom(true);
       setCloudError(null);
+      setRoomNotice(null);
+      props.onRoomNotice?.(null);
+      // Check before creating the binding: a blocked start would otherwise
+      // leave a binding (and a copied link) that nobody hosts.
+      const blocker = props.getCollabRoomStartBlocker?.() ?? null;
+      if (blocker) {
+        setRoomNotice(blocker);
+        return;
+      }
+
+      setCreatingCollabRoom(true);
       try {
         const { roomId, roomKey } =
           await shareLink.generateCollaborationLinkData();
-        await backend.collabRooms.createForScene({
+        const created = await backend.collabRooms.createForScene({
           sceneId: activeCloudScene.id,
           roomId,
         });
         const link = shareLink.getCollaborationLink({ roomId, roomKey });
-        if (props.onStartCollabRoom) {
-          await props.onStartCollabRoom({ roomId, roomKey });
-        } else {
-          await collabAPI.startCollaboration(
-            { roomId, roomKey },
-            { preserveLocalScene: true },
-          );
+        try {
+          if (props.onStartCollabRoom) {
+            await props.onStartCollabRoom({ roomId, roomKey });
+          } else {
+            await collabAPI.startCollaboration(
+              { roomId, roomKey },
+              { preserveLocalScene: true },
+            );
+          }
+        } catch (error) {
+          // The session didn't start: drop the binding we just made.
+          await backend.collabRooms.revoke(created.id).catch(() => {});
+          await loadCollabRoomStats();
+          throw error;
         }
         setCollabRoomLink(link);
-        await copyTextToSystemClipboard(link);
+        try {
+          await copyTextToSystemClipboard(link);
+        } catch {
+          // The dialog switches to the active-room view, which shows the
+          // link with its own copy button: say so there.
+          props.onRoomNotice?.(t("cloud.collabRooms.createdCopyFailed"));
+        }
         await loadCollabRoomStats();
         props.onCollabRoomChanged?.();
       } catch (error) {
@@ -447,8 +529,23 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
       return;
     }
 
+    await startLocalSession();
+  };
+
+  // Plain (non-cloud) session. Guarded so a double click can't start twice.
+  const startLocalSession = async () => {
+    if (!collabAPI || startingSessionRef.current) {
+      return;
+    }
+    startingSessionRef.current = true;
+    setStartingSession(true);
     trackEvent("share", "room creation", `ui (${getFrame()})`);
-    void collabAPI.startCollaboration(null);
+    try {
+      await collabAPI.startCollaboration(null);
+    } finally {
+      startingSessionRef.current = false;
+      setStartingSession(false);
+    }
   };
 
   const handleCopyCollabRoom = async () => {
@@ -467,7 +564,15 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
       collabRoomStats.status !== "ready" ||
       !collabRoomStats.room ||
       revokingCollabRoom ||
-      !(await confirmAction(t("cloud.collabRooms.revokeConfirm")))
+      !(await confirmAction(
+        t("cloud.collabRooms.revokeConfirmScene", {
+          title: activeCloudSceneTitle,
+        }),
+        {
+          title: t("cloud.collabRooms.revokeConfirmTitle"),
+          confirmLabel: t("cloud.collabRooms.revoke"),
+        },
+      ))
     ) {
       return;
     }
@@ -492,16 +597,6 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
     }
   };
 
-  const activeCloudSceneTitle =
-    activeCloudScene?.title ?? t("cloud.auth.currentCloudWhiteboard");
-  const cloudShareUnavailableReason = !isSignedIn
-    ? t("cloud.errors.signInRequired")
-    : !backend.capabilities.share
-    ? t("cloud.share.unavailable")
-    : !activeCloudScene
-    ? t("roomDialog.cloudShareSaveFirst")
-    : null;
-
   const startCollabJSX = collabAPI ? (
     <>
       <div className="ShareDialog__picker__header">
@@ -525,10 +620,8 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
             size="large"
             label={t("roomDialog.button_startSession")}
             icon={playerPlayIcon}
-            onClick={() => {
-              trackEvent("share", "room creation", `ui (${getFrame()})`);
-              collabAPI.startCollaboration(null);
-            }}
+            status={startingSession ? "loading" : null}
+            onClick={() => startLocalSession()}
           />
         </div>
       ) : (
@@ -539,29 +632,36 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
               <Badge tone="info">{t("roomDialog.realtimeRoomBadge")}</Badge>
             </div>
             <p>{t("roomDialog.realtimeRoomDescription")}</p>
-            {activeCloudScene && isSignedIn && (
-              <small>
-                {collabRoomStats.status === "loading"
-                  ? t("cloud.collabRooms.loading")
-                  : collabRoomStats.status === "ready" && collabRoomStats.room
-                  ? t("cloud.collabRooms.roomId", {
-                      roomId: collabRoomStats.room.roomId,
-                    })
-                  : collabRoomStats.status === "unavailable"
-                  ? t("cloud.collabRooms.unavailable")
-                  : t("cloud.collabRooms.empty")}
-              </small>
-            )}
+            {activeCloudScene &&
+              isSignedIn &&
+              (collabRoomStats.status === "error" ? (
+                <Callout tone="danger" live={false}>
+                  {collabRoomStats.message}
+                </Callout>
+              ) : (
+                <small>
+                  {collabRoomStats.status === "loading"
+                    ? t("cloud.collabRooms.loading")
+                    : collabRoomStats.status === "ready" && collabRoomStats.room
+                    ? t("cloud.collabRooms.roomId", {
+                        roomId: collabRoomStats.room.roomId,
+                      })
+                    : collabRoomStats.status === "unavailable"
+                    ? t("cloud.collabRooms.unavailable")
+                    : t("cloud.collabRooms.empty")}
+                </small>
+              ))}
             {collabRoomStats.status === "ready" &&
               collabRoomStats.room &&
               !collabRoomLink && (
                 <small>{t("cloud.collabRooms.keyNotStored")}</small>
               )}
+            {roomNotice && <Callout tone="warning">{roomNotice}</Callout>}
             <div className="ShareDialog__optionActions">
               <UiButton
                 variant="primary"
                 icon={playerPlayIcon}
-                loading={creatingCollabRoom}
+                loading={creatingCollabRoom || startingSession}
                 onClick={() => void handleCreateRealtimeRoom()}
                 disabled={revokingCollabRoom}
               >
@@ -607,19 +707,42 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
                   title: activeCloudSceneTitle,
                 })}
               </small>
-            ) : cloudShareUnavailableReason ? (
-              <small>{cloudShareUnavailableReason}</small>
-            ) : null}
+            ) : (
+              !cloudShareBlockedReason && (
+                <small>{t("roomDialog.cloudShareSaveFirst")}</small>
+              )
+            )}
 
-            {activeCloudScene && (
+            {cloudShareBlockedReason && (
+              <Callout
+                tone="info"
+                live={false}
+                action={
+                  !isSignedIn &&
+                  props.onSignIn && (
+                    <UiButton
+                      size="sm"
+                      onClick={() => {
+                        props.handleClose();
+                        props.onSignIn?.();
+                      }}
+                    >
+                      {t("cloud.auth.signInAction")}
+                    </UiButton>
+                  )
+                }
+              >
+                {cloudShareBlockedReason}
+              </Callout>
+            )}
+
+            {activeCloudScene && !cloudShareBlockedReason && (
               <div className="ShareDialog__cloudShareActions">
                 <UiButton
                   icon={LinkIcon}
                   loading={busyShareId === "create-read"}
                   onClick={() => void handleCreateCloudShare("read")}
                   disabled={
-                    !isSignedIn ||
-                    !backend.capabilities.share ||
                     shareLoading ||
                     (busyShareId !== null && busyShareId !== "create-read")
                   }
@@ -631,8 +754,6 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
                   loading={busyShareId === "create-write"}
                   onClick={() => void handleCreateCloudShare("write")}
                   disabled={
-                    !isSignedIn ||
-                    !backend.capabilities.share ||
                     shareLoading ||
                     (busyShareId !== null && busyShareId !== "create-write")
                   }
@@ -642,14 +763,13 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
               </div>
             )}
 
-            {!activeCloudScene && props.onSaveCloudScene && (
+            {!activeCloudScene && isSignedIn && props.onSaveCloudScene && (
               <div className="ShareDialog__cloudShareActions">
                 <UiButton
                   variant="primary"
                   icon={LinkIcon}
                   loading={savingCloudScene}
                   onClick={() => void handleSaveCloudScene()}
-                  disabled={!isSignedIn}
                 >
                   {savingCloudScene
                     ? t("cloud.scenes.saving")
@@ -658,11 +778,18 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
               </div>
             )}
 
+            {shareNotice && <Callout tone="warning">{shareNotice}</Callout>}
+
             {activeCloudScene &&
+              !cloudShareBlockedReason &&
               (shareLoading ? (
                 <div className="ShareDialog__status">
                   {t("cloud.share.loading")}
                 </div>
+              ) : shareListError ? (
+                <Callout tone="danger" live={false}>
+                  {shareListError}
+                </Callout>
               ) : shareLinks.length === 0 ? (
                 <div className="ShareDialog__status">
                   {t("cloud.share.empty")}
@@ -685,26 +812,30 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
                         </Badge>
                       }
                       actions={
-                        <>
-                          <UiButton
-                            size="sm"
-                            variant="ghost"
-                            icon={copyIcon}
-                            onClick={() => void handleCopyCloudShare(link)}
-                            disabled={busyShareId !== null || link.revoked}
-                          >
-                            {t("cloud.share.copy")}
-                          </UiButton>
-                          <UiButton
-                            size="sm"
-                            variant="ghost"
-                            className="ShareDialog__revokeLink"
-                            onClick={() => void handleRevokeCloudShare(link)}
-                            disabled={busyShareId !== null || link.revoked}
-                          >
-                            {t("cloud.share.revoke")}
-                          </UiButton>
-                        </>
+                        // A revoked link has nothing left to do.
+                        !link.revoked && (
+                          <>
+                            <UiButton
+                              size="sm"
+                              variant="ghost"
+                              icon={copyIcon}
+                              loading={busyShareId === `copy-${link.id}`}
+                              onClick={() => void handleCopyCloudShare(link)}
+                              disabled={busyShareId !== null}
+                            >
+                              {t("cloud.share.copy")}
+                            </UiButton>
+                            <UiButton
+                              size="sm"
+                              variant="danger"
+                              loading={busyShareId === `revoke-${link.id}`}
+                              onClick={() => void handleRevokeCloudShare(link)}
+                              disabled={busyShareId !== null}
+                            >
+                              {t("cloud.share.revoke")}
+                            </UiButton>
+                          </>
+                        )
                       }
                     />
                   ))}
@@ -755,10 +886,19 @@ const ShareDialogPicker = (props: ShareDialogProps) => {
 };
 
 const ShareDialogInner = (props: ShareDialogProps) => {
+  const { t } = useI18n();
   const activeRoomLink = useAtomValue(activeRoomLinkAtom);
+  // Lives here so a notice set by the picker survives its unmount.
+  const [roomNotice, setRoomNotice] = useState<string | null>(null);
 
   return (
-    <Dialog size="regular" onCloseRequest={props.handleClose} title={false}>
+    <AppDialog
+      size="regular"
+      onCloseRequest={props.handleClose}
+      // The picker and the active-room view render their own headings.
+      title={false}
+      ariaLabel={t("labels.share")}
+    >
       <div className="ShareDialog">
         {props.collabAPI && activeRoomLink ? (
           <ActiveRoomDialog
@@ -766,28 +906,22 @@ const ShareDialogInner = (props: ShareDialogProps) => {
             activeRoomLink={activeRoomLink}
             handleClose={props.handleClose}
             inputTargetId={props.inputTargetId}
+            notice={roomNotice}
           />
         ) : (
-          <ShareDialogPicker {...props} />
+          <ShareDialogPicker {...props} onRoomNotice={setRoomNotice} />
         )}
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };
 
-export const ShareDialog = (props: {
-  activeCloudScene?: ShareDialogCloudSceneInfo | null;
-  collabAPI: CollabAPI | null;
-  onExportToBackend: OnExportToBackend;
-  onSaveCloudScene?: () => void | Promise<void>;
-  onStartCollabRoom?: (room: {
-    roomId: string;
-    roomKey: string;
-  }) => void | Promise<void>;
-  collabRoomRefreshKey?: number;
-  onCollabRoomChanged?: () => void;
-  onCollabRoomRevoked?: (room: CollabRoomRecord) => void | Promise<void>;
-}) => {
+export const ShareDialog = (
+  props: Omit<
+    ShareDialogProps,
+    "handleClose" | "inputTargetId" | "type" | "onRoomNotice"
+  >,
+) => {
   const [shareDialogState, setShareDialogState] = useAtom(shareDialogStateAtom);
 
   const { openDialog } = useUIAppState();
@@ -814,6 +948,8 @@ export const ShareDialog = (props: {
       }
       onExportToBackend={props.onExportToBackend}
       onSaveCloudScene={props.onSaveCloudScene}
+      onSignIn={props.onSignIn}
+      getCollabRoomStartBlocker={props.getCollabRoomStartBlocker}
       onStartCollabRoom={props.onStartCollabRoom}
       collabRoomRefreshKey={props.collabRoomRefreshKey}
       onCollabRoomChanged={props.onCollabRoomChanged}

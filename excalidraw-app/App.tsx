@@ -1690,6 +1690,37 @@ const ExcalidrawWrapper = () => {
     [collabAPI],
   );
 
+  // Checked by the account and share dialogs before they create a cloud room
+  // binding, so a blocked start never leaves an orphan binding behind.
+  const getCollabRoomStartBlocker = useCallback((): string | null => {
+    if (!collabAPI) {
+      return t("cloud.collabRooms.genericError");
+    }
+    if (collabAPI.isCollaborating()) {
+      return t("cloud.collabRooms.alreadyCollaborating");
+    }
+    if (excalidrawAPI?.getSceneElements().some(hasAIVideoGenerationMarker)) {
+      return t("ai.workbench.videoAssetCollabBlocked");
+    }
+    return null;
+  }, [collabAPI, excalidrawAPI]);
+
+  // Throws when the session did not start, so the caller can roll back the
+  // binding it just created and show the error in the dialog.
+  const startCloudCollabRoom = useCallback(
+    async (room: { roomId: string; roomKey: string }) => {
+      const blocker = getCollabRoomStartBlocker();
+      if (blocker || !collabAPI) {
+        throw new Error(blocker ?? t("cloud.collabRooms.genericError"));
+      }
+      await collabAPI.startCollaboration(room, { preserveLocalScene: true });
+      if (!collabAPI.isCollaborating()) {
+        throw new Error(t("cloud.collabRooms.genericError"));
+      }
+    },
+    [collabAPI, getCollabRoomStartBlocker],
+  );
+
   const hydrateActiveCloudSceneFromLocalBinding = useCallback(() => {
     if (
       !excalidrawAPI ||
@@ -2627,9 +2658,18 @@ const ExcalidrawWrapper = () => {
       opts: {
         silent?: boolean;
         checkRemoteVersion?: boolean;
+        /**
+         * Throw failures instead of toasting them. Dialogs use this: the
+         * toast renders below the modal layer, so it would go unseen.
+         */
+        throwOnError?: boolean;
       } = {},
     ): Promise<boolean> => {
-      const { silent = false, checkRemoteVersion = true } = opts;
+      const {
+        silent = false,
+        checkRemoteVersion = true,
+        throwOnError = false,
+      } = opts;
 
       if (
         !excalidrawAPI ||
@@ -2640,11 +2680,17 @@ const ExcalidrawWrapper = () => {
         return false;
       }
 
+      const fail = (message: string): false => {
+        if (throwOnError) {
+          throw new Error(message);
+        }
+        excalidrawAPI.setToast({ message });
+        return false;
+      };
+
       if (collabAPI?.isCollaborating()) {
         if (!silent) {
-          excalidrawAPI.setToast({
-            message: t("cloud.scenes.saveSkippedCollab"),
-          });
+          return fail(t("cloud.scenes.saveSkippedCollab"));
         }
         return false;
       }
@@ -2668,9 +2714,7 @@ const ExcalidrawWrapper = () => {
         });
         if (hasBlockedVideoAsset) {
           if (!silent) {
-            excalidrawAPI.setToast({
-              message: t("ai.workbench.videoAssetCloudSaveBlocked"),
-            });
+            return fail(t("ai.workbench.videoAssetCloudSaveBlocked"));
           }
           return false;
         }
@@ -2724,9 +2768,7 @@ const ExcalidrawWrapper = () => {
           const stillHasLocalVideo = hasNonPortableAIVideo(elements);
           if (stillHasLocalVideo) {
             if (!silent) {
-              excalidrawAPI.setToast({
-                message: t("ai.workbench.videoAssetCloudSaveBlocked"),
-              });
+              return fail(t("ai.workbench.videoAssetCloudSaveBlocked"));
             }
             return false;
           }
@@ -2757,16 +2799,18 @@ const ExcalidrawWrapper = () => {
               },
               checkedAt: Date.now(),
             });
-            if (
-              silent ||
-              !(await confirmAction(t("cloud.scenes.remoteNewerConfirm"), {
-                danger: false,
-              }))
-            ) {
+            if (silent) {
               excalidrawAPI.setToast({
                 message: t("cloud.scenes.remoteNewer"),
               });
               return false;
+            }
+            if (
+              !(await confirmAction(t("cloud.scenes.remoteNewerConfirm"), {
+                danger: false,
+              }))
+            ) {
+              return fail(t("cloud.scenes.remoteNewer"));
             }
           }
         }
@@ -2920,6 +2964,9 @@ const ExcalidrawWrapper = () => {
         }
         return true;
       } catch (error) {
+        if (throwOnError) {
+          throw error;
+        }
         excalidrawAPI.setToast({
           message:
             error instanceof Error
@@ -2938,138 +2985,146 @@ const ExcalidrawWrapper = () => {
     ],
   );
 
-  const saveCurrentSceneAsEncryptedCloudScene = useCallback(async () => {
-    if (
-      !excalidrawAPI ||
-      !cloudAuth.isAuthAvailable ||
-      !cloudAuth.isSignedIn ||
-      !cloudAuth.user
-    ) {
-      return false;
-    }
+  const saveCurrentSceneAsEncryptedCloudScene = useCallback(
+    async (opts: { throwOnError?: boolean } = {}) => {
+      if (
+        !excalidrawAPI ||
+        !cloudAuth.isAuthAvailable ||
+        !cloudAuth.isSignedIn ||
+        !cloudAuth.user
+      ) {
+        return false;
+      }
 
-    if (collabAPI?.isCollaborating()) {
-      excalidrawAPI.setToast({
-        message: t("cloud.scenes.saveSkippedCollab"),
-      });
-      return false;
-    }
+      // See saveCurrentSceneToCloud: dialogs show failures themselves.
+      const fail = (message: string): false => {
+        if (opts.throwOnError) {
+          throw new Error(message);
+        }
+        excalidrawAPI.setToast({ message });
+        return false;
+      };
 
-    const backend = getCloudBackend();
-    if (
-      !backend.capabilities.sceneStorage ||
-      !backend.capabilities.encryptedCloudStorage ||
-      !backend.encryption.isAvailable()
-    ) {
-      excalidrawAPI.setToast({
-        message: t("cloud.e2e.unavailable"),
-      });
-      return false;
-    }
+      if (collabAPI?.isCollaborating()) {
+        return fail(t("cloud.scenes.saveSkippedCollab"));
+      }
 
-    try {
-      const elements = sanitizeDeletedAIVideoMarkersForPersistence(
-        excalidrawAPI.getSceneElementsIncludingDeleted(),
-      );
-      if (hasNonPortableAIVideo(elements)) {
+      const backend = getCloudBackend();
+      if (
+        !backend.capabilities.sceneStorage ||
+        !backend.capabilities.encryptedCloudStorage ||
+        !backend.encryption.isAvailable()
+      ) {
+        return fail(t("cloud.e2e.unavailable"));
+      }
+
+      try {
+        const elements = sanitizeDeletedAIVideoMarkersForPersistence(
+          excalidrawAPI.getSceneElementsIncludingDeleted(),
+        );
+        if (hasNonPortableAIVideo(elements)) {
+          return fail(t("ai.workbench.videoAssetCloudSaveBlocked"));
+        }
+        const appState = excalidrawAPI.getAppState();
+        const files = excalidrawAPI.getFiles();
+        const serializedPayload = serializeAsJSON(
+          elements,
+          appState,
+          files,
+          "database",
+        );
+        const payloadHash = getCloudPayloadHash(serializedPayload);
+        const localFingerprint = getCloudSceneFingerprint(elements);
+        const now = Date.now();
+        const title = excalidrawAPI.getName() || t("labels.untitled");
+        const key = await backend.encryption.generateKey();
+        const payload = await backend.encryption.encryptScenePayload(
+          JSON.parse(serializedPayload),
+          key,
+        );
+
+        const result = await backend.scenes.save({
+          id: null,
+          ownerId: cloudAuth.user.id,
+          title,
+          payloadKind: "encrypted",
+          payload,
+          version: 0,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null,
+        });
+
+        let didSyncAssets = true;
+        try {
+          await uploadEncryptedSceneAssets({
+            backend,
+            sceneId: result.id,
+            elements,
+            files,
+            encryptionKey: key,
+          });
+        } catch (error) {
+          didSyncAssets = false;
+          console.warn(error);
+        }
+
+        backend.encryption.saveKey({
+          sceneId: result.id,
+          key,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        const nextActiveScene: ActiveCloudScene = {
+          id: result.id,
+          ownerId: cloudAuth.user.id,
+          title,
+          payloadKind: "encrypted",
+          version: result.version,
+          createdAt: now,
+          updatedAt: now,
+        };
+        setActiveCloudScene(nextActiveScene);
+        activeCloudSceneRef.current = nextActiveScene;
+        setCloudSceneRemoteUpdate({ status: "up-to-date", checkedAt: now });
+        cloudSceneRemoteUpdateToastRef.current = null;
+        lastCloudLocalPayloadHashRef.current = payloadHash;
+        lastCloudSavedPayloadHashRef.current = didSyncAssets
+          ? payloadHash
+          : null;
+        saveCloudSceneBinding({
+          ...nextActiveScene,
+          localPayloadHash: payloadHash,
+          localFingerprint,
+          savedPayloadHash: didSyncAssets ? payloadHash : null,
+        });
+
         excalidrawAPI.setToast({
-          message: t("ai.workbench.videoAssetCloudSaveBlocked"),
+          message: didSyncAssets
+            ? t("cloud.e2e.saved")
+            : t("cloud.scenes.savedAssetsFailed"),
+        });
+        return true;
+      } catch (error) {
+        if (opts.throwOnError) {
+          throw error;
+        }
+        excalidrawAPI.setToast({
+          message:
+            error instanceof Error ? error.message : t("cloud.e2e.saveFailed"),
         });
         return false;
       }
-      const appState = excalidrawAPI.getAppState();
-      const files = excalidrawAPI.getFiles();
-      const serializedPayload = serializeAsJSON(
-        elements,
-        appState,
-        files,
-        "database",
-      );
-      const payloadHash = getCloudPayloadHash(serializedPayload);
-      const localFingerprint = getCloudSceneFingerprint(elements);
-      const now = Date.now();
-      const title = excalidrawAPI.getName() || t("labels.untitled");
-      const key = await backend.encryption.generateKey();
-      const payload = await backend.encryption.encryptScenePayload(
-        JSON.parse(serializedPayload),
-        key,
-      );
-
-      const result = await backend.scenes.save({
-        id: null,
-        ownerId: cloudAuth.user.id,
-        title,
-        payloadKind: "encrypted",
-        payload,
-        version: 0,
-        createdAt: now,
-        updatedAt: now,
-        deletedAt: null,
-      });
-
-      let didSyncAssets = true;
-      try {
-        await uploadEncryptedSceneAssets({
-          backend,
-          sceneId: result.id,
-          elements,
-          files,
-          encryptionKey: key,
-        });
-      } catch (error) {
-        didSyncAssets = false;
-        console.warn(error);
-      }
-
-      backend.encryption.saveKey({
-        sceneId: result.id,
-        key,
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      const nextActiveScene: ActiveCloudScene = {
-        id: result.id,
-        ownerId: cloudAuth.user.id,
-        title,
-        payloadKind: "encrypted",
-        version: result.version,
-        createdAt: now,
-        updatedAt: now,
-      };
-      setActiveCloudScene(nextActiveScene);
-      activeCloudSceneRef.current = nextActiveScene;
-      setCloudSceneRemoteUpdate({ status: "up-to-date", checkedAt: now });
-      cloudSceneRemoteUpdateToastRef.current = null;
-      lastCloudLocalPayloadHashRef.current = payloadHash;
-      lastCloudSavedPayloadHashRef.current = didSyncAssets ? payloadHash : null;
-      saveCloudSceneBinding({
-        ...nextActiveScene,
-        localPayloadHash: payloadHash,
-        localFingerprint,
-        savedPayloadHash: didSyncAssets ? payloadHash : null,
-      });
-
-      excalidrawAPI.setToast({
-        message: didSyncAssets
-          ? t("cloud.e2e.saved")
-          : t("cloud.scenes.savedAssetsFailed"),
-      });
-      return true;
-    } catch (error) {
-      excalidrawAPI.setToast({
-        message:
-          error instanceof Error ? error.message : t("cloud.e2e.saveFailed"),
-      });
-      return false;
-    }
-  }, [
-    cloudAuth.isAuthAvailable,
-    cloudAuth.isSignedIn,
-    cloudAuth.user,
-    collabAPI,
-    excalidrawAPI,
-  ]);
+    },
+    [
+      cloudAuth.isAuthAvailable,
+      cloudAuth.isSignedIn,
+      cloudAuth.user,
+      collabAPI,
+      excalidrawAPI,
+    ],
+  );
 
   const saveCurrentSharedSceneToCloud = useCallback(
     async (opts: { silent?: boolean } = {}): Promise<boolean> => {
@@ -5254,30 +5309,13 @@ const ExcalidrawWrapper = () => {
             setIsCloudEmbedListOpen(true);
           }}
           onSaveCloudScene={async () => {
-            await saveCurrentSceneToCloud();
+            await saveCurrentSceneToCloud({ throwOnError: true });
           }}
           onSaveEncryptedCloudScene={async () => {
-            await saveCurrentSceneAsEncryptedCloudScene();
+            await saveCurrentSceneAsEncryptedCloudScene({ throwOnError: true });
           }}
-          onStartCollabRoom={(room) => {
-            if (!collabAPI) {
-              throw new Error(t("cloud.collabRooms.genericError"));
-            }
-            if (collabAPI.isCollaborating()) {
-              return;
-            }
-            if (
-              excalidrawAPI?.getSceneElements().some(hasAIVideoGenerationMarker)
-            ) {
-              excalidrawAPI.setToast({
-                message: t("ai.workbench.videoAssetCollabBlocked"),
-              });
-              return;
-            }
-            void collabAPI.startCollaboration(room, {
-              preserveLocalScene: true,
-            });
-          }}
+          getCollabRoomStartBlocker={getCollabRoomStartBlocker}
+          onStartCollabRoom={startCloudCollabRoom}
           collabRoomRefreshKey={collabRoomRefreshKey}
           onCollabRoomChanged={notifyCollabRoomChanged}
           onCollabRoomRevoked={stopCurrentCollabRoomIfRevoked}
@@ -5402,27 +5440,15 @@ const ExcalidrawWrapper = () => {
             }
           }}
           onSaveCloudScene={async () => {
-            await saveCurrentSceneToCloud();
+            await saveCurrentSceneToCloud({ throwOnError: true });
           }}
-          onStartCollabRoom={async (room) => {
-            if (!collabAPI) {
-              throw new Error(t("cloud.collabRooms.genericError"));
-            }
-            if (collabAPI.isCollaborating()) {
-              return;
-            }
-            if (
-              excalidrawAPI?.getSceneElements().some(hasAIVideoGenerationMarker)
-            ) {
-              excalidrawAPI.setToast({
-                message: t("ai.workbench.videoAssetCollabBlocked"),
-              });
-              return;
-            }
-            await collabAPI.startCollaboration(room, {
-              preserveLocalScene: true,
-            });
-          }}
+          onSignIn={
+            cloudAuth.isAuthAvailable
+              ? () => setIsCloudAccountOpen(true)
+              : undefined
+          }
+          getCollabRoomStartBlocker={getCollabRoomStartBlocker}
+          onStartCollabRoom={startCloudCollabRoom}
           collabRoomRefreshKey={collabRoomRefreshKey}
           onCollabRoomChanged={notifyCollabRoomChanged}
           onCollabRoomRevoked={stopCurrentCollabRoomIfRevoked}
@@ -5475,9 +5501,10 @@ const ExcalidrawWrapper = () => {
                 "exit",
                 "collaboration",
               ],
-              perform: () => {
+              perform: async () => {
                 if (collabAPI) {
-                  collabAPI.stopCollaboration();
+                  // Resolves after the user answers the stop prompt.
+                  await collabAPI.stopCollaboration();
                   if (!collabAPI.isCollaborating()) {
                     setShareDialogState({ isOpen: false });
                   }

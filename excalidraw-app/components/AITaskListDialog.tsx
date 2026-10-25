@@ -1,6 +1,4 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import { getCloudBackend } from "../data/cloud";
@@ -8,6 +6,7 @@ import { getCloudBackend } from "../data/cloud";
 import "./SceneListDialog.scss";
 
 import {
+  AppDialog,
   Badge,
   Callout,
   DialogActions,
@@ -177,25 +176,15 @@ export const AITaskListDialog: React.FC<AITaskListDialogProps> = ({
   );
 
   return (
-    <Dialog
+    <AppDialog
       className="SceneListDialogModal"
       size="small"
       closeOnClickOutside={false}
+      busy={busyTaskId !== null}
       onCloseRequest={onClose}
       title={t("cloud.aiTasks.title")}
     >
       <div className="SceneListDialog">
-        <UiButton
-          className="SceneListDialog__close"
-          variant="ghost"
-          size="sm"
-          iconOnly
-          icon={CloseIcon}
-          aria-label={t("buttons.close")}
-          title={t("buttons.close")}
-          onClick={onClose}
-        />
-
         <p className="SceneListDialog__description">
           {t("cloud.aiTasks.description")}
         </p>
@@ -284,6 +273,6 @@ export const AITaskListDialog: React.FC<AITaskListDialogProps> = ({
           </UiButton>
         </DialogActions>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

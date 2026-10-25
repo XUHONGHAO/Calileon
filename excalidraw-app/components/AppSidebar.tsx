@@ -198,6 +198,33 @@ export const AppSidebar = memo(
       reuseGenerationLog(generationLogReuseRequest.log);
     }, [generationLogReuseRequest, reuseGenerationLog]);
 
+    // Radix unmounts inactive tab panels, which aborted a running image
+    // generation or assistant reply on every tab switch (including the
+    // "send to assistant/workbench" hand-offs). Once an AI panel has been
+    // shown it stays mounted; Sidebar.scss hides inactive panels.
+    const [keptTabs, setKeptTabs] = useState<ReadonlySet<KeptTab>>(
+      () => new Set(),
+    );
+    const keepTab = useCallback((tab: KeptTab) => {
+      setKeptTabs((current) =>
+        current.has(tab) ? current : new Set(current).add(tab),
+      );
+    }, []);
+    // Closing the sidebar unmounts every panel anyway; start fresh next time
+    // so reopening doesn't mount panels the user hasn't opened yet.
+    const resetKeptTabsOnClose = useCallback(
+      (state: { name: string } | null) => {
+        if (!state) {
+          setKeptTabs((current) => (current.size ? new Set() : current));
+        }
+      },
+      [],
+    );
+
+    // At ≤520px AppSidebar.scss turns the docked sidebar into a full-screen
+    // overlay; there Esc should close it like any other overlay.
+    const isOverlay = useMediaQuery(SIDEBAR_OVERLAY_QUERY);
+
     const openCreateTab = useCallback(() => {
       excalidrawAPI?.toggleSidebar({
         name: DEFAULT_SIDEBAR.name,
@@ -219,7 +246,8 @@ export const AppSidebar = memo(
           className="app-sidebar-dock"
           docked
           closeOnOutsideClick={false}
-          closeOnEscape={false}
+          closeOnEscape={isOverlay}
+          onStateChange={resetKeptTabsOnClose}
         >
           <AppSidebarTabTriggers />
           <Sidebar.Tab tab="comments" className="AppSidebarOfficeTab">
@@ -230,7 +258,12 @@ export const AppSidebar = memo(
               onOpenShare={openShareDialog}
             />
           </Sidebar.Tab>
-          <Sidebar.Tab tab="ai-image" className="AIImageWorkbenchTab">
+          <Sidebar.Tab
+            tab="ai-image"
+            className="AIImageWorkbenchTab"
+            {...keepMountedProps(keptTabs.has("ai-image"))}
+          >
+            <TabShown tab="ai-image" onShown={keepTab} />
             <AppSidebarCommandHeader activeArea="Create" />
             <AIImageWorkbench
               excalidrawAPI={excalidrawAPI}
@@ -252,7 +285,12 @@ export const AppSidebar = memo(
             <AppSidebarCommandHeader activeArea="History" />
             <AIGenerationLogPanel onReuseLog={reuseGenerationLog} />
           </Sidebar.Tab>
-          <Sidebar.Tab tab="ai-assistant" className="CustomAgentChatTab">
+          <Sidebar.Tab
+            tab="ai-assistant"
+            className="CustomAgentChatTab"
+            {...keepMountedProps(keptTabs.has("ai-assistant"))}
+          >
+            <TabShown tab="ai-assistant" onShown={keepTab} />
             <AppSidebarCommandHeader activeArea="Assistant" />
             <CustomAgentChat
               excalidrawAPI={excalidrawAPI}
@@ -276,6 +314,47 @@ export const AppSidebar = memo(
 );
 
 AppSidebar.displayName = "AppSidebar";
+
+type KeptTab = "ai-image" | "ai-assistant";
+
+/** Keep in sync with the overlay `@media` block in AppSidebar.scss. */
+const SIDEBAR_OVERLAY_QUERY = "(max-width: 520px)";
+
+const useMediaQuery = (query: string) => {
+  const [matches, setMatches] = useState(
+    () => typeof window.matchMedia === "function" && matchMedia(query).matches,
+  );
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+    const list = matchMedia(query);
+    const onChange = () => setMatches(list.matches);
+    onChange();
+    list.addEventListener("change", onChange);
+    return () => list.removeEventListener("change", onChange);
+  }, [query]);
+  return matches;
+};
+
+// `Sidebar.Tab` spreads extra props onto Radix `Tabs.Content`, but its public
+// type doesn't list `forceMount`; pass it through without widening the package API.
+const keepMountedProps = (keep: boolean) =>
+  (keep ? { forceMount: true } : {}) as React.HTMLAttributes<HTMLDivElement>;
+
+/** Reports once that its tab panel has been rendered (i.e. shown). */
+const TabShown = ({
+  tab,
+  onShown,
+}: {
+  tab: KeptTab;
+  onShown: (tab: KeptTab) => void;
+}) => {
+  useEffect(() => {
+    onShown(tab);
+  }, [onShown, tab]);
+  return null;
+};
 
 const AppSidebarTrigger = memo(() => {
   return (

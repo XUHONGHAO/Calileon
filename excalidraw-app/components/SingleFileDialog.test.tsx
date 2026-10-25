@@ -41,6 +41,9 @@ vi.mock("@excalidraw/excalidraw/i18n", () => ({
       "singleFile.export": "Export single file",
       "singleFile.exporting": "Exporting...",
       "singleFile.errors.exportFailed": "Export failed",
+      "singleFile.errors.runtimeFailed": "Runtime failed",
+      "singleFile.loadingRuntime": "Preparing",
+      "singleFile.retry": "Try again",
       "singleFile.success.exported": "Single-file board exported.",
       "buttons.cancel": "Cancel",
     }[key] ?? key),
@@ -120,8 +123,8 @@ describe("SingleFileDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("announces a failed runtime fetch as an alert", async () => {
-    vi.mocked(fetchSingleFileRuntimeTemplate).mockRejectedValue(
+  it("announces a failed runtime fetch and retries it on request", async () => {
+    vi.mocked(fetchSingleFileRuntimeTemplate).mockRejectedValueOnce(
       new Error("offline"),
     );
 
@@ -129,7 +132,33 @@ describe("SingleFileDialog", () => {
       <SingleFileDialog open={true} onClose={vi.fn()} excalidrawAPI={null} />,
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Export failed");
+    expect(screen.getByText("Preparing")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Runtime failed",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(fetchSingleFileRuntimeTemplate).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Preparing")).toBeNull();
+  });
+
+  it("does not carry a previous error into a reopened dialog", async () => {
+    vi.mocked(fetchSingleFileRuntimeTemplate).mockRejectedValueOnce(
+      new Error("offline"),
+    );
+    const { rerender } = render(
+      <SingleFileDialog open={true} onClose={vi.fn()} excalidrawAPI={null} />,
+    );
+    await screen.findByRole("alert");
+
+    rerender(
+      <SingleFileDialog open={false} onClose={vi.fn()} excalidrawAPI={null} />,
+    );
+    rerender(
+      <SingleFileDialog open={true} onClose={vi.fn()} excalidrawAPI={null} />,
+    );
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
   it("exports the current scene and closes after saving", async () => {

@@ -1,5 +1,3 @@
-import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
-import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -13,6 +11,7 @@ import { normalizeEmbedOrigins } from "../data/cloud/embedOrigin";
 import "./EmbedListDialog.scss";
 
 import {
+  AppDialog,
   Badge,
   Callout,
   DialogActions,
@@ -131,8 +130,10 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
     return null;
   }
 
+  // A pending list load must not trap the user: only block while a write
+  // (create/revoke) is in flight. A late list result lands on a hidden host.
   const handleClose = () => {
-    if (loading || busyId) {
+    if (busyId) {
       return;
     }
     onClose();
@@ -202,7 +203,14 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
   };
 
   const handleRevoke = async (embed: EmbedRecord) => {
-    if (!(await confirmAction(t("cloud.embed.revokeConfirm")))) {
+    if (
+      !(await confirmAction(t("cloud.embed.revokeConfirm"), {
+        title: t("cloud.embed.revoke"),
+        confirmLabel: t("cloud.embed.revoke"),
+        cancelLabel: t("buttons.cancel"),
+        danger: true,
+      }))
+    ) {
       return;
     }
 
@@ -231,26 +239,15 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
   );
 
   return (
-    <Dialog
+    <AppDialog
       className="EmbedListDialogModal"
       size="regular"
       closeOnClickOutside={false}
+      busy={!!busyId}
       onCloseRequest={handleClose}
       title={t("cloud.embed.title")}
     >
       <div className="EmbedListDialog">
-        <UiButton
-          className="EmbedListDialog__close"
-          variant="ghost"
-          size="sm"
-          iconOnly
-          icon={CloseIcon}
-          aria-label={t("buttons.close")}
-          title={t("buttons.close")}
-          onClick={handleClose}
-          disabled={formDisabled}
-        />
-
         <p className="EmbedListDialog__description">
           {t("cloud.embed.description", { title: scene.title })}
         </p>
@@ -404,6 +401,6 @@ export const EmbedListDialog: React.FC<EmbedListDialogProps> = ({
           </UiButton>
         </DialogActions>
       </div>
-    </Dialog>
+    </AppDialog>
   );
 };

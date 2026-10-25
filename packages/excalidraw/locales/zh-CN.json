@@ -186,7 +186,13 @@
         "label": "预览视角",
         "fit": "适应画面",
         "follow": "录制视角"
-      }
+      },
+      "discardConfirmTitle": "丢弃录制？",
+      "discardConfirm": "这段录制还没有导出或保存到云端。丢弃后无法恢复。",
+      "replaceConfirmTitle": "替换当前录制？",
+      "replace": "替换",
+      "replaceByRecording": "当前录制还没有导出或保存到云端。开始新的录制会丢弃它。",
+      "replaceByImport": "当前录制还没有导出或保存到云端。导入这个 CastScript 会丢弃它。"
     },
     "textAlign": "文本对齐",
     "edges": "边角",
@@ -384,13 +390,17 @@
       "exportFailed": "无法导出单文件白板，当前白板未被修改。",
       "saveFailed": "无法保存单文件白板，你的编辑仍保留在当前页面中。",
       "saveAsFailed": "无法另存新副本，你的编辑仍保留在当前页面中。",
-      "invalidFile": "所选文件不是兼容的单文件白板。"
+      "invalidFile": "所选文件不是兼容的单文件白板。",
+      "runtimeFailed": "无法加载单文件运行时。请检查网络后重试。"
     },
     "success": {
       "exported": "单文件白板已导出。",
       "saved": "单文件白板已保存。",
       "savedAs": "新的单文件白板已保存。"
-    }
+    },
+    "loadingRuntime": "正在准备导出…",
+    "retry": "重试",
+    "exportAnyway": "仍然导出"
   },
   "elementLink": {
     "title": "链接到对象",
@@ -966,6 +976,26 @@
         "selectRegion": "请选择一个或多个画布元素。",
         "promptRequired": "请输入文字要求。",
         "perspectivesRequired": "请为每个任务选择视角。"
+      },
+      "choosePerspective": "选择视角",
+      "cancelBatchConfirm": "取消本批次所有未完成的任务？运行中的请求可能已经被 provider 计费。",
+      "deleteRunningConfirm": "该任务仍在运行。要删除它并停止请求吗？provider 可能已经计费。",
+      "interruptedNotice": "页面刷新导致中断。请明确重试以继续。",
+      "log": {
+        "succeeded": "异世界视角任务成功",
+        "failed": "异世界视角任务失败",
+        "cancelled": "异世界视角任务已取消"
+      },
+      "perspectiveNames": {
+        "clarify": "澄清",
+        "simplify": "简化",
+        "expand": "扩展",
+        "reframe": "换个角度",
+        "contrast": "对比",
+        "atmosphere": "氛围",
+        "material": "材质",
+        "narrative": "叙事",
+        "medium": "媒介"
       }
     },
     "common": {
@@ -1087,7 +1117,9 @@
         "codeHint": "请准确输入单文件窗口中显示的设备码。",
         "approving": "正在批准…",
         "approved": "设备已批准。现在可以返回单文件窗口。"
-      }
+      },
+      "restoreDefaultsConfirm": "这会切回浏览器直连，并删除已保存的代理地址、访问令牌、网关地址和路由选择。此操作无法撤销。",
+      "restoreDefaultsAction": "恢复默认"
     },
     "sidebar": {
       "workbenchTitle": "AI 工作台",
@@ -1159,7 +1191,8 @@
         "mode": "模式",
         "completed": "完成时间",
         "summary": "摘要"
-      }
+      },
+      "clearConfirm": "清空所有生成日志？此操作无法撤销。"
     },
     "workbench": {
       "title": "创意生成",
@@ -1258,7 +1291,18 @@
         "brushSizeLabel": "画笔大小",
         "preview": "蒙版预览",
         "selectSavedImage": "请先选择一张已保存的图片，再编辑蒙版。",
-        "imageUnavailable": "所选图片已不可用。"
+        "imageUnavailable": "所选图片已不可用。",
+        "tools": "蒙版工具",
+        "brush": "画笔",
+        "eraser": "橡皮擦",
+        "toolShortcut": "按 E 切换",
+        "undo": "撤销",
+        "redo": "重做",
+        "discardTitle": "放弃蒙版笔画？",
+        "discardConfirm": "本次绘制的笔画将会丢失。",
+        "discard": "放弃笔画",
+        "keepDrawing": "继续绘制",
+        "exportFailed": "蒙版生成失败，请重试。"
       },
       "referenceStrength": "参考强度",
       "locked": "已锁定",
@@ -1334,7 +1378,8 @@
           "succeeded": "成功",
           "failed": "失败",
           "canceled": "已取消",
-          "inserted": "已插入"
+          "inserted": "已插入",
+          "notReady": "未就绪"
         },
         "notice": {
           "addModel": "请在 AI 设置中添加{{mediaType}}模型。",
@@ -1353,7 +1398,15 @@
       "editMaskOnCanvas": "在画布上编辑蒙版",
       "reEditMaskOnCanvas": "在画布上重新编辑蒙版",
       "removeMissingReferences": "请移除缺失的参考图，或添加一张可用的参考图。",
-      "insertGeneratedAssetFailed": "无法插入生成的素材。"
+      "insertGeneratedAssetFailed": "无法插入生成的素材。",
+      "removedReferenceWarning": "警告：引用的参考图已被移除（#?）。",
+      "referenceMoved": "已移到 #{{index}}。",
+      "referenceRemoved": "已移除参考图 #{{index}}。",
+      "referenceKeyboardHint": "Alt+← 或 Alt+→ 移动参考图，Delete 移除。",
+      "deleteSelectedReferencesConfirm": "删除选中的 {{count}} 张参考图？",
+      "clearGeneratedAssetsConfirm": "清空 {{count}} 个生成结果？此操作无法撤销。",
+      "promptReplaced": "提示词已被替换。",
+      "restorePreviousPrompt": "恢复原提示词"
     },
     "settings": {
       "tabs": {
@@ -1619,7 +1672,18 @@
         "templatesImportedCount": "已导入 {{count}} 个模板。",
         "templatesExported": "模板已导出。",
         "templateImportFailed": "无法导入提示词模板。",
-        "deleteTemplateConfirm": "删除提示词模板“{{label}}”？"
+        "deleteTemplateConfirm": "删除提示词模板“{{label}}”？",
+        "deleteModelConfirm": "删除“{{name}}”（{{models}}）？此操作无法撤销。",
+        "discardChangesTitle": "放弃未保存的更改？",
+        "discardChangesConfirm": "还有更改没有保存，现在离开会丢失这些更改。",
+        "discardChanges": "放弃更改",
+        "keepEditing": "继续编辑",
+        "unsavedChanges": "有未保存的更改",
+        "applyPresetTitle": "应用预设？",
+        "applyPresetConfirm": "应用“{{name}}”预设？当前的连接和模型字段会被替换。",
+        "applyPresetClearsKey": "该预设指向另一个主机，已填写的 API Key 会被清空，请填写新服务商的 Key。",
+        "apiKeyCleared": "主机已变更，API Key 已清空。",
+        "apiKeyHostChanged": "Base URL 已指向另一个主机，已保存的 API Key 会发送到那里。如果它属于其他服务商，请替换。"
       }
     },
     "assistant": {
@@ -1690,8 +1754,15 @@
         "insertedMermaid": "已插入 Mermaid 图表。",
         "insertMermaidFailed": "无法插入 Mermaid 图表。",
         "noExcalidrawElements": "没有生成 Excalidraw 元素。",
-        "insertedAssistantText": "已插入助手文本。"
-      }
+        "insertedAssistantText": "已插入助手文本。",
+        "deleteChatConfirm": "删除聊天“{{title}}”？此操作无法撤销。",
+        "deleteMessageConfirm": "删除这条消息？它也会从发送给智能体的上下文中移除。",
+        "deleteGeneratingMessageConfirm": "这条回复仍在生成中。要停止生成并删除这条消息吗？"
+      },
+      "stop": "停止",
+      "sendMessage": "发送消息",
+      "stopGenerating": "停止生成",
+      "retry": "重试"
     }
   },
   "quickSearch": {
@@ -1841,7 +1912,11 @@
       "roomId": "房间：{{roomId}}",
       "secureContextRequired": "实时协作加密需要 localhost 或 HTTPS。请从 localhost 打开，或用 HTTPS 暴露局域网 IP。",
       "title": "实时协作房间",
-      "unavailable": "暂不可用"
+      "unavailable": "暂不可用",
+      "alreadyCollaborating": "已有实时协作会话在进行中。请先结束会话，再创建新的房间链接。",
+      "createdCopyFailed": "房间已创建，会话已开始，但链接复制失败。请在此对话框中手动复制。",
+      "revokeConfirmTitle": "撤销房间链接",
+      "revokeConfirmScene": "撤销“{{title}}”的实时协作房间？原房间链接将失效。"
     },
     "e2e": {
       "missingKey": "这个端到端加密云端白板缺少本机密钥，无法在当前浏览器打开。",
@@ -1885,7 +1960,9 @@
       "invalidPayload": "无法打开这个云端白板。",
       "assetLoadFailed": "部分云端图片加载失败。",
       "openedAssetsFailed": "已打开云端白板，但部分图片加载失败。",
-      "genericError": "云端白板暂不可用，请重试。"
+      "genericError": "云端白板暂不可用，请重试。",
+      "deleteConfirmTitle": "删除白板",
+      "deleteConfirmScene": "删除云端白板“{{title}}”？"
     },
     "share": {
       "action": "分享",
@@ -1907,7 +1984,11 @@
       "saved": "已保存到共享云端白板。",
       "unavailable": "云端分享未配置。",
       "create": "创建链接",
-      "permission": "链接权限"
+      "permission": "链接权限",
+      "revokeConfirmTitle": "撤销分享链接",
+      "revokeConfirmScene": "撤销“{{title}}”的这个分享链接？使用该链接的人将无法再访问。",
+      "createdCopyFailed": "链接已创建，但复制失败。请在下方列表中点击“复制”。",
+      "signInRequired": "登录后才能创建和管理云端分享链接。"
     },
     "embed": {
       "action": "嵌入",
@@ -2038,7 +2119,10 @@
         "revoked": "当前 Vault 访问已被撤销。",
         "unavailable": "加密 Vault 邀请服务不可用。",
         "internal": "Vault 邀请操作失败。系统未记录或持久化 bearer secret。"
-      }
+      },
+      "revokeConfirmTitle": "撤销邀请",
+      "revokeConfirm": "撤销这个邀请？邀请链接将失效，通过它打开的会话会被断开。",
+      "createdCopyFailed": "邀请已创建，但复制失败。请在下方列表中点击“复制链接”。"
     },
     "status": {
       "localSaved": "已保存在此设备",
@@ -2056,7 +2140,8 @@
       "conflict": "存在未同步本地修改，需要处理分叉",
       "revoked": "访问已撤销",
       "expired": "访问已过期",
-      "closed": "已关闭"
+      "closed": "已关闭",
+      "attachmentsFailed": "{{failed}} 个附件上传失败"
     },
     "v2": {
       "create": "创建空 Vault v2",
@@ -2279,7 +2364,10 @@
       "timeLimit": "已达五分钟上限，作品已保留。",
       "elementLimit": "已达 600 个元素上限，作品已保留。",
       "commitError": "作品插入失败，请在关闭前重试。",
-      "empty": "声音太小，没有画出内容，未添加任何元素。"
+      "empty": "声音太小，没有画出内容，未添加任何元素。",
+      "discardPendingTitle": "放弃作品？",
+      "discardPending": "作品还没有加入白板。现在关闭会放弃它。",
+      "discard": "放弃"
     }
   }
 }

@@ -1,5 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import clsx from "clsx";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
+import { CloseIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
 import {
   getSelectedElements,
@@ -100,10 +109,12 @@ import { PromptEditor } from "./AIImageWorkbenchPromptEditor";
 import {
   appendSelectedImageSources,
   clearReferenceWeight,
+  createReferenceIndexMap,
   loadPersistedReferenceState,
   markMissingReferenceElements,
   persistReferenceState,
   reindexReferenceImages,
+  remapPromptReferences,
   validatePromptReferences,
 } from "./AIImageWorkbenchReferences";
 import {
@@ -118,14 +129,25 @@ import {
   createCopyPromptActionState,
   createSendPromptToAssistantActionState,
   isAIImageGenerationMode,
+  restoreReplacedPromptInWorkbenchDraft,
+  withSharedImagePrompt,
 } from "./AIImageWorkbenchDraft";
 
 import "./AIImageWorkbench.scss";
 
-import { Callout, UiButton, confirmAction } from "./ui";
+import {
+  Callout,
+  Popover,
+  PopoverHeading,
+  PopoverSeparator,
+  Select,
+  UiButton,
+  confirmAction,
+} from "./ui";
 
 import type {
   KeyboardEvent as ReactKeyboardEvent,
+  ReactElement,
   SetStateAction,
 } from "react";
 import type {
@@ -205,10 +227,15 @@ const MEDIA_TYPE_OPTIONS: Array<{
 ];
 
 const MAX_IMAGE_COUNT = 10;
+// Removing more references than this at once (Clear / Delete selected) asks
+// for confirmation first.
+const BULK_DELETE_CONFIRM_THRESHOLD = 2;
 // Most OpenAI-compatible image APIs accept a 32-bit unsigned seed. Keep the
 // random range within that so manually typed and dice-rolled seeds behave the
 // same across providers.
 const MAX_SEED = 2147483647;
+
+const noop = () => {};
 
 const createRandomSeed = () => Math.floor(Math.random() * (MAX_SEED + 1));
 
@@ -245,12 +272,25 @@ type AIImageModeDraftState = AIWorkbenchGenerationDraftState & {
   masksByImageId: Record<string, AIImageEditableMask>;
 };
 
+/** A prompt an external write replaced; offered back as "Restore". */
+export type ReplacedWorkbenchPrompt = {
+  mediaType: AIModelMediaType;
+  prompt: string;
+  negativePrompt: string;
+};
+
 export type AIImageWorkbenchDraftState = {
   mediaType: AIModelMediaType;
   mode: AIImageGenerationMode;
+  /**
+   * `prompt` / `negativePrompt` are kept identical across the three image
+   * modes (see `withSharedImagePrompt`); model and params are per mode.
+   */
   imageModes: Record<AIImageGenerationMode, AIImageModeDraftState>;
   video: AIWorkbenchGenerationDraftState;
   audio: AIWorkbenchGenerationDraftState;
+  /** In-memory only (never persisted). */
+  replacedPrompt?: ReplacedWorkbenchPrompt | null;
 };
 
 type AIImageWorkbenchProps = {
@@ -542,15 +582,17 @@ export const createInitialAIImageWorkbenchDraftState =
       return defaults;
     }
 
+    const restoredMode =
+      persisted.mode && isAIImageGenerationMode(persisted.mode)
+        ? persisted.mode
+        : defaults.mode;
+
     return {
       // mediaType keeps its dedicated persistence (loadPersistedMediaType) so
       // the two stay consistent; mode falls back to the default when absent.
       mediaType: defaults.mediaType,
-      mode:
-        persisted.mode && isAIImageGenerationMode(persisted.mode)
-          ? persisted.mode
-          : defaults.mode,
-      imageModes: {
+      mode: restoredMode,
+      imageModes: unifyImageModePrompts(restoredMode, {
         "text-to-image": {
           ...mergePersistedGenerationDraft(
             defaults.imageModes["text-to-image"],
@@ -575,7 +617,7 @@ export const createInitialAIImageWorkbenchDraftState =
           ),
           masksByImageId: {},
         },
-      },
+      }),
       video: mergePersistedGenerationDraft(
         defaults.video,
         persisted.video,
@@ -588,6 +630,29 @@ export const createInitialAIImageWorkbenchDraftState =
       ),
     };
   };
+
+/**
+ * Drafts saved before the image modes shared a prompt may hold three different
+ * ones. Keep the active mode's (or else the first non-empty) for all three.
+ */
+const unifyImageModePrompts = (
+  activeMode: AIImageGenerationMode,
+  imageModes: AIImageWorkbenchDraftState["imageModes"],
+): AIImageWorkbenchDraftState["imageModes"] => {
+  const ordered = [
+    imageModes[activeMode],
+    ...MODE_OPTIONS.map((option) => imageModes[option.value]),
+  ];
+  const source =
+    ordered.find(
+      (draft) => draft.prompt.trim() || draft.negativePrompt.trim(),
+    ) || imageModes[activeMode];
+
+  return withSharedImagePrompt(imageModes, {
+    prompt: source.prompt,
+    negativePrompt: source.negativePrompt,
+  });
+};
 
 export const AIImageWorkbench = ({
   excalidrawAPI,
@@ -678,16 +743,21 @@ export const AIImageWorkbench = ({
         if (current.mediaType === "image") {
           const currentMode = current.mode;
           const currentModeDraft = current.imageModes[currentMode];
+          const nextModeDraft = {
+            ...currentModeDraft,
+            ...updater(currentModeDraft),
+          };
 
           return {
             ...current,
-            imageModes: {
-              ...current.imageModes,
-              [currentMode]: {
-                ...currentModeDraft,
-                ...updater(currentModeDraft),
+            // Prompt text is shared by all image modes; model/params aren't.
+            imageModes: withSharedImagePrompt(
+              { ...current.imageModes, [currentMode]: nextModeDraft },
+              {
+                prompt: nextModeDraft.prompt,
+                negativePrompt: nextModeDraft.negativePrompt,
               },
-            },
+            ),
           };
         }
 
@@ -897,6 +967,22 @@ export const AIImageWorkbench = ({
     replaceEnd: 0,
     activeIndex: 0,
   });
+  const templateButtonRef = useRef<HTMLButtonElement>(null);
+  const promptShellRef = useRef<HTMLDivElement>(null);
+  const popoverId = useId();
+  const templateMenuId = `${popoverId}-templates`;
+  const referencePickerId = `${popoverId}-references`;
+  const referenceKeyboardHintId = `${popoverId}-reference-keys`;
+  const closeTemplateMenu = useCallback(() => setIsTemplateMenuOpen(false), []);
+  const closeReferencePicker = useCallback(
+    () => setReferencePickerState((current) => ({ ...current, isOpen: false })),
+    [],
+  );
+  // `#` trigger the user dismissed with Escape: the keyup that follows (and
+  // any caret event at the same spot) must not reopen the picker.
+  const dismissedReferenceTriggerRef = useRef<string | null>(null);
+  const isReferencePickerVisible =
+    referencePickerState.isOpen && selectedSources.length > 0;
   const [draggedReferenceId, setDraggedReferenceId] = useState<number | null>(
     null,
   );
@@ -905,6 +991,20 @@ export const AIImageWorkbench = ({
     () => new Set(),
   );
   const [weightEditorId, setWeightEditorId] = useState<number | null>(null);
+  // Last single reference removed with x / Backspace, offered back as Undo.
+  const [removedReference, setRemovedReference] = useState<{
+    source: AIImageSourceEnhanced;
+    position: number;
+    promptBefore: string;
+    promptAfter: string;
+    restoreFocus: boolean;
+  } | null>(null);
+  const undoRemoveButtonRef = useRef<HTMLButtonElement>(null);
+  // Polite announcement for keyboard reordering (kept apart from the status
+  // message, which any draft change clears).
+  const [referenceAnnouncement, setReferenceAnnouncement] = useState("");
+  const [isAddingSelection, setIsAddingSelection] = useState(false);
+  const isAddingSelectionRef = useRef(false);
   const [weightDraft, setWeightDraft] = useState(0.6);
   const [batchWeightDraft, setBatchWeightDraft] = useState(0.6);
   const [selectedAIMetadata, setSelectedAIMetadata] =
@@ -1551,6 +1651,9 @@ export const AIImageWorkbench = ({
     modelSupportsMode,
   });
 
+  const hasImageModels = workbenchModels.some(
+    (model) => model.mediaType === "image",
+  );
   const hasActiveVideoTasks = pendingVideoTasks.length > 0;
   const canGenerateVideo =
     mediaType === "video" &&
@@ -1572,7 +1675,8 @@ export const AIImageWorkbench = ({
   );
 
   const addSelectionAsReference = useCallback(async () => {
-    if (!excalidrawAPI) {
+    // One export at a time: a second click used to append a duplicate.
+    if (!excalidrawAPI || isAddingSelectionRef.current) {
       return;
     }
 
@@ -1587,6 +1691,10 @@ export const AIImageWorkbench = ({
       return;
     }
 
+    const scopeId = persistenceScopeIdRef.current;
+    isAddingSelectionRef.current = true;
+    setIsAddingSelection(true);
+
     try {
       const { source, warning } = await exportSelectionToReferenceSource({
         elements: selectedElements,
@@ -1595,6 +1703,11 @@ export const AIImageWorkbench = ({
         options: referenceExportOptions,
         index: selectedSources.length + 1,
       });
+
+      // The board changed while exporting: the image belongs to the old one.
+      if (!mountedRef.current || persistenceScopeIdRef.current !== scopeId) {
+        return;
+      }
 
       setIsReferenceLocked(true);
       setSelectedSources((current) =>
@@ -1609,39 +1722,163 @@ export const AIImageWorkbench = ({
         message: warning || successMessage,
       });
     } catch (error: any) {
+      if (!mountedRef.current || persistenceScopeIdRef.current !== scopeId) {
+        return;
+      }
       console.error("Could not export reference selection", error);
       setErrorMessage(
         error?.message || t("ai.workbench.exportSelectionFailed"),
       );
       setStatusMessage("");
+    } finally {
+      isAddingSelectionRef.current = false;
+      if (mountedRef.current) {
+        setIsAddingSelection(false);
+      }
     }
   }, [excalidrawAPI, referenceExportOptions, selectedSources.length]);
 
-  const removeReferenceImage = useCallback((createdAt: number) => {
-    setSelectedSources((current) =>
-      reindexReferenceImages(
-        current.filter((source) => source.createdAt !== createdAt),
-      ),
-    );
-    setSelectedBatchIds((current) => {
-      const next = new Set(current);
-      next.delete(createdAt);
-      return next;
-    });
-  }, []);
+  /**
+   * Commits a reordered or shrunk reference tray and rewrites `#n` in the
+   * prompts so every token still points at the same image (removed ones
+   * become `#?`). Returns the image prompt before and after.
+   */
+  const commitReferenceSources = useCallback(
+    (nextSources: AIImageSourceEnhanced[]) => {
+      const previous = generationStateRef.current.selectedSources;
+      const indexMap = createReferenceIndexMap(previous, nextSources);
+      const remap = (text: string) => remapPromptReferences(text, indexMap);
+      const draft = activeDraftStateRef.current;
+      const previousImagePrompt = draft.imageModes[draft.mode].prompt;
 
-  const clearReferenceImages = useCallback(async () => {
+      setSelectedSources(nextSources);
+      setActiveDraftState((current) => {
+        const currentImage = current.imageModes[current.mode];
+        const prompt = remap(currentImage.prompt);
+        const negativePrompt = remap(currentImage.negativePrompt);
+        const videoPrompt = remap(current.video.prompt);
+
+        if (
+          prompt === currentImage.prompt &&
+          negativePrompt === currentImage.negativePrompt &&
+          videoPrompt === current.video.prompt
+        ) {
+          return current;
+        }
+
+        return {
+          ...current,
+          imageModes: withSharedImagePrompt(current.imageModes, {
+            prompt,
+            negativePrompt,
+          }),
+          video: { ...current.video, prompt: videoPrompt },
+        };
+      });
+
+      return {
+        previousImagePrompt,
+        nextImagePrompt: remap(previousImagePrompt),
+      };
+    },
+    [setActiveDraftState],
+  );
+
+  const removeReferenceImage = useCallback(
+    (createdAt: number, options: { fromKeyboard?: boolean } = {}) => {
+      const current = generationStateRef.current.selectedSources;
+      const position = current.findIndex(
+        (source) => source.createdAt === createdAt,
+      );
+
+      if (position < 0) {
+        return;
+      }
+
+      const { previousImagePrompt, nextImagePrompt } = commitReferenceSources(
+        reindexReferenceImages(
+          current.filter((source) => source.createdAt !== createdAt),
+        ),
+      );
+      setRemovedReference({
+        source: current[position],
+        position,
+        promptBefore: previousImagePrompt,
+        promptAfter: nextImagePrompt,
+        restoreFocus: !!options.fromKeyboard,
+      });
+      setSelectedBatchIds((ids) => {
+        const next = new Set(ids);
+        next.delete(createdAt);
+        return next;
+      });
+    },
+    [commitReferenceSources],
+  );
+
+  const undoRemoveReference = useCallback(() => {
+    if (!removedReference) {
+      return;
+    }
+
+    const current = generationStateRef.current.selectedSources;
+    setRemovedReference(null);
+
     if (
-      selectedSources.length > 2 &&
-      !(await confirmAction(t("ai.workbench.clearAllReferencesConfirm")))
+      current.some(
+        (source) => source.createdAt === removedReference.source.createdAt,
+      )
     ) {
       return;
     }
 
-    setSelectedSources([]);
+    const nextSources = [...current];
+    nextSources.splice(
+      Math.min(removedReference.position, nextSources.length),
+      0,
+      removedReference.source,
+    );
+    const reindexed = reindexReferenceImages(nextSources);
+    const draft = activeDraftStateRef.current;
+
+    if (draft.imageModes[draft.mode].prompt === removedReference.promptAfter) {
+      // Nothing typed since: put the prompt back exactly, including the token
+      // that became `#?`.
+      setSelectedSources(reindexed);
+      setActiveDraftState((value) => ({
+        ...value,
+        imageModes: withSharedImagePrompt(value.imageModes, {
+          prompt: removedReference.promptBefore,
+        }),
+      }));
+    } else {
+      // Edited since: only shift the later tokens back up.
+      commitReferenceSources(reindexed);
+    }
+  }, [commitReferenceSources, removedReference, setActiveDraftState]);
+
+  useEffect(() => {
+    if (removedReference?.restoreFocus) {
+      undoRemoveButtonRef.current?.focus();
+    }
+  }, [removedReference]);
+
+  const clearReferenceImages = useCallback(async () => {
+    if (
+      selectedSources.length > BULK_DELETE_CONFIRM_THRESHOLD &&
+      !(await confirmAction(t("ai.workbench.clearAllReferencesConfirm"), {
+        confirmLabel: t("ai.common.clear"),
+        danger: true,
+      }))
+    ) {
+      return;
+    }
+
+    commitReferenceSources([]);
+    setRemovedReference(null);
     setSelectedBatchIds(new Set());
     setBatchMode(false);
-  }, [selectedSources.length]);
+  }, [commitReferenceSources, selectedSources.length]);
 
   const toggleReferenceLock = useCallback(() => {
     setIsReferenceLocked((current) => {
@@ -1699,28 +1936,66 @@ export const AIImageWorkbench = ({
     [excalidrawAPI],
   );
 
-  const moveReferenceImage = useCallback((fromId: number, toId: number) => {
-    if (fromId === toId) {
-      return;
-    }
+  /** Returns the moved reference's new 1-based index, or null. */
+  const moveReferenceImage = useCallback(
+    (fromId: number, toId: number) => {
+      if (fromId === toId) {
+        return null;
+      }
 
-    setSelectedSources((current) => {
+      const current = generationStateRef.current.selectedSources;
       const fromIndex = current.findIndex(
         (source) => source.createdAt === fromId,
       );
       const toIndex = current.findIndex((source) => source.createdAt === toId);
 
       if (fromIndex < 0 || toIndex < 0) {
-        return current;
+        return null;
       }
 
       const nextSources = [...current];
       const [source] = nextSources.splice(fromIndex, 1);
       nextSources.splice(toIndex, 0, source);
+      commitReferenceSources(reindexReferenceImages(nextSources));
+      // The stored position/prompt no longer matches the tray.
+      setRemovedReference(null);
 
-      return reindexReferenceImages(nextSources);
-    });
-  }, []);
+      return toIndex + 1;
+    },
+    [commitReferenceSources],
+  );
+
+  // Keyboard alternative to drag-and-drop (Alt+Left / Alt+Right).
+  const moveReferenceByStep = useCallback(
+    (source: AIImageSourceEnhanced, step: -1 | 1) => {
+      const current = generationStateRef.current.selectedSources;
+      const index = current.findIndex(
+        (item) => item.createdAt === source.createdAt,
+      );
+      const target = index < 0 ? undefined : current[index + step];
+
+      if (!target) {
+        return;
+      }
+
+      const newIndex = moveReferenceImage(source.createdAt, target.createdAt);
+
+      if (newIndex != null) {
+        setReferenceAnnouncement(
+          t("ai.workbench.referenceMoved", { index: newIndex }),
+        );
+        // Reordering re-inserts the card's DOM node, which drops focus.
+        window.requestAnimationFrame(() => {
+          rootRef.current
+            ?.querySelector<HTMLElement>(
+              `[data-reference-id="${source.createdAt}"]`,
+            )
+            ?.focus();
+        });
+      }
+    },
+    [moveReferenceImage],
+  );
 
   const openWeightEditor = useCallback(
     (source: AIImageSourceEnhanced) => {
@@ -1783,14 +2058,30 @@ export const AIImageWorkbench = ({
     );
   }, [selectedSources]);
 
-  const deleteSelectedBatchReferences = useCallback(() => {
-    setSelectedSources((current) =>
+  const deleteSelectedBatchReferences = useCallback(async () => {
+    // Same rule as "Clear": more than BULK_DELETE_CONFIRM_THRESHOLD asks first.
+    if (
+      selectedBatchIds.size > BULK_DELETE_CONFIRM_THRESHOLD &&
+      !(await confirmAction(
+        t("ai.workbench.deleteSelectedReferencesConfirm", {
+          count: selectedBatchIds.size,
+        }),
+        { confirmLabel: t("ai.common.delete"), danger: true },
+      ))
+    ) {
+      return;
+    }
+
+    commitReferenceSources(
       reindexReferenceImages(
-        current.filter((source) => !selectedBatchIds.has(source.createdAt)),
+        generationStateRef.current.selectedSources.filter(
+          (source) => !selectedBatchIds.has(source.createdAt),
+        ),
       ),
     );
+    setRemovedReference(null);
     setSelectedBatchIds(new Set());
-  }, [selectedBatchIds]);
+  }, [commitReferenceSources, selectedBatchIds]);
 
   const applyBatchWeight = useCallback(() => {
     setSelectedSources((current) =>
@@ -1833,6 +2124,7 @@ export const AIImageWorkbench = ({
       isReferenceLockedRef.current = false;
       setIsReferenceLocked(false);
       setSelectedSources([]);
+      setRemovedReference(null);
       setActiveDraftState((current) => ({
         ...current,
         imageModes: {
@@ -3156,24 +3448,46 @@ export const AIImageWorkbench = ({
         workbenchModels.find((model) => model.model === metadata.model)?.id ||
         metadata.model;
 
-      setActiveDraftState((current) => ({
-        ...current,
-        mediaType: "image",
-        mode: selectedMode,
-        imageModes: {
-          ...current.imageModes,
-          [selectedMode]: {
-            ...current.imageModes[selectedMode],
-            selectedModelId,
-            prompt: metadata.prompt,
-            negativePrompt: metadata.negativePrompt || "",
-            params: {
-              ...current.imageModes[selectedMode].params,
-              ...metadata.params,
+      setActiveDraftState((current) => {
+        const nextPrompt = {
+          prompt: metadata.prompt,
+          negativePrompt: metadata.negativePrompt || "",
+        };
+        const imageDraft = current.imageModes[current.mode];
+        const replacesText =
+          (!!imageDraft.prompt.trim() &&
+            imageDraft.prompt !== nextPrompt.prompt) ||
+          (!!imageDraft.negativePrompt.trim() &&
+            imageDraft.negativePrompt !== nextPrompt.negativePrompt);
+        const imageModes = withSharedImagePrompt(
+          current.imageModes,
+          nextPrompt,
+        );
+
+        return {
+          ...current,
+          mediaType: "image",
+          mode: selectedMode,
+          imageModes: {
+            ...imageModes,
+            [selectedMode]: {
+              ...imageModes[selectedMode],
+              selectedModelId,
+              params: {
+                ...current.imageModes[selectedMode].params,
+                ...metadata.params,
+              },
             },
           },
-        },
-      }));
+          replacedPrompt: replacesText
+            ? {
+                mediaType: "image",
+                prompt: imageDraft.prompt,
+                negativePrompt: imageDraft.negativePrompt,
+              }
+            : current.replacedPrompt,
+        };
+      });
       setStatusMessage(message);
       setErrorMessage("");
     },
@@ -3328,9 +3642,21 @@ export const AIImageWorkbench = ({
     setErrorMessage("");
   }, []);
 
-  const clearGeneratedAssets = useCallback(() => {
+  // Generated assets only live in memory, so clearing them can't be undone.
+  const clearGeneratedAssets = useCallback(async () => {
+    if (
+      !(await confirmAction(
+        t("ai.workbench.clearGeneratedAssetsConfirm", {
+          count: generatedAssets.length,
+        }),
+        { confirmLabel: t("ai.common.clear"), danger: true },
+      ))
+    ) {
+      return;
+    }
+
     setGeneratedAssets([]);
-  }, []);
+  }, [generatedAssets.length]);
 
   const insertPromptText = useCallback(
     (text: string, replaceRange?: { start: number; end: number }) => {
@@ -3374,18 +3700,27 @@ export const AIImageWorkbench = ({
 
   const updateReferencePicker = useCallback(
     (input: PromptEditorHandle) => {
-      if (!selectedSources.length) {
+      // Only modes that take reference images get the picker. The trigger is
+      // `#` alone: "图"/"image" matched ordinary prose ("地图", "image"), and
+      // the next Enter then replaced it with a `#n` token.
+      if (!requiresReference || !selectedSources.length) {
         setReferencePickerState((current) => ({ ...current, isOpen: false }));
         return;
       }
 
       const beforeCaret = input.value.slice(0, input.selectionStart);
-      const match = beforeCaret.match(/(?:#|图|image\s*)(\d*)$/i);
+      const match = beforeCaret.match(/#(\d*)$/);
 
       if (!match) {
         setReferencePickerState((current) => ({ ...current, isOpen: false }));
         return;
       }
+
+      const triggerKey = `${input.selectionStart}:${input.value}`;
+      if (dismissedReferenceTriggerRef.current === triggerKey) {
+        return;
+      }
+      dismissedReferenceTriggerRef.current = null;
 
       const query = match[1] || "";
       const requestedIndex = query ? Number(query) - 1 : 0;
@@ -3401,7 +3736,7 @@ export const AIImageWorkbench = ({
         ),
       });
     },
-    [selectedSources.length],
+    [requiresReference, selectedSources.length],
   );
 
   const insertActiveReferenceToken = useCallback(() => {
@@ -3440,6 +3775,11 @@ export const AIImageWorkbench = ({
 
   const handlePromptKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      // An IME is composing: Enter/arrows belong to the candidate window.
+      if (event.nativeEvent.isComposing || event.keyCode === 229) {
+        return;
+      }
+
       if (referencePickerState.isOpen) {
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
           event.preventDefault();
@@ -3461,11 +3801,15 @@ export const AIImageWorkbench = ({
         }
 
         if (event.key === "Escape") {
+          // Close only the picker, not the surrounding sidebar or dialog.
           event.preventDefault();
-          setReferencePickerState((current) => ({
-            ...current,
-            isOpen: false,
-          }));
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation();
+          const input = promptInputRef.current;
+          dismissedReferenceTriggerRef.current = input
+            ? `${input.selectionStart}:${input.value}`
+            : null;
+          closeReferencePicker();
           return;
         }
       }
@@ -3479,6 +3823,7 @@ export const AIImageWorkbench = ({
       }
     },
     [
+      closeReferencePicker,
       insertActiveReferenceToken,
       jumpToNextPromptPlaceholder,
       referencePickerState.isOpen,
@@ -3520,22 +3865,95 @@ export const AIImageWorkbench = ({
     </UiButton>
   );
 
-  const renderConfigurationNotice = () => {
-    if (!configurationNotice) {
-      return null;
-    }
+  // Audio is preview-only and keeps its own disabled button and notice.
+  const activeConfigurationNotice =
+    mediaType === "audio" ? null : configurationNotice;
 
-    return renderNotice(configurationNotice.message, {
-      label: configurationNotice.actionLabel,
-      onClick: openModelSettings,
-    });
-  };
+  // The notice explains; the primary button (below) is the action.
+  const renderConfigurationNotice = () =>
+    activeConfigurationNotice
+      ? renderNotice(activeConfigurationNotice.message, undefined, "warning")
+      : null;
+
+  // Without a usable model the only useful next step is the settings, so the
+  // primary button becomes that instead of a dead, disabled "Generate".
+  const renderPrimaryAction = (generateButton: ReactElement) =>
+    activeConfigurationNotice ? (
+      <UiButton
+        variant="primary"
+        size="lg"
+        fullWidth
+        className="AIImageWorkbench__primaryButton"
+        onClick={openModelSettings}
+      >
+        {activeConfigurationNotice.actionLabel}
+      </UiButton>
+    ) : (
+      generateButton
+    );
+
+  // Status / error of the last action, right above the primary button. Errors
+  // are alerts; other messages polite status updates.
+  const renderRunMessage = () =>
+    statusMessage || errorMessage ? (
+      <Callout
+        tone={errorMessage ? "danger" : "info"}
+        live
+        className={
+          errorMessage
+            ? "AIImageWorkbench__message is-error"
+            : "AIImageWorkbench__message"
+        }
+      >
+        {errorMessage || statusMessage}
+      </Callout>
+    ) : null;
+
+  const replacedPrompt = activeDraftState.replacedPrompt;
+  const restoreReplacedPrompt = useCallback(() => {
+    setActiveDraftState(restoreReplacedPromptInWorkbenchDraft);
+  }, [setActiveDraftState]);
+  const dismissReplacedPrompt = useCallback(() => {
+    setActiveDraftState((current) =>
+      current.replacedPrompt ? { ...current, replacedPrompt: null } : current,
+    );
+  }, [setActiveDraftState]);
+
+  // An external write (assistant, template, history, "Load params") replaced
+  // a prompt the user had written; offer it back instead of losing it.
+  const renderReplacedPromptNotice = () =>
+    replacedPrompt && replacedPrompt.mediaType === mediaType ? (
+      <Callout
+        tone="neutral"
+        live
+        className="AIImageWorkbench__notice"
+        action={
+          <div className="AIImageWorkbench__noticeActions">
+            <UiButton variant="ghost" size="sm" onClick={restoreReplacedPrompt}>
+              {t("ai.workbench.restorePreviousPrompt")}
+            </UiButton>
+            <UiButton
+              variant="ghost"
+              size="sm"
+              iconOnly
+              icon={CloseIcon}
+              aria-label={t("ai.common.close")}
+              title={t("ai.common.close")}
+              onClick={dismissReplacedPrompt}
+            />
+          </div>
+        }
+      >
+        {t("ai.workbench.promptReplaced")}
+      </Callout>
+    ) : null;
 
   const renderPromptEditor = () => (
     <div className="AIImageWorkbench__promptBlock">
       <label className="AIImageWorkbench__field">
         <span>{t("ai.common.prompt")}</span>
         <div
+          ref={promptShellRef}
           className={
             promptReferenceWarnings.length
               ? "AIImageWorkbench__promptShell has-warning"
@@ -3548,6 +3966,12 @@ export const AIImageWorkbench = ({
             value={prompt}
             referenceCount={promptReferenceCount}
             ariaLabel={t("ai.common.prompt")}
+            popupId={isReferencePickerVisible ? referencePickerId : undefined}
+            activeOptionId={
+              isReferencePickerVisible
+                ? `${referencePickerId}-option-${referencePickerState.activeIndex}`
+                : undefined
+            }
             placeholder={t("ai.workbench.describeImage")}
             onChange={setPrompt}
             onCaretChange={() => {
@@ -3569,8 +3993,11 @@ export const AIImageWorkbench = ({
 
       <div className="AIImageWorkbench__templateRow">
         <UiButton
+          ref={templateButtonRef}
           size="sm"
+          aria-haspopup="menu"
           aria-expanded={isTemplateMenuOpen}
+          aria-controls={isTemplateMenuOpen ? templateMenuId : undefined}
           onClick={() => setIsTemplateMenuOpen((current) => !current)}
         >
           {t("ai.workbench.templates")}
@@ -3584,60 +4011,95 @@ export const AIImageWorkbench = ({
         </div>
       </div>
 
-      {isTemplateMenuOpen && (
-        <div className="AIImageWorkbench__templateMenu">
-          {promptTemplates.length === 0 && (
-            <div className="AIImageWorkbench__emptyState">
-              {t("ai.workbench.noTemplates")}
-            </div>
-          )}
-          {groupPromptTemplates(promptTemplates, t).map((group) => (
-            <div className="AIImageWorkbench__templateGroup" key={group.label}>
-              <div className="AIImageWorkbench__templateGroupLabel">
-                {group.label}
-              </div>
-              {group.templates.map((template) => (
-                <button
-                  key={template.id}
-                  type="button"
-                  className="AIImageWorkbench__templateItem"
-                  onClick={() => insertPromptTemplate(template)}
-                >
-                  <span>{template.label}</span>
-                  <small>
-                    {template.category
-                      ? getPromptTemplateCategoryLabel(template.category, t)
-                      : t("ai.common.custom")}
-                  </small>
-                </button>
-              ))}
-            </div>
-          ))}
-          <button
-            type="button"
-            className="AIImageWorkbench__templateItem"
-            onClick={openTemplateSettings}
-          >
-            <span>{t("ai.workbench.manageTemplates")}</span>
-          </button>
-        </div>
-      )}
-
-      {referencePickerState.isOpen && (
-        <div className="AIImageWorkbench__referencePicker">
-          <div className="AIImageWorkbench__templateGroupLabel">
-            {t("ai.workbench.insertReference")}
+      <Popover
+        open={isTemplateMenuOpen}
+        onClose={closeTemplateMenu}
+        anchorRef={templateButtonRef}
+        role="menu"
+        id={templateMenuId}
+        aria-label={t("ai.workbench.templates")}
+        className="AIImageWorkbench__templateMenu"
+      >
+        {promptTemplates.length === 0 && (
+          <div className="UiPopover__empty" role="presentation">
+            {t("ai.workbench.noTemplates")}
           </div>
-          {selectedSources.map((source, index) => (
-            <button
+        )}
+        {groupPromptTemplates(promptTemplates, t).map((group, groupIndex) => (
+          <div
+            key={group.label}
+            role="group"
+            aria-labelledby={`${templateMenuId}-group-${groupIndex}`}
+            className="AIImageWorkbench__templateGroup"
+          >
+            <PopoverHeading id={`${templateMenuId}-group-${groupIndex}`}>
+              {group.label}
+            </PopoverHeading>
+            {group.templates.map((template) => (
+              <button
+                key={template.id}
+                type="button"
+                role="menuitem"
+                className="UiPopover__item"
+                title={template.label}
+                onClick={() => insertPromptTemplate(template)}
+              >
+                <span className="UiPopover__label">{template.label}</span>
+                <span className="UiPopover__meta">
+                  {template.category
+                    ? getPromptTemplateCategoryLabel(template.category, t)
+                    : t("ai.common.custom")}
+                </span>
+              </button>
+            ))}
+          </div>
+        ))}
+        <PopoverSeparator />
+        <button
+          type="button"
+          role="menuitem"
+          className="UiPopover__item"
+          onClick={openTemplateSettings}
+        >
+          <span className="UiPopover__label">
+            {t("ai.workbench.manageTemplates")}
+          </span>
+        </button>
+      </Popover>
+
+      <Popover
+        open={isReferencePickerVisible}
+        onClose={closeReferencePicker}
+        anchorRef={promptShellRef}
+        role="listbox"
+        id={referencePickerId}
+        aria-label={t("ai.workbench.insertReference")}
+        matchAnchorWidth
+        maxHeight={240}
+        className="AIImageWorkbench__referencePicker"
+      >
+        <PopoverHeading>{t("ai.workbench.insertReference")}</PopoverHeading>
+        {selectedSources.map((source, index) => {
+          const active = index === referencePickerState.activeIndex;
+          return (
+            <div
               key={source.createdAt}
-              type="button"
-              className={
-                index === referencePickerState.activeIndex
-                  ? "AIImageWorkbench__referencePickerItem is-active"
-                  : "AIImageWorkbench__referencePickerItem"
-              }
-              onMouseDown={(event) => event.preventDefault()}
+              id={`${referencePickerId}-option-${index}`}
+              role="option"
+              aria-selected={active}
+              className={clsx(
+                "UiPopover__item",
+                "AIImageWorkbench__referencePickerItem",
+                { "is-active": active },
+              )}
+              onPointerMove={() => {
+                if (!active) {
+                  setReferencePickerState((current) => ({
+                    ...current,
+                    activeIndex: index,
+                  }));
+                }
+              }}
               onClick={() =>
                 insertPromptText(`#${source.index}`, {
                   start: referencePickerState.replaceStart,
@@ -3645,13 +4107,17 @@ export const AIImageWorkbench = ({
                 })
               }
             >
-              <strong>#{source.index}</strong>
+              <strong className="UiPopover__lead">#{source.index}</strong>
               <img src={source.dataURL} alt="" />
-              <span>{getSourceTypeLabel(source.sourceType, t)}</span>
-            </button>
-          ))}
-        </div>
-      )}
+              <span className="UiPopover__label">
+                {getSourceTypeLabel(source.sourceType, t)}
+              </span>
+            </div>
+          );
+        })}
+      </Popover>
+
+      {renderReplacedPromptNotice()}
 
       {promptReferenceWarnings.map((warning) => (
         <Callout
@@ -3698,7 +4164,8 @@ export const AIImageWorkbench = ({
               type="button"
               aria-label={t("ai.workbench.addCurrentSelection")}
               title={t("ai.workbench.addCurrentSelection")}
-              disabled={!selectedElementCount}
+              disabled={!selectedElementCount || isAddingSelection}
+              aria-busy={isAddingSelection || undefined}
               onClick={addSelectionAsReference}
             >
               {t("ai.sidebar.addSelection")}
@@ -3734,16 +4201,11 @@ export const AIImageWorkbench = ({
 
         <div className="AIImageWorkbench__referenceGrid">
           {selectedSources.map((source) => (
+            // A plain container: the thumbnail is the "select on canvas"
+            // button, so no interactive control nests inside another.
             <div
               key={source.createdAt}
-              role="button"
-              tabIndex={0}
               draggable={selectedSources.length > 1}
-              title={
-                source.missingElement
-                  ? t("ai.workbench.originalNotFound")
-                  : t("ai.workbench.selectOriginalElements")
-              }
               className={[
                 "AIImageWorkbench__referenceCard",
                 source.missingElement ? "is-missing" : "",
@@ -3751,25 +4213,6 @@ export const AIImageWorkbench = ({
               ]
                 .filter(Boolean)
                 .join(" ")}
-              onClick={() => highlightReferenceSource(source)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  highlightReferenceSource(source);
-                  return;
-                }
-                // Clicking a card selects the original element on the canvas
-                // (to highlight it), so a bare Backspace/Delete would otherwise
-                // bubble to Excalidraw's document keydown listener and delete
-                // that canvas element. Treat these keys as "remove this
-                // reference from the list" (local + reversible) and stop them
-                // from reaching the canvas.
-                if (event.key === "Backspace" || event.key === "Delete") {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  removeReferenceImage(source.createdAt);
-                }
-              }}
               onDragStart={(event) => {
                 setDraggedReferenceId(source.createdAt);
                 event.dataTransfer.effectAllowed = "move";
@@ -3820,12 +4263,9 @@ export const AIImageWorkbench = ({
                   source.index
                 }`}
                 title={`${t("ai.workbench.removeReference")} #${source.index}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  removeReferenceImage(source.createdAt);
-                }}
+                onClick={() => removeReferenceImage(source.createdAt)}
               >
-                x
+                <span aria-hidden="true">{CloseIcon}</span>
               </button>
 
               {source.weight != null && (
@@ -3837,13 +4277,58 @@ export const AIImageWorkbench = ({
                 </span>
               )}
 
-              <img
-                className="AIImageWorkbench__referenceThumb"
-                src={source.dataURL}
-                alt={t("ai.workbench.referenceAlt", {
+              <button
+                type="button"
+                className="AIImageWorkbench__referenceThumbButton"
+                data-reference-id={source.createdAt}
+                aria-label={`${t("ai.workbench.referenceAlt", {
                   index: source.index,
-                })}
-              />
+                })}: ${
+                  source.missingElement
+                    ? t("ai.workbench.originalNotFound")
+                    : t("ai.workbench.selectOriginalElements")
+                }`}
+                aria-describedby={referenceKeyboardHintId}
+                aria-keyshortcuts="Alt+ArrowLeft Alt+ArrowRight Delete"
+                title={
+                  source.missingElement
+                    ? t("ai.workbench.originalNotFound")
+                    : t("ai.workbench.selectOriginalElements")
+                }
+                onClick={() => highlightReferenceSource(source)}
+                onKeyDown={(event) => {
+                  if (
+                    event.altKey &&
+                    (event.key === "ArrowLeft" || event.key === "ArrowRight")
+                  ) {
+                    event.preventDefault();
+                    moveReferenceByStep(
+                      source,
+                      event.key === "ArrowLeft" ? -1 : 1,
+                    );
+                    return;
+                  }
+                  // Clicking selects the original element on the canvas, so a
+                  // bare Backspace/Delete would otherwise reach Excalidraw's
+                  // document listener and delete that canvas element. Remove
+                  // the reference instead (Undo is offered below the grid).
+                  if (event.key === "Backspace" || event.key === "Delete") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    removeReferenceImage(source.createdAt, {
+                      fromKeyboard: true,
+                    });
+                  }
+                }}
+              >
+                <img
+                  className="AIImageWorkbench__referenceThumb"
+                  src={source.dataURL}
+                  alt={t("ai.workbench.referenceAlt", {
+                    index: source.index,
+                  })}
+                />
+              </button>
 
               <div className="AIImageWorkbench__referenceMeta">
                 <span>{getSourceTypeLabel(source.sourceType, t)}</span>
@@ -3857,10 +4342,8 @@ export const AIImageWorkbench = ({
               <div className="AIImageWorkbench__referenceCardActions">
                 <button
                   type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openWeightEditor(source);
-                  }}
+                  aria-label={`${t("ai.workbench.weight")} #${source.index}`}
+                  onClick={() => openWeightEditor(source)}
                 >
                   {t("ai.workbench.weight")}
                 </button>
@@ -3868,6 +4351,35 @@ export const AIImageWorkbench = ({
             </div>
           ))}
         </div>
+
+        <span id={referenceKeyboardHintId} className="visually-hidden">
+          {t("ai.workbench.referenceKeyboardHint")}
+        </span>
+        <span className="visually-hidden" role="status">
+          {referenceAnnouncement}
+        </span>
+
+        {removedReference && (
+          <Callout
+            tone="neutral"
+            live
+            className="AIImageWorkbench__notice"
+            action={
+              <UiButton
+                ref={undoRemoveButtonRef}
+                variant="ghost"
+                size="sm"
+                onClick={undoRemoveReference}
+              >
+                {t("buttons.undo")}
+              </UiButton>
+            }
+          >
+            {t("ai.workbench.referenceRemoved", {
+              index: removedReference.position + 1,
+            })}
+          </Callout>
+        )}
 
         {selectedSources.length > 0 && (
           <div className="AIImageWorkbench__referenceHint">
@@ -3974,7 +4486,7 @@ export const AIImageWorkbench = ({
           <div className="AIImageWorkbench__grid">
             <label className="AIImageWorkbench__field">
               <span>{t("ai.workbench.background")}</span>
-              <select
+              <Select
                 value={referenceExportOptions.background}
                 onChange={(event) =>
                   setReferenceExportOptions((current) => ({
@@ -3989,12 +4501,12 @@ export const AIImageWorkbench = ({
                 </option>
                 <option value="white">{t("ai.workbench.white")}</option>
                 <option value="canvas">{t("ai.workbench.canvas")}</option>
-              </select>
+              </Select>
             </label>
 
             <label className="AIImageWorkbench__field">
               <span>{t("ai.workbench.padding")}</span>
-              <select
+              <Select
                 value={referenceExportOptions.padding}
                 onChange={(event) =>
                   setReferenceExportOptions((current) => ({
@@ -4006,13 +4518,13 @@ export const AIImageWorkbench = ({
               >
                 <option value="padded">16px</option>
                 <option value="tight">{t("ai.workbench.tight")}</option>
-              </select>
+              </Select>
             </label>
           </div>
 
           <label className="AIImageWorkbench__field">
             <span>{t("ai.workbench.maxSize")}</span>
-            <select
+            <Select
               value={referenceExportOptions.maxSize}
               onChange={(event) =>
                 setReferenceExportOptions((current) => ({
@@ -4025,7 +4537,7 @@ export const AIImageWorkbench = ({
               <option value="auto">{t("ai.workbench.auto")}</option>
               <option value="1024">1024px</option>
               <option value="2048">2048px</option>
-            </select>
+            </Select>
           </label>
         </details>
       </div>
@@ -4041,9 +4553,15 @@ export const AIImageWorkbench = ({
     draggedReferenceId,
     highlightReferenceSource,
     isReferenceLocked,
+    isAddingSelection,
+    moveReferenceByStep,
     moveReferenceImage,
     openWeightEditor,
     params.referenceStrength,
+    referenceAnnouncement,
+    referenceKeyboardHintId,
+    removedReference,
+    undoRemoveReference,
     referenceExportOptions.background,
     referenceExportOptions.maxSize,
     referenceExportOptions.padding,
@@ -4209,7 +4727,7 @@ export const AIImageWorkbench = ({
   const renderModelSelect = (disabled = false) => (
     <label className="AIImageWorkbench__field">
       <span>{t("ai.workbench.modelId")}</span>
-      <select
+      <Select
         value={selectedModelId}
         disabled={disabled}
         onChange={(event) => setSelectedModelId(event.target.value)}
@@ -4226,7 +4744,7 @@ export const AIImageWorkbench = ({
             {model.model} / {model.siteName}
           </option>
         ))}
-      </select>
+      </Select>
     </label>
   );
 
@@ -4242,7 +4760,11 @@ export const AIImageWorkbench = ({
                 ? "AIImageWorkbench__segment is-selected"
                 : "AIImageWorkbench__segment"
             }
+            // With no image model at all every mode is equally unavailable;
+            // greying all three out only made the panel look dead (the
+            // configuration notice + "Open AI settings" explain it instead).
             disabled={
+              hasImageModels &&
               !workbenchModels.some(
                 (model) =>
                   model.mediaType === "image" &&
@@ -4276,7 +4798,7 @@ export const AIImageWorkbench = ({
       <div className="AIImageWorkbench__grid AIImageWorkbench__grid--three">
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.aspectRatio")}</span>
-          <select
+          <Select
             value={params.aspectRatio || "auto"}
             onChange={(event) =>
               updateParams({ aspectRatio: event.target.value })
@@ -4287,12 +4809,12 @@ export const AIImageWorkbench = ({
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.resolution")}</span>
-          <select
+          <Select
             value={params.resolution || "auto"}
             onChange={(event) =>
               updateParams({ resolution: event.target.value })
@@ -4303,7 +4825,7 @@ export const AIImageWorkbench = ({
                 {option.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="AIImageWorkbench__field">
@@ -4325,7 +4847,7 @@ export const AIImageWorkbench = ({
       <div className="AIImageWorkbench__grid AIImageWorkbench__grid--three">
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.quality")}</span>
-          <select
+          <Select
             value={resolveAIImageQuality(selectedNativeModel, params.quality)}
             disabled={
               !!selectedModel && !supportsAIImageMode(selectedModel, "quality")
@@ -4337,7 +4859,7 @@ export const AIImageWorkbench = ({
                 {getQualityOptionLabel(option, t)}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
 
         <label className="AIImageWorkbench__field">
@@ -4352,7 +4874,8 @@ export const AIImageWorkbench = ({
           />
         </label>
 
-        <label className="AIImageWorkbench__field">
+        {/* Full row: a 10-digit seed plus the dice didn't fit a third. */}
+        <label className="AIImageWorkbench__field AIImageWorkbench__field--wide">
           <span>{t("ai.workbench.seed")}</span>
           <div className="AIImageWorkbench__seedField">
             <input
@@ -4448,47 +4971,65 @@ export const AIImageWorkbench = ({
         </label>
       )}
 
-      {renderConfigurationNotice()}
+      {/* Sticky footer: message, running tasks and the primary action stay
+          together, so the message is never covered by the button. */}
+      <div className="AIImageWorkbench__dock">
+        {renderRunMessage()}
 
-      {isGenerating && (
-        <div className="AIImageWorkbench__videoTasks">
-          <div className="AIImageWorkbench__videoTask">
-            <span className="AIImageWorkbench__videoTaskLabel">
-              {t("ai.workbench.generatingImage")}
-            </span>
-            <UiButton variant="ghost" size="sm" onClick={cancelGeneration}>
-              {t("ai.common.cancel")}
-            </UiButton>
+        {isGenerating && (
+          <div className="AIImageWorkbench__videoTasks">
+            <div className="AIImageWorkbench__videoTask">
+              <span className="AIImageWorkbench__videoTaskLabel">
+                {t("ai.workbench.generatingImage")}
+              </span>
+              <UiButton variant="ghost" size="sm" onClick={cancelGeneration}>
+                {t("ai.common.cancel")}
+              </UiButton>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      <UiButton
-        variant="primary"
-        size="lg"
-        fullWidth
-        className="AIImageWorkbench__primaryButton"
-        disabled={!canGenerate}
-        onClick={() => generate()}
-      >
-        {isGenerating
-          ? t("ai.workbench.generating")
-          : t("ai.workbench.generateImage")}
-      </UiButton>
+        {renderPrimaryAction(
+          <UiButton
+            variant="primary"
+            size="lg"
+            fullWidth
+            className="AIImageWorkbench__primaryButton"
+            disabled={!canGenerate}
+            loading={isGenerating}
+            onClick={() => generate()}
+          >
+            {isGenerating
+              ? t("ai.workbench.generating")
+              : t("ai.workbench.generateImage")}
+          </UiButton>,
+        )}
+      </div>
     </>
   );
 
   const renderVideoParameters = () => (
     <>
-      <label className="AIImageWorkbench__field">
-        <span>{t("ai.common.prompt")}</span>
-        <textarea
+      <div className="AIImageWorkbench__field">
+        <span aria-hidden="true">{t("ai.common.prompt")}</span>
+        {/* Same editor as images: references drive image-to-video, so `#n`
+            highlighting applies; no `#` picker (the tray lives in Image). */}
+        <PromptEditor
+          className="AIImageWorkbench__promptInput"
           value={prompt}
-          rows={4}
-          onChange={(event) => setPrompt(event.target.value)}
+          referenceCount={
+            selectedModel &&
+            supportsAIImageMode(selectedModel, "image-to-video")
+              ? availableSelectedSources.length
+              : 0
+          }
+          ariaLabel={t("ai.common.prompt")}
           placeholder={t("ai.workbench.videoPromptPlaceholder")}
+          onChange={setPrompt}
+          onCaretChange={noop}
         />
-      </label>
+      </div>
+      {renderReplacedPromptNotice()}
 
       <div className="AIImageWorkbench__promptActions AIImageWorkbench__promptActions--end">
         {renderSendPromptToAssistantButton()}
@@ -4500,7 +5041,7 @@ export const AIImageWorkbench = ({
 
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.aspectRatio")}</span>
-          <select
+          <Select
             value={
               params.aspectRatio && params.aspectRatio !== "auto"
                 ? params.aspectRatio
@@ -4514,7 +5055,7 @@ export const AIImageWorkbench = ({
             <option value="9:16">9:16</option>
             <option value="1:1">1:1</option>
             <option value="4:3">4:3</option>
-          </select>
+          </Select>
         </label>
 
         <label className="AIImageWorkbench__field">
@@ -4534,7 +5075,7 @@ export const AIImageWorkbench = ({
 
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.resolution")}</span>
-          <select
+          <Select
             value={
               params.resolution && params.resolution !== "auto"
                 ? params.resolution
@@ -4546,7 +5087,7 @@ export const AIImageWorkbench = ({
           >
             <option value="720P">720P</option>
             <option value="1080P">1080P</option>
-          </select>
+          </Select>
         </label>
       </div>
 
@@ -4559,53 +5100,62 @@ export const AIImageWorkbench = ({
           }),
         )}
 
-      {renderConfigurationNotice()}
+      {/* Sticky footer: message, running tasks and the primary action stay
+          together, so the message is never covered by the button. */}
+      <div className="AIImageWorkbench__dock">
+        {renderRunMessage()}
 
-      {(isSubmittingVideo || pendingVideoTasks.length > 0) && (
-        <div className="AIImageWorkbench__videoTasks">
-          {isSubmittingVideo && (
-            <div className="AIImageWorkbench__videoTask">
-              <span className="AIImageWorkbench__videoTaskLabel">
-                {t("ai.workbench.generatingVideo")}
-              </span>
-              <UiButton
-                variant="ghost"
-                size="sm"
-                onClick={cancelVideoSubmission}
-              >
-                {t("ai.common.cancel")}
-              </UiButton>
-            </div>
-          )}
-          {pendingVideoTasks.map((task) => (
-            <div key={task.taskId} className="AIImageWorkbench__videoTask">
-              <span className="AIImageWorkbench__videoTaskLabel">
-                {task.status === "queued"
-                  ? t("ai.workbench.videoTaskQueued")
-                  : t("ai.workbench.videoTaskPolling")}
-              </span>
-              <UiButton
-                variant="ghost"
-                size="sm"
-                onClick={() => cancelVideoTask(task.taskId)}
-              >
-                {t("ai.common.cancel")}
-              </UiButton>
-            </div>
-          ))}
-        </div>
-      )}
+        {(isSubmittingVideo || pendingVideoTasks.length > 0) && (
+          <div className="AIImageWorkbench__videoTasks">
+            {isSubmittingVideo && (
+              <div className="AIImageWorkbench__videoTask">
+                <span className="AIImageWorkbench__videoTaskLabel">
+                  {t("ai.workbench.generatingVideo")}
+                </span>
+                <UiButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={cancelVideoSubmission}
+                >
+                  {t("ai.common.cancel")}
+                </UiButton>
+              </div>
+            )}
+            {pendingVideoTasks.map((task) => (
+              <div key={task.taskId} className="AIImageWorkbench__videoTask">
+                <span className="AIImageWorkbench__videoTaskLabel">
+                  {task.status === "queued"
+                    ? t("ai.workbench.videoTaskQueued")
+                    : t("ai.workbench.videoTaskPolling")}
+                </span>
+                <UiButton
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => cancelVideoTask(task.taskId)}
+                >
+                  {t("ai.common.cancel")}
+                </UiButton>
+              </div>
+            ))}
+          </div>
+        )}
 
-      <UiButton
-        variant="primary"
-        size="lg"
-        fullWidth
-        className="AIImageWorkbench__primaryButton"
-        disabled={!canGenerateVideo}
-        onClick={() => generateVideo()}
-      >
-        {t("ai.workbench.generateVideo")}
-      </UiButton>
+        {renderPrimaryAction(
+          <UiButton
+            variant="primary"
+            size="lg"
+            fullWidth
+            className="AIImageWorkbench__primaryButton"
+            disabled={!canGenerateVideo}
+            loading={isSubmittingVideo}
+            onClick={() => generateVideo()}
+          >
+            {isSubmittingVideo
+              ? t("ai.workbench.generating")
+              : t("ai.workbench.generateVideo")}
+          </UiButton>,
+        )}
+      </div>
     </>
   );
 
@@ -4648,7 +5198,7 @@ export const AIImageWorkbench = ({
 
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.format")}</span>
-          <select
+          <Select
             value={params.audioFormat || "mp3"}
             disabled
             onChange={(event) =>
@@ -4658,7 +5208,7 @@ export const AIImageWorkbench = ({
             <option value="mp3">MP3</option>
             <option value="wav">WAV</option>
             <option value="aac">AAC</option>
-          </select>
+          </Select>
         </label>
 
         <label className="AIImageWorkbench__field">
@@ -4672,32 +5222,30 @@ export const AIImageWorkbench = ({
         </label>
       </div>
 
-      {renderConfigurationNotice()}
       {renderNotice(t("ai.workbench.audioControlsPreviewOnly"))}
-
-      <UiButton
-        variant="primary"
-        size="lg"
-        fullWidth
-        className="AIImageWorkbench__primaryButton"
-        disabled
-      >
-        {t("ai.workbench.audioPreviewOnly")}
-      </UiButton>
+      {/* Sticky footer: message, running tasks and the primary action stay
+          together, so the message is never covered by the button. */}
+      <div className="AIImageWorkbench__dock">
+        {renderRunMessage()}
+        <UiButton
+          variant="primary"
+          size="lg"
+          fullWidth
+          className="AIImageWorkbench__primaryButton"
+          disabled
+        >
+          {t("ai.workbench.audioPreviewOnly")}
+        </UiButton>
+      </div>
     </>
   );
 
   return (
     <div className="AIImageWorkbench" ref={rootRef}>
       <div className="AIImageWorkbench__section">
-        {isGenerating && (
-          <div className="AIImageWorkbench__sectionHeader">
-            <UiButton variant="ghost" size="sm" onClick={cancelGeneration}>
-              {t("ai.common.cancel")}
-            </UiButton>
-          </div>
-        )}
-        <div className="AIImageWorkbench__statusStrip" aria-live="polite">
+        {/* Not a live region: it changed on every keystroke. Run results are
+            announced by the message callout above the primary button. */}
+        <div className="AIImageWorkbench__statusStrip">
           {statusStripItems.map((item) => (
             <span
               key={item.label}
@@ -4725,6 +5273,9 @@ export const AIImageWorkbench = ({
             </button>
           ))}
         </div>
+
+        {/* First screen, never under the sticky primary button. */}
+        {renderConfigurationNotice()}
 
         {mediaType === "image" && renderImageParameters()}
         {mediaType === "video" && renderVideoParameters()}
@@ -4775,20 +5326,6 @@ export const AIImageWorkbench = ({
             </button>
           </div>
         </div>
-      )}
-
-      {(statusMessage || errorMessage) && (
-        <Callout
-          tone={errorMessage ? "danger" : "info"}
-          live={false}
-          className={
-            errorMessage
-              ? "AIImageWorkbench__message is-error"
-              : "AIImageWorkbench__message"
-          }
-        >
-          {errorMessage || statusMessage}
-        </Callout>
       )}
     </div>
   );
@@ -4863,10 +5400,11 @@ const clampNumber = (value: number, min: number, max: number) => {
 const renderNotice = (
   message: string,
   action?: { label: string; onClick: () => void },
+  tone: "info" | "warning" = "info",
 ) => {
   return (
     <Callout
-      tone="info"
+      tone={tone}
       live={false}
       className="AIImageWorkbench__notice"
       action={

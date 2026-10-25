@@ -114,6 +114,45 @@ describe("ManyMindsScheduler", () => {
     expect(scheduler.getBatch()!.tasks[cancelledId].attempt).toBe(1);
   });
 
+  it("runs an explicit retry after the whole batch was cancelled", async () => {
+    const executeTask = vi.fn(
+      ({ signal }: { signal: AbortSignal }) =>
+        new Promise<ManyMindsAssetRef>((resolve, reject) => {
+          signal.addEventListener("abort", () =>
+            reject(new DOMException("aborted", "AbortError")),
+          );
+        }),
+    );
+    const scheduler = new ManyMindsScheduler({ executeTask });
+    const batch = createBatch(2);
+    scheduler.start(batch);
+    expect(executeTask).toHaveBeenCalledTimes(2);
+    scheduler.cancelBatch();
+    await flush();
+    expect(scheduler.getBatch()!.status).toBe("cancelled");
+
+    const taskId = batch.taskOrder[0];
+    expect(scheduler.retryTask(taskId)).toBe(true);
+    scheduler.start();
+    expect(executeTask).toHaveBeenCalledTimes(3);
+    expect(scheduler.getBatch()!.tasks[taskId].status).toBe("running");
+    expect(scheduler.getBatch()!.status).toBe("running");
+    // The other cancelled task stays cancelled.
+    expect(scheduler.getBatch()!.tasks[batch.taskOrder[1]].status).toBe(
+      "cancelled",
+    );
+  });
+
+  it("hydrates interrupted tasks without persisting English error text", () => {
+    const batch = createBatch(1);
+    batch.tasks[batch.taskOrder[0]].status = "running";
+    const scheduler = new ManyMindsScheduler({ executeTask: vi.fn() });
+    scheduler.hydrate(batch);
+    expect(scheduler.getBatch()!.tasks[batch.taskOrder[0]].error).toBe(
+      undefined,
+    );
+  });
+
   it("never silently changes the configured model", async () => {
     const seenModels: string[] = [];
     const scheduler = new ManyMindsScheduler({

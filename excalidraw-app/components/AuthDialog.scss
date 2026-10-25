@@ -19,27 +19,17 @@
   .Dialog__title {
     flex: 0 0 auto;
     margin-bottom: 0;
-    padding-inline-end: var(--ui-space-8);
   }
 
   .Dialog__content {
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
-    overflow: hidden;
+    // `clip` (unlike `hidden`) honours overflow-clip-margin, so the scroll
+    // body below can poke out by --ui-space-1 for the field focus ring.
+    overflow: clip;
+    overflow-clip-margin: var(--ui-space-1);
     padding-top: var(--ui-space-4);
-  }
-
-  // Sits on the title row, outside the <h2>. Positioned against the Island.
-  .AuthDialog__close {
-    position: absolute;
-    top: 1.625rem;
-    right: 1.5rem;
-    color: var(--ui-text-secondary);
-
-    &:hover:not(:disabled) {
-      color: var(--ui-text);
-    }
   }
 
   // Phones: the editor Dialog renders its own close button.
@@ -50,10 +40,6 @@
 
     .Island {
       height: 100%;
-    }
-
-    .AuthDialog__close {
-      display: none;
     }
   }
 }
@@ -75,6 +61,12 @@
     min-width: 0;
     overflow-x: hidden;
     overflow-y: auto;
+    // The scroll box clips anything past its edges, and full-width fields sit
+    // flush against them, so the focus ring (box-shadow) lost its sides. Give
+    // it a little inline room and pull the box back out by the same amount so
+    // the content edge doesn't move.
+    margin-inline: calc(-1 * var(--ui-space-1));
+    padding-inline: var(--ui-space-1);
     padding-bottom: var(--ui-space-4);
   }
 
@@ -216,6 +208,15 @@
     padding-top: var(--ui-space-3);
     border-top: 1px solid var(--ui-border);
     background: var(--ui-surface);
+  }
+
+  // Why the save buttons are disabled (live collaboration).
+  .AuthDialog__actionsHint {
+    min-width: 0;
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
   }
 }
 

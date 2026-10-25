@@ -144,6 +144,34 @@ export const canChangeBackgroundColor = (
   );
 };
 
+/** Lumina material/light and game-editor panels, shared by every layout. */
+const LuminaActions = ({
+  appState,
+  renderAction,
+  targetElements,
+}: {
+  appState: UIAppState;
+  renderAction: ActionManager["renderAction"];
+  targetElements: readonly ExcalidrawElement[];
+}) => {
+  if (!shouldShowLuminaAuthorControls(appState)) {
+    return null;
+  }
+  return (
+    <>
+      {targetElements.some((element) => isLuminaLightSource(element))
+        ? renderAction("changeLightProps")
+        : renderAction("changeMaterial")}
+      {shouldShowLuminaGameEditorControls(appState) && (
+        <>
+          {renderAction("changeLuminaGameRole")}
+          {renderAction("changeLuminaGameConstraint")}
+        </>
+      )}
+    </>
+  );
+};
+
 export const SelectedShapeActions = ({
   appState,
   elementsMap,
@@ -264,19 +292,11 @@ export const SelectedShapeActions = ({
 
       {renderAction("changeOpacity")}
 
-      {shouldShowLuminaAuthorControls(appState) && (
-        <>
-          {targetElements.some((element) => isLuminaLightSource(element))
-            ? renderAction("changeLightProps")
-            : renderAction("changeMaterial")}
-          {shouldShowLuminaGameEditorControls(appState) && (
-            <>
-              {renderAction("changeLuminaGameRole")}
-              {renderAction("changeLuminaGameConstraint")}
-            </>
-          )}
-        </>
-      )}
+      <LuminaActions
+        appState={appState}
+        renderAction={renderAction}
+        targetElements={targetElements}
+      />
 
       <fieldset>
         <legend>{t("labels.layers")}</legend>
@@ -448,6 +468,8 @@ const CombinedShapeProperties = ({
                   canChangeRoundness(element.type),
                 )) &&
                 renderAction("changeRoundness")}
+              {targetElements.some(isLineToneSupportedElement) &&
+                renderAction("changeLineTone")}
               {renderAction("changeOpacity")}
             </div>
           </PropertiesPopover>
@@ -731,6 +753,11 @@ const CombinedExtraActions = ({
             onClose={() => {}}
           >
             <div className="selected-shape-actions">
+              <LuminaActions
+                appState={appState}
+                renderAction={renderAction}
+                targetElements={targetElements}
+              />
               <fieldset>
                 <legend>{t("labels.layers")}</legend>
                 <div className="buttonList">

@@ -1,7 +1,14 @@
 import React from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 
 import { AI_PROMPT_TEMPLATES_STORAGE_KEY } from "../ai/promptTemplates";
+import { saveAIProxyConfig } from "../ai/proxyConfig";
 import { STORAGE_KEYS } from "../app_constants";
 
 import { AISettings } from "./AISettings";
@@ -116,6 +123,52 @@ describe("AISettings", () => {
     ).toBeInTheDocument();
   });
 
+  it("asks before deleting a model and keeps it when cancelled", async () => {
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE,
+      JSON.stringify({
+        defaultModel: "m1",
+        models: [
+          {
+            id: "m1",
+            siteName: "Test provider",
+            baseURL: "https://example.test/v1",
+            apiKey: "test-key",
+            model: "test-model",
+            label: "Test model",
+            mediaType: "image",
+            capabilities: ["text-to-image"],
+            requestTimeoutSeconds: 600,
+          },
+        ],
+      }),
+    );
+    // No ConfirmHost here, so confirmAction falls back to window.confirm.
+    const confirm = vi.fn((_message?: string) => false);
+    vi.stubGlobal("confirm", confirm);
+    const storedModels = () =>
+      JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE) || "{}",
+      ).models?.length;
+    render(<AISettings />);
+
+    const deleteFromMenu = () => {
+      fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Delete" }));
+    };
+
+    deleteFromMenu();
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(confirm.mock.calls[0]).toEqual([
+      'Delete "Test provider" (test-model)? This can\'t be undone.',
+    ]);
+    expect(storedModels()).toBe(1);
+
+    confirm.mockReturnValue(true);
+    deleteFromMenu();
+    await waitFor(() => expect(storedModels()).toBe(0));
+  });
+
   it("offers direct next actions from empty model and template states", () => {
     render(<AISettings />);
 
@@ -197,7 +250,7 @@ describe("AISettings", () => {
     ).toBeInTheDocument();
   });
 
-  it("restores direct mode and removes the persisted proxy config", () => {
+  it("restores direct mode and removes the persisted proxy config", async () => {
     localStorage.setItem(
       STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY,
       JSON.stringify({
@@ -207,6 +260,8 @@ describe("AISettings", () => {
         accessToken: "proxy-token",
       }),
     );
+    const confirm = vi.fn((_message?: string) => false);
+    vi.stubGlobal("confirm", confirm);
     render(<AISettings initialTab="network" />);
 
     expect(screen.getByRole("radio", { name: /^Backend proxy/ })).toBeChecked();
@@ -214,10 +269,201 @@ describe("AISettings", () => {
       screen.getByRole("button", { name: "Restore network defaults" }),
     );
 
+    // Cancelled: nothing is removed.
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(confirm.mock.calls[0][0]).toMatch(/access token/);
+    expect(screen.getByRole("radio", { name: /^Backend proxy/ })).toBeChecked();
     expect(
-      screen.getByRole("radio", { name: /Browser direct \(default\)/ }),
+      localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY),
+    ).not.toBeNull();
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Restore network defaults" }),
+    );
+
+    expect(
+      await screen.findByRole("radio", { name: /Browser direct \(default\)/ }),
     ).toBeChecked();
     expect(screen.queryByLabelText(/Proxy endpoint/)).not.toBeInTheDocument();
+    expect(
+      localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY),
+    ).toBeNull();
+  });
+
+  it("reports unsaved editor changes and confirms before Back discards them", async () => {
+    const onDirtyChange = vi.fn();
+    const confirm = vi.fn((_message?: string) => false);
+    vi.stubGlobal("confirm", confirm);
+    render(<AISettings onDirtyChange={onDirtyChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    // Opening an editor alone is not a change.
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(confirm).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("heading", { name: "New model" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.change(screen.getByLabelText("Site name"), {
+      target: { value: "Draft site" },
+    });
+    expect(onDirtyChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    // Kept editing: the draft is still there.
+    expect(screen.getByLabelText("Site name")).toHaveValue("Draft site");
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("heading", { name: "New model" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(onDirtyChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("shows validation errors on the field and focuses it", async () => {
+    render(<AISettings />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+
+    const siteName = screen.getByLabelText("Site name");
+    expect(siteName).toHaveAttribute("aria-invalid", "true");
+    expect(siteName).toHaveAccessibleDescription(/Site name is required\./);
+    await waitFor(() => expect(siteName).toHaveFocus());
+
+    fireEvent.change(siteName, { target: { value: "Provider" } });
+    expect(siteName).not.toHaveAttribute("aria-invalid");
+    fireEvent.click(screen.getByRole("button", { name: "Create model" }));
+    const baseURL = screen.getByLabelText("Base URL");
+    expect(baseURL).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(baseURL).toHaveFocus());
+  });
+
+  it("clears a typed API key when a preset moves the draft to another host", async () => {
+    const confirm = vi.fn((_message?: string) => false);
+    vi.stubGlobal("confirm", confirm);
+    render(<AISettings />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add model" }));
+    fireEvent.change(screen.getByLabelText("Base URL"), {
+      target: { value: "https://old-provider.example/v1" },
+    });
+    fireEvent.change(screen.getByLabelText(/API Key/), {
+      target: { value: "old-provider-key" },
+    });
+
+    const preset = screen.getByRole("button", { name: /pic2api API/ });
+    fireEvent.click(preset);
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(confirm.mock.calls[0][0]).toMatch(/API key/);
+    // Cancelled: the draft is untouched.
+    expect(screen.getByLabelText("Base URL")).toHaveValue(
+      "https://old-provider.example/v1",
+    );
+    expect(screen.getByLabelText(/API Key/)).toHaveValue("old-provider-key");
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(preset);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Base URL")).toHaveValue(
+        "https://www.pic2api.com/v1",
+      ),
+    );
+    expect(screen.getByLabelText(/API Key/)).toHaveValue("");
+  });
+
+  it("keeps a same-host API key and asks before overwriting a saved model", async () => {
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE,
+      JSON.stringify({
+        defaultModel: "m1",
+        models: [
+          {
+            id: "m1",
+            siteName: "My pic2api",
+            baseURL: "https://www.pic2api.com/v1",
+            apiKey: "same-host-key",
+            model: "custom-model",
+            label: "custom-model",
+            mediaType: "image",
+            capabilities: ["text-to-image"],
+            requestTimeoutSeconds: 600,
+          },
+        ],
+      }),
+    );
+    const confirm = vi.fn((_message?: string) => true);
+    vi.stubGlobal("confirm", confirm);
+    render(<AISettings />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: /pic2api API/ }));
+
+    // Editing a saved item always asks, even on the same host.
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(confirm.mock.calls[0][0]).not.toMatch(/cleared/);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Site name")).toHaveValue("pic2api API"),
+    );
+    expect(screen.getByLabelText(/API Key/)).toHaveValue("same-host-key");
+  });
+
+  it("keeps an edited network draft when another surface saves proxy settings", () => {
+    render(<AISettings initialTab="network" />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /^Backend proxy/ }));
+    fireEvent.change(screen.getByLabelText(/Proxy endpoint/), {
+      target: { value: "https://draft.example.com/ai-proxy/v1/forward" },
+    });
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+
+    act(() => {
+      saveAIProxyConfig({ mode: "direct", accessToken: "elsewhere" });
+    });
+
+    expect(screen.getByLabelText(/Proxy endpoint/)).toHaveValue(
+      "https://draft.example.com/ai-proxy/v1/forward",
+    );
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+  });
+
+  it("follows outside proxy updates while the network draft is untouched", () => {
+    render(<AISettings initialTab="network" />);
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+
+    act(() => {
+      saveAIProxyConfig({
+        mode: "byok-proxy",
+        endpoint: "https://outside.example.com/ai-proxy/v1/forward",
+      });
+    });
+
+    expect(screen.getByRole("radio", { name: /^Backend proxy/ })).toBeChecked();
+    expect(screen.getByLabelText(/Proxy endpoint/)).toHaveValue(
+      "https://outside.example.com/ai-proxy/v1/forward",
+    );
+    expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument();
+  });
+
+  it("puts an invalid proxy endpoint error on the field", async () => {
+    render(<AISettings initialTab="network" />);
+
+    fireEvent.click(screen.getByRole("radio", { name: /^Backend proxy/ }));
+    const endpoint = screen.getByLabelText(/Proxy endpoint/);
+    fireEvent.change(endpoint, { target: { value: "//evil.example" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save network settings" }),
+    );
+
+    expect(endpoint).toHaveAttribute("aria-invalid", "true");
+    await waitFor(() => expect(endpoint).toHaveFocus());
     expect(
       localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY),
     ).toBeNull();

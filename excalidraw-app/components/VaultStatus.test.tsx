@@ -197,4 +197,30 @@ describe("VaultStatus", () => {
       "VAULT_PERSISTENCE_UNAVAILABLE",
     );
   });
+
+  it("shows failed attachments as a visible warning, like v2", () => {
+    render(
+      <VaultStatus
+        role="editor"
+        syncStatus="synced"
+        recoveryState="synced"
+        attachmentFailed={2}
+      />,
+    );
+    const status = screen.getByTestId("vault-status");
+    expect(screen.getByTestId("vault-attachments-failed")).toHaveTextContent(
+      "2 attachment(s) failed to upload",
+    );
+    expect(status).toHaveClass("UiStatusPill--warning");
+    expect(status).not.toHaveClass("UiStatusPill--success");
+  });
+
+  it("keeps a danger tone when attachments also failed", () => {
+    render(
+      <VaultStatus role="editor" syncStatus="revoked" attachmentFailed={1} />,
+    );
+    expect(screen.getByTestId("vault-status")).toHaveClass(
+      "UiStatusPill--danger",
+    );
+  });
 });

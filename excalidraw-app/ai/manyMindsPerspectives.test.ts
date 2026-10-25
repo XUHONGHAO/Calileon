@@ -5,14 +5,20 @@ import {
   createCustomManyMindsPerspective,
   deleteCustomManyMindsPerspective,
   loadCustomManyMindsPerspectives,
+  getBuiltInManyMindsPerspectiveNameKey,
+  getDefaultManyMindsPerspectiveIds,
   saveCustomManyMindsPerspectives,
 } from "./manyMindsPerspectives";
+import { MANY_MINDS_MAX_TASKS } from "./manyMindsTypes";
 
 describe("Many Minds perspectives", () => {
   beforeEach(() => localStorage.clear());
 
-  it("provides eight safe built-in perspectives", () => {
-    expect(BUILTIN_MANY_MINDS_PERSPECTIVES).toHaveLength(8);
+  it("provides enough safe built-in perspectives for the largest grid", () => {
+    expect(BUILTIN_MANY_MINDS_PERSPECTIVES).toHaveLength(MANY_MINDS_MAX_TASKS);
+    expect(
+      new Set(BUILTIN_MANY_MINDS_PERSPECTIVES.map((item) => item.id)).size,
+    ).toBe(MANY_MINDS_MAX_TASKS);
     expect(
       BUILTIN_MANY_MINDS_PERSPECTIVES.every((item) => item.isBuiltIn),
     ).toBe(true);
@@ -49,5 +55,25 @@ describe("Many Minds perspectives", () => {
     })!;
     saveCustomManyMindsPerspectives([first, second]);
     expect(deleteCustomManyMindsPerspective(first.id)).toEqual([second]);
+  });
+
+  it("fills every default slot with a distinct built-in perspective", () => {
+    const ids = getDefaultManyMindsPerspectiveIds(MANY_MINDS_MAX_TASKS);
+    expect(ids).toHaveLength(MANY_MINDS_MAX_TASKS);
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(MANY_MINDS_MAX_TASKS);
+    // Never leaves an empty slot, even past the built-in count.
+    expect(getDefaultManyMindsPerspectiveIds(12).every(Boolean)).toBe(true);
+  });
+
+  it("maps only built-in ids to translated names", () => {
+    expect(getBuiltInManyMindsPerspectiveNameKey("clarify")).toBe(
+      "ai.manyMinds.perspectiveNames.clarify",
+    );
+    const custom = createCustomManyMindsPerspective({
+      name: "A",
+      prompt: "A",
+    })!;
+    expect(getBuiltInManyMindsPerspectiveNameKey(custom.id)).toBeNull();
   });
 });

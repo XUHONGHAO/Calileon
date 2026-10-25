@@ -54,3 +54,7 @@ export const uiMoreIcon = createIcon(
   </>,
   tabler,
 );
+
+export const uiChevronDownIcon = createIcon(<path d="M6 9l6 6l6 -6" />, tabler);
+
+export const uiCheckIcon = createIcon(<path d="M5 12l5 5l10 -10" />, tabler);

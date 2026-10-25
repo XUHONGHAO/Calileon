@@ -37,6 +37,10 @@ interface PromptEditorProps {
   // form control is, so the name must be set explicitly. Falls back to the
   // placeholder when omitted.
   ariaLabel?: string;
+  // Id of the open `#n` reference listbox, and of its highlighted option. The
+  // picker never takes focus, so the editor exposes them.
+  popupId?: string;
+  activeOptionId?: string;
   onChange: (value: string) => void;
   // Fires after value/caret settle so the parent can (re)open the `#` picker.
   onCaretChange: () => void;
@@ -272,6 +276,8 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
       className,
       placeholder,
       ariaLabel,
+      popupId,
+      activeOptionId,
       onChange,
       onCaretChange,
       onKeyDown,
@@ -416,6 +422,10 @@ export const PromptEditor = forwardRef<PromptEditorHandle, PromptEditorProps>(
         role="textbox"
         aria-multiline="true"
         aria-label={ariaLabel ?? placeholder}
+        tabIndex={0}
+        aria-autocomplete="list"
+        aria-controls={popupId}
+        aria-activedescendant={popupId ? activeOptionId : undefined}
         data-placeholder={placeholder}
         data-empty={isEmpty ? "true" : undefined}
         spellCheck={false}

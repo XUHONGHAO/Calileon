@@ -72,4 +72,94 @@ describe("AIVideoAssetPlayer", () => {
     ).toBeInTheDocument();
     expect(resolveAsset).toHaveBeenCalledTimes(2);
   });
+
+  it("does not re-resolve or reset the retry budget when the parent re-renders with a new inline resolver", async () => {
+    const resolveAsset = vi.fn().mockImplementation(async () => ({
+      url: `https://signed.example/v${resolveAsset.mock.calls.length}`,
+      expiresAt: Date.now() + 300_000,
+      mimeType: "video/mp4",
+    }));
+    const renderPlayer = () => (
+      <AIVideoAssetPlayer
+        assetId="asset-1"
+        contextId="owner:scene-1"
+        // A fresh function on every render, like App.tsx passes.
+        resolveAsset={() => resolveAsset()}
+      />
+    );
+    const { container, rerender } = render(renderPlayer());
+
+    await waitFor(() => {
+      expect(container.querySelector("video")).not.toBeNull();
+    });
+    rerender(renderPlayer());
+    rerender(renderPlayer());
+    expect(resolveAsset).toHaveBeenCalledTimes(1);
+
+    fireEvent.error(container.querySelector("video")!);
+    await waitFor(() => {
+      expect(container.querySelector("video")?.getAttribute("src")).toContain(
+        "v2",
+      );
+    });
+    // Re-render between the retry and the second error: the budget stays used.
+    rerender(renderPlayer());
+    fireEvent.error(container.querySelector("video")!);
+
+    expect(
+      await screen.findByText("Video is temporarily unavailable."),
+    ).toBeInTheDocument();
+    rerender(renderPlayer());
+    expect(resolveAsset).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores a stale response that resolves after the asset changed", async () => {
+    let resolveFirst: (value: {
+      url: string;
+      expiresAt: number;
+      mimeType: string;
+    }) => void = () => {};
+    const slow = vi.fn(
+      () =>
+        new Promise<{ url: string; expiresAt: number; mimeType: string }>(
+          (resolve) => {
+            resolveFirst = resolve;
+          },
+        ),
+    );
+    const fast = vi.fn().mockResolvedValue({
+      url: "https://signed.example/new-asset",
+      expiresAt: Date.now() + 300_000,
+      mimeType: "video/mp4",
+    });
+    const { container, rerender } = render(
+      <AIVideoAssetPlayer
+        assetId="asset-old"
+        contextId="owner:scene-1"
+        resolveAsset={slow}
+      />,
+    );
+    rerender(
+      <AIVideoAssetPlayer
+        assetId="asset-new"
+        contextId="owner:scene-1"
+        resolveAsset={fast}
+      />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector("video")?.getAttribute("src")).toContain(
+        "new-asset",
+      );
+    });
+
+    resolveFirst({
+      url: "https://signed.example/old-asset",
+      expiresAt: Date.now() + 300_000,
+      mimeType: "video/mp4",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(container.querySelector("video")?.getAttribute("src")).toContain(
+      "new-asset",
+    );
+  });
 });

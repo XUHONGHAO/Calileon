@@ -3,6 +3,31 @@
   inset: 0;
   z-index: var(--zIndex-layerUI, 3);
   pointer-events: auto;
+
+  // Programmatic initial focus lands here (so Space can't submit); there is
+  // nothing to point at, so no ring. Tab moves into the toolbars, which have
+  // their own focus rings.
+  &:focus {
+    outline: none;
+  }
+}
+
+// Phones: the docked sidebar becomes a full-screen overlay (AppSidebar.scss)
+// and the editor's bottom tool bar sits above this overlay too; both covered
+// the image or the brush toolbar. Hide them while editing. `display: none`
+// keeps the React tree mounted, so a running generation is not aborted
+// (`visibility` is not enough: editor tool icons force `visible`).
+@media (max-width: 520px) {
+  body.is-ai-mask-editing .default-sidebar.app-sidebar-dock,
+  body.is-ai-mask-editing .excalidraw .App-bottom-bar {
+    display: none;
+  }
+}
+
+// Desktop: no box of its own, the preview and brush toolbar keep their fixed
+// positions. Phones: a bottom column (see the media query below).
+.AIMaskEditingOverlay__bottomStack {
+  display: contents;
 }
 
 // Theme scope only: drop the editor root's box (position/flex/size/overflow)
@@ -129,6 +154,10 @@
   transform: translateX(-50%);
   pointer-events: auto;
 
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-3);
+
   label {
     display: grid;
     gap: var(--ui-space-2);
@@ -142,6 +171,27 @@
     width: 100%;
     margin: 0;
   }
+}
+
+.AIMaskEditingOverlay__toolRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ui-space-2);
+}
+
+.AIMaskEditingOverlay__tools,
+.AIMaskEditingOverlay__history {
+  display: flex;
+  gap: var(--ui-space-1);
+}
+
+.AIMaskEditingOverlay__tool[aria-pressed="true"] {
+  --ui-btn-bg: var(--ui-info-bg);
+  --ui-btn-fg: var(--ui-info-fg);
+  --ui-btn-border: var(--ui-info-border);
+  --ui-btn-hover-bg: var(--ui-info-bg);
 }
 
 .AIMaskEditingOverlay__preview {
@@ -196,10 +246,35 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .AIMaskEditingOverlay__preview {
-    top: auto;
-    left: 0.75rem;
-    bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem);
-    width: min(10rem, calc(100vw - 1.5rem));
+  .AIMaskEditingOverlay__bottomStack {
+    position: fixed;
+    z-index: 3;
+    right: var(--ui-space-3);
+    bottom: max(var(--ui-space-4), env(safe-area-inset-bottom));
+    left: var(--ui-space-3);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ui-space-2);
+    // The column spans the screen; only its cards take pointer input.
+    pointer-events: none;
+
+    > * {
+      pointer-events: auto;
+    }
+
+    .AIMaskEditingOverlay__preview,
+    .AIMaskEditingOverlay__brushToolbar {
+      position: static;
+      transform: none;
+    }
+
+    .AIMaskEditingOverlay__preview {
+      width: min(10rem, 100%);
+    }
+
+    .AIMaskEditingOverlay__brushToolbar {
+      width: 100%;
+    }
   }
 }

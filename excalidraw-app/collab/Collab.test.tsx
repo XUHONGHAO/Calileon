@@ -476,19 +476,83 @@ describe("Collab Vault persistence isolation", () => {
     expect(saveLegacy).not.toHaveBeenCalled();
   });
 
-  it("keeps ordinary collaboration queue and stop saves unchanged", () => {
+  it("keeps ordinary collaboration queue and stop saves unchanged", async () => {
     const collab = createCollab();
     const saveLegacy = vi
       .spyOn(collab, "saveCollabRoomToPersistence")
       .mockResolvedValue();
     vi.spyOn(collab, "resetErrorIndicator").mockImplementation(() => {});
-    vi.spyOn(window, "confirm").mockReturnValue(false);
+    vi.spyOn(collab, "setActiveRoomLink").mockImplementation(() => {});
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     collab.portal.socketInitialized = true;
 
     collab.queueSaveToPersistence();
     collab.queueSaveToPersistence.flush();
-    collab.stopCollaboration();
+    await expect(collab.stopCollaboration()).resolves.toBe(true);
 
     expect(saveLegacy).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves the session untouched when the stop prompt is cancelled", async () => {
+    const collab = createCollab();
+    const saveLegacy = vi
+      .spyOn(collab, "saveCollabRoomToPersistence")
+      .mockResolvedValue();
+    const resetErrorIndicator = vi
+      .spyOn(collab, "resetErrorIndicator")
+      .mockImplementation(() => {});
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    collab.portal.socketInitialized = true;
+
+    await expect(collab.stopCollaboration()).resolves.toBe(false);
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    // Before the fix the error indicator was cleared and the room saved
+    // before the user had answered.
+    expect(resetErrorIndicator).not.toHaveBeenCalled();
+    expect(saveLegacy).not.toHaveBeenCalled();
+  });
+
+  it("does not prompt when stopping without keeping remote state", async () => {
+    const collab = createCollab();
+    vi.spyOn(collab, "saveCollabRoomToPersistence").mockResolvedValue();
+    vi.spyOn(collab, "resetErrorIndicator").mockImplementation(() => {});
+    vi.spyOn(collab, "setActiveRoomLink").mockImplementation(() => {});
+    const confirm = vi.spyOn(window, "confirm");
+
+    await expect(collab.stopCollaboration(false)).resolves.toBe(true);
+
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("reports decrypt failures once instead of a blocking alert per message", async () => {
+    const collab = createCollab();
+    const alert = vi.spyOn(window, "alert").mockImplementation(() => {});
+    const setErrorDialog = vi
+      .spyOn(collab, "setErrorDialog")
+      .mockImplementation(() => {});
+    const setErrorIndicator = vi
+      .spyOn(collab, "setErrorIndicator")
+      .mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const decrypt = (
+      collab as unknown as {
+        decryptPayload: (
+          iv: Uint8Array,
+          data: ArrayBuffer,
+          key: string,
+        ) => Promise<{ type: string }>;
+      }
+    ).decryptPayload;
+
+    for (let i = 0; i < 3; i++) {
+      await expect(
+        decrypt(new Uint8Array(12), new ArrayBuffer(8), "not-a-valid-key"),
+      ).resolves.toEqual({ type: WS_SUBTYPES.INVALID_RESPONSE });
+    }
+
+    expect(alert).not.toHaveBeenCalled();
+    expect(setErrorIndicator).toHaveBeenCalledTimes(3);
+    expect(setErrorDialog).toHaveBeenCalledTimes(1);
   });
 });

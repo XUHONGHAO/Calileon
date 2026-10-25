@@ -126,7 +126,7 @@ export const createAIImageWorkbenchStatus = (
     },
     {
       label: t("ai.workbench.status.labels.run"),
-      value: getRunStatusLabel(runStatus),
+      value: getRunStatusLabel(runStatus, canGenerate),
       tone: getRunStatusTone(runStatus),
     },
   ];
@@ -211,7 +211,10 @@ export const getAIImageWorkbenchConfigurationNotice = ({
   return null;
 };
 
-const getRunStatusLabel = (runStatus: AIImageWorkbenchRunStatus) => {
+const getRunStatusLabel = (
+  runStatus: AIImageWorkbenchRunStatus,
+  canGenerate: boolean,
+) => {
   if (runStatus === "generating") {
     return t("ai.workbench.status.values.generating");
   }
@@ -227,7 +230,10 @@ const getRunStatusLabel = (runStatus: AIImageWorkbenchRunStatus) => {
   if (runStatus === "inserted") {
     return t("ai.workbench.status.values.inserted");
   }
-  return t("ai.workbench.status.values.ready");
+  // Idle: "Ready" only when Generate would actually run.
+  return canGenerate
+    ? t("ai.workbench.status.values.ready")
+    : t("ai.workbench.status.values.notReady");
 };
 
 const getRunStatusTone = (
@@ -242,7 +248,8 @@ const getRunStatusTone = (
   if (runStatus === "succeeded" || runStatus === "inserted") {
     return "ready";
   }
-  return "ready";
+  // Idle is not a success state; green here contradicted a disabled Generate.
+  return "default";
 };
 
 const getMediaTypeLabel = (mediaType: AIModelMediaType) => {

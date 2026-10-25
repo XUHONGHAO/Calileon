@@ -243,6 +243,19 @@ describe("AIImageWorkbenchStatus", () => {
     });
   });
 
+  it("shows idle as neutral, and Ready only when Generate can run", () => {
+    expect(statusByLabel(createStatusInput(), "Run")).toMatchObject({
+      value: "Ready",
+      tone: "default",
+    });
+    expect(
+      statusByLabel(createStatusInput({ selectedModelId: "" }), "Run"),
+    ).toMatchObject({
+      value: "Not ready",
+      tone: "default",
+    });
+  });
+
   it("keeps mode labels aligned with the workbench UI", () => {
     expect(
       getAIImageWorkbenchModeLabel({

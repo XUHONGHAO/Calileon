@@ -158,7 +158,62 @@ export const markMissingReferenceElements = (
 // Shared matcher for reference tokens (`#1`, `图 2`, `image 3`). Kept in one
 // place so validation warnings and the inline highlight layer always agree on
 // what counts as a reference.
-const PROMPT_REFERENCE_PATTERN = /#(\d+)|图\s*(\d+)|image\s+(\d+)/gi;
+// `#?` marks a token whose image was removed (see remapPromptReferences).
+const PROMPT_REFERENCE_PATTERN = /#(\d+)|图\s*(\d+)|image\s+(\d+)|#\?/gi;
+
+/** Token left in the prompt where a reference image was removed. */
+export const REMOVED_PROMPT_REFERENCE = "#?";
+
+/**
+ * Old `#n` -> new `#n` after a reorder or delete, keyed by the reference's
+ * stable `createdAt`. `null` means the image was removed.
+ */
+export const createReferenceIndexMap = (
+  previous: readonly AIImageSourceEnhanced[],
+  next: readonly AIImageSourceEnhanced[],
+): Map<number, number | null> => {
+  const nextIndexById = new Map(
+    next.map((source, index) => [source.createdAt, index + 1]),
+  );
+  return new Map(
+    previous.map((source, index) => [
+      index + 1,
+      nextIndexById.get(source.createdAt) ?? null,
+    ]),
+  );
+};
+
+/**
+ * Rewrites reference tokens so they keep pointing at the same image after the
+ * tray was reordered or shrunk. Removed images become `#?` (always invalid),
+ * so a deleted `#2` can't silently start meaning the next image. Tokens outside
+ * the map (already out of range) are left alone.
+ */
+export const remapPromptReferences = (
+  prompt: string,
+  indexMap: ReadonlyMap<number, number | null>,
+) => {
+  return prompt.replace(
+    PROMPT_REFERENCE_PATTERN,
+    (token, hash?: string, zh?: string, en?: string) => {
+      const value = hash || zh || en;
+      if (!value) {
+        return token;
+      }
+      const oldIndex = Number(value);
+      if (!indexMap.has(oldIndex)) {
+        return token;
+      }
+      const newIndex = indexMap.get(oldIndex);
+      if (newIndex == null) {
+        return REMOVED_PROMPT_REFERENCE;
+      }
+      return newIndex === oldIndex
+        ? token
+        : token.replace(/\d+$/, String(newIndex));
+    },
+  );
+};
 
 export type PromptReferenceSegment = {
   text: string;
@@ -186,6 +241,7 @@ export const tokenizePromptReferences = (
     }
 
     const value = match[1] || match[2] || match[3];
+    // `#?` (no digits) is a removed reference: Number(undefined) is NaN.
     const referenceIndex = Number(value);
     const isValid =
       Number.isFinite(referenceIndex) &&
@@ -215,6 +271,12 @@ export const validatePromptReferences = (
 
   for (const match of matches) {
     const value = match[1] || match[2] || match[3];
+
+    if (!value) {
+      warnings.add(t("ai.workbench.removedReferenceWarning"));
+      continue;
+    }
+
     const referenceIndex = Number(value);
 
     if (
