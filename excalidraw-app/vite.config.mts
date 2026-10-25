@@ -10,6 +10,36 @@ import { createHtmlPlugin } from "vite-plugin-html";
 import Sitemap from "vite-plugin-sitemap";
 
 import { woff2BrowserPlugin } from "../scripts/woff2/woff2-vite-plugins";
+
+import type { Connect, Plugin } from "vite";
+
+// Static brand pages, built as their own entries next to the editor. They live
+// at <name>/index.html so nginx's `try_files $uri $uri/` serves them as-is.
+const BRAND_PAGES = ["plus", "security"] as const;
+const BRAND_PAGE_RE = new RegExp(`^/(${BRAND_PAGES.join("|")})/?(?=$|[?#])`);
+
+// vite-plugin-html installs an SPA history fallback that would answer
+// /plus/ with the editor's index.html. Rewrite brand page URLs first, in both
+// dev and preview, so they resolve to their own entry like nginx does.
+const brandPagesPlugin = (): Plugin => {
+  const rewrite: Connect.NextHandleFunction = (req, _res, next) => {
+    if (req.url) {
+      req.url = req.url.replace(BRAND_PAGE_RE, "/$1/index.html");
+    }
+    next();
+  };
+  return {
+    name: "calileon-brand-pages",
+    enforce: "pre",
+    configureServer(server) {
+      server.middlewares.use(rewrite);
+    },
+    configurePreviewServer(server) {
+      server.middlewares.use(rewrite);
+    },
+  };
+};
+
 export default defineConfig(({ mode }) => {
   // To load .env variables
   const envVars = { ...loadEnv(mode, `../`), ...process.env };
@@ -89,6 +119,15 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: "build",
       rollupOptions: {
+        input: {
+          main: path.resolve(__dirname, "index.html"),
+          ...Object.fromEntries(
+            BRAND_PAGES.map((page) => [
+              page,
+              path.resolve(__dirname, page, "index.html"),
+            ]),
+          ),
+        },
         output: {
           assetFileNames(chunkInfo) {
             if (chunkInfo?.name?.endsWith(".woff2")) {
@@ -135,6 +174,8 @@ export default defineConfig(({ mode }) => {
       assetsInlineLimit: 0,
     },
     plugins: [
+      // must stay ahead of createHtmlPlugin's history fallback
+      brandPagesPlugin(),
       Sitemap({
         hostname: "https://excalidraw.com",
         outDir: "build",
@@ -168,6 +209,10 @@ export default defineConfig(({ mode }) => {
         },
 
         workbox: {
+          // brand pages are separate documents, not routes of the SPA shell
+          navigateFallbackDenylist: [
+            new RegExp(`^/(${BRAND_PAGES.join("|")})(/|$)`),
+          ],
           // don't precache fonts, locales and separate chunks
           globIgnores: [
             "fonts.css",

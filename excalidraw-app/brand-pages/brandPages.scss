@@ -1,0 +1,423 @@
+// Calileon brand pages (/plus/, /security/).
+//
+// Reuses the app token layer so the pages follow the same palette, dark theme
+// and focus ring as the editor. The pages wrap themselves in `.excalidraw`
+// (see the HTML entries), which is where every token is declared.
+@use "../../packages/excalidraw/css/theme";
+@use "../components/ui/tokens";
+@use "../components/ui/brand";
+
+@font-face {
+  font-family: "Assistant";
+  src: url("../../packages/excalidraw/fonts/Assistant/Assistant-Regular.woff2")
+    format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Assistant";
+  src: url("../../packages/excalidraw/fonts/Assistant/Assistant-SemiBold.woff2")
+    format("woff2");
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Assistant";
+  src: url("../../packages/excalidraw/fonts/Assistant/Assistant-Bold.woff2")
+    format("woff2");
+  font-weight: 700;
+  font-display: swap;
+}
+
+body {
+  margin: 0;
+}
+
+// Page-scale values. The app tokens stop at dialog sizes (20px type, 32px
+// spacing); a landing page needs a display scale, derived from those tokens.
+.excalidraw.brand-page {
+  --brand-font: Assistant, system-ui, BlinkMacSystemFont, -apple-system,
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", Roboto, Helvetica, Arial,
+    sans-serif;
+  --brand-content-width: 72rem;
+  --brand-gutter: clamp(var(--ui-space-4), 4vw, var(--ui-space-8));
+  --brand-section-gap: clamp(
+    calc(var(--ui-space-8) * 1.5),
+    8vw,
+    calc(var(--ui-space-8) * 3)
+  );
+  --brand-display: clamp(2rem, 1.4rem + 3vw, 3.5rem);
+  --brand-heading: clamp(1.5rem, 1.2rem + 1.4vw, 2.25rem);
+  --brand-lead: clamp(var(--ui-font-md), 0.95rem + 0.4vw, var(--ui-font-xl));
+
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--island-bg-color);
+  color: var(--ui-text);
+  font-family: var(--brand-font);
+  font-size: var(--ui-font-md);
+  line-height: var(--ui-line-normal);
+  -webkit-font-smoothing: antialiased;
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  :focus-visible {
+    outline: var(--ui-focus-outline);
+    outline-offset: var(--ui-focus-outline-offset);
+  }
+
+  a {
+    color: var(--link-color);
+  }
+
+  a:hover {
+    color: var(--link-color-hover);
+  }
+}
+
+.brand-skip {
+  position: absolute;
+  top: var(--ui-space-2);
+  left: var(--ui-space-2);
+  z-index: 2;
+  padding: var(--ui-space-2) var(--ui-space-3);
+  border-radius: var(--ui-radius-md);
+  background: var(--ui-surface);
+  box-shadow: var(--shadow-island);
+  transform: translateY(-200%);
+
+  &:focus {
+    transform: none;
+  }
+}
+
+.brand-header,
+.brand-main,
+.brand-footer {
+  width: 100%;
+  max-width: var(--brand-content-width);
+  margin-inline: auto;
+  padding-inline: var(--brand-gutter);
+}
+
+.brand-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-3) var(--ui-space-6);
+  max-width: none;
+  padding-block: var(--ui-space-3);
+  padding-inline: max(
+    var(--brand-gutter),
+    calc((100% - var(--brand-content-width)) / 2 + var(--brand-gutter))
+  );
+  background: color-mix(in srgb, var(--island-bg-color) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-2);
+  color: var(--color-logo-text, var(--ui-text));
+  text-decoration: none;
+  border-radius: var(--ui-radius-md);
+
+  &:hover {
+    color: var(--color-logo-text, var(--ui-text));
+  }
+}
+
+.brand-logo__mark {
+  height: var(--ui-control-md);
+  width: auto;
+}
+
+.brand-logo__wordmark {
+  height: var(--ui-font-lg);
+  width: auto;
+}
+
+.brand-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-1);
+  margin-inline-end: auto;
+}
+
+.brand-nav__link {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--ui-control-md);
+  padding-inline: var(--ui-space-3);
+  border-radius: var(--ui-radius-md);
+  color: var(--ui-text-secondary) !important;
+  font-size: var(--ui-font-sm);
+  font-weight: var(--ui-weight-medium);
+  text-decoration: none;
+  transition: background-color var(--ui-transition-fast),
+    color var(--ui-transition-fast);
+
+  &:hover {
+    background: var(--ui-surface-sunken);
+    color: var(--ui-text) !important;
+  }
+
+  &[aria-current="page"] {
+    background: var(--color-surface-primary-container);
+    color: var(--color-on-primary-container) !important;
+  }
+}
+
+.brand-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ui-space-2);
+}
+
+.brand-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--ui-control-md);
+  padding: var(--ui-space-2) var(--ui-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--ui-radius-md);
+  background: none;
+  font: inherit;
+  font-size: var(--ui-font-sm);
+  font-weight: var(--ui-weight-semibold);
+  line-height: var(--ui-line-tight);
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color var(--ui-transition-fast),
+    border-color var(--ui-transition-fast), color var(--ui-transition-fast);
+}
+
+.brand-button--lg {
+  min-height: var(--ui-control-lg);
+  padding-inline: var(--ui-space-5);
+  font-size: var(--ui-font-md);
+}
+
+// Filled primary is one of the allowed brand-gradient moments.
+.brand-button--primary,
+.brand-button--primary:hover {
+  background-image: var(--brand-gradient);
+  color: var(--brand-on-gradient) !important;
+}
+
+.brand-button--primary:hover {
+  background-image: var(--brand-gradient-hover);
+}
+
+.brand-button--secondary {
+  border-color: var(--ui-border-strong);
+  background-color: var(--ui-surface);
+  color: var(--ui-text) !important;
+
+  &:hover {
+    border-color: var(--color-primary);
+    background-color: var(--ui-surface-raised);
+  }
+}
+
+.brand-button--ghost {
+  color: var(--ui-text-secondary);
+
+  &:hover {
+    background-color: var(--ui-surface-sunken);
+    color: var(--ui-text);
+  }
+}
+
+.brand-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--brand-section-gap);
+  padding-block: var(--brand-section-gap);
+  // the hero glow bleeds sideways on narrow screens. Clip here, not on
+  // <body>, whose overflow propagates to the viewport instead; wide screens
+  // keep the soft edge.
+  @media (max-width: 80rem) {
+    overflow-x: clip;
+  }
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.brand-eyebrow {
+  margin: 0 0 var(--ui-space-3);
+  color: var(--color-primary);
+  font-size: var(--ui-font-sm);
+  font-weight: var(--ui-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.brand-hero {
+  position: relative;
+  isolation: isolate;
+  max-width: 48rem;
+
+  // the welcome-screen glow, reused as the page's single brand moment
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -30% -20% -30% -30%;
+    z-index: -1;
+    pointer-events: none;
+    background: var(--brand-glow);
+  }
+}
+
+.brand-hero__title {
+  margin: 0;
+  font-size: var(--brand-display);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.brand-hero__lead {
+  margin: var(--ui-space-5) 0 0;
+  max-width: 40rem;
+  color: var(--ui-text-secondary);
+  font-size: var(--brand-lead);
+}
+
+.brand-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-3);
+  margin-top: var(--ui-space-8);
+}
+
+.brand-section {
+  scroll-margin-top: calc(var(--ui-control-lg) * 2);
+}
+
+.brand-section__title {
+  margin: 0;
+  font-size: var(--brand-heading);
+  font-weight: 700;
+  line-height: var(--ui-line-tight);
+  overflow-wrap: anywhere;
+}
+
+.brand-section__lead {
+  margin: var(--ui-space-3) 0 0;
+  max-width: 44rem;
+  color: var(--ui-text-secondary);
+  font-size: var(--brand-lead);
+}
+
+.brand-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: var(--ui-space-4);
+  margin: var(--ui-space-8) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.brand-card {
+  min-width: 0;
+  padding: var(--ui-space-5);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-surface-raised);
+}
+
+.brand-card__title {
+  margin: 0;
+  font-size: var(--ui-font-md);
+  font-weight: var(--ui-weight-semibold);
+  line-height: var(--ui-line-tight);
+  overflow-wrap: anywhere;
+}
+
+.brand-card__body {
+  margin: var(--ui-space-2) 0 0;
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-font-sm);
+  overflow-wrap: anywhere;
+}
+
+.brand-note {
+  margin: var(--ui-space-5) 0 0;
+  padding: var(--ui-space-3) var(--ui-space-4);
+  border: 1px solid var(--ui-info-border);
+  border-radius: var(--ui-radius-lg);
+  background: var(--ui-info-bg);
+  color: var(--ui-info-fg);
+  font-size: var(--ui-font-sm);
+}
+
+.brand-link {
+  display: inline-block;
+  margin-top: var(--ui-space-4);
+  font-weight: var(--ui-weight-semibold);
+}
+
+.brand-closing {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ui-space-3);
+  padding: var(--ui-space-8);
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-xl);
+  background: var(--ui-surface-sunken);
+
+  .brand-button {
+    margin-top: var(--ui-space-3);
+  }
+
+  @media (max-width: 30rem) {
+    padding: var(--ui-space-5);
+  }
+}
+
+.brand-closing__title {
+  margin: 0;
+  font-size: var(--brand-heading);
+  font-weight: 700;
+  line-height: var(--ui-line-tight);
+}
+
+.brand-closing__lead {
+  margin: 0;
+  color: var(--ui-text-secondary);
+  font-size: var(--brand-lead);
+}
+
+.brand-footer {
+  padding-block: var(--ui-space-6);
+  border-top: 1px solid var(--ui-border);
+  color: var(--ui-text-secondary);
+  font-size: var(--ui-font-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-page * {
+    transition: none !important;
+  }
+}

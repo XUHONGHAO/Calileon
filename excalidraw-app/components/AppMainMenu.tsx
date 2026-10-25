@@ -3,11 +3,11 @@ import {
   checkIcon,
   emptyIcon,
   loginIcon,
-  ExcalLogo,
   eyeIcon,
   LockedIcon,
   MagicIcon,
   P3EmbedIcon,
+  PlusIcon,
   SingleFileBoardIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { Dialog } from "@excalidraw/excalidraw/components/Dialog";
@@ -28,6 +28,7 @@ import { AI_OPEN_SETTINGS_EVENT } from "../ai/workflowEvents";
 
 import { useCloudAuth } from "../auth/useCloudAuth";
 import { isExcalidrawPlusSignedUser } from "../app_constants";
+import { BRAND_PAGE_URLS } from "../brand-pages/routes";
 import { readVaultClientConfig } from "../data/vault";
 import { isVaultV2Enabled } from "../data/vault/v2/flag";
 
@@ -275,13 +276,11 @@ export const AppMainMenu: React.FC<{
         <MainMenu.Separator />
         {!props.externalFeaturesDisabled && (
           <MainMenu.ItemLink
-            icon={ExcalLogo}
-            href={`${
-              import.meta.env.VITE_APP_PLUS_LP
-            }/plus?utm_source=excalidraw&utm_medium=app&utm_content=hamburger`}
+            icon={PlusIcon}
+            href={BRAND_PAGE_URLS.plus}
             className=""
           >
-            Excalidraw+
+            Calileon+
           </MainMenu.ItemLink>
         )}
         {!isAuthAvailable && !props.externalFeaturesDisabled && (

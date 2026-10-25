@@ -54,7 +54,7 @@ import {
   XBrandIcon,
   DiscordIcon,
   ExcalLogo,
-  exportToPlus,
+  PlusIcon,
   youtubeIcon,
 } from "@excalidraw/excalidraw/components/icons";
 import { isElementLink } from "@excalidraw/element";
@@ -120,10 +120,7 @@ import { AITaskListDialog } from "./components/AITaskListDialog";
 import { AuthDialog } from "./components/AuthDialog";
 import { EmbedListDialog } from "./components/EmbedListDialog";
 import { SceneListDialog } from "./components/SceneListDialog";
-import {
-  ExportToExcalidrawPlus,
-  exportToExcalidrawPlus,
-} from "./components/ExportToExcalidrawPlus";
+import { BRAND_PAGE_URLS } from "./brand-pages/routes";
 import { TopErrorBoundary } from "./components/TopErrorBoundary";
 import { VaultStatus } from "./components/VaultStatus";
 import { VaultV2Status } from "./components/VaultV2Status";
@@ -4928,19 +4925,14 @@ const ExcalidrawWrapper = () => {
     );
   }
 
-  const ExcalidrawPlusCommand = {
-    label: "Excalidraw+",
+  const CalileonPlusCommand = {
+    label: "Calileon+",
     category: DEFAULT_CATEGORIES.links,
     predicate: true,
-    icon: <div style={{ width: 14 }}>{ExcalLogo}</div>,
-    keywords: ["plus", "cloud", "server"],
+    icon: PlusIcon,
+    keywords: ["plus", "ai", "vault", "labs"],
     perform: () => {
-      window.open(
-        `${
-          import.meta.env.VITE_APP_PLUS_LP
-        }/plus?utm_source=excalidraw&utm_medium=app&utm_content=command_palette`,
-        "_blank",
-      );
+      window.open(BRAND_PAGE_URLS.plus, "_blank", "noopener");
     },
   };
   const ExcalidrawPlusAppCommand = {
@@ -4993,31 +4985,6 @@ const ExcalidrawWrapper = () => {
             toggleTheme: true,
             export: {
               onExportToBackend,
-              renderCustomUI:
-                !isVaultMode && excalidrawAPI
-                  ? (elements, appState, files) => {
-                      return (
-                        <ExportToExcalidrawPlus
-                          elements={elements}
-                          appState={appState}
-                          files={files}
-                          name={excalidrawAPI.getName()}
-                          onError={(error) => {
-                            excalidrawAPI?.updateScene({
-                              appState: {
-                                errorMessage: error.message,
-                              },
-                            });
-                          }}
-                          onSuccess={() => {
-                            excalidrawAPI.updateScene({
-                              appState: { openDialog: null },
-                            });
-                          }}
-                        />
-                      );
-                    }
-                  : undefined,
             },
           },
         }}
@@ -5126,11 +5093,7 @@ const ExcalidrawWrapper = () => {
               {showCollaborationControls && (
                 <>
                   {excalidrawAPI?.getEditorInterface().formFactor ===
-                    "desktop" && (
-                    <ExcalidrawPlusPromoBanner
-                      isSignedIn={isExcalidrawPlusSignedUser}
-                    />
-                  )}
+                    "desktop" && <ExcalidrawPlusPromoBanner />}
                   {collabError.message && (
                     <CollabError collabError={collabError} />
                   )}
@@ -5338,22 +5301,6 @@ const ExcalidrawWrapper = () => {
         <OverwriteConfirmDialog>
           <OverwriteConfirmDialog.Actions.ExportToImage />
           <OverwriteConfirmDialog.Actions.SaveToDisk />
-          {excalidrawAPI && !isVaultMode && (
-            <OverwriteConfirmDialog.Action
-              title={t("overwriteConfirm.action.excalidrawPlus.title")}
-              actionLabel={t("overwriteConfirm.action.excalidrawPlus.button")}
-              onClick={() => {
-                exportToExcalidrawPlus(
-                  excalidrawAPI.getSceneElements(),
-                  excalidrawAPI.getAppState(),
-                  excalidrawAPI.getFiles(),
-                  excalidrawAPI.getName(),
-                );
-              }}
-            >
-              {t("overwriteConfirm.action.excalidrawPlus.description")}
-            </OverwriteConfirmDialog.Action>
-          )}
         </OverwriteConfirmDialog>
         <AppFooter
           onChange={() => excalidrawAPI?.refresh()}
@@ -5566,25 +5513,8 @@ const ExcalidrawWrapper = () => {
                     label: "Sign in / Go to Excalidraw+",
                   },
                 ]
-              : [ExcalidrawPlusCommand, ExcalidrawPlusAppCommand]),
+              : [CalileonPlusCommand, ExcalidrawPlusAppCommand]),
 
-            {
-              label: t("overwriteConfirm.action.excalidrawPlus.button"),
-              category: DEFAULT_CATEGORIES.export,
-              icon: exportToPlus,
-              predicate: true,
-              keywords: ["plus", "export", "save", "backup"],
-              perform: () => {
-                if (excalidrawAPI) {
-                  exportToExcalidrawPlus(
-                    excalidrawAPI.getSceneElements(),
-                    excalidrawAPI.getAppState(),
-                    excalidrawAPI.getFiles(),
-                    excalidrawAPI.getName(),
-                  );
-                }
-              },
-            },
             {
               label: t("labels.installPWA"),
               category: DEFAULT_CATEGORIES.app,

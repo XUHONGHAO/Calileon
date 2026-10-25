@@ -750,7 +750,7 @@
   },
   "encrypted": {
     "tooltip": "Your drawings are end-to-end encrypted so Calileon's servers will never see them.",
-    "link": "Blog post on end-to-end encryption in Calileon"
+    "link": "How Calileon encrypts your drawings"
   },
   "stats": {
     "angle": "Angle",

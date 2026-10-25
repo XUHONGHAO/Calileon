@@ -750,7 +750,7 @@
   },
   "encrypted": {
     "tooltip": "您的绘图采用端到端加密，其内容对于 Calileon 服务器是不可见的。",
-    "link": "Calileon 中关于端到端加密的博客"
+    "link": "了解 Calileon 如何加密你的绘图"
   },
   "stats": {
     "angle": "角度",

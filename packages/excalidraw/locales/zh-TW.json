@@ -682,7 +682,7 @@
   },
   "encrypted": {
     "tooltip": "你的作品已使用 end-to-end 方式加密，Calileon 的伺服器也無法取得其內容。",
-    "link": "Calileon 端到端加密的相關部落格文章"
+    "link": "了解 Calileon 如何加密你的作品"
   },
   "stats": {
     "angle": "角度",

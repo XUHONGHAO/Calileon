@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Calileon+ · AI Workbench, Vault and Labs</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Calileon+ brings an AI Workbench, end-to-end encrypted Vault spaces and experimental Labs to the hand-drawn whiteboard."
+    />
+    <meta name="theme-color" content="#d2452a" />
+    <meta property="og:site_name" content="Calileon" />
+    <meta property="og:type" content="website" />
+    <meta
+      property="og:title"
+      content="Calileon+ · AI Workbench, Vault and Labs"
+    />
+    <meta property="og:image" content="https://calileon.com/og-image-3.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <style>
+      /* pre-paint background, so dark mode never flashes white */
+      html {
+        background-color: #fffcfa;
+      }
+      html.dark {
+        background-color: #17100f;
+      }
+    </style>
+  </head>
+  <body class="excalidraw brand-page theme--light" data-brand-page="plus">
+    <script>
+      try {
+        var theme = window.localStorage.getItem("excalidraw-theme");
+        var dark =
+          theme === "dark" ||
+          (theme === "system" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) {
+          document.documentElement.classList.add("dark");
+          document.body.classList.replace("theme--light", "theme--dark");
+        }
+      } catch (e) {}
+    </script>
+    <div id="brand-root">
+      <noscript>
+        <p>Calileon+ needs JavaScript. <a href="/">Open Calileon</a></p>
+      </noscript>
+    </div>
+    <script type="module" src="../brand-pages/main.ts"></script>
+  </body>
+</html>

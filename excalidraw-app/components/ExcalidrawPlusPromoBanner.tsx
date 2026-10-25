@@ -1,22 +1,16 @@
-export const ExcalidrawPlusPromoBanner = ({
-  isSignedIn,
-}: {
-  isSignedIn: boolean;
-}) => {
+import { BRAND_PAGE_URLS } from "../brand-pages/routes";
+
+// Top-right brand entry; opens the Calileon+ page in a new tab so the current
+// board stays open.
+export const ExcalidrawPlusPromoBanner = () => {
   return (
     <a
-      href={
-        isSignedIn
-          ? import.meta.env.VITE_APP_PLUS_APP
-          : `${
-              import.meta.env.VITE_APP_PLUS_LP
-            }/plus?utm_source=excalidraw&utm_medium=app&utm_content=guestBanner#excalidraw-redirect`
-      }
+      href={BRAND_PAGE_URLS.plus}
       target="_blank"
       rel="noopener"
       className="plus-banner"
     >
-      Excalidraw+
+      Calileon+
     </a>
   );
 };

@@ -65,7 +65,6 @@ vi.mock("@excalidraw/excalidraw/components/icons", async (importOriginal) => ({
   CloseIcon: null,
   emptyIcon: null,
   loginIcon: null,
-  ExcalLogo: null,
   eyeIcon: null,
   LockedIcon: <svg data-testid="vault-icon" />,
   MagicIcon: null,
@@ -413,7 +412,7 @@ describe("AppMainMenu Vault external feature isolation", () => {
     renderMenu({ externalFeaturesDisabled: true });
 
     expect(
-      screen.queryByRole("link", { name: "Excalidraw+" }),
+      screen.queryByRole("link", { name: "Calileon+" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: "Sign up" }),
@@ -436,6 +435,15 @@ describe("AppMainMenu Vault external feature isolation", () => {
 describe("AppMainMenu cloud auth account entry", () => {
   beforeEach(() => {
     authMock.state = makeAuthState();
+  });
+
+  it("links Calileon+ to the in-app brand page", () => {
+    renderMenu();
+
+    expect(screen.getByRole("link", { name: "Calileon+" })).toHaveAttribute(
+      "href",
+      "/plus/",
+    );
   });
 
   it("keeps the Excalidraw+ sign-up link when cloud auth is unavailable", () => {
