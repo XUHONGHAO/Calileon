@@ -34,9 +34,12 @@ if [ "$VAULT_DEPLOYMENT_SCOPE" = "full" ]; then
   # The order follows each file's own "Run after ..." header. The last three
   # entries form a chain over the `excalidraw-assets` Storage bucket and must
   # stay in this order: `schema_assets.sql` upserts the bucket with the 20 MiB
-  # default, `schema_video_assets.sql` then overrides its size limit and MIME
-  # allow-list (100 MiB, adding video), and `schema_e2e_cloud.sql` appends
-  # `application/octet-stream` to whatever allow-list it finds.
+  # default and replaces the MIME allow-list (images, json, video, audio),
+  # `schema_video_assets.sql` then raises the size limit to 100 MiB, and
+  # `schema_cast_sessions.sql`, `schema_video_assets.sql` and
+  # `schema_e2e_cloud.sql` only append their types to whatever allow-list
+  # they find. Only `schema_assets.sql` may replace the list; any later file
+  # that replaced it would drop types added before it (ADR 0034 R6).
   #
   # Every file is idempotent, so this is safe to re-run against an existing
   # database, including one that was just populated by a restore.

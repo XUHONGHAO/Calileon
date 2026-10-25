@@ -10,7 +10,8 @@ https://vault.localhost:8443 {
     -Server
     X-Content-Type-Options "nosniff"
     Referrer-Policy "no-referrer"
-    Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    # Microphone stays same-origin only: voice messages and speech input (ADR 0034).
+    Permissions-Policy "camera=(), microphone=(self), geolocation=(), payment=(), usb=()"
     X-Frame-Options "SAMEORIGIN"
     Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; form-action 'self'; frame-ancestors 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; frame-src 'self' https:; worker-src 'self' blob:; connect-src 'self' {$SUPABASE_PUBLIC_URL}"
   }
