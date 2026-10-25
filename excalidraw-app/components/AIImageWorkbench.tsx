@@ -205,12 +205,27 @@ const MEDIA_TYPE_OPTIONS: Array<{
 ];
 
 const MAX_IMAGE_COUNT = 10;
-// Most OpenAI-compatible image APIs accept a 32-bit unsigned seed. Keep the
-// random range within that so manually typed and dice-rolled seeds behave the
-// same across providers.
+// Most OpenAI-compatible image APIs accept a 32-bit unsigned seed. Manually
+// typed seeds may use that whole range (so older 10-digit seeds can still be
+// reproduced), while the dice rolls a shorter, easier-to-read 8-digit seed.
 const MAX_SEED = 2147483647;
+const MIN_RANDOM_SEED = 10000000;
+const MAX_RANDOM_SEED = 99999999;
 
-const createRandomSeed = () => Math.floor(Math.random() * (MAX_SEED + 1));
+const createRandomSeed = () =>
+  MIN_RANDOM_SEED +
+  Math.floor(Math.random() * (MAX_RANDOM_SEED - MIN_RANDOM_SEED + 1));
+
+const parseSeedInput = (value: string) => {
+  if (!value) {
+    return null;
+  }
+  const seed = Number(value);
+  if (!Number.isFinite(seed)) {
+    return null;
+  }
+  return Math.min(MAX_SEED, Math.max(0, Math.trunc(seed)));
+};
 
 const diceIcon = (
   <svg
@@ -4357,13 +4372,15 @@ export const AIImageWorkbench = ({
           <div className="AIImageWorkbench__seedField">
             <input
               type="number"
+              min={0}
+              max={MAX_SEED}
+              step={1}
+              inputMode="numeric"
               disabled={seedDisabled}
               value={params.seed ?? ""}
               placeholder={t("ai.workbench.seedRandom")}
               onChange={(event) =>
-                updateParams({
-                  seed: event.target.value ? Number(event.target.value) : null,
-                })
+                updateParams({ seed: parseSeedInput(event.target.value) })
               }
             />
             <button
