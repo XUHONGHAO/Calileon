@@ -57,4 +57,16 @@ describe("CastRecordingBar", () => {
     expect(handlers.onResume).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("cast-pause-recording")).toBeNull();
   });
+
+  it("shows a microphone only while narration is recorded", () => {
+    renderBar();
+    expect(screen.queryByTestId("cast-narration-indicator")).toBeNull();
+  });
+
+  it("labels the narration microphone", () => {
+    renderBar({ narrating: true });
+    expect(
+      screen.getByRole("img", { name: "Recording microphone" }),
+    ).toBeInTheDocument();
+  });
 });

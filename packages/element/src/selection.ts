@@ -15,6 +15,7 @@ import {
   isTextElement,
 } from "./typeChecks";
 import { getFrameChildren } from "./frame";
+import { getAttachedAudioElements } from "./audio/host";
 
 import { LinearElementEditor } from "./linearElementEditor";
 import { selectGroupsForSelectedElements } from "./groups";
@@ -161,6 +162,8 @@ export const getSelectedElements = (
   opts?: {
     includeBoundTextElement?: boolean;
     includeElementsInFrames?: boolean;
+    /** voice notes attached to a selected element (ADR 0034 R5) */
+    includeAttachedAudio?: boolean;
   },
 ) => {
   const addedElements = new Set<ExcalidrawElement["id"]>();
@@ -179,6 +182,15 @@ export const getSelectedElements = (
       selectedElements.push(element);
       addedElements.add(element.id);
       continue;
+    }
+  }
+
+  if (opts?.includeAttachedAudio) {
+    for (const element of getAttachedAudioElements(elements, addedElements)) {
+      if (!addedElements.has(element.id)) {
+        selectedElements.push(element);
+        addedElements.add(element.id);
+      }
     }
   }
 

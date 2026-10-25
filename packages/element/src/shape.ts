@@ -54,6 +54,7 @@ import {
 } from "./typeChecks";
 import { getCornerRadius, isPathALoop } from "./utils";
 import { headingForPointIsHorizontal } from "./heading";
+import { getAudioBubblePath } from "./audio/render";
 
 import { canChangeRoundness } from "./comparisons";
 import {
@@ -228,6 +229,7 @@ export const generateRoughOptions = (
     case "iframe":
     case "embeddable":
     case "diamond":
+    case "audio":
     case "ellipse": {
       options.fillStyle = element.fillStyle;
       options.fill = isTransparent(element.backgroundColor)
@@ -978,6 +980,13 @@ const _generateElementShape = (
 
       return shapes;
     }
+    case "audio": {
+      const shape: ElementShapes[typeof element.type] = generator.path(
+        getAudioBubblePath(element),
+        generateRoughOptions(element, true, isDarkMode),
+      );
+      return shape;
+    }
     case "frame":
     case "magicframe":
     case "text":
@@ -1077,6 +1086,7 @@ export const getElementShape = <Point extends GlobalPoint | LocalPoint>(
     case "magicframe":
     case "embeddable":
     case "image":
+    case "audio":
     case "iframe":
     case "text":
     case "selection":

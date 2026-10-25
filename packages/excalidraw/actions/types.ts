@@ -129,6 +129,7 @@ export type ActionName =
   | "increaseFontSize"
   | "decreaseFontSize"
   | "unbindText"
+  | "detachAudio"
   | "hyperlink"
   | "bindText"
   | "unlockAllElements"

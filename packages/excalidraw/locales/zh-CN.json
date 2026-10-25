@@ -168,6 +168,17 @@
       "savingCloud": "正在保存…",
       "savedCloud": "已保存到云端",
       "discard": "丢弃录制",
+      "narration": {
+        "toggle": "同时录麦克风",
+        "hint": "讲解最长 30 分钟，超过后只继续录画面。",
+        "recording": "正在录麦克风",
+        "included": "含讲解",
+        "busy": "麦克风正被占用，这次录制没有声音。",
+        "failed": "无法打开麦克风，这次录制没有声音。",
+        "limit": "讲解已满 30 分钟，画面仍在继续录制。",
+        "interrupted": "麦克风已断开，讲解已停止。",
+        "processing": "正在保存讲解…"
+      },
       "status": {
         "idle": "可以开始录制",
         "recording": "正在录制",
@@ -540,7 +551,8 @@
     "extraTools": "更多工具",
     "generate": "生成",
     "mermaidToExcalidraw": "Mermaid 至 Calileon",
-    "convertElementType": "切换形状种类"
+    "convertElementType": "切换形状种类",
+    "voice": "语音消息"
   },
   "element": {
     "rectangle": "矩形",
@@ -556,7 +568,8 @@
     "magicframe": "线框图至代码",
     "embeddable": "嵌入网页",
     "selection": "选择",
-    "iframe": "IFrame"
+    "iframe": "IFrame",
+    "audio": "语音消息"
   },
   "headings": {
     "canvasActions": "画布动作",
@@ -572,6 +585,7 @@
     "freeDraw": "点击并拖动，完成时松开",
     "text": "提示：您也可以使用选择工具双击任意位置来添加文字",
     "embeddable": "点击并拖动以创建嵌入网页",
+    "voice": "点击画布任意位置开始录语音（最长 60 秒），点在元素上会吸附到该元素",
     "text_selected": "双击或按{{shortcut}}编辑文本",
     "text_editing": "按{{shortcut_1}}或{{shortcut_2}}完成编辑",
     "linearElementMulti": "点击最后的点或按{{shortcut_1}}或{{shortcut_2}}完成",
@@ -1982,6 +1996,29 @@
       "unavailable": "云端 AI 任务未配置。",
       "untitled": "未命名 AI 任务",
       "updatedAt": "更新于 {{date}}"
+    },
+    "avatar": {
+      "title": "个人头像",
+      "description": "显示在你的语音消息旁。已录制的语音保留录制时的头像。",
+      "preview": "头像预览",
+      "glyph": "头像文字",
+      "glyphHint": "一个汉字，或一个 A–Z 字母。",
+      "invalid": "请输入一个汉字，或一个 A–Z 字母。",
+      "color": "底色",
+      "save": "保存头像",
+      "reset": "恢复默认",
+      "saved": "头像已保存",
+      "saveFailed": "头像保存失败，请重试。",
+      "colors": {
+        "teal": "青绿",
+        "blue": "蓝",
+        "indigo": "靛蓝",
+        "purple": "紫",
+        "green": "绿",
+        "olive": "橄榄绿",
+        "navy": "藏青",
+        "slate": "石板灰"
+      }
     }
   },
   "vault": {
@@ -2276,10 +2313,79 @@
       "tooLarge": "请选择小于 50 MiB 的文件。",
       "fileError": "无法播放此音频格式，请更换文件。",
       "audioError": "无法启动音频，请检查设备或文件后重试。",
+      "micBusy": "麦克风正在被语音消息使用，请结束录音后再试。",
       "timeLimit": "已达五分钟上限，作品已保留。",
       "elementLimit": "已达 600 个元素上限，作品已保留。",
       "commitError": "作品插入失败，请在关闭前重试。",
       "empty": "声音太小，没有画出内容，未添加任何元素。"
+    }
+  },
+  "voice": {
+    "host": {
+      "detach": "解除吸附",
+      "attached": "已吸附到下方元素"
+    },
+    "recordingLabel": "正在录制语音消息",
+    "requesting": "正在打开麦克风…",
+    "recording": "录音中",
+    "saving": "正在保存…",
+    "stop": "停止并发送",
+    "discard": "丢弃",
+    "microphone": "麦克风",
+    "defaultMicrophone": "默认麦克风",
+    "switchMicrophoneHint": "切换麦克风会重新开始录音。",
+    "remaining": "还剩 {{seconds}} 秒",
+    "play": "播放语音消息",
+    "pause": "暂停语音消息",
+    "playing": "正在播放语音消息",
+    "paused": "语音消息已暂停",
+    "saved": "语音消息已添加",
+    "discarded": "录音已丢弃",
+    "tooShort": "说话时间太短，至少录一秒。",
+    "notLoaded": "这条语音还没加载完成。",
+    "playbackError": "无法播放这条语音。",
+    "insertError": "语音消息添加失败。",
+    "outdatedCollaborators": "房间内有成员版本过旧，暂不可录音，等大家刷新后即可使用。",
+    "vaultV2Unavailable": "当前 Vault 暂不支持语音消息。",
+    "errors": {
+      "unsupported": "当前页面无法录音，需要安全的 HTTPS 页面。",
+      "blocked": "此网站的麦克风权限被禁用。",
+      "permission": "麦克风权限被拒绝，请在浏览器设置中允许后重试。",
+      "noDevice": "没有找到麦克风。",
+      "busy": "麦克风正被其他应用或功能占用。",
+      "audioError": "无法开始录音，请检查麦克风后重试。"
+    },
+    "transcription": {
+      "label": "实时转写",
+      "turnOn": "开启实时转写",
+      "turnOff": "关闭实时转写",
+      "language": "识别语言",
+      "listening": "正在听…",
+      "notice": "实时转写使用浏览器自带的语音识别，语音可能被发送到浏览器厂商（Google / Microsoft）的识别服务。",
+      "accept": "转写",
+      "decline": "不再转写",
+      "downloadConsent": "此 Vault 只在本机转写。浏览器需要下载一次语言包，会向浏览器厂商发起一次请求，但不会上传音频。",
+      "download": "下载",
+      "downloading": "正在下载语言包…录音照常进行。",
+      "localUnavailable": "本模式不支持转写，录音照常进行。",
+      "failed": "暂时无法转写，录音照常进行。",
+      "saved": "转写已保存"
+    },
+    "transcript": {
+      "show": "查看转写",
+      "title": "转写",
+      "insertAsText": "插入为文本",
+      "inserted": "已插入为文本"
+    },
+    "dictation": {
+      "start": "语音输入",
+      "stop": "停止语音输入",
+      "listening": "正在听…",
+      "notice": "语音输入使用浏览器自带的语音识别，语音可能被发送到浏览器厂商（Google / Microsoft）的识别服务。",
+      "accept": "继续",
+      "cancel": "取消",
+      "unavailable": "暂时无法使用语音输入。",
+      "localUnavailable": "本模式不支持语音输入。"
     }
   }
 }

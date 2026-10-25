@@ -1,0 +1,72 @@
+.excalidraw {
+  .AccountAvatarSettings__body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--ui-space-4);
+    min-width: 0;
+  }
+
+  .AccountAvatarSettings__controls {
+    display: flex;
+    flex: 1 1 14rem;
+    flex-direction: column;
+    gap: var(--ui-space-3);
+    min-width: 0;
+  }
+
+  .AccountAvatarSettings__glyph {
+    width: var(--ui-control-lg);
+    text-align: center;
+    font-size: var(--ui-font-lg);
+    font-weight: var(--ui-weight-semibold);
+  }
+
+  .AccountAvatarSettings__swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-2);
+  }
+
+  .AccountAvatarSettings__swatch {
+    box-sizing: border-box;
+    width: var(--ui-control-sm);
+    height: var(--ui-control-sm);
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 50%;
+    background: var(--swatch);
+    // inner gap so the selected ring reads like the avatar's own ring
+    box-shadow: inset 0 0 0 2px var(--ui-surface);
+    cursor: pointer;
+
+    &--selected {
+      border-color: var(--color-primary);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .AccountAvatarSettings__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ui-space-2);
+    margin-top: var(--ui-space-3);
+  }
+
+  .AccountAvatarSettings__status {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+
+    &--error {
+      color: var(--ui-danger-fg);
+    }
+  }
+}

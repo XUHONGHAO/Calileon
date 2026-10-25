@@ -30,6 +30,7 @@ export const actionCopy = register<ClipboardEvent | null>({
       selectedElementIds: appState.selectedElementIds,
       includeBoundTextElement: true,
       includeElementsInFrames: true,
+      includeAttachedAudio: true,
     });
 
     try {

@@ -1692,6 +1692,26 @@ const _renderInteractiveScene = ({
     renderElementsBoxHighlight(context, appState, appState.elementsToHighlight);
   }
 
+  // voice note attachments: a bubble's host or a host's bubbles (ADR 0034 R5)
+  for (const element of app.getAudioAttachmentHighlight?.() ?? []) {
+    const [x1, y1, x2, y2, cx, cy] = getElementAbsoluteCoords(
+      element,
+      allElementsMap,
+    );
+    renderSelectionBorder(context, appState, {
+      angle: element.angle,
+      x1,
+      y1,
+      x2,
+      y2,
+      selectionColors: ["rgb(0,118,255)"],
+      dashed: true,
+      cx,
+      cy,
+      activeEmbeddable: false,
+    });
+  }
+
   if (appState.activeLockedId) {
     const element = allElementsMap.get(appState.activeLockedId);
     const elements = element

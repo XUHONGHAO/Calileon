@@ -18,7 +18,10 @@
  * shared document.
  */
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
-import { isInitializedImageElement, newElementWith } from "@excalidraw/element";
+import {
+  isInitializedFileBackedElement,
+  newElementWith,
+} from "@excalidraw/element";
 
 import type { ExcalidrawElement, FileId } from "@excalidraw/element/types";
 
@@ -185,7 +188,8 @@ export class VaultV2Assets {
     const missing = new Set<FileId>();
     for (const element of api.getSceneElementsIncludingDeleted()) {
       if (
-        isInitializedImageElement(element) &&
+        // audio too, or peers see a saved voice bubble that cannot play
+        isInitializedFileBackedElement(element) &&
         !element.isDeleted &&
         element.status === "saved" &&
         !loaded[element.fileId] &&

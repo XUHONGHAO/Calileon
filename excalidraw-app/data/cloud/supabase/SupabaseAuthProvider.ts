@@ -11,6 +11,9 @@
  */
 
 import { t } from "@excalidraw/excalidraw/i18n";
+import { restoreAudioAvatar } from "@excalidraw/element";
+
+import type { AudioAvatar } from "@excalidraw/element/types";
 
 import { BackendError } from "../errors";
 
@@ -46,6 +49,8 @@ const toAuthUser = (user: User): AuthUser => {
     avatarUrl,
     createdAt: toEpochMs(user.created_at) ?? 0,
     lastSignInAt: toEpochMs(user.last_sign_in_at),
+    // user-editable metadata: anything off-spec falls back to the default
+    avatar: restoreAudioAvatar(metadata.avatar),
   };
 };
 
@@ -117,11 +122,35 @@ export const createSupabaseAuthProvider = (): AuthProvider => {
     };
   };
 
+  /** `user_metadata.avatar = { color, glyph }`, next to `display_name` */
+  const updateAvatar = async (
+    avatar: AudioAvatar | null,
+  ): Promise<AuthUser> => {
+    const value = avatar ? restoreAudioAvatar(avatar) : null;
+    if (avatar && !value) {
+      // the settings UI validates first; this only guards programming errors
+      throw new TypeError("invalid avatar");
+    }
+    const client = getSupabaseClient();
+    // GoTrue merges `data` into user_metadata, so other keys are kept
+    const { data, error } = await client.auth.updateUser({
+      data: { avatar: value },
+    });
+    if (error) {
+      throw mapAuthError(error);
+    }
+    if (!data.user) {
+      throw mapAuthError(error);
+    }
+    return toAuthUser(data.user);
+  };
+
   return {
     getCurrentUser,
     getAccessToken,
     signIn,
     signOut,
     onAuthStateChange,
+    updateAvatar,
   };
 };

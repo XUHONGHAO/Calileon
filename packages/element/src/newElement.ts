@@ -10,6 +10,10 @@ import {
   getFontString,
   getUpdatedTimestamp,
   getLineHeight,
+  AUDIO_ELEMENT_HEIGHT,
+  COLOR_PALETTE,
+  ROUGHNESS,
+  STROKE_WIDTH,
 } from "@excalidraw/common";
 
 import type { Radians } from "@excalidraw/math";
@@ -26,6 +30,7 @@ import { normalizeText, measureText } from "./textMeasurements";
 import { wrapText } from "./textWrapping";
 
 import { isLineElement } from "./typeChecks";
+import { getAudioElementWidth, normalizeAudioPeaks } from "./audio/helpers";
 
 import type {
   ExcalidrawElement,
@@ -48,6 +53,7 @@ import type {
   ExcalidrawArrowElement,
   ExcalidrawElbowArrowElement,
   ExcalidrawLineElement,
+  ExcalidrawAudioElement,
 } from "./types";
 
 export type ElementConstructorOpts = MarkOptional<
@@ -528,6 +534,44 @@ export const newArrowElement = <T extends boolean>(
   } as T extends true
     ? NonDeleted<ExcalidrawElbowArrowElement>
     : NonDeleted<ExcalidrawArrowElement>;
+};
+
+/** Voice bubble; width is derived from `duration` once, here (ADR 0034). */
+export const newAudioElement = (
+  opts: {
+    source: ExcalidrawAudioElement["source"];
+    duration: number;
+    status?: ExcalidrawAudioElement["status"];
+    fileId?: ExcalidrawAudioElement["fileId"];
+    peaks?: readonly number[];
+    transcript?: ExcalidrawAudioElement["transcript"];
+    author?: ExcalidrawAudioElement["author"];
+    hostId?: ExcalidrawAudioElement["hostId"];
+  } & Omit<ElementConstructorOpts, "width" | "height" | "angle">,
+): NonDeleted<ExcalidrawAudioElement> => {
+  return {
+    ..._newElementBase<ExcalidrawAudioElement>("audio", {
+      strokeColor: COLOR_PALETTE.black,
+      // light green evokes a chat voice message
+      backgroundColor: COLOR_PALETTE.green[1],
+      fillStyle: "solid",
+      strokeWidth: STROKE_WIDTH.thin,
+      strokeStyle: "solid",
+      roughness: ROUGHNESS.architect,
+      ...opts,
+      width: getAudioElementWidth(opts.duration),
+      height: AUDIO_ELEMENT_HEIGHT,
+      angle: 0 as Radians,
+    }),
+    status: opts.status ?? "pending",
+    fileId: opts.fileId ?? null,
+    source: opts.source,
+    duration: Math.max(0, Math.round(opts.duration)),
+    peaks: normalizeAudioPeaks(opts.peaks),
+    transcript: opts.transcript ?? null,
+    author: opts.author ?? null,
+    hostId: opts.hostId ?? null,
+  };
 };
 
 export const newImageElement = (

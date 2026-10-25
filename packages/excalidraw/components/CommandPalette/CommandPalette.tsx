@@ -530,6 +530,10 @@ function CommandPaletteInner({
         ...SHAPES.reduce((acc: CommandPaletteItem[], shape) => {
           const { value, icon, key, numericKey } = shape;
 
+          if (value === "voice" && !appProps.voiceOptions?.enabled) {
+            return acc;
+          }
+
           if (
             appProps.UIOptions.tools?.[
               value as Extract<

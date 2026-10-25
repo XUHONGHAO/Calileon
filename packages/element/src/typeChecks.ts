@@ -29,6 +29,10 @@ import type {
   ExcalidrawLineElement,
   ExcalidrawFlowchartNodeElement,
   ExcalidrawLinearElementSubType,
+  ExcalidrawAudioElement,
+  InitializedExcalidrawAudioElement,
+  ExcalidrawFileBackedElement,
+  InitializedExcalidrawFileBackedElement,
 } from "./types";
 
 export const isInitializedImageElement = (
@@ -41,6 +45,31 @@ export const isImageElement = (
   element: ExcalidrawElement | null,
 ): element is ExcalidrawImageElement => {
   return !!element && element.type === "image";
+};
+
+export const isAudioElement = (
+  element: ExcalidrawElement | null | undefined,
+): element is ExcalidrawAudioElement => {
+  return !!element && element.type === "audio";
+};
+
+export const isInitializedAudioElement = (
+  element: ExcalidrawElement | null | undefined,
+): element is InitializedExcalidrawAudioElement => {
+  return !!element && element.type === "audio" && !!element.fileId;
+};
+
+/** Elements whose content lives in BinaryFiles (images and audio). */
+export const isFileBackedElement = (
+  element: ExcalidrawElement | null | undefined,
+): element is ExcalidrawFileBackedElement => {
+  return !!element && (element.type === "image" || element.type === "audio");
+};
+
+export const isInitializedFileBackedElement = (
+  element: ExcalidrawElement | null | undefined,
+): element is InitializedExcalidrawFileBackedElement => {
+  return isFileBackedElement(element) && !!element.fileId;
 };
 
 export const isEmbeddableElement = (
@@ -223,6 +252,7 @@ export const isRectangularElement = (
       element.type === "embeddable" ||
       element.type === "frame" ||
       element.type === "magicframe" ||
+      element.type === "audio" ||
       element.type === "freedraw")
   );
 };
@@ -261,6 +291,7 @@ export const isExcalidrawElement = (
     case "frame":
     case "magicframe":
     case "image":
+    case "audio":
     case "selection": {
       return true;
     }
@@ -403,6 +434,7 @@ export const isEligibleFrameChildType = (type: ElementOrToolType) => {
     case "freedraw":
     case "text":
     case "image":
+    case "audio":
     case "frame":
     case "embeddable": {
       return true;

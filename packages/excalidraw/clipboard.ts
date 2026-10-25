@@ -12,7 +12,7 @@ import { mutateElement } from "@excalidraw/element";
 import { deepCopyElement } from "@excalidraw/element";
 import {
   isFrameLikeElement,
-  isInitializedImageElement,
+  isInitializedFileBackedElement,
 } from "@excalidraw/element";
 
 import { getContainingFrame } from "@excalidraw/element";
@@ -153,7 +153,8 @@ export const serializeAsClipboardJSON = ({
   let foundFile = false;
 
   const _files = elements.reduce((acc, element) => {
-    if (isInitializedImageElement(element)) {
+    // audio included: a pasted voice bubble without its file cannot play
+    if (isInitializedFileBackedElement(element)) {
       foundFile = true;
       if (files && files[element.fileId]) {
         acc[element.fileId] = files[element.fileId];

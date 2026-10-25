@@ -15,6 +15,7 @@ import type {
 
 import type { NonDeletedExcalidrawElement } from "@excalidraw/element/types";
 
+import { getAudioToFollowHosts } from "./audio/host";
 import { unbindBindingElement, updateBoundElements } from "./binding";
 import { getCommonBounds } from "./bounds";
 import { getPerfectElementSize } from "./sizeHelpers";
@@ -102,6 +103,17 @@ export const dragSelectedElements = (
     snapOffset,
     gridSize,
   );
+
+  // voice notes follow their hosts, but don't take part in snapping, so they
+  // are added after the offset is computed
+  for (const audio of getAudioToFollowHosts(
+    scene.getNonDeletedElements(),
+    Array.from(elementsToUpdate),
+  )) {
+    if (pointerDownState.originalElements.has(audio.id)) {
+      elementsToUpdate.add(audio);
+    }
+  }
 
   const elementsToUpdateIds = new Set(
     Array.from(elementsToUpdate, (el) => el.id),

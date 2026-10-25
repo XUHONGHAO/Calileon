@@ -1,14 +1,15 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { compressData } from "@excalidraw/excalidraw/data/encode";
 import { newElementWith } from "@excalidraw/element";
-import { isInitializedImageElement } from "@excalidraw/element";
+// images and audio (ADR 0034) share one file pipeline
+import { isInitializedFileBackedElement } from "@excalidraw/element";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import type {
   ExcalidrawElement,
   ExcalidrawImageElement,
   FileId,
-  InitializedExcalidrawImageElement,
+  InitializedExcalidrawFileBackedElement,
 } from "@excalidraw/element/types";
 import type {
   BinaryFileData,
@@ -100,7 +101,7 @@ export class FileManager {
 
     for (const element of elements) {
       const fileData =
-        isInitializedImageElement(element) && files[element.fileId];
+        isInitializedFileBackedElement(element) && files[element.fileId];
 
       if (
         fileData &&
@@ -189,7 +190,7 @@ export class FileManager {
   shouldPreventUnload = (elements: readonly ExcalidrawElement[]) => {
     return elements.some((element) => {
       return (
-        isInitializedImageElement(element) &&
+        isInitializedFileBackedElement(element) &&
         !element.isDeleted &&
         this.savingFiles.has(element.fileId)
       );
@@ -201,9 +202,9 @@ export class FileManager {
    */
   shouldUpdateImageElementStatus = (
     element: ExcalidrawElement,
-  ): element is InitializedExcalidrawImageElement => {
+  ): element is InitializedExcalidrawFileBackedElement => {
     return (
-      isInitializedImageElement(element) &&
+      isInitializedFileBackedElement(element) &&
       this.savedFiles.has(element.fileId) &&
       element.status === "pending"
     );
@@ -269,6 +270,18 @@ export const encodeFilesForUpload = async ({
   return processedFiles;
 };
 
+/**
+ * Every file referenced by the scene, deleted elements included (undo can
+ * bring them back). Local GC keeps exactly these, so audio must be counted.
+ */
+export const getSceneFileIds = (elements: readonly ExcalidrawElement[]) =>
+  elements.reduce((acc, element) => {
+    if (isInitializedFileBackedElement(element)) {
+      acc.push(element.fileId);
+    }
+    return acc;
+  }, [] as FileId[]);
+
 export const updateStaleImageStatuses = (params: {
   excalidrawAPI: ExcalidrawImperativeAPI;
   erroredFiles: Map<FileId, true>;
@@ -282,7 +295,7 @@ export const updateStaleImageStatuses = (params: {
       .getSceneElementsIncludingDeleted()
       .map((element) => {
         if (
-          isInitializedImageElement(element) &&
+          isInitializedFileBackedElement(element) &&
           params.erroredFiles.has(element.fileId)
         ) {
           return newElementWith(element, {

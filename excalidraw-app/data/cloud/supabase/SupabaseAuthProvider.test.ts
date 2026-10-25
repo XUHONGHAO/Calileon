@@ -11,6 +11,7 @@ const mockAuth = {
   signInWithPassword: vi.fn(),
   signOut: vi.fn(),
   onAuthStateChange: vi.fn(),
+  updateUser: vi.fn(),
 };
 
 vi.mock("./client", () => ({
@@ -72,6 +73,7 @@ describe("SupabaseAuthProvider", () => {
         avatarUrl: "https://x/y.png",
         createdAt: Date.parse("2026-06-20T10:00:00.000Z"),
         lastSignInAt: Date.parse("2026-06-21T08:00:00.000Z"),
+        avatar: null,
       });
     });
 
@@ -167,6 +169,68 @@ describe("SupabaseAuthProvider", () => {
 
       off();
       expect(unsubscribe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("avatar (ADR 0034 §6)", () => {
+    const withAvatar = (avatar: unknown) => ({
+      ...supabaseUser,
+      user_metadata: { ...supabaseUser.user_metadata, avatar },
+    });
+
+    it("reads a valid avatar and drops an off-spec one", async () => {
+      const auth = createSupabaseAuthProvider();
+      mockAuth.getUser.mockResolvedValue({
+        data: { user: withAvatar({ color: "#2f80ed", glyph: "山" }) },
+        error: null,
+      });
+      expect((await auth.getCurrentUser())?.avatar).toEqual({
+        color: "#2f80ed",
+        glyph: "山",
+      });
+
+      mockAuth.getUser.mockResolvedValue({
+        data: { user: withAvatar({ color: "#ff0000", glyph: "ab" }) },
+        error: null,
+      });
+      expect((await auth.getCurrentUser())?.avatar).toBeNull();
+    });
+
+    it("saves the avatar into user_metadata", async () => {
+      const avatar = { color: "#1f9e8f", glyph: "K" };
+      mockAuth.updateUser.mockResolvedValue({
+        data: { user: withAvatar(avatar) },
+        error: null,
+      });
+      const auth = createSupabaseAuthProvider();
+      const user = await auth.updateAvatar!(avatar);
+      expect(mockAuth.updateUser).toHaveBeenCalledWith({ data: { avatar } });
+      expect(user.avatar).toEqual(avatar);
+
+      await auth.updateAvatar!(null);
+      expect(mockAuth.updateUser).toHaveBeenLastCalledWith({
+        data: { avatar: null },
+      });
+    });
+
+    it("refuses an invalid avatar without calling the backend", async () => {
+      const auth = createSupabaseAuthProvider();
+      await expect(
+        auth.updateAvatar!({ color: "#2f80ed", glyph: "ab" }),
+      ).rejects.toThrow();
+      expect(mockAuth.updateUser).not.toHaveBeenCalled();
+    });
+
+    it("maps backend failures", async () => {
+      mockAuth.updateUser.mockResolvedValue({
+        data: { user: null },
+        error: new AuthApiError("expired", 401, "session_expired"),
+      });
+      const auth = createSupabaseAuthProvider();
+      await expectBackendError(
+        auth.updateAvatar!({ color: "#2f80ed", glyph: "A" }),
+        "unauthorized",
+      );
     });
   });
 });

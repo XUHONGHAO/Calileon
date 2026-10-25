@@ -16,7 +16,7 @@ import {
 
 import { syncMovedIndices } from "@excalidraw/element";
 
-import { duplicateElements } from "@excalidraw/element";
+import { duplicateElements, omitAttachedAudio } from "@excalidraw/element";
 
 import { CaptureUpdateAction } from "@excalidraw/element";
 
@@ -67,6 +67,7 @@ export const actionDuplicateSelection = register({
         getSelectedElements(elements, appState, {
           includeBoundTextElement: true,
           includeElementsInFrames: true,
+          includeAttachedAudio: true,
         }),
       ),
       appState,
@@ -100,7 +101,7 @@ export const actionDuplicateSelection = register({
       appState: {
         ...appState,
         ...getSelectionStateForElements(
-          duplicatedElements,
+          omitAttachedAudio(duplicatedElements),
           getNonDeletedElements(elementsWithDuplicates),
           appState,
         ),

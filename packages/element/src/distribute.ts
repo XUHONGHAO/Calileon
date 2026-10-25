@@ -1,5 +1,6 @@
 import type { AppState } from "@excalidraw/excalidraw/types";
 
+import { moveAttachedAudio } from "./audio/host";
 import { updateBoundElements } from "./binding";
 import { getCommonBoundingBox } from "./bounds";
 
@@ -27,6 +28,7 @@ export const distributeElements = (
       : (["minY", "midY", "maxY", "height"] as const);
 
   const bounds = getCommonBoundingBox(selectedElements);
+  const selectedIds = new Set(selectedElements.map((element) => element.id));
   const groups = getSelectedElementsByGroup(
     selectedElements,
     elementsMap,
@@ -69,6 +71,7 @@ export const distributeElements = (
         translation[distribution.axis] = pos - box[mid];
       }
 
+      moveAttachedAudio(scene, group, translation, selectedIds);
       return group.map((element) => {
         const updatedElement = scene.mutateElement(element, {
           x: element.x + translation.x,
@@ -97,6 +100,8 @@ export const distributeElements = (
     pos += step;
     pos += box[extent];
 
+    // voice notes follow their hosts (ADR 0034 R5)
+    moveAttachedAudio(scene, group, translation, selectedIds);
     return group.map((element) => {
       const updatedElement = scene.mutateElement(element, {
         x: element.x + translation.x,

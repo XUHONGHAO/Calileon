@@ -14,6 +14,8 @@
 
 import { useCallback, useEffect } from "react";
 
+import type { AudioAvatar } from "@excalidraw/element/types";
+
 import { atom, useAtom, useAtomValue, appJotaiStore } from "../app-jotai";
 import { getCloudBackend } from "../data/cloud";
 
@@ -98,6 +100,14 @@ export const useCloudAuth = () => {
     appJotaiStore.set(cloudAuthAtom, { status: "signed-out", user: null });
   }, [backend]);
 
+  /** null when the backend can't store an avatar (ADR 0034 §6) */
+  const updateAvatar = backend.auth.updateAvatar
+    ? async (avatar: AudioAvatar | null): Promise<void> => {
+        const user = await backend.auth.updateAvatar!(avatar);
+        appJotaiStore.set(cloudAuthAtom, { status: "signed-in", user });
+      }
+    : null;
+
   return {
     isAuthAvailable,
     status: state.status,
@@ -105,6 +115,7 @@ export const useCloudAuth = () => {
     isSignedIn: state.status === "signed-in",
     signIn,
     signOut,
+    updateAvatar,
   };
 };
 

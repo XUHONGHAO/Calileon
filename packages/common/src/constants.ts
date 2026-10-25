@@ -276,6 +276,40 @@ export const ALLOWED_PASTE_MIME_TYPES = [
   ...Object.values(IMAGE_MIME_TYPES),
 ] as const;
 
+// Kept out of MIME_TYPES so audio never reaches image-only paths (paste,
+// image cache) by accident.
+export const AUDIO_MIME_TYPES = {
+  webm: "audio/webm",
+  mp4: "audio/mp4",
+  mpeg: "audio/mpeg",
+  ogg: "audio/ogg",
+} as const;
+
+// Voice messages (ADR 0034).
+export const AUDIO_RECORDING_MAX_DURATION = 60_000;
+/** Shorter recordings are discarded, like a chat app's "too short" hint. */
+export const AUDIO_RECORDING_MIN_DURATION = 1_000;
+export const AUDIO_PEAKS_COUNT = 96;
+export const AUDIO_ELEMENT_MIN_WIDTH = 180;
+export const AUDIO_ELEMENT_MAX_WIDTH = 420;
+export const AUDIO_ELEMENT_HEIGHT = 48;
+/** Avatar backgrounds; no reds or oranges so the flame ring stays distinct. */
+export const AUDIO_AVATAR_COLORS = [
+  "#1f9e8f",
+  "#2f80ed",
+  "#5b5bd6",
+  "#8e44ad",
+  "#2e9d4f",
+  "#6b7f2a",
+  "#3d5a80",
+  "#5c6670",
+] as const;
+/** Calileon flame primary, matching --color-primary in brand.scss. */
+export const AUDIO_AVATAR_RING_COLOR = {
+  light: "#d2452a",
+  dark: "#ff8a5c",
+} as const;
+
 export const EXPORT_IMAGE_TYPES = {
   png: "png",
   svg: "svg",
@@ -462,6 +496,7 @@ export const TOOL_TYPE = {
   magicframe: "magicframe",
   embeddable: "embeddable",
   laser: "laser",
+  voice: "voice",
 } as const;
 
 export const EDITOR_LS_KEYS = {
@@ -469,6 +504,13 @@ export const EDITOR_LS_KEYS = {
   // legacy naming (non)scheme
   MERMAID_TO_EXCALIDRAW: "mermaid-to-excalidraw",
   PUBLISH_LIBRARY: "publish-library-data",
+  VOICE_INPUT_DEVICE: "excalidraw-voice-input-device",
+  /** the user turned live transcription off (ADR 0034 §7) */
+  VOICE_TRANSCRIPTION_OFF: "excalidraw-voice-transcription-off",
+  /** the one-time "audio may go to the browser vendor" notice was seen */
+  VOICE_TRANSCRIPTION_NOTICE_SEEN: "excalidraw-voice-transcription-notice",
+  /** which recognition path works, per browser brand + major version */
+  VOICE_SPEECH_PATHS: "excalidraw-voice-speech-paths",
 } as const;
 
 /**

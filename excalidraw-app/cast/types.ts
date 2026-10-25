@@ -81,6 +81,18 @@ export type CastScriptV1 = {
     appVersion: string;
     locale?: string;
   };
+  /** microphone track recorded alongside (ADR 0034 R5); older readers skip it */
+  narration?: CastNarrationV1;
+};
+
+export type CastNarrationV1 = {
+  mimeType: string;
+  /** `data:audio/…;base64,…`, so a script stays one self-contained file */
+  dataURL: string;
+  /** script time at which the audio starts (the mic opens a bit late) */
+  offsetMs: number;
+  /** recorded milliseconds, paused time excluded like the script's */
+  durationMs: number;
 };
 
 export type CastRecorderState = "idle" | "recording" | "paused" | "stopped";

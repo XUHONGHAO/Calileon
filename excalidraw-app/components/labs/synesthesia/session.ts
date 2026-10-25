@@ -1,5 +1,6 @@
 import {
   CaptureUpdateAction,
+  acquireMicLock,
   convertToExcalidrawElements,
 } from "@excalidraw/excalidraw";
 
@@ -45,6 +46,7 @@ export class SynesthesiaSession {
   private elements: ExcalidrawElement[] = [];
   private elapsed = 0;
   private state?: AnalysisState;
+  private releaseMic: (() => void) | null = null;
   constructor(
     private options: {
       file: File | null;
@@ -58,6 +60,13 @@ export class SynesthesiaSession {
   ) {}
   async start() {
     try {
+      if (!this.options.file) {
+        // one microphone owner at a time, shared with voice messages (0034)
+        this.releaseMic = acquireMicLock("synesthesia");
+        if (!this.releaseMic) {
+          throw new Error("micBusy");
+        }
+      }
       this.audio = await openAudio(
         this.options.file,
         this.controller.signal,
@@ -121,7 +130,9 @@ export class SynesthesiaSession {
           error instanceof DOMException && error.name === "NotAllowedError"
             ? "permission"
             : error instanceof Error &&
-              ["unsupported", "tooLarge", "fileError"].includes(error.message)
+              ["unsupported", "tooLarge", "fileError", "micBusy"].includes(
+                error.message,
+              )
             ? error.message
             : "audioError",
         );
@@ -137,6 +148,8 @@ export class SynesthesiaSession {
     clearTimeout(this.watchdog);
     this.controller.abort();
     this.audio?.dispose();
+    this.releaseMic?.();
+    this.releaseMic = null;
     this.options.finish(this.elements, reason);
   }
 }

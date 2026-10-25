@@ -64,7 +64,7 @@ import {
   restoreElements,
 } from "@excalidraw/excalidraw/data/restore";
 import { newElementWith } from "@excalidraw/element";
-import { isInitializedImageElement } from "@excalidraw/element";
+import { isInitializedFileBackedElement } from "@excalidraw/element";
 import clsx from "clsx";
 import {
   parseLibraryTokensFromUrl,
@@ -73,6 +73,7 @@ import {
 
 import type { RemoteExcalidrawElement } from "@excalidraw/excalidraw/data/reconcile";
 import type {
+  AudioAvatar,
   FileId,
   ExcalidrawEmbeddableElement,
   ExcalidrawFreeDrawElement,
@@ -207,7 +208,7 @@ import {
   VaultError,
 } from "./data/vault";
 
-import { updateStaleImageStatuses } from "./data/FileManager";
+import { getSceneFileIds, updateStaleImageStatuses } from "./data/FileManager";
 import { FileStatusStore } from "./data/fileStatusStore";
 import { isBrowserStorageStateNewer } from "./data/tabSync";
 import { ShareDialog, shareDialogStateAtom } from "./share/ShareDialog";
@@ -1825,6 +1826,41 @@ const ExcalidrawWrapper = () => {
     vaultV2ShareTarget.role === "editor" &&
     vaultV2UiState?.status !== "blocked";
 
+  // Voice messages (ADR 0034). The speaker snapshot reads refs so the
+  // callback stays stable and doesn't re-render the editor.
+  const voiceAuthorRef = useRef<{
+    name: string | null;
+    avatar: AudioAvatar | null;
+  }>({ name: null, avatar: null });
+  voiceAuthorRef.current = {
+    name:
+      cloudAuth.user?.displayName?.trim() ||
+      collabAPI?.getUsername()?.trim() ||
+      importUsernameFromLocalStorage()?.trim() ||
+      null,
+    // ADR 0034 §6: the account avatar; anonymous authors get a default one
+    // derived from the name when the bubble is drawn
+    avatar: cloudAuth.user?.avatar ?? null,
+  };
+  const getVoiceAuthor = useCallback(() => {
+    const { name, avatar } = voiceAuthorRef.current;
+    // never put the e-mail on a bubble: it's synced to everyone in the room
+    return name || avatar ? { name: (name ?? "").slice(0, 100), avatar } : null;
+  }, []);
+  const voiceOptions = useMemo(
+    () => ({
+      // inside an iframe the host's `allow` (0023) doesn't grant the mic
+      enabled: !isCollabDisabled,
+      // Vault: on-device recognition only (ADR 0034 §7)
+      transcription: isVaultMode ? ("local-only" as const) : ("auto" as const),
+      // Vault v2 has neither an `audio` schema entry nor presence yet, so
+      // recordings would stay local and old peers can't be detected (R3)
+      disabledReason: vaultV2Session ? t("voice.vaultV2Unavailable") : null,
+      getAuthor: getVoiceAuthor,
+    }),
+    [isCollabDisabled, isVaultMode, vaultV2Session, getVoiceAuthor],
+  );
+
   // W6: one-off merge notices (2a-2 concurrent edits, 2d-1 tombstone-wins)
   useEffect(() => {
     if (!vaultV2Session || !excalidrawAPI) {
@@ -2167,13 +2203,8 @@ const ExcalidrawWrapper = () => {
             });
         }
       } else {
-        const fileIds =
-          data.scene.elements?.reduce((acc, element) => {
-            if (isInitializedImageElement(element)) {
-              return acc.concat(element.fileId);
-            }
-            return acc;
-          }, [] as FileId[]) || [];
+        // also the set clearObsoleteFiles keeps; must include audio
+        const fileIds = getSceneFileIds(data.scene.elements ?? []);
 
         if (
           data.isExternalScene &&
@@ -2486,8 +2517,8 @@ const ExcalidrawWrapper = () => {
           const fileIds =
             elements?.reduce((acc, element) => {
               if (
-                isInitializedImageElement(element) &&
-                // only load and update images that aren't already loaded
+                isInitializedFileBackedElement(element) &&
+                // only load and update files that aren't already loaded
                 !currFiles[element.fileId]
               ) {
                 return acc.concat(element.fileId);
@@ -4988,6 +5019,7 @@ const ExcalidrawWrapper = () => {
         }}
         validateEmbeddable={validateEmbeddable}
         renderEmbeddable={renderEmbeddable}
+        voiceOptions={voiceOptions}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,

@@ -48,6 +48,8 @@ import {
   getLineToneRenderElement,
   LINE_TONE_MARKER_CLEARANCE,
   LINE_TONE_MARKER_OFFSET,
+  getAudioContentDrawOps,
+  renderAudioContentToSvg,
 } from "@excalidraw/element";
 
 import type {
@@ -260,6 +262,43 @@ const renderElementToSvg = (
       );
 
       addToRoot(g || node, element);
+      break;
+    }
+    case "audio": {
+      // static bubble only: exports never carry or look up the audio file
+      const doc = svgRoot.ownerDocument;
+      const group = doc.createElementNS(SVG_NS, "g");
+      group.setAttribute(
+        "transform",
+        `translate(${offsetX || 0} ${offsetY || 0})`,
+      );
+      if (opacity !== 1) {
+        group.setAttribute("opacity", `${opacity}`);
+      }
+      const shape = ShapeCache.generateElementShape(element, renderConfig);
+      const bubble = roughSVGDrawWithPrecision(
+        rsvg,
+        shape,
+        MAX_DECIMALS_FOR_SVG_EXPORT,
+      );
+      bubble.setAttribute("stroke-linecap", "round");
+      group.append(
+        bubble,
+        ...renderAudioContentToSvg(
+          doc,
+          getAudioContentDrawOps(element, renderConfig.theme),
+        ),
+      );
+      addToRoot(
+        maybeWrapNodesInFrameClipPath(
+          element,
+          root,
+          [group],
+          renderConfig.frameRendering,
+          elementsMap,
+        ) || group,
+        element,
+      );
       break;
     }
     case "iframe":

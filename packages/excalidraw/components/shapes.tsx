@@ -13,6 +13,7 @@ import {
   EraserIcon,
   laserPointerToolIcon,
   handIcon,
+  microphoneIcon,
 } from "./icons";
 
 import type { AppClassProperties } from "../types";
@@ -22,6 +23,15 @@ export const SHAPES = [
     icon: handIcon,
     value: "hand",
     key: KEYS.H,
+    numericKey: null,
+    fillable: false,
+    toolbar: true,
+  },
+  // shown only when the host enables `voiceOptions` (ADR 0034); no shortcut
+  {
+    icon: microphoneIcon,
+    value: "voice",
+    key: null,
     numericKey: null,
     fillable: false,
     toolbar: true,
@@ -117,16 +127,16 @@ export const SHAPES = [
 ] as const;
 
 export const getToolbarTools = (app: AppClassProperties) => {
+  const shapes = app.props?.voiceOptions?.enabled
+    ? SHAPES
+    : SHAPES.filter((shape) => shape.value !== "voice");
   return app.state.preferredSelectionTool.type === "lasso"
-    ? ([
-        SHAPES[0],
-        {
-          ...SHAPES[1],
-          value: "lasso",
-        },
-        ...SHAPES.slice(2),
-      ] as const)
-    : SHAPES;
+    ? shapes.map((shape) =>
+        shape.value === "selection"
+          ? ({ ...shape, value: "lasso" } as const)
+          : shape,
+      )
+    : shapes;
 };
 
 export const findShapeByKey = (key: string, app: AppClassProperties) => {

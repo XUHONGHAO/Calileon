@@ -94,6 +94,7 @@ export { actionToggleMidpointSnapping } from "./actionToggleMidpointSnapping";
 
 export { actionToggleStats } from "./actionToggleStats";
 export { actionUnbindText, actionBindText } from "./actionBoundText";
+export { actionDetachAudio } from "./actionDetachAudio";
 export { actionLink } from "./actionLink";
 export { actionToggleElementLock } from "./actionElementLock";
 export { actionToggleLinearEditor } from "./actionLinearEditor";

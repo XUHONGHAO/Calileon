@@ -9,7 +9,7 @@ import {
 } from "@excalidraw/excalidraw/data/encryption";
 import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
 import { isInvisiblySmallElement } from "@excalidraw/element";
-import { isInitializedImageElement } from "@excalidraw/element";
+import { isInitializedFileBackedElement } from "@excalidraw/element";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { bytesToHexString } from "@excalidraw/common";
 
@@ -101,6 +101,8 @@ export type SocketUpdateDataSource = {
       button: "down" | "up";
       selectedElementIds: AppState["selectedElementIds"];
       username: string;
+      /** extra element types this client understands (ADR 0034 §10) */
+      elementTypes?: readonly string[];
     };
   };
   USER_VISIBLE_SCENE_BOUNDS: {
@@ -117,6 +119,8 @@ export type SocketUpdateDataSource = {
       socketId: SocketId;
       userState: UserIdleState;
       username: string;
+      /** extra element types this client understands (ADR 0034 §10) */
+      elementTypes?: readonly string[];
     };
   };
   USER_FOLLOW_CHANGE: {
@@ -279,7 +283,7 @@ export const exportToBackend = async (
   try {
     const filesMap = new Map<FileId, BinaryFileData>();
     for (const element of elements) {
-      if (isInitializedImageElement(element) && files[element.fileId]) {
+      if (isInitializedFileBackedElement(element) && files[element.fileId]) {
         filesMap.set(element.fileId, files[element.fileId]);
       }
     }

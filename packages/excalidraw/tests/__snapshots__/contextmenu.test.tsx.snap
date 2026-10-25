@@ -461,6 +461,59 @@ exports[`contextMenu element > hides add-to-AI-reference when the host app has n
         },
       },
       {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <g
+            strokeWidth="1.5"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M17 22v-2"
+            />
+            <path
+              d="M9 15l6 -6"
+            />
+            <path
+              d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"
+            />
+            <path
+              d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463"
+            />
+            <path
+              d="M20 17h2"
+            />
+            <path
+              d="M2 7h2"
+            />
+            <path
+              d="M7 2v2"
+            />
+          </g>
+        </svg>,
+        "label": "voice.host.detach",
+        "name": "detachAudio",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+      },
+      {
         "label": "labels.createContainerFromText",
         "name": "wrapTextInContainer",
         "perform": [Function],
@@ -1607,6 +1660,59 @@ exports[`contextMenu element > right-clicking on a group should select whole gro
       {
         "label": "labels.bindText",
         "name": "bindText",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+      },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <g
+            strokeWidth="1.5"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M17 22v-2"
+            />
+            <path
+              d="M9 15l6 -6"
+            />
+            <path
+              d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"
+            />
+            <path
+              d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463"
+            />
+            <path
+              d="M20 17h2"
+            />
+            <path
+              d="M2 7h2"
+            />
+            <path
+              d="M7 2v2"
+            />
+          </g>
+        </svg>,
+        "label": "voice.host.detach",
+        "name": "detachAudio",
         "perform": [Function],
         "predicate": [Function],
         "trackEvent": {
@@ -6398,6 +6504,59 @@ exports[`contextMenu element > shows 'Group selection' in context menu for multi
         },
       },
       {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <g
+            strokeWidth="1.5"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M17 22v-2"
+            />
+            <path
+              d="M9 15l6 -6"
+            />
+            <path
+              d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"
+            />
+            <path
+              d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463"
+            />
+            <path
+              d="M20 17h2"
+            />
+            <path
+              d="M2 7h2"
+            />
+            <path
+              d="M7 2v2"
+            />
+          </g>
+        </svg>,
+        "label": "voice.host.detach",
+        "name": "detachAudio",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+      },
+      {
         "label": "labels.createContainerFromText",
         "name": "wrapTextInContainer",
         "perform": [Function],
@@ -7677,6 +7836,59 @@ exports[`contextMenu element > shows 'Ungroup selection' in context menu for gro
       {
         "label": "labels.bindText",
         "name": "bindText",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+      },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <g
+            strokeWidth="1.5"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M17 22v-2"
+            />
+            <path
+              d="M9 15l6 -6"
+            />
+            <path
+              d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"
+            />
+            <path
+              d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463"
+            />
+            <path
+              d="M20 17h2"
+            />
+            <path
+              d="M2 7h2"
+            />
+            <path
+              d="M7 2v2"
+            />
+          </g>
+        </svg>,
+        "label": "voice.host.detach",
+        "name": "detachAudio",
         "perform": [Function],
         "predicate": [Function],
         "trackEvent": {
@@ -9715,6 +9927,59 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
         },
       },
       {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <g
+            strokeWidth="1.5"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M17 22v-2"
+            />
+            <path
+              d="M9 15l6 -6"
+            />
+            <path
+              d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"
+            />
+            <path
+              d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463"
+            />
+            <path
+              d="M20 17h2"
+            />
+            <path
+              d="M2 7h2"
+            />
+            <path
+              d="M7 2v2"
+            />
+          </g>
+        </svg>,
+        "label": "voice.host.detach",
+        "name": "detachAudio",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+      },
+      {
         "label": "labels.createContainerFromText",
         "name": "wrapTextInContainer",
         "perform": [Function],
@@ -10764,6 +11029,59 @@ exports[`contextMenu element > shows context menu for element > [end of test] ap
       {
         "label": "labels.bindText",
         "name": "bindText",
+        "perform": [Function],
+        "predicate": [Function],
+        "trackEvent": {
+          "category": "element",
+        },
+      },
+      {
+        "PanelComponent": [Function],
+        "icon": <svg
+          aria-hidden="true"
+          className=""
+          fill="none"
+          focusable="false"
+          role="img"
+          stroke="currentColor"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={2}
+          viewBox="0 0 24 24"
+        >
+          <g
+            strokeWidth="1.5"
+          >
+            <path
+              d="M0 0h24v24H0z"
+              fill="none"
+              stroke="none"
+            />
+            <path
+              d="M17 22v-2"
+            />
+            <path
+              d="M9 15l6 -6"
+            />
+            <path
+              d="M11 6l.463 -.536a5 5 0 0 1 7.071 7.072l-.534 .464"
+            />
+            <path
+              d="M13 18l-.397 .534a5.068 5.068 0 0 1 -7.127 0a4.972 4.972 0 0 1 0 -7.071l.524 -.463"
+            />
+            <path
+              d="M20 17h2"
+            />
+            <path
+              d="M2 7h2"
+            />
+            <path
+              d="M7 2v2"
+            />
+          </g>
+        </svg>,
+        "label": "voice.host.detach",
+        "name": "detachAudio",
         "perform": [Function],
         "predicate": [Function],
         "trackEvent": {

@@ -103,6 +103,10 @@ const getHints = ({
     return t("hints.embeddable");
   }
 
+  if (activeTool.type === "voice") {
+    return t("hints.voice");
+  }
+
   if (
     isResizing &&
     lastPointerDownWith === "mouse" &&

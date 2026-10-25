@@ -6,6 +6,8 @@ import { render } from "@excalidraw/excalidraw/tests/test-utils";
 import { API } from "@excalidraw/excalidraw/tests/helpers/api";
 import { Keyboard } from "@excalidraw/excalidraw/tests/helpers/ui";
 
+import { acquireMicLock } from "@excalidraw/excalidraw";
+
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import { commitArtwork, SynesthesiaSession } from "./session";
@@ -90,5 +92,38 @@ describe("session", () => {
     expect(api.getSceneElements()).toHaveLength(3);
     act(() => commitArtwork(api, []));
     expect(API.getUndoStack()).toHaveLength(1);
+  });
+  it("refuses the microphone while a voice message records (ADR 0034)", async () => {
+    const release = acquireMicLock("voice-recording")!;
+    const finish = vi.fn();
+    const session = new SynesthesiaSession({
+      file: null,
+      style: "blocks",
+      area: { x: 0, y: 0, width: 500, height: 300 },
+      dark: false,
+      seed: 1,
+      preview: vi.fn(),
+      finish,
+    });
+    await session.start();
+    expect(finish).toHaveBeenCalledWith([], "micBusy");
+    release();
+
+    // once free, the session holds the lock until it stops
+    const next = new SynesthesiaSession({
+      file: null,
+      style: "blocks",
+      area: { x: 0, y: 0, width: 500, height: 300 },
+      dark: false,
+      seed: 1,
+      preview: vi.fn(),
+      finish: vi.fn(),
+    });
+    await next.start();
+    expect(acquireMicLock("voice-recording")).toBeNull();
+    next.stop();
+    const again = acquireMicLock("voice-recording");
+    expect(again).not.toBeNull();
+    again!();
   });
 });

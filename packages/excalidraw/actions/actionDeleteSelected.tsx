@@ -10,6 +10,7 @@ import { LinearElementEditor } from "@excalidraw/element";
 import { newElementWith } from "@excalidraw/element";
 import { getContainerElement } from "@excalidraw/element";
 import {
+  isAudioElement,
   isBoundToContainer,
   isElbowArrow,
   isFrameLikeElement,
@@ -75,7 +76,7 @@ const deleteSelectedElements = (
 
   let shouldSelectEditingGroup = true;
 
-  const nextElements = elements.map((el) => {
+  const mappedElements = elements.map((el) => {
     if (appState.selectedElementIds[el.id]) {
       const boundElement = isBoundToContainer(el)
         ? getContainerElement(el, elementsMap)
@@ -126,6 +127,23 @@ const deleteSelectedElements = (
     }
     return el;
   });
+
+  // voice notes are deleted with their host (ADR 0034 R5)
+  const newlyDeletedIds = new Set(
+    mappedElements
+      .filter((el, index) => el.isDeleted && !elements[index].isDeleted)
+      .map((el) => el.id),
+  );
+  const nextElements = newlyDeletedIds.size
+    ? mappedElements.map((el) =>
+        isAudioElement(el) &&
+        !el.isDeleted &&
+        el.hostId &&
+        newlyDeletedIds.has(el.hostId)
+          ? newElementWith(el, { isDeleted: true })
+          : el,
+      )
+    : mappedElements;
 
   let nextEditingGroupId = appState.editingGroupId;
 

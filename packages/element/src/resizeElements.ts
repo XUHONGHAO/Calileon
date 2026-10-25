@@ -56,6 +56,7 @@ import {
   isFrameLikeElement,
   isFreeDrawElement,
   isImageElement,
+  isAudioElement,
   isLinearElement,
   isTextElement,
 } from "./typeChecks";
@@ -441,6 +442,12 @@ const rotateMultipleElements = (
         ? {
             // Needed to re-route the arrow
             points: getArrowLocalFixedPoints(element, elementsMap),
+          }
+        : isAudioElement(element)
+        ? {
+            // audio bubbles orbit with the group but never rotate
+            x: element.x + (rotatedCX - cx),
+            y: element.y + (rotatedCY - cy),
           }
         : {
             x: element.x + (rotatedCX - cx),
@@ -1422,6 +1429,17 @@ export const resizeMultipleElements = (
           orig.scale[0] * flipFactorX,
           orig.scale[1] * flipFactorY,
         ];
+      }
+
+      if (isAudioElement(orig)) {
+        // keep size/angle (width encodes duration), only move the center
+        const cx = orig.x + orig.width / 2 - anchorX;
+        const cy = orig.y + orig.height / 2 - anchorY;
+        update.x = anchorX + flipFactorX * cx * scaleX - orig.width / 2;
+        update.y = anchorY + flipFactorY * cy * scaleY - orig.height / 2;
+        update.width = orig.width;
+        update.height = orig.height;
+        update.angle = orig.angle;
       }
 
       if (isTextElement(orig)) {

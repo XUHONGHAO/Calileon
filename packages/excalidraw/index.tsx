@@ -108,6 +108,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     showDeprecatedFonts,
     renderScrollbars,
     imageOptions,
+    voiceOptions,
   } = props;
 
   const canvasActions = props.UIOptions?.canvasActions;
@@ -230,6 +231,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           showDeprecatedFonts={showDeprecatedFonts}
           renderScrollbars={renderScrollbars}
           imageOptions={normalizedImageOptions}
+          voiceOptions={voiceOptions}
         >
           {children}
         </App>
@@ -248,12 +250,14 @@ const areEqual = (prevProps: ExcalidrawProps, nextProps: ExcalidrawProps) => {
     initialData: prevInitialData,
     UIOptions: prevUIOptions = {},
     imageOptions: prevImageOptions,
+    voiceOptions: prevVoiceOptions,
     ...prev
   } = prevProps;
   const {
     initialData: nextInitialData,
     UIOptions: nextUIOptions = {},
     imageOptions: nextImageOptions,
+    voiceOptions: nextVoiceOptions,
     ...next
   } = nextProps;
 
@@ -307,7 +311,21 @@ const areEqual = (prevProps: ExcalidrawProps, nextProps: ExcalidrawProps) => {
       (nextImageOptions?.maxFileSizeBytes ??
         DEFAULT_IMAGE_OPTIONS.maxFileSizeBytes);
 
-  return isUIOptionsSame && isImageOptionsSame && isShallowEqual(prev, next);
+  // hosts usually pass a fresh object every render: compare by value
+  const isVoiceOptionsSame =
+    !!prevVoiceOptions?.enabled === !!nextVoiceOptions?.enabled &&
+    (prevVoiceOptions?.transcription ?? "auto") ===
+      (nextVoiceOptions?.transcription ?? "auto") &&
+    (prevVoiceOptions?.disabledReason ?? null) ===
+      (nextVoiceOptions?.disabledReason ?? null) &&
+    prevVoiceOptions?.getAuthor === nextVoiceOptions?.getAuthor;
+
+  return (
+    isUIOptionsSame &&
+    isImageOptionsSame &&
+    isVoiceOptionsSame &&
+    isShallowEqual(prev, next)
+  );
 };
 
 export const Excalidraw = React.memo(ExcalidrawBase, areEqual);
@@ -417,6 +435,9 @@ export { Fonts } from "./fonts/Fonts";
 export { setCustomTextMetricsProvider } from "@excalidraw/element";
 
 export { CommandPalette } from "./components/CommandPalette/CommandPalette";
+
+export { SUPPORTED_ELEMENT_TYPE_CAPABILITIES } from "./voice/gate";
+export { acquireMicLock } from "./voice/micLock";
 
 export {
   renderSpreadsheet,

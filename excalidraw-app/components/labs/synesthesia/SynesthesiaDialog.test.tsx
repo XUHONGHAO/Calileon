@@ -8,6 +8,7 @@ import { SynesthesiaDialog } from "./SynesthesiaDialog";
 vi.mock("@excalidraw/excalidraw", () => ({
   CaptureUpdateAction: { NEVER: "NEVER", IMMEDIATELY: "IMMEDIATELY" },
   convertToExcalidrawElements: (elements: unknown) => elements,
+  acquireMicLock: () => () => {},
   ExcalidrawAPIProvider: ({ children }: { children: React.ReactNode }) =>
     children,
   Excalidraw: () => <div />,

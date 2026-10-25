@@ -1,4 +1,5 @@
 import { createPortal } from "react-dom";
+import { microphoneIcon } from "@excalidraw/excalidraw/components/icons";
 import { useCreatePortalContainer } from "@excalidraw/excalidraw/hooks/useCreatePortalContainer";
 import { t } from "@excalidraw/excalidraw/i18n";
 import React from "react";
@@ -18,9 +19,12 @@ export const CastRecordingBar = ({
   onResume,
   onStop,
   onPointerOver,
+  narrating = false,
 }: {
   state: "recording" | "paused";
   elapsed: string;
+  /** the microphone is being recorded too (ADR 0034 R5) */
+  narrating?: boolean;
   onPause: () => void;
   onResume: () => void;
   onStop: () => void;
@@ -48,6 +52,17 @@ export const CastRecordingBar = ({
           {t(`labels.cast.status.${state}`)}
         </span>
         <span className="CastRecordingBar__time">{elapsed}</span>
+        {narrating && (
+          <span
+            className="CastRecordingBar__mic"
+            role="img"
+            aria-label={t("labels.cast.narration.recording")}
+            title={t("labels.cast.narration.recording")}
+            data-testid="cast-narration-indicator"
+          >
+            {microphoneIcon}
+          </span>
+        )}
       </span>
       {state === "recording" ? (
         <UiButton

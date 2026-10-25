@@ -14,6 +14,7 @@ import {
   newFreeDrawElement,
   newIframeElement,
   newImageElement,
+  newAudioElement,
   newLinearElement,
   newMagicFrameElement,
   newTextElement,
@@ -32,6 +33,7 @@ import type {
   ExcalidrawLinearElement,
   ExcalidrawFreeDrawElement,
   ExcalidrawImageElement,
+  ExcalidrawAudioElement,
   FileId,
   ExcalidrawFrameElement,
   ExcalidrawElementType,
@@ -202,9 +204,18 @@ export class API {
       : never;
     points?: T extends "arrow" | "line" | "freedraw" ? readonly LocalPoint[] : never;
     locked?: boolean;
-    fileId?: T extends "image" ? string : never;
+    fileId?: T extends "image" | "audio" ? string : never;
     scale?: T extends "image" ? ExcalidrawImageElement["scale"] : never;
-    status?: T extends "image" ? ExcalidrawImageElement["status"] : never;
+    status?: T extends "image" | "audio"
+      ? ExcalidrawImageElement["status"]
+      : never;
+    duration?: T extends "audio" ? ExcalidrawAudioElement["duration"] : never;
+    peaks?: T extends "audio" ? ExcalidrawAudioElement["peaks"] : never;
+    transcript?: T extends "audio"
+      ? ExcalidrawAudioElement["transcript"]
+      : never;
+    author?: T extends "audio" ? ExcalidrawAudioElement["author"] : never;
+    hostId?: T extends "audio" ? ExcalidrawAudioElement["hostId"] : never;
     startBinding?: T extends "arrow"
       ? ExcalidrawArrowElement["startBinding"] | ExcalidrawElbowArrowElement["startBinding"]
       : never;
@@ -230,6 +241,8 @@ export class API {
     ? ExcalidrawTextElement
     : T extends "image"
     ? ExcalidrawImageElement
+    : T extends "audio"
+    ? ExcalidrawAudioElement
     : T extends "frame"
     ? ExcalidrawFrameElement
     : T extends "magicframe"
@@ -359,6 +372,19 @@ export class API {
           fileId: (rest.fileId as string as FileId) ?? null,
           status: rest.status || "saved",
           scale: rest.scale || [1, 1],
+        });
+        break;
+      case "audio":
+        element = newAudioElement({
+          ...base,
+          source: "recording",
+          duration: rest.duration ?? 5000,
+          fileId: (rest.fileId as string as FileId) ?? null,
+          status: rest.status || "saved",
+          peaks: rest.peaks,
+          transcript: rest.transcript ?? null,
+          author: rest.author ?? null,
+          hostId: rest.hostId ?? null,
         });
         break;
       case "frame":
