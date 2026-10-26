@@ -21,8 +21,7 @@ import {
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawFreeDrawElement } from "@excalidraw/element/types";
 
-import { useSetAtom } from "../app-jotai";
-import { shareDialogStateAtom } from "../share/ShareDialog";
+import { useCommentsBadge } from "../comments/useSceneComments";
 
 import {
   AIImageWorkbench,
@@ -34,7 +33,7 @@ import {
   sendPromptToWorkbenchDraft,
 } from "./AIImageWorkbenchDraft";
 import { AIGenerationLogPanel } from "./AIGenerationLogPanel";
-import { AppSidebarOfficePanel } from "./AppSidebarOfficePanel";
+import { CommentsPanel } from "./comments/CommentsPanel";
 import { CustomAgentChat } from "./CustomAgentChat/CustomAgentChat";
 import { PresentationPanel } from "./presentation/PresentationPanel";
 
@@ -48,6 +47,8 @@ import type {
   AISkill,
   PromptTemplate,
 } from "../ai/types";
+import type { CommentAvailability } from "../comments/availability";
+import type { CommentsController } from "../comments/commentsController";
 import type { CloudAITaskRun } from "../data/cloud/cloudAITasks";
 import type { VideoAssetIngestResult } from "../data/cloud";
 
@@ -89,7 +90,21 @@ type AppSidebarProps = {
   onPersistVideoOutput?: (
     input: PersistAIVideoOutputInput,
   ) => Promise<VideoAssetIngestResult | null>;
+  /** ADR 0037: what the comments tab can do on the current board */
+  commentAvailability?: CommentAvailability;
+  /** hosted by App (useCommentsHost) so view mode can show the badge too */
+  commentsController?: CommentsController | null;
+  /** the signed-in user's id, null when signed out */
+  commentViewerId?: string | null;
+  onCommentRetry?: () => void;
+  onCommentSignIn?: () => void;
+  onCommentSaveToCloud?: () => void;
 };
+
+const COMMENTS_UNSUPPORTED: CommentAvailability = {
+  kind: "unsupported-deployment",
+};
+const noop = () => {};
 
 type AssistantIncomingPrompt = {
   id: number;
@@ -108,6 +123,12 @@ export const AppSidebar = memo(
     onMaskReady,
     onCloudAITaskRun,
     onPersistVideoOutput,
+    commentAvailability = COMMENTS_UNSUPPORTED,
+    commentsController = null,
+    commentViewerId = null,
+    onCommentRetry = noop,
+    onCommentSignIn = noop,
+    onCommentSaveToCloud = noop,
   }: AppSidebarProps) => {
     const [workbenchDraftState, setWorkbenchDraftState] =
       useState<AIImageWorkbenchDraftState>(
@@ -118,7 +139,6 @@ export const AppSidebar = memo(
     const nextAssistantPromptRequestIdRef = useRef(0);
     const lastPromptTemplateRequestIdRef = useRef<number | null>(null);
     const lastGenerationLogReuseRequestIdRef = useRef<number | null>(null);
-    const setShareDialogState = useSetAtom(shareDialogStateAtom);
     const sendPromptToWorkbench = useCallback((prompt: string) => {
       setWorkbenchDraftState((current) =>
         sendPromptToWorkbenchDraft(current, prompt),
@@ -226,20 +246,6 @@ export const AppSidebar = memo(
     // overlay; there Esc should close it like any other overlay.
     const isOverlay = useMediaQuery(SIDEBAR_OVERLAY_QUERY);
 
-    const openCreateTab = useCallback(() => {
-      excalidrawAPI?.toggleSidebar({
-        name: DEFAULT_SIDEBAR.name,
-        tab: "ai-image",
-        force: true,
-      });
-    }, [excalidrawAPI]);
-    const openShareDialog = useCallback(() => {
-      setShareDialogState({ isOpen: true, type: "share" });
-    }, [setShareDialogState]);
-    const openCollaborationDialog = useCallback(() => {
-      setShareDialogState({ isOpen: true, type: "collaborationOnly" });
-    }, [setShareDialogState]);
-
     return (
       <>
         <AppSidebarTrigger />
@@ -250,13 +256,16 @@ export const AppSidebar = memo(
           closeOnEscape={isOverlay}
           onStateChange={resetKeptTabsOnClose}
         >
-          <AppSidebarTabTriggers />
-          <Sidebar.Tab tab="comments" className="AppSidebarOfficeTab">
-            <AppSidebarOfficePanel
-              kind="comments"
-              onOpenCollaboration={openCollaborationDialog}
-              onOpenCreate={openCreateTab}
-              onOpenShare={openShareDialog}
+          <AppSidebarTabTriggers commentsController={commentsController} />
+          <Sidebar.Tab tab="comments" className="AppSidebarCommentsTab">
+            <CommentsPanel
+              availability={commentAvailability}
+              controller={commentsController}
+              viewerId={commentViewerId}
+              excalidrawAPI={excalidrawAPI}
+              onRetry={onCommentRetry}
+              onSignIn={onCommentSignIn}
+              onSaveToCloud={onCommentSaveToCloud}
             />
           </Sidebar.Tab>
           <Sidebar.Tab
@@ -364,55 +373,66 @@ const AppSidebarTrigger = memo(() => {
 
 AppSidebarTrigger.displayName = "AppSidebarTrigger";
 
-const AppSidebarTabTriggers = memo(() => {
-  return (
-    <DefaultSidebar.TabTriggers>
-      <Sidebar.TabTrigger
-        tab="ai-image"
-        title={t("ai.sidebar.createWithAI")}
-        aria-label={t("ai.sidebar.createWithAI")}
-      >
-        <AppSidebarTabTriggerContent icon={MagicIcon} kind="primary" />
-      </Sidebar.TabTrigger>
-      <Sidebar.TabTrigger
-        tab="ai-assistant"
-        title={t("ai.sidebar.assistant")}
-        aria-label={t("ai.sidebar.assistant")}
-      >
-        <AppSidebarTabTriggerContent icon={brainIcon} kind="primary" />
-      </Sidebar.TabTrigger>
-      <Sidebar.TabTrigger
-        tab="ai-generation-logs"
-        title={t("ai.sidebar.generationHistory")}
-        aria-label={t("ai.sidebar.generationHistory")}
-      >
-        <AppSidebarTabTriggerContent icon={clipboard} kind="primary" />
-      </Sidebar.TabTrigger>
-      <Sidebar.TabTrigger
-        tab="comments"
-        title={t("ai.sidebar.comments")}
-        aria-label={t("ai.sidebar.comments")}
-      >
-        <AppSidebarTabTriggerContent
-          icon={messageCircleIcon}
-          label={t("ai.sidebar.comments")}
-          kind="secondary"
-        />
-      </Sidebar.TabTrigger>
-      <Sidebar.TabTrigger
-        tab="presentation"
-        title={t("ai.sidebar.presentations")}
-        aria-label={t("ai.sidebar.presentations")}
-      >
-        <AppSidebarTabTriggerContent
-          icon={presentationIcon}
-          label={t("ai.sidebar.present")}
-          kind="secondary"
-        />
-      </Sidebar.TabTrigger>
-    </DefaultSidebar.TabTriggers>
-  );
-});
+const AppSidebarTabTriggers = memo(
+  ({
+    commentsController,
+  }: {
+    commentsController: CommentsController | null;
+  }) => {
+    const commentsBadge = useCommentsBadge(commentsController);
+    const commentsLabel = commentsBadge
+      ? t("comments.tabBadge")
+      : t("ai.sidebar.comments");
+    return (
+      <DefaultSidebar.TabTriggers>
+        <Sidebar.TabTrigger
+          tab="ai-image"
+          title={t("ai.sidebar.createWithAI")}
+          aria-label={t("ai.sidebar.createWithAI")}
+        >
+          <AppSidebarTabTriggerContent icon={MagicIcon} kind="primary" />
+        </Sidebar.TabTrigger>
+        <Sidebar.TabTrigger
+          tab="ai-assistant"
+          title={t("ai.sidebar.assistant")}
+          aria-label={t("ai.sidebar.assistant")}
+        >
+          <AppSidebarTabTriggerContent icon={brainIcon} kind="primary" />
+        </Sidebar.TabTrigger>
+        <Sidebar.TabTrigger
+          tab="ai-generation-logs"
+          title={t("ai.sidebar.generationHistory")}
+          aria-label={t("ai.sidebar.generationHistory")}
+        >
+          <AppSidebarTabTriggerContent icon={clipboard} kind="primary" />
+        </Sidebar.TabTrigger>
+        <Sidebar.TabTrigger
+          tab="comments"
+          title={commentsLabel}
+          aria-label={commentsLabel}
+        >
+          <AppSidebarTabTriggerContent
+            icon={messageCircleIcon}
+            label={t("ai.sidebar.comments")}
+            kind="secondary"
+            badge={commentsBadge}
+          />
+        </Sidebar.TabTrigger>
+        <Sidebar.TabTrigger
+          tab="presentation"
+          title={t("ai.sidebar.presentations")}
+          aria-label={t("ai.sidebar.presentations")}
+        >
+          <AppSidebarTabTriggerContent
+            icon={presentationIcon}
+            label={t("ai.sidebar.present")}
+            kind="secondary"
+          />
+        </Sidebar.TabTrigger>
+      </DefaultSidebar.TabTriggers>
+    );
+  },
+);
 
 AppSidebarTabTriggers.displayName = "AppSidebarTabTriggers";
 
@@ -420,17 +440,25 @@ const AppSidebarTabTriggerContent = ({
   icon,
   label,
   kind,
+  badge = false,
 }: {
   icon: ReactNode;
   label?: string;
   kind: "primary" | "secondary";
+  /** a dot on the icon; the trigger's aria-label says what it means */
+  badge?: boolean;
 }) => (
   <span
-    className={`app-sidebar-tab-trigger__content app-sidebar-tab-trigger__content--${kind}`}
+    className={`app-sidebar-tab-trigger__content app-sidebar-tab-trigger__content--${kind}${
+      badge ? " app-sidebar-tab-trigger__content--badged" : ""
+    }`}
   >
     <span className="app-sidebar-tab-trigger__icon" aria-hidden="true">
       {icon}
     </span>
+    {badge && (
+      <span className="app-sidebar-tab-trigger__badge" aria-hidden="true" />
+    )}
     {label && <span className="app-sidebar-tab-trigger__label">{label}</span>}
   </span>
 );

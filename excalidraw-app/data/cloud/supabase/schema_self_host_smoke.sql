@@ -62,6 +62,16 @@ with checks(check_name, ok, details) as (
       'embed load RPC',
       to_regprocedure('public.load_embedded_scene(text,text)') is not null,
       coalesce(to_regprocedure('public.load_embedded_scene(text,text)')::text, 'missing')
+    ),
+    (
+      'scene_comments table',
+      to_regclass('public.scene_comments') is not null,
+      coalesce(to_regclass('public.scene_comments')::text, 'missing')
+    ),
+    (
+      'comments list RPC',
+      to_regprocedure('public.list_scene_comments(uuid,timestamptz,timestamptz,integer)') is not null,
+      coalesce(to_regprocedure('public.list_scene_comments(uuid,timestamptz,timestamptz,integer)')::text, 'missing')
     )
 )
 select

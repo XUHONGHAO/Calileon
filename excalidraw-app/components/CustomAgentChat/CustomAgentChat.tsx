@@ -1629,6 +1629,7 @@ export const formatAssistantCanvasText = (content: string) => {
 export const insertAssistantTextToCanvas = (
   excalidrawAPI: ExcalidrawImperativeAPI | null,
   text: string,
+  toastMessage: string = t("ai.assistant.messages.insertedAssistantText"),
 ) => {
   if (!excalidrawAPI) {
     return false;
@@ -1678,7 +1679,7 @@ export const insertAssistantTextToCanvas = (
     fitToContent: true,
   });
   excalidrawAPI.setToast({
-    message: t("ai.assistant.messages.insertedAssistantText"),
+    message: toastMessage,
     duration: 3000,
   });
 

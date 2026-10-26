@@ -16,6 +16,7 @@ services:
         VITE_APP_VAULT_ROOM_PROVISION_URL: ${APP_ORIGIN:?APP_ORIGIN is required}/vault/rooms
         VITE_APP_SUPABASE_URL: ${SUPABASE_PUBLIC_URL:?SUPABASE_PUBLIC_URL is required}
         VITE_APP_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
+        VITE_APP_SCENE_COMMENTS: ${SCENE_COMMENTS_ENABLED:-false}
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -110,6 +111,21 @@ services:
       - ../../excalidraw-app/data/cloud/supabase:/schema:ro
       - ./scripts:/ops:ro
     entrypoint: ["/bin/sh", "/ops/rollback-schema.sh"]
+    networks:
+      - vault-supabase
+
+  # Deletes all scene comments (ADR 0037). Separate profile so it can never run
+  # as part of an ordinary rollback.
+  rollback-comments-schema:
+    image: ${POSTGRES_CLIENT_IMAGE:-postgres:17.6-alpine}
+    profiles: ["rollback-comments"]
+    environment:
+      VAULT_DATABASE_URL: ${VAULT_DATABASE_URL:?VAULT_DATABASE_URL is required}
+      ALLOW_COMMENTS_SCHEMA_ROLLBACK: ${ALLOW_COMMENTS_SCHEMA_ROLLBACK:-NO}
+    volumes:
+      - ../../excalidraw-app/data/cloud/supabase:/schema:ro
+      - ./scripts:/ops:ro
+    entrypoint: ["/bin/sh", "/ops/rollback-comments-schema.sh"]
     networks:
       - vault-supabase
 

@@ -18,6 +18,7 @@ describe("readCapabilities", () => {
     vi.stubEnv("VITE_APP_COLLAB_PERSISTENCE", "");
     vi.stubEnv("VITE_APP_E2E_CLOUD_STORAGE", "");
     vi.stubEnv("VITE_APP_REMOTE_VIDEO_ASSETS", "");
+    vi.stubEnv("VITE_APP_SCENE_COMMENTS", "");
   });
 
   afterEach(() => {
@@ -41,6 +42,7 @@ describe("readCapabilities", () => {
     expect(caps.collabPersistence).toBe(false);
     expect(caps.encryptedCloudStorage).toBe(false);
     expect(caps.remoteVideoAssets).toBe(false);
+    expect(caps.sceneComments).toBe(false);
   });
 
   it("enables auth + sceneStorage and bumps tier when Supabase is configured", () => {
@@ -72,6 +74,18 @@ describe("readCapabilities", () => {
 
     vi.stubEnv("VITE_APP_SUPABASE_URL", "");
     expect(readCapabilities().remoteVideoAssets).toBe(false);
+  });
+
+  it("enables scene comments only when Supabase and the comments flag are set", () => {
+    vi.stubEnv("VITE_APP_SUPABASE_URL", "https://demo.supabase.co");
+    vi.stubEnv("VITE_APP_SUPABASE_ANON_KEY", "anon-key-123");
+    expect(readCapabilities().sceneComments).toBe(false);
+
+    vi.stubEnv("VITE_APP_SCENE_COMMENTS", "true");
+    expect(readCapabilities().sceneComments).toBe(true);
+
+    vi.stubEnv("VITE_APP_SUPABASE_URL", "");
+    expect(readCapabilities().sceneComments).toBe(false);
   });
 
   it("enables collab room binding when Supabase and a room server are configured", () => {

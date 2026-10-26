@@ -118,6 +118,97 @@ export const mapDataError = (error: unknown): BackendError => {
   });
 };
 
+/**
+ * `comments-<code>` exceptions raised by the comment RPCs
+ * (schema_comments.sql) → BackendError with the comment's own wording.
+ */
+const COMMENT_ERRORS: Record<
+  string,
+  {
+    code: BackendErrorCode;
+    key: Parameters<typeof t>[0];
+    recoverable: boolean;
+  }
+> = {
+  "comments-unauthorized": {
+    code: "unauthorized",
+    key: "comments.errors.unauthorized",
+    recoverable: true,
+  },
+  "comments-forbidden": {
+    code: "forbidden",
+    key: "comments.errors.forbidden",
+    recoverable: false,
+  },
+  "comments-unsupported": {
+    code: "not-configured",
+    key: "comments.errors.unsupported",
+    recoverable: false,
+  },
+  "comments-not-found": {
+    code: "conflict",
+    key: "comments.errors.notFound",
+    recoverable: true,
+  },
+  "comments-quoted-missing": {
+    code: "conflict",
+    key: "comments.errors.quotedMissing",
+    recoverable: true,
+  },
+  "comments-empty": {
+    code: "conflict",
+    key: "comments.errors.empty",
+    recoverable: true,
+  },
+  "comments-invalid": {
+    code: "conflict",
+    key: "comments.errors.invalid",
+    recoverable: true,
+  },
+  "comments-too-long": {
+    code: "payload-too-large",
+    key: "comments.errors.tooLong",
+    recoverable: true,
+  },
+  "comments-rate-limited": {
+    code: "quota-exceeded",
+    key: "comments.errors.rateLimited",
+    recoverable: true,
+  },
+  "comments-scene-full": {
+    code: "quota-exceeded",
+    key: "comments.errors.sceneFull",
+    recoverable: false,
+  },
+};
+
+export const COMMENT_ERROR_CODES = Object.keys(COMMENT_ERRORS);
+
+export const mapCommentError = (error: unknown): BackendError => {
+  const message = (error as { message?: unknown } | null)?.message;
+  const match =
+    typeof message === "string" ? /comments-[a-z-]+/.exec(message) : null;
+  const known = match ? COMMENT_ERRORS[match[0]] : undefined;
+  if (known) {
+    return new BackendError(known.code, t(known.key), {
+      recoverable: known.recoverable,
+      nextAction:
+        known.code === "unauthorized"
+          ? t("cloud.errors.nextActionSignIn")
+          : undefined,
+    });
+  }
+  const mapped = mapDataError(error);
+  if (mapped.code === "network") {
+    // the cloud-save wording ("switch to local saving") does not fit here
+    return new BackendError("network", t("comments.errors.network"), {
+      recoverable: true,
+      nextAction: t("cloud.errors.nextActionRetry"),
+    });
+  }
+  return mapped;
+};
+
 export const mapStorageError = (error: unknown): BackendError => {
   if (looksLikeNetworkError(error)) {
     return new BackendError(

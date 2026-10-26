@@ -1,0 +1,665 @@
+.excalidraw {
+  .AppSidebarCommentsTab {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .CommentsPanel {
+    --comments-avatar: 28px;
+
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-2);
+    height: 100%;
+    min-height: 0;
+    min-width: 0;
+    padding: var(--app-sidebar-padding, var(--ui-space-3));
+    color: var(--ui-text);
+    font-size: var(--ui-font-sm);
+  }
+
+  .CommentsPanel__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ui-space-3);
+    padding: var(--ui-space-4) var(--ui-space-1);
+    color: var(--ui-text-secondary);
+    line-height: var(--ui-line-normal);
+    overflow-wrap: anywhere;
+
+    p {
+      margin: 0;
+    }
+
+    .UiCallout {
+      align-self: stretch;
+    }
+  }
+
+  .CommentsPanel__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2);
+    min-width: 0;
+  }
+
+  .CommentsPanel__title {
+    margin: 0;
+    min-width: 0;
+    font-size: var(--ui-font-md);
+    font-weight: var(--ui-weight-semibold);
+    line-height: var(--ui-line-tight);
+    overflow-wrap: anywhere;
+  }
+
+  .CommentsPanel__notice {
+    margin: 0;
+    padding: var(--ui-space-1_5) var(--ui-space-2);
+    border-radius: var(--ui-radius-md);
+    background: var(--ui-neutral-bg);
+    color: var(--ui-neutral-fg);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+  }
+
+  .CommentsPanel__body {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .CommentsPanel__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .CommentsPanel__feed {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-0_5);
+    padding-bottom: var(--ui-space-2);
+  }
+
+  .CommentsPanel__older {
+    display: flex;
+    justify-content: center;
+    padding: var(--ui-space-1) 0 var(--ui-space-2);
+  }
+
+  .CommentsPanel__empty {
+    margin: var(--ui-space-4) 0;
+    color: var(--ui-text-secondary);
+    text-align: center;
+    line-height: var(--ui-line-normal);
+  }
+
+  .CommentsPanel__newButton {
+    position: absolute;
+    bottom: var(--ui-space-2);
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: calc(100% - var(--ui-space-4));
+    border-radius: var(--ui-radius-pill);
+    box-shadow: var(--shadow-island);
+  }
+
+  .CommentsPanel__error {
+    flex: 0 0 auto;
+  }
+
+  .CommentsDay {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-2);
+    margin: var(--ui-space-3) 0 var(--ui-space-1);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-medium);
+
+    &::before,
+    &::after {
+      content: "";
+      flex: 1 1 0;
+      border-top: 1px solid var(--ui-border);
+    }
+
+    span {
+      flex: 0 1 auto;
+      min-width: 0;
+      text-align: center;
+      overflow-wrap: anywhere;
+    }
+  }
+}
+.excalidraw {
+  .CommentItem {
+    position: relative;
+    display: grid;
+    grid-template-columns: var(--comments-avatar) minmax(0, 1fr);
+    gap: var(--ui-space-2);
+    padding: var(--ui-space-1_5) var(--ui-space-1_5);
+    border: 1px solid transparent;
+    border-radius: var(--ui-radius-md);
+    transition: background-color var(--ui-transition),
+      border-color var(--ui-transition);
+
+    &:hover,
+    &:focus-within {
+      background: var(--ui-surface-sunken);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: calc(var(--ui-focus-outline-offset) * -1);
+    }
+
+    &--highlighted {
+      border-color: var(--ui-info-border);
+      background: var(--ui-info-bg);
+
+      &:hover,
+      &:focus-within {
+        background: var(--ui-info-bg);
+      }
+    }
+
+    &--unread {
+      border-color: var(--ui-warning-border);
+    }
+
+    &--pending {
+      opacity: 0.6;
+    }
+
+    &--failed {
+      opacity: 1;
+      border-color: var(--ui-danger-border);
+    }
+  }
+
+  .CommentItem__avatar {
+    display: block;
+    width: var(--comments-avatar);
+    height: var(--comments-avatar);
+
+    canvas {
+      display: block;
+    }
+  }
+
+  .CommentItem__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+    min-width: 0;
+  }
+
+  .CommentItem__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-space-1) var(--ui-space-1_5);
+    min-width: 0;
+    // keeps the wrapped meta clear of the menu button
+    padding-inline-end: var(--ui-control-sm);
+  }
+
+  .CommentItem__author {
+    min-width: 0;
+    font-weight: var(--ui-weight-semibold);
+    line-height: var(--ui-line-tight);
+    overflow-wrap: anywhere;
+  }
+
+  .CommentItem__badge {
+    flex: 0 0 auto;
+  }
+
+  .CommentItem__time {
+    flex: 0 0 auto;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-variant-numeric: tabular-nums;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  .CommentItem__menu {
+    position: absolute;
+    top: var(--ui-space-1);
+    right: var(--ui-space-1);
+    opacity: 0;
+    transition: opacity var(--ui-transition-fast);
+
+    &[aria-expanded="true"],
+    &:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  .CommentItem:hover .CommentItem__menu,
+  .CommentItem:focus-within .CommentItem__menu {
+    opacity: 1;
+  }
+
+  @media (hover: none) {
+    .CommentItem__menu {
+      opacity: 1;
+    }
+  }
+
+  .CommentItem__body {
+    margin: 0;
+    line-height: var(--ui-line-normal);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+
+    &--struck {
+      color: var(--ui-text-secondary);
+      text-decoration: line-through;
+    }
+
+    &--placeholder {
+      color: var(--ui-text-secondary);
+      font-style: italic;
+    }
+  }
+
+  .CommentItem__privateMark {
+    align-self: flex-start;
+  }
+
+  .CommentItem__edited {
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+  }
+
+  .CommentItem__unreadNote {
+    margin: 0;
+    color: var(--ui-warning-fg);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-medium);
+  }
+
+  .CommentItem__error {
+    margin: 0;
+    color: var(--ui-danger-fg);
+    font-size: var(--ui-font-xs);
+  }
+
+  .CommentItem__failed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-space-1) var(--ui-space-2);
+    color: var(--ui-danger-fg);
+    font-size: var(--ui-font-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .CommentItem__failedActions,
+  .CommentItem__editorActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-1);
+  }
+
+  .CommentItem__editorActions {
+    justify-content: flex-end;
+  }
+
+  .CommentItem__editor {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+  }
+
+  .CommentQuote,
+  .CommentReason {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-0_5);
+    min-width: 0;
+    padding: var(--ui-space-1) var(--ui-space-2);
+    border-inline-start: 3px solid var(--ui-border-strong);
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-surface-sunken);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+    text-align: start;
+  }
+
+  .CommentQuote {
+    width: 100%;
+    margin: 0;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    color: var(--ui-text);
+    font-family: inherit;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--ui-surface-raised);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .CommentQuote__meta,
+  .CommentReason__meta {
+    color: var(--ui-text-secondary);
+    font-weight: var(--ui-weight-medium);
+    overflow-wrap: anywhere;
+  }
+
+  .CommentQuote__text,
+  .CommentReason__text {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .CommentQuote__text--deleted {
+    color: var(--ui-text-secondary);
+    font-style: italic;
+  }
+
+  .CommentEvent {
+    display: flex;
+    justify-content: center;
+    padding: var(--ui-space-0_5) var(--ui-space-2);
+    border-radius: var(--ui-radius-md);
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: calc(var(--ui-focus-outline-offset) * -1);
+    }
+  }
+
+  .CommentEvent__button {
+    max-width: 100%;
+    margin: 0;
+    padding: var(--ui-space-0_5) var(--ui-space-2);
+    border: 0;
+    border-radius: var(--ui-radius-pill);
+    background: transparent;
+    color: var(--ui-text-secondary);
+    font-family: inherit;
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
+
+  button.CommentEvent__button {
+    cursor: pointer;
+
+    &:hover {
+      background: var(--ui-surface-sunken);
+      color: var(--ui-text);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+}
+.excalidraw {
+  // doubled class: wins over `.UiInput--textarea`'s 5rem minimum
+  .CommentsField.CommentsField {
+    min-height: calc(var(--ui-control-md) * 1.5);
+    max-height: 12rem;
+    field-sizing: content;
+    resize: none;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .CommentsCounter {
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-variant-numeric: tabular-nums;
+
+    &--over {
+      color: var(--ui-danger-fg);
+      font-weight: var(--ui-weight-semibold);
+    }
+  }
+
+  .CommentsComposer {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+    padding-top: var(--ui-space-2);
+    border-top: 1px solid var(--ui-border);
+  }
+
+  .CommentsComposer__reply {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-1);
+    min-width: 0;
+    padding: var(--ui-space-0_5) var(--ui-space-0_5) var(--ui-space-0_5)
+      var(--ui-space-2);
+    border-inline-start: 3px solid var(--ui-border-strong);
+    border-radius: var(--ui-radius-sm);
+    background: var(--ui-surface-sunken);
+    font-size: var(--ui-font-xs);
+  }
+
+  .CommentsComposer__replyText {
+    flex: 1 1 auto;
+    min-width: 0;
+    color: var(--ui-text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .CommentsComposer__row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--ui-space-2);
+    min-width: 0;
+
+    .CommentsField {
+      flex: 1 1 auto;
+    }
+
+    .UiButton {
+      flex: 0 0 auto;
+    }
+  }
+
+  .CommentsComposer__meta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--ui-space-1) var(--ui-space-2);
+    min-width: 0;
+  }
+
+  .CommentsComposer__hint {
+    min-width: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    overflow-wrap: anywhere;
+  }
+
+  .CommentsSummary {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    gap: var(--ui-space-1_5);
+    min-height: 0;
+    padding: var(--ui-space-2);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface-sunken);
+  }
+
+  .CommentsSummary__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2);
+    min-width: 0;
+  }
+
+  .CommentsSummary__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-1);
+    min-width: 0;
+    margin: 0;
+    padding: var(--ui-space-0_5) var(--ui-space-1);
+    border: 0;
+    border-radius: var(--ui-radius-md);
+    background: transparent;
+    color: var(--ui-text);
+    font-family: inherit;
+    font-size: var(--ui-font-sm);
+    font-weight: var(--ui-weight-semibold);
+    text-align: start;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--ui-surface-raised);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .CommentsSummary__chevron {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 1rem;
+    transition: transform var(--ui-transition-fast);
+
+    &--closed {
+      transform: rotate(-90deg);
+    }
+  }
+
+  .CommentsSummary__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1_5);
+    min-height: 0;
+  }
+
+  .CommentsSummary__text {
+    max-height: 16rem;
+    overflow-y: auto;
+    line-height: var(--ui-line-normal);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .CommentsSummary__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-1);
+  }
+
+  .CommentsSummary__note {
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+  }
+
+  .DeleteCommentDialog__text {
+    margin: 0;
+    line-height: var(--ui-line-normal);
+  }
+
+  .DeleteCommentDialog .UiField,
+  .DeleteCommentDialog__hide,
+  .DeleteCommentDialog .UiCallout {
+    margin-bottom: var(--ui-space-3);
+  }
+
+  .DeleteCommentDialog__hide {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--ui-space-2);
+      width: fit-content;
+      cursor: pointer;
+    }
+
+    input {
+      accent-color: var(--color-primary);
+    }
+  }
+
+  .DeleteCommentDialog__hint {
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+  }
+
+  // positioned against the trigger's content span (the icon)
+  .app-sidebar-tab-trigger__content--badged {
+    position: relative;
+  }
+
+  .app-sidebar-tab-trigger__badge {
+    position: absolute;
+    top: calc(var(--ui-space-1) * -1);
+    right: calc(var(--ui-space-1) * -1);
+    width: var(--ui-space-2);
+    height: var(--ui-space-2);
+    border-radius: var(--ui-radius-pill);
+    background: var(--ui-danger-fg);
+    box-shadow: 0 0 0 2px var(--sidebar-bg-color);
+  }
+
+  // view-mode entry point (read-only share links), see CommentsViewModeTrigger
+  .CommentsViewModeTrigger {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .CommentsViewModeTrigger__badge {
+    position: absolute;
+    top: var(--ui-space-1);
+    right: var(--ui-space-1);
+    width: var(--ui-space-2);
+    height: var(--ui-space-2);
+    border-radius: var(--ui-radius-pill);
+    background: var(--ui-danger-fg);
+    box-shadow: 0 0 0 2px var(--island-bg-color);
+    pointer-events: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .CommentItem,
+    .CommentItem__menu,
+    .CommentsSummary__chevron {
+      transition: none;
+    }
+  }
+}

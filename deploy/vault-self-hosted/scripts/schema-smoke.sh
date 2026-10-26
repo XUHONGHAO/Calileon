@@ -24,6 +24,11 @@ if [ "$VAULT_DEPLOYMENT_SCOPE" = "full" ]; then
     echo "FATAL: the ordinary cloud backend schema is incomplete (see rows above)" >&2
     exit 1
   fi
+
+  # Scene comments (ADR 0037): RLS, RPC rules and grants, exercised with
+  # fixture accounts inside one transaction that always rolls back.
+  psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -q \
+    -f /schema/schema_comments_smoke.sql
 fi
 
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_smoke.sql
