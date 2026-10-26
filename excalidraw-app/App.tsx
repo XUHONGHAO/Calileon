@@ -230,6 +230,13 @@ import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+import { PresentationPlayer } from "./components/presentation/PresentationPlayer";
+import {
+  getPresenterViewPreference,
+  isPresenting,
+  startPresentation,
+} from "./presentation/session";
+import { getPlayableSlides, getSlides } from "./presentation/slides";
 import { ConfirmHost } from "./components/ui";
 import { AIVideoAssetPlayer } from "./components/AIVideoAssetPlayer";
 
@@ -4988,6 +4995,14 @@ const ExcalidrawWrapper = () => {
         onOpenCollaboration: onCollabDialogOpen,
         onOpenShare: onShareDialogOpen,
         isCollaborationEnabled: () => !isCollabDisabled,
+        // also the only entry in Vault mode, where the sidebar is not mounted
+        onStartPresentation: () =>
+          startPresentation({ presenterView: getPresenterViewPreference() }),
+        canStartPresentation: () =>
+          !!excalidrawAPI &&
+          !isPresenting() &&
+          getPlayableSlides(getSlides(excalidrawAPI.getSceneElements()))
+            .length > 0,
       }),
     [excalidrawAPI, isCollabDisabled, onCollabDialogOpen, onShareDialogOpen],
   );
@@ -5591,6 +5606,7 @@ const ExcalidrawWrapper = () => {
             },
           ]}
         />
+        <PresentationPlayer excalidrawAPI={excalidrawAPI} />
         {isVisualDebuggerEnabled() && excalidrawAPI && (
           <DebugCanvas
             appState={excalidrawAPI.getAppState()}

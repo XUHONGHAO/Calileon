@@ -308,6 +308,41 @@ describe("AI workflow command factories", () => {
     expect(onOpenShare).toHaveBeenCalledTimes(1);
   });
 
+  it("adds a start-slideshow command only when the host can start one", () => {
+    const excalidrawAPI = createAPI();
+    expect(
+      createOfficeWorkflowCommands({ excalidrawAPI }).map(
+        (command) => command.label,
+      ),
+    ).not.toContain("Office: Start slideshow");
+
+    const onStartPresentation = vi.fn();
+    let canStart = false;
+    const command = createOfficeWorkflowCommands({
+      excalidrawAPI,
+      onStartPresentation,
+      canStartPresentation: () => canStart,
+    }).find((item) => item.label === "Office: Start slideshow");
+
+    expect(command).toMatchObject({ category: "Office" });
+    expect(command?.keywords).toEqual(
+      expect.arrayContaining(["present", "slideshow"]),
+    );
+    const predicate = command?.predicate;
+    const run = () =>
+      typeof predicate === "function" &&
+      predicate([], {} as any, {} as any, {} as any);
+    expect(run()).toBe(false);
+    canStart = true;
+    expect(run()).toBe(true);
+
+    command?.perform(
+      {} as Parameters<NonNullable<typeof command>["perform"]>[0],
+    );
+    expect(onStartPresentation).toHaveBeenCalledTimes(1);
+    expect(excalidrawAPI.toggleSidebar).not.toHaveBeenCalled();
+  });
+
   it("keeps generation log labels compact", () => {
     const label = formatGenerationLogCommandLabel(
       createLog({

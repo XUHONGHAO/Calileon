@@ -36,6 +36,7 @@ import {
 import { AIGenerationLogPanel } from "./AIGenerationLogPanel";
 import { AppSidebarOfficePanel } from "./AppSidebarOfficePanel";
 import { CustomAgentChat } from "./CustomAgentChat/CustomAgentChat";
+import { PresentationPanel } from "./presentation/PresentationPanel";
 
 import "./AppSidebar.scss";
 
@@ -299,13 +300,8 @@ export const AppSidebar = memo(
               onSendPromptToWorkbench={sendPromptToWorkbench}
             />
           </Sidebar.Tab>
-          <Sidebar.Tab tab="presentation" className="AppSidebarOfficeTab">
-            <AppSidebarOfficePanel
-              kind="presentation"
-              onOpenCollaboration={openCollaborationDialog}
-              onOpenCreate={openCreateTab}
-              onOpenShare={openShareDialog}
-            />
+          <Sidebar.Tab tab="presentation" className="AppSidebarPresentationTab">
+            <PresentationPanel excalidrawAPI={excalidrawAPI} />
           </Sidebar.Tab>
         </DefaultSidebar>
       </>

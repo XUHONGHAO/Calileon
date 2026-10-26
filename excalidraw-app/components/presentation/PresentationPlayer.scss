@@ -1,0 +1,390 @@
+// While presenting, the editor chrome stays mounted but out of sight and out
+// of the tab order; only the canvas, the laser layer and our overlay remain.
+// Descendants are listed too: `.zen-mode-visibility` sets `visibility: visible`
+// on the footer, which would otherwise override the inherited value.
+body.calileon-presenting {
+  .excalidraw {
+    .layer-ui__wrapper,
+    .default-sidebar,
+    .App-mobile-menu,
+    .App-toolbar-container,
+    .mobile-misc-tools-container,
+    .FixedSideContainer,
+    .frame-name {
+      &,
+      & * {
+        visibility: hidden !important;
+      }
+    }
+  }
+}
+
+.excalidraw {
+  .PresentationPlayer {
+    position: fixed;
+    inset: 0;
+    z-index: calc(var(--zIndex-modal) - 1);
+    pointer-events: none;
+
+    &:focus {
+      outline: none;
+    }
+  }
+
+  .PresentationPlayer__mask {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .PresentationPlayer__hitArea {
+    position: absolute;
+    inset: 0;
+    pointer-events: auto;
+    cursor: default;
+  }
+
+  // laser: pointer events go to the editor canvas underneath
+  .PresentationPlayer.is-laser .PresentationPlayer__hitArea {
+    pointer-events: none;
+  }
+
+  .PresentationPlayer.is-idle:not(.is-laser) .PresentationPlayer__hitArea {
+    cursor: none;
+  }
+
+  .PresentationPlayer__controls {
+    position: absolute;
+    left: 50%;
+    bottom: var(--ui-space-4);
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-1);
+    max-width: calc(100% - 2 * var(--ui-space-4));
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-pill);
+    padding: var(--ui-space-1);
+    background: var(--ui-surface-raised);
+    box-shadow: var(--shadow-island);
+    color: var(--ui-text);
+    pointer-events: auto;
+    transform: translateX(-50%);
+    transition: opacity var(--ui-transition-slow);
+  }
+
+  .PresentationPlayer.is-idle .PresentationPlayer__controls:not(:focus-within) {
+    opacity: 0;
+  }
+
+  .PresentationPlayer__control {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: var(--ui-control-md);
+    height: var(--ui-control-md);
+    border: 0;
+    border-radius: var(--ui-radius-pill);
+    padding: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color var(--ui-transition);
+
+    svg {
+      width: 1.25rem;
+      height: 1.25rem;
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--button-hover-bg);
+    }
+
+    &[aria-pressed="true"] {
+      background: var(--color-surface-primary-container);
+      color: var(--color-on-primary-container);
+    }
+
+    &:disabled {
+      color: var(--ui-text-disabled);
+      cursor: default;
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .PresentationPlayer__counter {
+    min-width: 4.5rem;
+    padding: 0 var(--ui-space-1);
+    font-size: var(--ui-font-sm);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .PresentationPlayer__divider {
+    align-self: stretch;
+    width: 1px;
+    margin: var(--ui-space-1) var(--ui-space-0_5);
+    background: var(--ui-border);
+  }
+
+  .PresentationPlayer__status {
+    position: absolute;
+    top: var(--ui-space-4);
+    left: 50%;
+    max-width: calc(100% - 2 * var(--ui-space-4));
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2) var(--ui-space-3);
+    background: var(--ui-surface-raised);
+    box-shadow: var(--shadow-island);
+    color: var(--ui-text);
+    font-size: var(--ui-font-sm);
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    transform: translateX(-50%);
+  }
+
+  // ------------------------------------------------------ presenter view
+  &.PresenterWindowRoot {
+    min-height: 100%;
+    overflow: auto;
+    background: var(--ui-surface-sunken);
+    color: var(--ui-text);
+    font-family: var(--ui-font);
+  }
+
+  .PresenterView {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    gap: var(--ui-space-4);
+    width: 100%;
+    min-height: 100%;
+    padding: var(--ui-space-4);
+  }
+
+  .PresenterView__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--ui-space-3) var(--ui-space-6);
+    min-width: 0;
+  }
+
+  .PresenterView__current {
+    display: flex;
+    flex: 1 1 16rem;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+    min-width: 0;
+  }
+
+  .PresenterView__counter,
+  .PresenterView__label {
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
+  }
+
+  .PresenterView__title {
+    margin: 0;
+    font-size: var(--ui-font-xl);
+    font-weight: var(--ui-weight-semibold);
+    line-height: var(--ui-line-tight);
+    overflow-wrap: anywhere;
+  }
+
+  .PresenterView__clocks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-4);
+  }
+
+  .PresenterView__timer,
+  .PresenterView__clock {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    align-items: center;
+    column-gap: var(--ui-space-1);
+
+    .PresenterView__label {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .PresenterView__time {
+    font-size: var(--ui-font-xl);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--ui-weight-semibold);
+  }
+
+  .PresenterView__body {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(12rem, 2fr);
+    gap: var(--ui-space-4);
+    min-height: 0;
+  }
+
+  .PresenterView__notes,
+  .PresenterView__next {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-2);
+    min-width: 0;
+    min-height: 0;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-3);
+    background: var(--ui-surface);
+  }
+
+  .PresenterView__notesBar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2);
+  }
+
+  .PresenterView__sizes {
+    display: inline-flex;
+    gap: var(--ui-space-0_5);
+  }
+
+  .PresenterView__size {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--ui-control-sm);
+    height: var(--ui-control-sm);
+    border: 1px solid transparent;
+    border-radius: var(--ui-radius-sm);
+    padding: 0;
+    background: transparent;
+    color: var(--ui-text-secondary);
+    font-weight: var(--ui-weight-semibold);
+    line-height: 1;
+    cursor: pointer;
+
+    &.is-sm {
+      font-size: var(--ui-font-xs);
+    }
+
+    &.is-md {
+      font-size: var(--ui-font-md);
+    }
+
+    &.is-lg {
+      font-size: var(--ui-font-xl);
+    }
+
+    &:hover {
+      background: var(--button-hover-bg);
+    }
+
+    &.is-active {
+      border-color: var(--ui-border-strong);
+      color: var(--ui-text);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .PresenterView__notesText {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    line-height: var(--ui-line-normal);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+
+    &.is-sm {
+      font-size: var(--ui-font-lg);
+    }
+
+    &.is-md {
+      font-size: calc(var(--ui-font-xl) * 1.2);
+    }
+
+    &.is-lg {
+      font-size: calc(var(--ui-font-xl) * 1.6);
+    }
+
+    &.is-empty {
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-md);
+    }
+  }
+
+  .PresenterView__nextThumb {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-md);
+    background-color: var(--ui-surface-sunken);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+  }
+
+  .PresenterView__nextTitle,
+  .PresenterView__end {
+    margin: 0;
+    font-size: var(--ui-font-md);
+    line-height: var(--ui-line-tight);
+    overflow-wrap: anywhere;
+  }
+
+  .PresenterView__end {
+    color: var(--ui-text-secondary);
+  }
+
+  .PresenterView__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2) var(--ui-space-4);
+    min-width: 0;
+  }
+
+  .PresenterView__hint {
+    flex: 1 1 16rem;
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+    overflow-wrap: anywhere;
+  }
+
+  .PresenterView__nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-2);
+  }
+
+  @media (max-width: 720px) {
+    .PresenterView__body {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .PresentationPlayer__controls,
+    .PresentationPlayer__control {
+      transition: none;
+    }
+  }
+}
