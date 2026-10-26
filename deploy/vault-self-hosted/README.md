@@ -145,6 +145,7 @@ is upserted by name.
    ```
 
 7. Optional, Vault v2 (CRDT): install `excalidraw-app/data/cloud/supabase/schema_vault_v2.sql` (additive; run `schema_vault_v2_smoke.sql` first in a rolled-back transaction), deploy the room server and the `vault-control-plane` function from the same commit, and check that both `/vault/capabilities` and the persistence capability endpoint report `protocolVersions` `[1, 2]`. Then set `VAULT_V2_ENABLED=true` and rebuild the App. To turn it off, set it back to `false` and rebuild; existing v2 Vaults stay in the database but cannot be opened until it is enabled again.
+8. Optional, scene comments on cloud whiteboards (ADR 0037, needs `VAULT_DEPLOYMENT_SCOPE=full`): the `migrate` profile installs `schema_comments.sql`, which also adds `scene_comments` to the `supabase_realtime` publication, and `schema-smoke` runs `schema_comments_smoke.sql` (fixture accounts in a rolled-back transaction). After both pass, set `SCENE_COMMENTS_ENABLED=true` and rebuild the App. Without a working Realtime connection the panel falls back to polling every 20 seconds. Comments need a signed-in account; without SMTP the operator creates accounts for reviewers.
 
 Caddy obtains and renews public certificates through ACME. Port 80 must remain available for redirect/challenge traffic unless DNS challenge configuration is added by the operator.
 
@@ -190,6 +191,8 @@ Rollback order:
 5. only on an approved disposable/backup-restored target, set `ALLOW_VAULT_SCHEMA_ROLLBACK=YES` and run the `rollback-schema` profile.
 
 Never implement rollback by writing Vault data into plain or legacy tables.
+
+Scene comments roll back by setting `SCENE_COMMENTS_ENABLED=false` and rebuilding the App; the tables and data stay. Dropping them deletes every comment, so it has its own profile: only with the owner's explicit agreement, set `ALLOW_COMMENTS_SCHEMA_ROLLBACK=YES` and run the `rollback-comments` profile (`rollback-comments-schema`).
 
 ## Backup and restore
 

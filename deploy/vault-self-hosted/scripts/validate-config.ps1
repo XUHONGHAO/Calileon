@@ -81,6 +81,18 @@ if ($envValues.VAULT_V2_ENABLED -eq "true" -and $envValues.VAULT_ENABLED -ne "tr
   throw "VAULT_V2_ENABLED requires VAULT_ENABLED=true"
 }
 if (
+  $envValues.ContainsKey("SCENE_COMMENTS_ENABLED") -and
+  $envValues.SCENE_COMMENTS_ENABLED -notin @("true", "false")
+) {
+  throw "SCENE_COMMENTS_ENABLED must be true or false"
+}
+if (
+  $envValues.SCENE_COMMENTS_ENABLED -eq "true" -and
+  $envValues.VAULT_DEPLOYMENT_SCOPE -ne "full"
+) {
+  throw "SCENE_COMMENTS_ENABLED requires VAULT_DEPLOYMENT_SCOPE=full"
+}
+if (
   $envValues.ContainsKey("VAULT_ALLOW_DOCKER_HOST_HTTP") -and
   $envValues.VAULT_ALLOW_DOCKER_HOST_HTTP -eq "true" -and
   -not $Local

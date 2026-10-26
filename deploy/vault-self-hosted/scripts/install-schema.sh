@@ -28,8 +28,9 @@ esac
 if [ "$VAULT_DEPLOYMENT_SCOPE" = "full" ]; then
   # -------------------------------------------------------------------------
   # Ordinary (non-Vault) cloud backend: cloud scenes, assets, shares, embeds,
-  # the activity log, Cast, collab rooms/persistence, AI tasks and AI video
-  # assets.
+  # the activity log, Cast, collab rooms/persistence, AI tasks, AI video
+  # assets and scene comments (ADR 0037; needs scenes and shares, and adds
+  # scene_comments to the supabase_realtime publication).
   #
   # The order follows each file's own "Run after ..." header. The last three
   # entries form a chain over the `excalidraw-assets` Storage bucket and must
@@ -55,7 +56,8 @@ if [ "$VAULT_DEPLOYMENT_SCOPE" = "full" ]; then
     schema_ai_tasks.sql \
     schema_cast_sessions.sql \
     schema_video_assets.sql \
-    schema_e2e_cloud.sql
+    schema_e2e_cloud.sql \
+    schema_comments.sql
   do
     psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f "/schema/$schema"
   done

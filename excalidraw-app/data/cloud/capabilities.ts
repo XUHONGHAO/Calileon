@@ -79,6 +79,9 @@ export const readCapabilities = (): BackendCapabilities => {
     hasSupabase && import.meta.env.VITE_APP_REMOTE_VIDEO_ASSETS === "true";
   const aiGateway =
     hasSupabase && import.meta.env.VITE_APP_AI_GATEWAY_ENABLED === "true";
+  // ADR 0037: off until the deployment has installed schema_comments.sql
+  const sceneComments =
+    hasSupabase && import.meta.env.VITE_APP_SCENE_COMMENTS === "true";
 
   return {
     tier,
@@ -96,5 +99,6 @@ export const readCapabilities = (): BackendCapabilities => {
     encryptedCloudStorage,
     aiGateway,
     remoteVideoAssets,
+    sceneComments,
   };
 };

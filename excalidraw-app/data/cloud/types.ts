@@ -41,6 +41,8 @@ export interface BackendCapabilities {
   encryptedCloudStorage: boolean;
   aiGateway: boolean;
   remoteVideoAssets?: boolean;
+  /** Scene comments on plain cloud whiteboards (ADR 0037); default off. */
+  sceneComments?: boolean;
 }
 
 // —— Domain types (shared across interfaces) ——
@@ -580,6 +582,111 @@ export interface EmbedService {
   }): Promise<AssetRef>;
 }
 
+// —— Scene comments (ADR 0037; optional extension, not part of the 0006 freeze) ——
+export type SceneCommentKind = "message" | "event";
+export type SceneCommentEventType = "resolved" | "reopened";
+export type SceneCommentStatus = "open" | "resolved";
+export type SceneCommentDeleteRole = "author" | "owner";
+/** What a delete did; the server decides, the client only predicts. */
+export type SceneCommentDeleteOutcome = "retracted" | "struck" | "hidden";
+export type SceneCommentRole = "owner" | "participant";
+
+export interface SceneComment {
+  id: string;
+  sceneId: string;
+  /** null once the author's account is deleted */
+  authorId: string | null;
+  /** snapshot taken by the server when posting; may be "" */
+  authorName: string;
+  /** circle avatar snapshot; never an image URL */
+  authorAvatar: AudioAvatar | null;
+  /** computed by the server, cannot be faked through the display name */
+  isOwnerAuthor: boolean;
+  kind: SceneCommentKind;
+  eventType: SceneCommentEventType | null;
+  /** event: the message it describes */
+  targetId: string | null;
+  /** reply: the message it quotes */
+  quotedId: string | null;
+  /** null when the owner hid the original */
+  body: string | null;
+  originalHidden: boolean;
+  /** hidden original, only for the scene owner and the author */
+  originalBody: string | null;
+  status: SceneCommentStatus;
+  resolvedAt: number | null;
+  editedAt: number | null;
+  deletedAt: number | null;
+  deletedRole: SceneCommentDeleteRole | null;
+  deleteReason: string | null;
+  createdAt: number;
+  updatedAt: number;
+  quoted: {
+    authorName: string;
+    createdAt: number;
+    deleted: boolean;
+    /** null when the quoted message is deleted or hidden */
+    excerpt: string | null;
+  } | null;
+}
+
+export interface SceneCommentJoinResult {
+  role: SceneCommentRole;
+  ownerId: string;
+  lastSeenAt: number;
+  /** the caller's own messages someone else deleted since lastSeenAt */
+  unreadDeleted: number;
+  serverTime: number;
+}
+
+export interface SceneCommentPage {
+  comments: SceneComment[];
+  hasMore: boolean;
+  serverTime: number;
+}
+
+export type SceneCommentSignal =
+  | { kind: "changed" }
+  | { kind: "removed"; id: string };
+
+export type SceneCommentChannelStatus = "connecting" | "live" | "unavailable";
+
+export interface SceneCommentService {
+  isAvailable(): boolean;
+  /** The owner passes no token; anyone else the `#cloud=` share token. */
+  join(
+    sceneId: string,
+    shareToken: string | null,
+  ): Promise<SceneCommentJoinResult>;
+  /** Latest page; with `before`, the page of messages created before it. */
+  list(sceneId: string, opts?: { before?: number }): Promise<SceneCommentPage>;
+  /** Rows changed after `since` (server time, epoch ms). */
+  listChanges(sceneId: string, since: number): Promise<SceneCommentPage>;
+  post(input: {
+    sceneId: string;
+    body: string;
+    quotedId?: string | null;
+  }): Promise<SceneComment>;
+  edit(id: string, body: string): Promise<SceneComment>;
+  setStatus(id: string, status: SceneCommentStatus): Promise<SceneComment>;
+  remove(
+    id: string,
+    opts?: { reason?: string | null; hideOriginal?: boolean },
+  ): Promise<SceneCommentDeleteOutcome>;
+  markSeen(sceneId: string): Promise<number>;
+  /**
+   * Change signals for one scene (Realtime). Signals carry no content: the
+   * caller pulls through `listChanges`. Returns an unsubscribe function.
+   */
+  subscribe(
+    sceneId: string,
+    handlers: {
+      onSignal: (signal: SceneCommentSignal) => void;
+      onStatus: (status: SceneCommentChannelStatus) => void;
+    },
+  ): () => void;
+}
+
 export type AiGatewayCapability =
   | "image-generation"
   | "remote-image"
@@ -705,4 +812,6 @@ export interface CloudBackend {
   cast: CastService;
   embed: EmbedService;
   ai: AiGateway;
+  /** Present only when `capabilities.sceneComments` (ADR 0037). */
+  comments?: SceneCommentService;
 }

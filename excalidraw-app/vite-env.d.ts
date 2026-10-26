@@ -26,6 +26,9 @@ interface ImportMetaEnv {
   VITE_APP_SUPABASE_URL: string;
   VITE_APP_SUPABASE_ANON_KEY: string;
   VITE_APP_REMOTE_VIDEO_ASSETS: string;
+  // scene comments on cloud whiteboards (ADR 0037); "true" after the schema
+  // is installed. Default off.
+  VITE_APP_SCENE_COMMENTS?: string;
   VITE_APP_AI_PROXY_URL: string;
   VITE_APP_AI_GATEWAY_ENABLED: string;
   VITE_APP_AI_GATEWAY_URL: string;

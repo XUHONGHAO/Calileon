@@ -37,6 +37,7 @@ import { createSupabaseAITaskService } from "./supabase/SupabaseAITaskService";
 import { createSupabaseCastService } from "./supabase/SupabaseCastService";
 import { createSupabaseCollabPersistenceService } from "./supabase/SupabaseCollabPersistenceService";
 import { createSupabaseCollabRoomService } from "./supabase/SupabaseCollabRoomService";
+import { createSupabaseCommentService } from "./supabase/SupabaseCommentService";
 import { createSupabaseEmbedService } from "./supabase/SupabaseEmbedService";
 import { createSupabaseSceneActivityService } from "./supabase/SupabaseSceneActivityService";
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
@@ -118,6 +119,9 @@ const assembleSupabaseBackend = (
     ai: capabilities.aiGateway
       ? createHttpAiGateway({ auth })
       : createLocalAiGateway(),
+    ...(capabilities.sceneComments
+      ? { comments: createSupabaseCommentService() }
+      : {}),
   };
 };
 
