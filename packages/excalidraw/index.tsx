@@ -109,6 +109,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
     renderScrollbars,
     imageOptions,
     voiceOptions,
+    videoOptions,
   } = props;
 
   const canvasActions = props.UIOptions?.canvasActions;
@@ -232,6 +233,7 @@ const ExcalidrawBase = (props: ExcalidrawProps) => {
           renderScrollbars={renderScrollbars}
           imageOptions={normalizedImageOptions}
           voiceOptions={voiceOptions}
+          videoOptions={videoOptions}
         >
           {children}
         </App>
@@ -251,6 +253,7 @@ const areEqual = (prevProps: ExcalidrawProps, nextProps: ExcalidrawProps) => {
     UIOptions: prevUIOptions = {},
     imageOptions: prevImageOptions,
     voiceOptions: prevVoiceOptions,
+    videoOptions: prevVideoOptions,
     ...prev
   } = prevProps;
   const {
@@ -258,6 +261,7 @@ const areEqual = (prevProps: ExcalidrawProps, nextProps: ExcalidrawProps) => {
     UIOptions: nextUIOptions = {},
     imageOptions: nextImageOptions,
     voiceOptions: nextVoiceOptions,
+    videoOptions: nextVideoOptions,
     ...next
   } = nextProps;
 
@@ -320,10 +324,16 @@ const areEqual = (prevProps: ExcalidrawProps, nextProps: ExcalidrawProps) => {
       (nextVoiceOptions?.disabledReason ?? null) &&
     prevVoiceOptions?.getAuthor === nextVoiceOptions?.getAuthor;
 
+  const isVideoOptionsSame =
+    !!prevVideoOptions?.enabled === !!nextVideoOptions?.enabled &&
+    (prevVideoOptions?.disabledReason ?? null) ===
+      (nextVideoOptions?.disabledReason ?? null);
+
   return (
     isUIOptionsSame &&
     isImageOptionsSame &&
     isVoiceOptionsSame &&
+    isVideoOptionsSame &&
     isShallowEqual(prev, next)
   );
 };
@@ -410,6 +420,7 @@ export { Stats } from "./components/Stats";
 export { DefaultSidebar } from "./components/DefaultSidebar";
 export { TTDDialog } from "./components/TTDDialog/TTDDialog";
 export { TTDDialogTrigger } from "./components/TTDDialog/TTDDialogTrigger";
+export { ExtraToolsMenuItem } from "./components/ExtraToolsMenuItem";
 export { TTDStreamFetch } from "./components/TTDDialog/utils/TTDStreamFetch";
 export type {
   TTDPersistenceAdapter,

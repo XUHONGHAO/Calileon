@@ -579,7 +579,8 @@
     "embeddable": "Web Embed",
     "selection": "Selection",
     "iframe": "IFrame",
-    "audio": "Voice message"
+    "audio": "Voice message",
+    "video": "Camera recording"
   },
   "headings": {
     "canvasActions": "Canvas actions",
@@ -2645,6 +2646,66 @@
       "rateLimited": "You are commenting too quickly. Wait a moment and try again.",
       "sceneFull": "This whiteboard has reached its comment limit.",
       "network": "Could not reach the comment server."
+    }
+  },
+  "video": {
+    "unavailable": "This recording isn't available here. It may not have been published with the share, or it hasn't loaded yet.",
+    "playbackError": "Couldn't play this recording.",
+    "insertBlocked": "Camera recordings can't be added here.",
+    "collabUnavailable": "Camera recordings stay out of live collaboration. Photos still work.",
+    "vaultUnavailable": "Camera recordings aren't available in a Vault yet. Photos still work.",
+    "sharedSceneUnavailable": "Camera recordings can't be added to a shared scene. Photos still work.",
+    "collabStartBlocked": "This canvas has camera recordings, and live collaboration doesn't include them. Delete the recordings first, or collaborate in a copy.",
+    "notPublished": "Camera recordings aren't published with share links. Viewers see the cover only."
+  },
+  "camera": {
+    "menuItem": "Camera",
+    "title": "Camera",
+    "photo": "Photo",
+    "video": "Video",
+    "mode": "Capture mode",
+    "camera": "Camera",
+    "defaultCamera": "Default camera",
+    "microphone": "Microphone",
+    "defaultMicrophone": "Default microphone",
+    "withAudio": "Record sound",
+    "countdown": "Timer",
+    "countdownOff": "Off",
+    "countdownSeconds": "{{seconds}} s",
+    "takePhoto": "Take photo",
+    "startRecording": "Start recording",
+    "stopRecording": "Stop",
+    "retake": "Retake",
+    "insert": "Add to canvas",
+    "cancel": "Cancel",
+    "requesting": "Waiting for the camera…",
+    "preview": "Camera preview",
+    "review": "Review",
+    "countingDown": "Starting in {{seconds}}",
+    "recording": "Recording",
+    "remaining": "{{seconds}} s left",
+    "mirrorHint": "Saved with true left and right, as others see you.",
+    "tooShort": "Too short. Record at least one second.",
+    "tooLarge": "This take is too large ({{size}} MB). Record a shorter clip.",
+    "discardTitle": "Discard this take?",
+    "discardMessage": "The photo or video you just captured will be lost.",
+    "discard": "Discard",
+    "hiddenDiscarded": "Recording stopped because the page was hidden.",
+    "photoAdded": "Photo added",
+    "videoAdded": "Recording added",
+    "insertError": "Couldn't add this to the canvas.",
+    "retry": "Try again",
+    "cancelCountdown": "Cancel timer",
+    "errors": {
+      "unsupported": "This browser can't use the camera here. A secure (HTTPS) page is required.",
+      "blocked": "Camera access is blocked for this site.",
+      "permission": "Camera permission was denied. Allow it in the browser settings and try again.",
+      "noDevice": "No camera was found.",
+      "busy": "The camera is being used by another app, such as a video call.",
+      "micBusy": "The microphone is being used by another feature. Turn sound off or try again later.",
+      "recorderUnsupported": "This browser can't record video. Photos still work.",
+      "cameraError": "Couldn't start the camera. Check it and try again.",
+      "micUnavailable": "Couldn't open the microphone. Turn sound off to record without it."
     }
   }
 }

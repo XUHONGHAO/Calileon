@@ -4,9 +4,14 @@ import type { FileId } from "@excalidraw/element/types";
 import type { BinaryFiles, DataURL } from "@excalidraw/excalidraw/types";
 
 import {
+  getPublishableFileIds,
   getReferencedFileIds,
+  loadAssetRefsForElements,
   loadSceneAssets,
+  resetUploadedAssetCache,
+  uploadEmbeddedSceneAssets,
   uploadSceneAssets,
+  uploadSharedSceneAssets,
 } from "./cloudAssets";
 
 import type { CloudBackend } from "./types";
@@ -37,8 +42,32 @@ const audioElement = (fileId: string, isDeleted = false) =>
     isDeleted,
   } as any);
 
+const videoElement = (fileId: string, isDeleted = false) =>
+  ({
+    id: `element-${fileId}`,
+    type: "video",
+    fileId,
+    isDeleted,
+  } as any);
+
+const videoFiles: BinaryFiles = {
+  "video-1": {
+    id: "video-1" as FileId,
+    mimeType: "video/mp4",
+    dataURL: "data:video/mp4;base64,AAAAIGZ0eXA=" as DataURL,
+    created: 1,
+  },
+  "image-1": {
+    id: "image-1" as FileId,
+    mimeType: "image/png",
+    dataURL: "data:image/png;base64,aW1hZ2U=" as DataURL,
+    created: 1,
+  },
+};
+
 describe("cloudAssets", () => {
   beforeEach(() => {
+    resetUploadedAssetCache();
     vi.stubGlobal(
       "fetch",
       vi
@@ -218,5 +247,130 @@ describe("cloudAssets", () => {
     });
     expect(result.loadedFiles[0].dataURL.startsWith("data:")).toBe(true);
     expect(result.erroredFiles.size).toBe(0);
+  });
+
+  describe("camera recordings (ADR 0035 §4, §8)", () => {
+    it("uploads recordings as video assets for the owner", async () => {
+      const backend = makeBackend();
+      await uploadSceneAssets({
+        backend,
+        sceneId: "scene-1",
+        elements: [videoElement("video-1")],
+        files: videoFiles,
+      });
+      expect(backend.assets.upload).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: "video",
+          fileId: "video-1",
+          mimeType: "video/mp4",
+        }),
+      );
+    });
+
+    it("uploads each file once per scene until the cache is reset", async () => {
+      const backend = makeBackend();
+      const save = () =>
+        uploadSceneAssets({
+          backend,
+          sceneId: "scene-1",
+          elements: [videoElement("video-1")],
+          files: videoFiles,
+        });
+      await save();
+      await save();
+      expect(backend.assets.upload).toHaveBeenCalledTimes(1);
+      // another scene is a separate upload
+      await uploadSceneAssets({
+        backend,
+        sceneId: "scene-2",
+        elements: [videoElement("video-1")],
+        files: videoFiles,
+      });
+      expect(backend.assets.upload).toHaveBeenCalledTimes(2);
+      resetUploadedAssetCache("scene-1");
+      await save();
+      expect(backend.assets.upload).toHaveBeenCalledTimes(3);
+    });
+
+    it("retries a failed upload on the next save", async () => {
+      const backend = makeBackend();
+      vi.mocked(backend.assets.upload).mockRejectedValueOnce(
+        new Error("offline"),
+      );
+      const save = () =>
+        uploadSceneAssets({
+          backend,
+          sceneId: "scene-1",
+          elements: [videoElement("video-1")],
+          files: videoFiles,
+        });
+      await expect(save()).rejects.toThrow("offline");
+      await save();
+      expect(backend.assets.upload).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps recordings out of what links publish", () => {
+      const elements = [
+        videoElement("video-1"),
+        imageElement("image-1"),
+        videoElement("video-gone", true),
+      ];
+      expect(getReferencedFileIds(elements)).toEqual(["video-1", "image-1"]);
+      expect(getPublishableFileIds(elements)).toEqual(["image-1"]);
+      // a file shared by an image and a recording stays private
+      expect(
+        getPublishableFileIds([videoElement("x"), imageElement("x")]),
+      ).toEqual([]);
+    });
+
+    it("never uploads recordings through share or embed links", async () => {
+      const shares = { uploadAsset: vi.fn().mockResolvedValue({}) } as any;
+      const embed = { uploadAsset: vi.fn().mockResolvedValue({}) } as any;
+      const elements = [videoElement("video-1"), imageElement("image-1")];
+      await uploadSharedSceneAssets({
+        shares,
+        token: "t",
+        sceneId: "scene-1",
+        elements,
+        files: videoFiles,
+      });
+      await uploadEmbeddedSceneAssets({
+        embed,
+        token: "t",
+        origin: "https://host.example",
+        sceneId: "scene-1",
+        elements,
+        files: videoFiles,
+      });
+      for (const service of [shares, embed]) {
+        expect(service.uploadAsset).toHaveBeenCalledTimes(1);
+        expect(service.uploadAsset).toHaveBeenCalledWith(
+          expect.objectContaining({ fileId: "image-1", type: "image" }),
+        );
+      }
+    });
+
+    it("doesn't fetch or flag recordings for link viewers", async () => {
+      const result = await loadAssetRefsForElements({
+        assets: [
+          {
+            id: "asset-v",
+            ownerId: "owner-1",
+            sceneId: "scene-1",
+            fileId: "video-1",
+            type: "video",
+            url: "https://signed.example/video-1",
+            mimeType: "video/mp4",
+            bytes: 5,
+            createdAt: 1,
+          },
+        ],
+        elements: [videoElement("video-1")],
+      });
+      expect(result.loadedFiles).toEqual([]);
+      // not "errored" either: the element keeps its status for the owner
+      expect(result.erroredFiles.size).toBe(0);
+      expect(fetch).not.toHaveBeenCalled();
+    });
   });
 });

@@ -81,6 +81,11 @@ import {
   drawAudioContentOnCanvas,
   getAudioContentDrawOps,
 } from "./audio/render";
+import {
+  drawVideoContentOnCanvas,
+  getVideoContentDrawOps,
+} from "./video/render";
+import { getVideoPoster } from "./video/posterCache";
 
 import type {
   ExcalidrawElement,
@@ -424,6 +429,16 @@ const drawElementOnCanvas = (
       drawAudioContentOnCanvas(
         context,
         getAudioContentDrawOps(element, renderConfig.theme),
+      );
+      break;
+    }
+    case "video": {
+      // decoding starts on first sight; the host redraws once it's ready
+      const poster = element.poster ? getVideoPoster(element.poster) : null;
+      drawVideoContentOnCanvas(
+        context,
+        getVideoContentDrawOps(element, renderConfig.theme, !!poster),
+        getVideoPoster,
       );
       break;
     }
@@ -983,6 +998,7 @@ export const renderElement = (
     case "arrow":
     case "image":
     case "audio":
+    case "video":
     case "text":
     case "iframe":
     case "embeddable": {

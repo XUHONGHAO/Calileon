@@ -114,6 +114,8 @@ import {
   randomId,
   AUDIO_ELEMENT_HEIGHT,
   AUDIO_RECORDING_MIN_DURATION,
+  VIDEO_MAX_BYTES,
+  VIDEO_MIME_TYPES,
 } from "@excalidraw/common";
 
 import {
@@ -281,9 +283,15 @@ import {
   isAudioElementPlayable,
   getAudioHitTarget,
   newAudioElement,
+  isVideoElement,
+  isVideoElementPlayable,
+  getVideoHitTarget,
+  subscribeToVideoPosters,
+  newVideoElement,
+  isValidVideoPoster,
 } from "@excalidraw/element";
 
-import type { AudioHitTarget } from "@excalidraw/element";
+import type { AudioHitTarget, VideoHitTarget } from "@excalidraw/element";
 
 import type { GlobalPoint, LocalPoint, Radians } from "@excalidraw/math";
 
@@ -312,6 +320,7 @@ import type {
   SceneElementsMap,
   ExcalidrawBindableElement,
   ExcalidrawAudioElement,
+  ExcalidrawVideoElement,
 } from "@excalidraw/element/types";
 
 import type { Mutable, ValueOf } from "@excalidraw/common/utility-types";
@@ -476,6 +485,10 @@ import { AudioPlayer } from "../voice/player";
 import { PlaybackOverlay } from "../voice/PlaybackOverlay";
 
 import { RecordingOverlay } from "../voice/RecordingOverlay";
+
+import { VideoPlayer } from "../video/player";
+import { videoPlaybackAtom } from "../video/atoms";
+import { VideoPlaybackOverlay } from "../video/VideoPlaybackOverlay";
 
 import ConvertElementTypePopup, {
   getConversionTypeFromElements,
@@ -654,10 +667,15 @@ const YOUTUBE_VIDEO_STATES = new Map<
 
 const MAX_EMBEDDABLE_VIEWPORT_SCALE = 4;
 
-type AudioButtonHit = {
-  element: NonDeleted<ExcalidrawAudioElement>;
-  target: AudioHitTarget;
-};
+type AudioButtonHit =
+  | {
+      element: NonDeleted<ExcalidrawAudioElement>;
+      target: AudioHitTarget;
+    }
+  | {
+      element: NonDeleted<ExcalidrawVideoElement>;
+      target: VideoHitTarget;
+    };
 
 /** "Insert as text" wraps transcripts at least this wide (scene px) */
 const AUDIO_TRANSCRIPT_TEXT_WIDTH = 360;
@@ -799,6 +817,10 @@ class App extends React.Component<AppProps, AppState> {
     onError: () =>
       this.setToast({ message: t("voice.playbackError"), duration: 3000 }),
   });
+  private videoPlayer = new VideoPlayer({
+    onChange: (state) => this.updateEditorAtom(videoPlaybackAtom, state),
+  });
+  private unsubscribeVideoPosters: (() => void) | null = null;
   lastPointerDownEvent: React.PointerEvent<HTMLElement> | null = null;
   lastPointerUpEvent: React.PointerEvent<HTMLElement> | PointerEvent | null =
     null;
@@ -862,6 +884,8 @@ class App extends React.Component<AppProps, AppState> {
       mutateElement: this.mutateElement,
       updateLibrary: this.library.updateLibrary,
       addFiles: this.addFiles,
+      insertPhoto: this.insertPhoto,
+      insertVideoRecording: this.insertVideoRecording,
       resetScene: this.resetScene,
       getSceneElementsIncludingDeleted: this.getSceneElementsIncludingDeleted,
       getSceneElementsMapIncludingDeleted:
@@ -2452,6 +2476,10 @@ class App extends React.Component<AppProps, AppState> {
     const playingAudioElement = audioPlayback
       ? allElementsMap.get(audioPlayback.elementId)
       : undefined;
+    const videoPlayback = editorJotaiStore.get(videoPlaybackAtom);
+    const playingVideoElement = videoPlayback
+      ? allElementsMap.get(videoPlayback.elementId)
+      : undefined;
 
     return (
       <div
@@ -2784,6 +2812,24 @@ class App extends React.Component<AppProps, AppState> {
                                 element={playingAudioElement}
                                 status={audioPlayback.status}
                                 player={this.audioPlayer}
+                              />
+                            )}
+                          {videoPlayback &&
+                            playingVideoElement &&
+                            isVideoElement(playingVideoElement) &&
+                            isElementInViewport(
+                              playingVideoElement,
+                              this.state.width,
+                              this.state.height,
+                              this.state,
+                              elementsMap,
+                            ) && (
+                              <VideoPlaybackOverlay
+                                key={videoPlayback.elementId}
+                                element={playingVideoElement}
+                                url={videoPlayback.url}
+                                onClose={this.stopVideoPlayback}
+                                onError={this.onVideoPlaybackError}
                               />
                             )}
                           <span className="visually-hidden" aria-live="polite">
@@ -3500,6 +3546,21 @@ class App extends React.Component<AppProps, AppState> {
     this.unmounted = false;
     this.api = this.createExcalidrawAPI();
 
+    // the static renderer draws a placeholder until the poster is decoded
+    this.unsubscribeVideoPosters?.();
+    this.unsubscribeVideoPosters = subscribeToVideoPosters((dataURL) => {
+      let touched = false;
+      for (const element of this.scene.getNonDeletedElements()) {
+        if (isVideoElement(element) && element.poster === dataURL) {
+          ShapeCache.delete(element);
+          touched = true;
+        }
+      }
+      if (touched) {
+        this.scene.triggerUpdate();
+      }
+    });
+
     this.excalidrawContainerValue.container =
       this.excalidrawContainerRef.current;
 
@@ -3597,6 +3658,9 @@ class App extends React.Component<AppProps, AppState> {
   public componentWillUnmount() {
     this.stopShelfLifeScheduler?.();
     this.audioPlayer.destroy();
+    this.videoPlayer.destroy();
+    this.unsubscribeVideoPosters?.();
+    this.unsubscribeVideoPosters = null;
     editorJotaiStore.set(voiceSessionAtom, null);
     editorJotaiStore.set(transcriptPopoverAtom, null);
     clearTimeout(this.audioAnnouncementTimer);
@@ -3930,6 +3994,27 @@ class App extends React.Component<AppProps, AppState> {
       this.audioPlayer.sync(
         playing && isAudioElement(playing) ? playing : undefined,
       );
+    }
+
+    const videoPlayback = editorJotaiStore.get(videoPlaybackAtom);
+    if (videoPlayback) {
+      const playing = this.scene.getElement(videoPlayback.elementId);
+      this.videoPlayer.sync(
+        playing && isVideoElement(playing) ? playing : undefined,
+      );
+      if (
+        prevState.activeTool.type !== this.state.activeTool.type ||
+        (playing &&
+          !isElementInViewport(
+            playing,
+            this.state.width,
+            this.state.height,
+            this.state,
+            this.scene.getNonDeletedElementsMap(),
+          ))
+      ) {
+        this.videoPlayer.stop();
+      }
     }
 
     if (prevProps.viewModeEnabled !== this.props.viewModeEnabled) {
@@ -4364,7 +4449,23 @@ class App extends React.Component<AppProps, AppState> {
     fitToContent?: boolean;
     preserveFrameChildrenOrder?: boolean;
   }) => {
-    const elements = restoreElements(opts.elements, null, {
+    const videoBlock = this.getVideoInsertBlockMessage();
+    const incoming =
+      videoBlock === null
+        ? opts.elements
+        : opts.elements.filter((element) => element.type !== "video");
+    // camera recordings can't enter here, e.g. live collab (ADR 0035 §7)
+    const showVideoBlocked = () =>
+      this.setToast({
+        message: videoBlock || t("video.insertBlocked"),
+        duration: 5000,
+        closable: true,
+      });
+    if (!incoming.length && opts.elements.length) {
+      showVideoBlocked();
+      return;
+    }
+    const elements = restoreElements(incoming, null, {
       deleteInvisibleElements: true,
     });
     const [minX, minY, maxX, maxY] = getCommonBounds(elements);
@@ -4506,6 +4607,11 @@ class App extends React.Component<AppProps, AppState> {
         fitToContent: true,
         canvasOffsets: this.getEditorUIOffsets(),
       });
+    }
+
+    // after the state update above, which spreads the previous state
+    if (incoming.length !== opts.elements.length) {
+      showVideoBlocked();
     }
   };
 
@@ -5252,6 +5358,17 @@ class App extends React.Component<AppProps, AppState> {
           if (isAudioElementPlayable(selectedElements[0])) {
             this.toggleAudioPlayback(selectedElements[0]);
           }
+          return;
+        }
+
+        if (
+          selectedElements.length === 1 &&
+          isVideoElement(selectedElements[0]) &&
+          event.key === KEYS.ENTER &&
+          !event[KEYS.CTRL_OR_CMD]
+        ) {
+          event.preventDefault();
+          this.toggleVideoPlayback(selectedElements[0]);
           return;
         }
 
@@ -7221,7 +7338,9 @@ class App extends React.Component<AppProps, AppState> {
     ) {
       return;
     }
-    if (released.target === "play") {
+    if (isVideoElement(released.element)) {
+      this.toggleVideoPlayback(released.element);
+    } else if (released.target === "play") {
       this.toggleAudioPlayback(released.element);
     } else {
       this.openAudioTranscript(released.element);
@@ -12498,6 +12617,7 @@ class App extends React.Component<AppProps, AppState> {
     }
     // don't record our own playback
     this.audioPlayer.pause();
+    this.videoPlayer.stop();
     // resolved now: the user may keep drawing while recording
     const host = this.getAudioHostAtPosition(sceneX, sceneY);
     this.updateEditorAtom(voiceSessionAtom, {
@@ -12715,6 +12835,16 @@ class App extends React.Component<AppProps, AppState> {
     const hit = this.getElementAtPosition(scenePointer.x, scenePointer.y, {
       includeLockedElements: true,
     });
+    if (hit && isVideoElement(hit)) {
+      // unplayable videos still react, to explain why (ADR 0035 §8)
+      return getVideoHitTarget(
+        hit,
+        scenePointer.x - hit.x,
+        scenePointer.y - hit.y,
+      )
+        ? { element: hit, target: "play" }
+        : null;
+    }
     if (!hit || !isAudioElement(hit)) {
       return null;
     }
@@ -12811,9 +12941,46 @@ class App extends React.Component<AppProps, AppState> {
       return;
     }
     const file = element.fileId ? this.files[element.fileId] : undefined;
+    // one clip at a time across audio and video (ADR 0035 §6)
+    this.videoPlayer.stop();
     if (!this.audioPlayer.toggle(element, file)) {
       this.setToast({ message: t("voice.notLoaded"), duration: 3000 });
     }
+  };
+
+  /**
+   * null when new video elements may be added, "" when video is off for this
+   * host, otherwise the host's explanation (ADR 0035 §12)
+   */
+  public getVideoInsertBlockMessage = (): string | null => {
+    const options = this.props.videoOptions;
+    if (!options?.enabled) {
+      return "";
+    }
+    return options.disabledReason || null;
+  };
+
+  public toggleVideoPlayback = (element: ExcalidrawVideoElement) => {
+    if (editorJotaiStore.get(voiceSessionAtom)) {
+      return;
+    }
+    const file = element.fileId ? this.files[element.fileId] : undefined;
+    if (!isVideoElementPlayable(element) || !file) {
+      this.setToast({ message: t("video.unavailable"), duration: 4000 });
+      return;
+    }
+    this.audioPlayer.pause();
+    this.videoPlayer.toggle(element, file);
+  };
+
+  private stopVideoPlayback = () => {
+    this.videoPlayer.stop();
+    this.focusContainer();
+  };
+
+  private onVideoPlaybackError = () => {
+    this.videoPlayer.stop();
+    this.setToast({ message: t("video.playbackError"), duration: 3000 });
   };
 
   private onImageToolbarButtonClick = async () => {
@@ -13000,6 +13167,92 @@ class App extends React.Component<AppProps, AppState> {
         this.onTouchEnd,
       );
     }
+  };
+
+  public insertPhoto = async (photo: File) => {
+    const { x, y } = viewportCoordsToSceneCoords(
+      {
+        clientX: this.state.width / 2 + this.state.offsetLeft,
+        clientY: this.state.height / 2 + this.state.offsetTop,
+      },
+      this.state,
+    );
+    await this.insertImages([photo], x, y);
+  };
+
+  public insertVideoRecording = async (recording: {
+    blob: Blob;
+    /** base mime type, without codecs */
+    mimeType: ValueOf<typeof VIDEO_MIME_TYPES>;
+    /** milliseconds */
+    duration: number;
+    naturalWidth: number;
+    naturalHeight: number;
+    hasAudio: boolean;
+    poster: string | null;
+  }): Promise<ExcalidrawVideoElement["id"]> => {
+    const blocked = this.getVideoInsertBlockMessage();
+    if (blocked !== null) {
+      throw new Error(blocked || t("video.insertBlocked"));
+    }
+    if (!Object.values(VIDEO_MIME_TYPES).includes(recording.mimeType)) {
+      throw new Error(`unsupported video type ${recording.mimeType}`);
+    }
+    if (recording.blob.size > VIDEO_MAX_BYTES) {
+      throw new Error(t("video.insertBlocked"));
+    }
+    const file = new File([recording.blob], "camera-recording", {
+      type: recording.mimeType,
+    });
+    const fileId = await ((this.props.generateIdForFile?.(
+      file,
+    ) as Promise<FileId>) || generateIdFromFile(file));
+    const dataURL = await getDataURL(file);
+    const center = viewportCoordsToSceneCoords(
+      {
+        clientX: this.state.width / 2 + this.state.offsetLeft,
+        clientY: this.state.height / 2 + this.state.offsetTop,
+      },
+      this.state,
+    );
+    const element = newVideoElement({
+      source: "camera",
+      duration: recording.duration,
+      naturalWidth: recording.naturalWidth,
+      naturalHeight: recording.naturalHeight,
+      hasAudio: recording.hasAudio,
+      poster: isValidVideoPoster(recording.poster) ? recording.poster : null,
+      fileId,
+      status: "pending",
+      x: 0,
+      y: 0,
+      locked: false,
+    });
+    const placed = newElementWith(element, {
+      x: center.x - element.width / 2,
+      y: center.y - element.height / 2,
+      frameId:
+        this.getTopLayerFrameAtSceneCoords({ x: center.x, y: center.y })?.id ??
+        null,
+    });
+    this.addMissingFiles([
+      {
+        id: fileId,
+        mimeType: recording.mimeType,
+        dataURL,
+        created: Date.now(),
+        lastRetrieved: Date.now(),
+      },
+    ]);
+    this.insertNewElements([placed]);
+    this.setState((prevState) => ({
+      selectedElementIds: makeNextSelectedElementIds(
+        { [placed.id]: true },
+        prevState,
+      ),
+    }));
+    this.store.scheduleCapture();
+    return placed.id;
   };
 
   private insertImages = async (

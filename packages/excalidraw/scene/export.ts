@@ -20,6 +20,8 @@ import { hasLuminaGameData } from "@excalidraw/element/lumina";
 
 import {
   getInitializedImageElements,
+  isVideoElement,
+  loadVideoPoster,
   updateImageCache,
 } from "@excalidraw/element";
 
@@ -53,6 +55,7 @@ import type {
 import { getDefaultAppState } from "../appState";
 import { base64ToString, decode, encode, stringToBase64 } from "../data/encode";
 import { serializeAsJSON } from "../data/json";
+import { stripVideoFiles } from "../data/videoFiles";
 
 import { Fonts } from "../fonts";
 
@@ -253,6 +256,19 @@ export const exportToCanvas = async (
     ),
     files,
   });
+
+  // the static renderer draws a placeholder until a poster is decoded; never
+  // let a decode that doesn't settle hold the export up
+  await Promise.all(
+    elementsForRender.map((element) =>
+      isVideoElement(element) && element.poster
+        ? Promise.race([
+            loadVideoPoster(element.poster),
+            new Promise((resolve) => setTimeout(resolve, 2000)),
+          ])
+        : null,
+    ),
+  );
 
   renderStaticScene({
     canvas,
@@ -482,7 +498,13 @@ export const exportToSvg = async (
         // elements which don't contain the temp frame labels.
         // But it also requires that the exportToSvg is being supplied with
         // only the elements that we're exporting, and no extra.
-        payload: serializeAsJSON(elements, appState, files || {}, "local"),
+        // camera recordings would add megabytes to the image (ADR 0035)
+        payload: serializeAsJSON(
+          elements,
+          appState,
+          stripVideoFiles(elements, files || {}).files,
+          "local",
+        ),
       });
     } catch (error: any) {
       console.error(error);

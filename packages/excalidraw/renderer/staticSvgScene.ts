@@ -50,6 +50,8 @@ import {
   LINE_TONE_MARKER_OFFSET,
   getAudioContentDrawOps,
   renderAudioContentToSvg,
+  getVideoContentDrawOps,
+  renderVideoContentToSvg,
 } from "@excalidraw/element";
 
 import type {
@@ -287,6 +289,37 @@ const renderElementToSvg = (
         ...renderAudioContentToSvg(
           doc,
           getAudioContentDrawOps(element, renderConfig.theme),
+        ),
+      );
+      addToRoot(
+        maybeWrapNodesInFrameClipPath(
+          element,
+          root,
+          [group],
+          renderConfig.frameRendering,
+          elementsMap,
+        ) || group,
+        element,
+      );
+      break;
+    }
+    case "video": {
+      // poster only: exports never carry or look up the video file
+      const doc = svgRoot.ownerDocument;
+      const group = doc.createElementNS(SVG_NS, "g");
+      group.setAttribute(
+        "transform",
+        `translate(${offsetX || 0} ${offsetY || 0})`,
+      );
+      if (opacity !== 1) {
+        group.setAttribute("opacity", `${opacity}`);
+      }
+      group.append(
+        ...renderVideoContentToSvg(
+          doc,
+          // SVG embeds the poster dataURL, so it's always "ready"
+          getVideoContentDrawOps(element, renderConfig.theme, true),
+          `video-poster-${element.id}`,
         ),
       );
       addToRoot(

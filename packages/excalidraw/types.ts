@@ -1,5 +1,6 @@
 import type {
   AUDIO_MIME_TYPES,
+  VIDEO_MIME_TYPES,
   IMAGE_MIME_TYPES,
   UserIdleState,
   throttleRAF,
@@ -123,6 +124,7 @@ export type BinaryFileData = {
   mimeType:
     | ValueOf<typeof IMAGE_MIME_TYPES>
     | ValueOf<typeof AUDIO_MIME_TYPES>
+    | ValueOf<typeof VIDEO_MIME_TYPES>
     // future user or unknown file type
     | typeof MIME_TYPES.binary;
   id: FileId;
@@ -704,6 +706,11 @@ export interface ExcalidrawProps {
    * recordings only survive if the host persists `BinaryFiles`.
    */
   voiceOptions?: VoiceOptions;
+  /**
+   * Camera recordings (`video` elements). Off by default: hosts must persist
+   * `BinaryFiles`. Existing video elements always render and play.
+   */
+  videoOptions?: VideoOptions;
   detectScroll?: boolean;
   handleKeyboardGlobally?: boolean;
   onLibraryChange?: (libraryItems: LibraryItems) => void | Promise<any>;
@@ -815,6 +822,16 @@ export type VoiceOptions = {
   disabledReason?: string | null;
   /** display-only speaker snapshot stored on new recordings */
   getAuthor?: () => ExcalidrawAudioElement["author"];
+};
+
+export type VideoOptions = {
+  /** allows pasting / inserting `video` elements; defaults to false */
+  enabled?: boolean;
+  /**
+   * when set, new video elements are refused with this (already localized)
+   * explanation, e.g. during live collaboration (ADR 0035 §7)
+   */
+  disabledReason?: string | null;
 };
 
 // NOTE at the moment, if action name corresponds to canvasAction prop, its
@@ -1054,6 +1071,13 @@ export interface ExcalidrawImperativeAPI {
   refresh: InstanceType<typeof App>["refresh"];
   setToast: InstanceType<typeof App>["setToast"];
   addFiles: (data: BinaryFileData[]) => void;
+  /** inserts a photo at the viewport centre, like the image tool (ADR 0035) */
+  insertPhoto: InstanceType<typeof App>["insertPhoto"];
+  /**
+   * inserts a camera recording at the viewport centre as one undoable step;
+   * refuses while `videoOptions` blocks video (ADR 0035)
+   */
+  insertVideoRecording: InstanceType<typeof App>["insertVideoRecording"];
   id: string;
   setActiveTool: InstanceType<typeof App>["setActiveTool"];
   setCursor: InstanceType<typeof App>["setCursor"];

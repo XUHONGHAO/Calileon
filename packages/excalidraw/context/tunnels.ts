@@ -15,6 +15,8 @@ type TunnelsContextValue = {
   DefaultSidebarTabTriggersTunnel: Tunnel;
   OverwriteConfirmDialogTunnel: Tunnel;
   TTDDialogTriggerTunnel: Tunnel;
+  /** host-provided items in the toolbar's "More tools" menu */
+  ExtraToolsMenuTunnel: Tunnel;
   // this can be removed once we create jotai stores per each editor
   // instance
   tunnelsJotai: ReturnType<typeof createIsolation>;
@@ -39,6 +41,7 @@ export const useInitializeTunnels = () => {
       DefaultSidebarTabTriggersTunnel: tunnel(),
       OverwriteConfirmDialogTunnel: tunnel(),
       TTDDialogTriggerTunnel: tunnel(),
+      ExtraToolsMenuTunnel: tunnel(),
       tunnelsJotai,
     };
   }, []);

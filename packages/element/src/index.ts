@@ -83,6 +83,7 @@ export * from "./echo";
 export * from "./lineTone";
 export * from "./shelfLife";
 export * from "./audio";
+export * from "./video";
 export * from "./mutateElement";
 export * from "./newElement";
 export * from "./positionElementsOnGrid";

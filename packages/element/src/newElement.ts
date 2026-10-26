@@ -31,6 +31,7 @@ import { wrapText } from "./textWrapping";
 
 import { isLineElement } from "./typeChecks";
 import { getAudioElementWidth, normalizeAudioPeaks } from "./audio/helpers";
+import { getVideoElementSize } from "./video/helpers";
 
 import type {
   ExcalidrawElement,
@@ -54,6 +55,7 @@ import type {
   ExcalidrawElbowArrowElement,
   ExcalidrawLineElement,
   ExcalidrawAudioElement,
+  ExcalidrawVideoElement,
 } from "./types";
 
 export type ElementConstructorOpts = MarkOptional<
@@ -571,6 +573,41 @@ export const newAudioElement = (
     transcript: opts.transcript ?? null,
     author: opts.author ?? null,
     hostId: opts.hostId ?? null,
+  };
+};
+
+/**
+ * Camera recording (ADR 0035). Size comes from the recording's natural size
+ * once, here; it is never recomputed afterwards.
+ */
+export const newVideoElement = (
+  opts: {
+    source: ExcalidrawVideoElement["source"];
+    duration: number;
+    naturalWidth: number;
+    naturalHeight: number;
+    hasAudio?: boolean;
+    poster?: ExcalidrawVideoElement["poster"];
+    status?: ExcalidrawVideoElement["status"];
+    fileId?: ExcalidrawVideoElement["fileId"];
+  } & Omit<ElementConstructorOpts, "width" | "height" | "angle">,
+): NonDeleted<ExcalidrawVideoElement> => {
+  const { naturalWidth, naturalHeight, ...rest } = opts;
+  return {
+    ..._newElementBase<ExcalidrawVideoElement>("video", {
+      ...rest,
+      // like images, the content draws its own frame
+      strokeColor: "transparent",
+      backgroundColor: "transparent",
+      ...getVideoElementSize(naturalWidth, naturalHeight),
+      angle: 0 as Radians,
+    }),
+    status: opts.status ?? "pending",
+    fileId: opts.fileId ?? null,
+    source: opts.source,
+    duration: Math.max(0, Math.round(opts.duration)),
+    hasAudio: !!opts.hasAudio,
+    poster: opts.poster ?? null,
   };
 };
 

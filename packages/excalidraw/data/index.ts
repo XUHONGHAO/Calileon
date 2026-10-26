@@ -33,6 +33,7 @@ import { exportToCanvas, exportToSvg } from "../scene/export";
 import { canvasToBlob } from "./blob";
 import { fileSave } from "./filesystem";
 import { serializeAsJSON } from "./json";
+import { stripVideoFiles } from "./videoFiles";
 
 import type { ExportType } from "../scene/types";
 import type { AppState, BinaryFiles } from "../types";
@@ -179,7 +180,13 @@ export const exportCanvas = async (
         import("./image").then(({ encodePngMetadata }) =>
           encodePngMetadata({
             blob,
-            metadata: serializeAsJSON(elements, appState, files, "local"),
+            // camera recordings would add megabytes to the image (ADR 0035)
+            metadata: serializeAsJSON(
+              elements,
+              appState,
+              stripVideoFiles(elements, files).files,
+              "local",
+            ),
           }),
         ),
       );

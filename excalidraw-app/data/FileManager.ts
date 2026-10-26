@@ -1,8 +1,11 @@
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
 import { compressData } from "@excalidraw/excalidraw/data/encode";
 import { newElementWith } from "@excalidraw/element";
-// images and audio (ADR 0034) share one file pipeline
-import { isInitializedFileBackedElement } from "@excalidraw/element";
+// images, audio (ADR 0034) and video (ADR 0035) share one file pipeline
+import {
+  isInitializedFileBackedElement,
+  isVideoElement,
+} from "@excalidraw/element";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import type {
@@ -19,6 +22,16 @@ import type {
 } from "@excalidraw/excalidraw/types";
 
 type FileVersion = Required<BinaryFileData>["version"];
+
+/**
+ * Files a realtime transport (collab room, Vault) may carry. Camera
+ * recordings never enter realtime collaboration (ADR 0035 §7): even one that
+ * slips past the start gate (e.g. restored by undo mid-session) stays local.
+ */
+export const isRealtimeFileBackedElement = (
+  element: ExcalidrawElement | null | undefined,
+): element is InitializedExcalidrawFileBackedElement =>
+  isInitializedFileBackedElement(element) && !isVideoElement(element);
 
 export class FileManager {
   /** files being fetched */
@@ -42,11 +55,13 @@ export class FileManager {
   private _getFiles;
   private _saveFiles;
   private _onFileStatusChange;
+  private _includeVideo;
 
   constructor({
     getFiles,
     saveFiles,
     onFileStatusChange,
+    includeVideo = false,
   }: {
     getFiles: (fileIds: FileId[]) => Promise<{
       loadedFiles: BinaryFileData[];
@@ -59,11 +74,25 @@ export class FileManager {
     onFileStatusChange?: (
       updates: Array<[FileId, "loading" | "loaded" | "error"]>,
     ) => void;
+    /**
+     * Camera recordings stay out of realtime file sync (ADR 0035 §7), so
+     * managers default to skipping them; only the browser's own file store
+     * opts in, or local recordings would be lost on reload.
+     */
+    includeVideo?: boolean;
   }) {
     this._getFiles = getFiles;
     this._saveFiles = saveFiles;
     this._onFileStatusChange = onFileStatusChange;
+    this._includeVideo = includeVideo;
   }
+
+  private isManagedElement = (
+    element: ExcalidrawElement | null | undefined,
+  ): element is InitializedExcalidrawFileBackedElement =>
+    this._includeVideo
+      ? isInitializedFileBackedElement(element)
+      : isRealtimeFileBackedElement(element);
 
   /**
    * returns whether file is saved/errored, or being processed
@@ -100,8 +129,7 @@ export class FileManager {
     const addedFiles: Map<FileId, BinaryFileData> = new Map();
 
     for (const element of elements) {
-      const fileData =
-        isInitializedFileBackedElement(element) && files[element.fileId];
+      const fileData = this.isManagedElement(element) && files[element.fileId];
 
       if (
         fileData &&
@@ -190,7 +218,7 @@ export class FileManager {
   shouldPreventUnload = (elements: readonly ExcalidrawElement[]) => {
     return elements.some((element) => {
       return (
-        isInitializedFileBackedElement(element) &&
+        this.isManagedElement(element) &&
         !element.isDeleted &&
         this.savingFiles.has(element.fileId)
       );
@@ -204,7 +232,7 @@ export class FileManager {
     element: ExcalidrawElement,
   ): element is InitializedExcalidrawFileBackedElement => {
     return (
-      isInitializedFileBackedElement(element) &&
+      this.isManagedElement(element) &&
       this.savedFiles.has(element.fileId) &&
       element.status === "pending"
     );

@@ -22,7 +22,12 @@ import {
   getOmitSidesForEditorInterface,
   canResizeFromSides,
 } from "./transformHandles";
-import { isAudioElement, isImageElement, isLinearElement } from "./typeChecks";
+import {
+  isAudioElement,
+  isImageElement,
+  isLinearElement,
+  isVideoElement,
+} from "./typeChecks";
 
 import type {
   TransformHandleType,
@@ -89,7 +94,8 @@ export const resizeTest = <Point extends GlobalPoint | LocalPoint>(
     return filter[0] as TransformHandleType;
   }
 
-  if (canResizeFromSides(editorInterface)) {
+  // videos resize from the corners only (ADR 0035 §3)
+  if (canResizeFromSides(editorInterface) && !isVideoElement(element)) {
     const [x1, y1, x2, y2, cx, cy] = getElementAbsoluteCoords(
       element,
       elementsMap,

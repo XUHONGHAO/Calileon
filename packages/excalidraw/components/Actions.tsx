@@ -1145,7 +1145,7 @@ export const ShapesSwitcher = ({
 
   const embeddableToolSelected = activeTool.type === "embeddable";
 
-  const { TTDDialogTriggerTunnel } = useTunnels();
+  const { TTDDialogTriggerTunnel, ExtraToolsMenuTunnel } = useTunnels();
 
   return (
     <>
@@ -1333,6 +1333,7 @@ export const ShapesSwitcher = ({
               {t("toolBar.lasso")}
             </DropdownMenu.Item>
           )}
+          <ExtraToolsMenuTunnel.Out />
           <div className="dropdown-menu-section-title">
             {t("toolBar.generate")}
           </div>

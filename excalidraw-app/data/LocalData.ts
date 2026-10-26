@@ -167,6 +167,8 @@ export class LocalData {
   // ---------------------------------------------------------------------------
 
   static fileStorage = new LocalFileManager({
+    // the owner's browser keeps camera recordings (ADR 0035 §4)
+    includeVideo: true,
     onFileStatusChange: FileStatusStore.updateStatuses.bind(FileStatusStore),
     getFiles(ids) {
       return getMany(ids, filesStore).then(

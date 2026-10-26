@@ -124,7 +124,7 @@ export const MobileToolBar = ({
   const laserToolSelected = activeTool.type === "laser";
   const embeddableToolSelected = activeTool.type === "embeddable";
 
-  const { TTDDialogTriggerTunnel } = useTunnels();
+  const { TTDDialogTriggerTunnel, ExtraToolsMenuTunnel } = useTunnels();
 
   const handleToolChange = (toolType: string, pointerType?: string) => {
     if (app.state.activeTool.type !== toolType) {
@@ -470,6 +470,7 @@ export const MobileToolBar = ({
           >
             {t("toolBar.laser")}
           </DropdownMenu.Item>
+          <ExtraToolsMenuTunnel.Out />
           <div className="dropdown-menu-section-title">
             {t("toolBar.generate")}
           </div>

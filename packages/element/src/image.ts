@@ -4,6 +4,7 @@
 
 import {
   AUDIO_MIME_TYPES,
+  VIDEO_MIME_TYPES,
   IMAGE_MIME_TYPES,
   MIME_TYPES,
   SVG_NS,
@@ -28,6 +29,7 @@ import type {
 
 const IMAGE_MIME_TYPE_VALUES = new Set<string>(Object.values(IMAGE_MIME_TYPES));
 const AUDIO_MIME_TYPE_VALUES = new Set<string>(Object.values(AUDIO_MIME_TYPES));
+const VIDEO_MIME_TYPE_VALUES = new Set<string>(Object.values(VIDEO_MIME_TYPES));
 
 export const isImageMimeType = (
   mimeType: BinaryFileData["mimeType"],
@@ -38,6 +40,11 @@ export const isAudioMimeType = (
   mimeType: string,
 ): mimeType is ValueOf<typeof AUDIO_MIME_TYPES> =>
   AUDIO_MIME_TYPE_VALUES.has(mimeType);
+
+export const isVideoMimeType = (
+  mimeType: string,
+): mimeType is ValueOf<typeof VIDEO_MIME_TYPES> =>
+  VIDEO_MIME_TYPE_VALUES.has(mimeType);
 
 export const loadHTMLImageElement = (dataURL: DataURL) => {
   return new Promise<HTMLImageElement>((resolve, reject) => {

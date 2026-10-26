@@ -48,12 +48,26 @@ const createFallbackId = (): string => {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 };
 
-const createStoragePath = (input: {
+/**
+ * Camera recordings live outside the `{owner}/{scene}/` folder that share and
+ * embed storage policies open to link holders (schema_shares.sql,
+ * schema_embeds.sql match on folder [2] = scene id), so a link never grants
+ * the video file; the owner policy (folder [1] = owner) still does
+ * (ADR 0035 §8).
+ */
+export const PRIVATE_VIDEO_FOLDER = "private-video";
+
+export const createStoragePath = (input: {
   ownerId: string;
   sceneId: string | null;
   fileId: string;
+  type?: AssetType;
 }): string =>
-  `${input.ownerId}/${input.sceneId ?? "_unscoped"}/${input.fileId}`;
+  input.type === "video"
+    ? `${input.ownerId}/${PRIVATE_VIDEO_FOLDER}/${
+        input.sceneId ?? "_unscoped"
+      }/${input.fileId}`
+    : `${input.ownerId}/${input.sceneId ?? "_unscoped"}/${input.fileId}`;
 
 const createSignedUrl = async (storagePath: string): Promise<string> => {
   const client = getSupabaseClient();
@@ -81,7 +95,12 @@ export const createSupabaseAssetStorage = (): AssetStorage => {
     const sceneId = input.sceneId ?? null;
     const fileId = input.fileId ?? createFallbackId();
     const mimeType = getMimeType(input.blob, input.mimeType);
-    const storagePath = createStoragePath({ ownerId, sceneId, fileId });
+    const storagePath = createStoragePath({
+      ownerId,
+      sceneId,
+      fileId,
+      type: input.type,
+    });
     const client = getSupabaseClient();
 
     const { error: uploadError } = await client.storage

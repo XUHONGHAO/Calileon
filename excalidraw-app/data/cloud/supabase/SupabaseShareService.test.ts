@@ -145,6 +145,35 @@ describe("SupabaseShareService", () => {
     expect(result.assets[0].url).toBe("https://signed.example/asset");
   });
 
+  it("never signs camera recordings for link holders (ADR 0035 §8)", async () => {
+    mockRpc.mockResolvedValue({
+      data: {
+        scene: sceneRow,
+        mode: "read",
+        assets: [
+          assetRow,
+          {
+            ...assetRow,
+            id: "asset-v",
+            file_id: "video-1",
+            type: "video",
+            storage_path: "owner-1/private-video/scene-1/video-1",
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const result = await createSupabaseShareService().loadScene("token-1");
+
+    expect(result.assets.map((asset) => asset.fileId)).toEqual(["file-1"]);
+    expect(mockCreateSignedUrl).toHaveBeenCalledTimes(1);
+    expect(mockCreateSignedUrl).not.toHaveBeenCalledWith(
+      expect.stringContaining("private-video"),
+      expect.anything(),
+    );
+  });
+
   it("saves writable shared scenes through RPC", async () => {
     mockRpc.mockResolvedValue({
       data: { id: "scene-1", version: 3 },

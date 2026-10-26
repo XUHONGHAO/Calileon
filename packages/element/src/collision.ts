@@ -45,6 +45,7 @@ import {
   isIframeLikeElement,
   isImageElement,
   isAudioElement,
+  isVideoElement,
   isLinearElement,
   isTextElement,
 } from "./typeChecks";
@@ -100,7 +101,10 @@ export const shouldTestInside = (element: ExcalidrawElement) => {
   }
 
   return (
-    isDraggableFromInside || isImageElement(element) || isAudioElement(element)
+    isDraggableFromInside ||
+    isImageElement(element) ||
+    isAudioElement(element) ||
+    isVideoElement(element)
   );
 };
 
@@ -460,6 +464,7 @@ export const intersectElementWithLineSegment = (
     case "selection":
     case "magicframe":
     case "audio":
+    case "video":
       return intersectRectanguloidWithLineSegment(
         element,
         elementsMap,

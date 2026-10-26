@@ -525,7 +525,8 @@
     "embeddable": "嵌入網站",
     "selection": "已選項目",
     "iframe": "IFrame框架",
-    "audio": "語音訊息"
+    "audio": "語音訊息",
+    "video": "攝影機錄影"
   },
   "headings": {
     "canvasActions": "canvas 動作",
@@ -2134,6 +2135,66 @@
       "cancel": "取消",
       "unavailable": "暫時無法使用語音輸入。",
       "localUnavailable": "此模式不支援語音輸入。"
+    }
+  },
+  "video": {
+    "unavailable": "這段錄影在這裡無法使用：可能沒有隨分享發布，或者尚未載入完成。",
+    "playbackError": "無法播放這段錄影。",
+    "insertBlocked": "這裡不能加入攝影機錄影。",
+    "collabUnavailable": "攝影機錄影不進入即時協作。拍照仍可使用。",
+    "vaultUnavailable": "保險庫中暫不支援攝影機錄影。拍照仍可使用。",
+    "sharedSceneUnavailable": "共享場景中無法新增攝影機錄影。拍照仍可使用。",
+    "collabStartBlocked": "畫布上有攝影機錄影，即時協作不包含錄影。請先刪除錄影，或在副本中協作。",
+    "notPublished": "攝影機錄影不隨分享連結發布，讀者只會看到封面。"
+  },
+  "camera": {
+    "menuItem": "攝影機",
+    "title": "攝影機",
+    "photo": "拍照",
+    "video": "錄影",
+    "mode": "拍攝模式",
+    "camera": "攝影機",
+    "defaultCamera": "預設攝影機",
+    "microphone": "麥克風",
+    "defaultMicrophone": "預設麥克風",
+    "withAudio": "錄製聲音",
+    "countdown": "倒數",
+    "countdownOff": "關",
+    "countdownSeconds": "{{seconds}} 秒",
+    "takePhoto": "拍照",
+    "startRecording": "開始錄製",
+    "stopRecording": "停止",
+    "retake": "重拍",
+    "insert": "放到畫布",
+    "cancel": "取消",
+    "requesting": "正在等待攝影機…",
+    "preview": "攝影機預覽",
+    "review": "預覽結果",
+    "countingDown": "{{seconds}} 秒後開始",
+    "recording": "錄製中",
+    "remaining": "還剩 {{seconds}} 秒",
+    "mirrorHint": "已依真實左右方向儲存，和別人看到的你一致。",
+    "tooShort": "太短了，至少錄 1 秒。",
+    "tooLarge": "這段錄影太大（{{size}} MB），請錄短一點。",
+    "discardTitle": "放棄這次拍攝？",
+    "discardMessage": "剛拍的照片或錄影會遺失。",
+    "discard": "放棄",
+    "hiddenDiscarded": "頁面被隱藏，錄製已停止。",
+    "photoAdded": "已加入照片",
+    "videoAdded": "已加入錄影",
+    "insertError": "無法加入畫布。",
+    "retry": "重試",
+    "cancelCountdown": "取消倒數",
+    "errors": {
+      "unsupported": "此瀏覽器在這裡無法使用攝影機，需要安全（HTTPS）頁面。",
+      "blocked": "此網站的攝影機權限已被封鎖。",
+      "permission": "攝影機權限被拒絕。請在瀏覽器設定中允許後重試。",
+      "noDevice": "找不到攝影機。",
+      "busy": "攝影機正被其他應用程式使用（例如視訊會議）。",
+      "micBusy": "麥克風正被其他功能使用。可以關閉聲音，或稍後再試。",
+      "recorderUnsupported": "此瀏覽器無法錄影，拍照仍可使用。",
+      "cameraError": "無法啟動攝影機，請檢查後重試。",
+      "micUnavailable": "無法開啟麥克風。關閉「錄製聲音」即可無聲錄製。"
     }
   }
 }

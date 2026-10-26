@@ -310,6 +310,24 @@ export const AUDIO_AVATAR_RING_COLOR = {
   dark: "#ff8a5c",
 } as const;
 
+// Kept out of MIME_TYPES for the same reason as audio.
+export const VIDEO_MIME_TYPES = {
+  mp4: "video/mp4",
+  webm: "video/webm",
+} as const;
+
+// Camera recordings (ADR 0035).
+export const VIDEO_RECORDING_MAX_DURATION = 30_000;
+export const VIDEO_RECORDING_MIN_DURATION = 1_000;
+/** raw bytes; larger takes are refused at insert time */
+export const VIDEO_MAX_BYTES = 12 * 1024 * 1024;
+/** long side of a freshly inserted video element, in scene px */
+export const VIDEO_ELEMENT_DEFAULT_SIZE = 480;
+/** long side of the inline poster */
+export const VIDEO_POSTER_MAX_SIZE = 320;
+/** max length of the inline poster dataURL (restore drops longer ones) */
+export const VIDEO_POSTER_MAX_LENGTH = 64 * 1024;
+
 export const EXPORT_IMAGE_TYPES = {
   png: "png",
   svg: "svg",

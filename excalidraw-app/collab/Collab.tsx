@@ -22,10 +22,7 @@ import { decryptData } from "@excalidraw/excalidraw/data/encryption";
 import { getVisibleSceneBounds } from "@excalidraw/element";
 import { newElementWith } from "@excalidraw/element";
 // images and audio share the collab file pipeline (ADR 0034)
-import {
-  isFileBackedElement,
-  isInitializedFileBackedElement,
-} from "@excalidraw/element";
+import { isFileBackedElement } from "@excalidraw/element";
 import { AbortError } from "@excalidraw/excalidraw/errors";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { withBatchedUpdates } from "@excalidraw/excalidraw/reactUtils";
@@ -70,6 +67,7 @@ import { getCloudBackend, localStore, shareLink } from "../data/cloud";
 import {
   encodeFilesForUpload,
   FileManager,
+  isRealtimeFileBackedElement,
   updateStaleImageStatuses,
 } from "../data/FileManager";
 import { FileStatusStore } from "../data/fileStatusStore";
@@ -84,6 +82,7 @@ import {
 } from "../data/vault";
 
 import { collabErrorIndicatorAtom } from "./CollabError";
+import { getCollabStartBlock } from "./collabStartGate";
 import Portal from "./Portal";
 
 import type {
@@ -556,7 +555,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
     const unfetchedImages = opts.elements
       .filter((element) => {
         return (
-          isInitializedFileBackedElement(element) &&
+          isRealtimeFileBackedElement(element) &&
           !this.fileManager.isFileTracked(element.fileId) &&
           !element.isDeleted &&
           (opts.forceFetchFiles
@@ -858,6 +857,17 @@ class Collab extends PureComponent<CollabProps, CollabState> {
 
     if (this.portal.socket) {
       return null;
+    }
+
+    // a new session (or one that keeps the local scene) would publish it
+    if (!existingRoomLinkData || opts.preserveLocalScene) {
+      const blocked = getCollabStartBlock(
+        this.excalidrawAPI.getSceneElementsIncludingDeleted(),
+      );
+      if (blocked) {
+        this.setErrorDialog(blocked);
+        return null;
+      }
     }
 
     let roomId;
@@ -1267,7 +1277,7 @@ class Collab extends PureComponent<CollabProps, CollabState> {
       opts.elements ?? this.excalidrawAPI.getSceneElementsIncludingDeleted();
     const candidateIds = elements.reduce((ids, element) => {
       if (
-        isInitializedFileBackedElement(element) &&
+        isRealtimeFileBackedElement(element) &&
         !element.isDeleted &&
         (opts.forceFetchFiles
           ? element.status !== "pending" || Date.now() - element.updated > 10000

@@ -43,6 +43,10 @@ foreach ($requiredHeader in @(
 if (-not ($headers -match "permissions-policy:[^\r\n]*microphone=\(self\)")) {
   throw "Permissions-Policy must allow microphone=(self)"
 }
+# Camera photo and video capture (ADR 0035) need same-origin camera access.
+if (-not ($headers -match "permissions-policy:[^\r\n]*camera=\(self\)")) {
+  throw "Permissions-Policy must allow camera=(self)"
+}
 if (-not $AllowUntrustedCertificate -and -not ($headers -match "strict-transport-security:")) {
   throw "Missing HSTS on production HTTPS response"
 }
