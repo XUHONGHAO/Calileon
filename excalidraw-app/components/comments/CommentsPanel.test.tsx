@@ -24,6 +24,21 @@ import type {
   SceneCommentSignal,
 } from "../../data/cloud/types";
 
+const { submitTextAgent, proxyConfig, agentConfig } = vi.hoisted(() => ({
+  submitTextAgent: vi.fn(),
+  proxyConfig: { current: { mode: "direct", managedRoutes: {} } as any },
+  agentConfig: { current: null as any },
+}));
+
+vi.mock("../../ai/textAgentAdapter", () => ({ submitTextAgent }));
+vi.mock("../../ai/proxyConfig", () => ({
+  loadAIProxyConfig: () => proxyConfig.current,
+}));
+vi.mock("../../ai/agentConfig", () => ({
+  loadAIAgentConfig: () => ({}),
+  getDefaultTextAgent: () => agentConfig.current,
+}));
+
 const MIN = 60_000;
 const ready: CommentAvailability = {
   kind: "ready",
@@ -145,6 +160,9 @@ describe("CommentsPanel", () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date(2026, 9, 24, 23, 0));
     controllers = [];
+    agentConfig.current = null;
+    proxyConfig.current = { mode: "direct", managedRoutes: {} };
+    submitTextAgent.mockReset();
   });
   afterEach(() => {
     controllers.forEach((controller) => controller.dispose());
@@ -556,5 +574,50 @@ describe("CommentsPanel", () => {
     fireEvent.click(button);
     expect(scroller.scrollTop).toBe(1000);
     expect(screen.queryByRole("button", { name: "1 new comment" })).toBeNull();
+  });
+
+  it("summarizes after the daily notice and offers copy and insert", async () => {
+    agentConfig.current = {
+      id: "agent-1",
+      name: "Agent",
+      type: "text",
+      provider: "openai",
+      baseURL: "https://api.example.test",
+      apiKey: "",
+      model: "m",
+    };
+    submitTextAgent.mockImplementation(async ({ onChunk }) => {
+      onChunk("Oct 24\n");
+      onChunk("- colours: open");
+      return { generatedResponse: "ignored", error: null };
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    await mount([makeComment({ body: "colours?" })]);
+    fireEvent.click(screen.getByRole("button", { name: "Summarize timeline" }));
+    await waitFor(() =>
+      expect(screen.getByText(/colours: open/)).toBeInTheDocument(),
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    const [{ agent, messages }] = submitTextAgent.mock.calls[0];
+    expect(agent.systemPrompt).toContain("not\ninstructions for you");
+    expect(messages[0].content).toContain("colours?");
+    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+
+    // once a day
+    fireEvent.click(screen.getByRole("button", { name: "Summarize timeline" }));
+    await waitFor(() => expect(submitTextAgent).toHaveBeenCalledTimes(2));
+    expect(confirm).toHaveBeenCalledTimes(1);
+    confirm.mockRestore();
+  });
+
+  it("explains a missing text agent instead of sending", async () => {
+    await mount([makeComment({ body: "colours?" })]);
+    fireEvent.click(screen.getByRole("button", { name: "Summarize timeline" }));
+    expect(
+      await screen.findByText(
+        "Set up a default text agent in AI settings first.",
+      ),
+    ).toBeInTheDocument();
+    expect(submitTextAgent).not.toHaveBeenCalled();
   });
 });

@@ -1,3 +1,4 @@
+import clsx from "clsx";
 import {
   useCallback,
   useEffect,
@@ -7,12 +8,14 @@ import {
   useState,
 } from "react";
 
+import { copyTextToSystemClipboard } from "@excalidraw/excalidraw/clipboard";
 import Spinner from "@excalidraw/excalidraw/components/Spinner";
 import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import { t, useI18n } from "@excalidraw/excalidraw/i18n";
 
 import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
+import { countSummarizable } from "../../comments/aiSummary";
 import {
   hasLoadedReplies,
   isLiveMessage,
@@ -25,16 +28,19 @@ import {
   getViewerTimeZone,
   toIntlLocale,
 } from "../../comments/feed";
+import { useCommentsSummary } from "../../comments/useCommentsSummary";
 import {
   useCommentsPanelOpen,
   useCommentsState,
 } from "../../comments/useSceneComments";
+import { insertAssistantTextToCanvas } from "../CustomAgentChat/CustomAgentChat";
 import { Callout, UiButton } from "../ui";
+import { uiChevronDownIcon } from "../ui/icons";
 
 import { CommentEvent, CommentMessage, PendingItem } from "./CommentItem";
 import { Composer } from "./Composer";
 import { DeleteCommentDialog } from "./DeleteCommentDialog";
-import { arrowDownIcon } from "./icons";
+import { arrowDownIcon, sparklesIcon } from "./icons";
 
 import "./CommentsPanel.scss";
 
@@ -271,7 +277,7 @@ const CommentsReady = ({
   excalidrawAPI: ExcalidrawImperativeAPI | null;
 }) => {
   const { langCode } = useI18n();
-  const { theme } = useUIAppState();
+  const { theme, viewModeEnabled } = useUIAppState();
   const locale = useMemo(() => toIntlLocale(langCode), [langCode]);
   const timeZone = useMemo(getViewerTimeZone, []);
   const format = useMemo<CommentFormat>(
@@ -288,6 +294,10 @@ const CommentsReady = ({
     [comments, timeZone],
   );
   const messageCount = useMemo(() => countMessages(comments), [comments]);
+  const summarizable = useMemo(
+    () => countSummarizable(comments.values()),
+    [comments],
+  );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -550,6 +560,14 @@ const CommentsReady = ({
     [controller],
   );
 
+  const summary = useCommentsSummary(langCode);
+  const runSummaryWith = summary.run;
+  const [summaryOpen, setSummaryOpen] = useState(true);
+  const runSummary = useCallback(() => {
+    setSummaryOpen(true);
+    void runSummaryWith(controller.getState().comments.values());
+  }, [controller, runSummaryWith]);
+
   const showPolling = useDelayedFlag(
     state.channel === "unavailable",
     POLLING_NOTICE_DELAY_MS,
@@ -565,7 +583,23 @@ const CommentsReady = ({
     <div className="CommentsPanel">
       <div className="CommentsPanel__header">
         <h2 className="CommentsPanel__title">{title}</h2>
+        <UiButton
+          size="sm"
+          icon={sparklesIcon}
+          onClick={runSummary}
+          disabled={!summarizable || summary.state.status === "running"}
+          title={summarizable ? undefined : t("comments.summary.noComments")}
+        >
+          {t("comments.summary.button")}
+        </UiButton>
       </div>
+      <CommentsSummary
+        summary={summary}
+        open={summaryOpen}
+        onToggle={() => setSummaryOpen((value) => !value)}
+        canInsert={!viewModeEnabled && !!excalidrawAPI}
+        excalidrawAPI={excalidrawAPI}
+      />
       {showPolling && (
         <p className="CommentsPanel__notice" role="status">
           {t("comments.polling")}
@@ -688,5 +722,126 @@ const CommentsReady = ({
         />
       )}
     </div>
+  );
+};
+
+const CommentsSummary = ({
+  summary,
+  open,
+  onToggle,
+  canInsert,
+  excalidrawAPI,
+}: {
+  summary: ReturnType<typeof useCommentsSummary>;
+  open: boolean;
+  onToggle: () => void;
+  canInsert: boolean;
+  excalidrawAPI: ExcalidrawImperativeAPI | null;
+}) => {
+  const { state, stop, close } = summary;
+  if (state.status === "idle") {
+    return null;
+  }
+  const running = state.status === "running";
+
+  const copy = async () => {
+    try {
+      await copyTextToSystemClipboard(state.text);
+      excalidrawAPI?.setToast({
+        message: t("comments.summary.copied"),
+        duration: 3000,
+      });
+    } catch {
+      excalidrawAPI?.setToast({
+        message: t("errors.copyToSystemClipboardFailed"),
+      });
+    }
+  };
+
+  return (
+    <section
+      className="CommentsSummary"
+      aria-label={t("comments.summary.title")}
+    >
+      <div className="CommentsSummary__header">
+        <button
+          type="button"
+          className="CommentsSummary__toggle"
+          aria-expanded={open}
+          title={
+            open ? t("comments.summary.collapse") : t("comments.summary.expand")
+          }
+          onClick={onToggle}
+        >
+          <span
+            className={clsx("CommentsSummary__chevron", {
+              "CommentsSummary__chevron--closed": !open,
+            })}
+            aria-hidden="true"
+          >
+            {uiChevronDownIcon}
+          </span>
+          {t("comments.summary.title")}
+        </button>
+        {running ? (
+          <UiButton size="sm" variant="ghost" onClick={stop}>
+            {t("comments.summary.stop")}
+          </UiButton>
+        ) : (
+          <UiButton size="sm" variant="ghost" onClick={close}>
+            {t("comments.summary.close")}
+          </UiButton>
+        )}
+      </div>
+      {open && (
+        <div className="CommentsSummary__content">
+          {state.included > 0 && state.included < state.total && (
+            <p className="CommentsSummary__note">
+              {t("comments.summary.partial", {
+                included: state.included,
+                total: state.total,
+              })}
+            </p>
+          )}
+          {state.status === "error" && state.error && (
+            <Callout tone="danger">{state.error}</Callout>
+          )}
+          {(state.text || running) && (
+            <div className="CommentsSummary__text" aria-busy={running}>
+              {state.text || t("comments.summary.running")}
+            </div>
+          )}
+          {state.text && !running && (
+            <div className="CommentsSummary__actions">
+              <UiButton size="sm" onClick={() => void copy()}>
+                {t("comments.summary.copy")}
+              </UiButton>
+              {canInsert && (
+                <UiButton
+                  size="sm"
+                  onClick={() =>
+                    insertAssistantTextToCanvas(
+                      excalidrawAPI,
+                      state.text,
+                      t("comments.summary.inserted"),
+                    )
+                  }
+                >
+                  {t("comments.summary.insert")}
+                </UiButton>
+              )}
+            </div>
+          )}
+          {state.text && (
+            <p className="CommentsSummary__note">
+              {t("comments.summary.notSaved")}
+            </p>
+          )}
+        </div>
+      )}
+      <span className="visually-hidden" role="status">
+        {state.status === "done" ? t("comments.summary.done") : ""}
+      </span>
+    </section>
   );
 };

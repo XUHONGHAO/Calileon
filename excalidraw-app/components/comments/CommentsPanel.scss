@@ -499,6 +499,92 @@
     overflow-wrap: anywhere;
   }
 
+  .CommentsSummary {
+    display: flex;
+    flex: 0 1 auto;
+    flex-direction: column;
+    gap: var(--ui-space-1_5);
+    min-height: 0;
+    padding: var(--ui-space-2);
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface-sunken);
+  }
+
+  .CommentsSummary__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2);
+    min-width: 0;
+  }
+
+  .CommentsSummary__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-1);
+    min-width: 0;
+    margin: 0;
+    padding: var(--ui-space-0_5) var(--ui-space-1);
+    border: 0;
+    border-radius: var(--ui-radius-md);
+    background: transparent;
+    color: var(--ui-text);
+    font-family: inherit;
+    font-size: var(--ui-font-sm);
+    font-weight: var(--ui-weight-semibold);
+    text-align: start;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--ui-surface-raised);
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+  }
+
+  .CommentsSummary__chevron {
+    display: inline-flex;
+    flex: 0 0 auto;
+    width: 1rem;
+    transition: transform var(--ui-transition-fast);
+
+    &--closed {
+      transform: rotate(-90deg);
+    }
+  }
+
+  .CommentsSummary__content {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1_5);
+    min-height: 0;
+  }
+
+  .CommentsSummary__text {
+    max-height: 16rem;
+    overflow-y: auto;
+    line-height: var(--ui-line-normal);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .CommentsSummary__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ui-space-1);
+  }
+
+  .CommentsSummary__note {
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+  }
+
   .DeleteCommentDialog__text {
     margin: 0;
     line-height: var(--ui-line-normal);
@@ -571,7 +657,8 @@
 
   @media (prefers-reduced-motion: reduce) {
     .CommentItem,
-    .CommentItem__menu {
+    .CommentItem__menu,
+    .CommentsSummary__chevron {
       transition: none;
     }
   }
