@@ -10,6 +10,7 @@ import {
   ExportIcon,
   LanguageIcon,
   MagicIcon,
+  presentationIcon,
   save,
 } from "@excalidraw/excalidraw/components/icons";
 import { localeCatalog, setLanguage, t } from "@excalidraw/excalidraw/i18n";
@@ -18,10 +19,18 @@ import type { ExcalidrawImperativeAPI } from "@excalidraw/excalidraw/types";
 
 import type { Language } from "@excalidraw/excalidraw/i18n";
 
+import { PresentationPlayer } from "../components/presentation/PresentationPlayer";
+import { pdfIcon } from "../components/presentation/icons";
+// the slideshow controls use the app token layer, which the runtime has no
+// other reason to load
+import "../components/ui/tokens.scss";
 import {
   createHttpAiGateway,
   AiGatewayHttpError,
 } from "../data/cloud/HttpAiGateway";
+import { exportScenePdf } from "../presentation/pdf/exportSlidesPdf";
+import { startPresentation } from "../presentation/session";
+import { getPlayableSlides, getSlides } from "../presentation/slides";
 
 import { createSingleFilePayload } from "./payload";
 import { normalizeDevicePollIntervalSeconds } from "./devicePairing";
@@ -418,6 +427,40 @@ const RuntimeApp = () => {
             {t("singleFile.ai.title")}
           </MainMenu.Item>
         )}
+        <MainMenu.Item
+          icon={presentationIcon}
+          onSelect={() => {
+            if (!api) {
+              return;
+            }
+            if (!getPlayableSlides(getSlides(api.getSceneElements())).length) {
+              api.setToast({ message: t("ai.presentation.nothingToPlay") });
+              return;
+            }
+            startPresentation({ presenterView: false });
+          }}
+          data-testid="single-file-present"
+        >
+          {t("ai.commands.officePresentationStart")}
+        </MainMenu.Item>
+        <MainMenu.Item
+          icon={pdfIcon}
+          onSelect={() => {
+            if (!api) {
+              return;
+            }
+            if (!getPlayableSlides(getSlides(api.getSceneElements())).length) {
+              api.setToast({ message: t("ai.presentation.nothingToPlay") });
+              return;
+            }
+            exportScenePdf(api, { includeNotes: false }).catch(() =>
+              api.setToast({ message: t("ai.presentation.exportFailed") }),
+            );
+          }}
+          data-testid="single-file-export-slides-pdf"
+        >
+          {t("ai.presentation.exportPdf")}
+        </MainMenu.Item>
         <MainMenu.Separator />
         <MainMenu.DefaultItems.LoadScene />
         <MainMenu.DefaultItems.Export />
@@ -447,6 +490,7 @@ const RuntimeApp = () => {
           </MainMenu.Sub.Content>
         </MainMenu.Sub>
       </MainMenu>
+      <PresentationPlayer excalidrawAPI={api} />
       {aiOpen && (
         <div
           role="dialog"

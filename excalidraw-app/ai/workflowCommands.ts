@@ -276,6 +276,9 @@ type OfficeWorkflowCommandOptions = {
   onOpenCollaboration?: () => void;
   onOpenShare?: () => void;
   isCollaborationEnabled?: () => boolean;
+  /** starts the slideshow (ADR 0036); shown only while it can start */
+  onStartPresentation?: () => void;
+  canStartPresentation?: () => boolean;
 };
 
 export const createOfficeWorkflowCommands = (
@@ -290,6 +293,8 @@ export const createOfficeWorkflowCommands = (
     onOpenCollaboration,
     onOpenShare,
     isCollaborationEnabled,
+    onStartPresentation,
+    canStartPresentation,
   } = commandOptions;
   const commands: CommandPaletteItem[] = [
     {
@@ -356,6 +361,18 @@ export const createOfficeWorkflowCommands = (
       openSidebarTab(excalidrawAPI, "presentation");
     },
   });
+
+  if (onStartPresentation) {
+    commands.push({
+      label: t("ai.commands.officePresentationStart"),
+      category: t("ai.commands.categoryOffice"),
+      order: 4,
+      keywords: ["present", "presentation", "slides", "slideshow", "play"],
+      icon: presentationIcon,
+      predicate: canStartPresentation,
+      perform: onStartPresentation,
+    });
+  }
 
   return commands;
 };

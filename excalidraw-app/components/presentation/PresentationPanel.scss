@@ -1,0 +1,332 @@
+.excalidraw {
+  .AppSidebarPresentationTab {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .PresentationPanel {
+    box-sizing: border-box;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--app-sidebar-gap, var(--ui-space-3));
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--app-sidebar-padding, var(--ui-space-3));
+    color: var(--ui-text);
+    font-size: var(--ui-font-sm);
+  }
+
+  .PresentationPanel__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ui-space-1) var(--ui-space-2);
+    min-width: 0;
+
+    strong {
+      min-width: 0;
+      font-size: var(--ui-font-md);
+      font-weight: var(--ui-weight-semibold);
+      line-height: var(--ui-line-tight);
+      overflow-wrap: anywhere;
+    }
+
+    span {
+      color: var(--ui-text-secondary);
+      font-size: var(--ui-font-xs);
+    }
+  }
+
+  .PresentationPanel__play,
+  .PresentationPanel__footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-space-2);
+    min-width: 0;
+
+    .UiCallout {
+      flex: 1 1 100%;
+    }
+  }
+
+  .PresentationPanel__footer {
+    flex: 0 0 auto;
+    margin-top: auto;
+    border-top: 1px solid var(--ui-border);
+    padding-top: var(--ui-space-3);
+  }
+
+  .PresentationPanel__exportRow,
+  .PresentationPanel__exportProgress {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-2);
+    min-width: 0;
+
+    > span {
+      min-width: 0;
+      color: var(--ui-text-secondary);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .PresentationPanel__checkbox {
+    display: inline-flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: var(--ui-space-1_5);
+    min-width: 0;
+    color: var(--ui-text);
+    font-size: var(--ui-font-sm);
+    line-height: var(--ui-line-tight);
+    cursor: pointer;
+
+    input {
+      flex: 0 0 auto;
+      width: 1rem;
+      height: 1rem;
+      margin: 0;
+      accent-color: var(--color-primary);
+      cursor: inherit;
+    }
+
+    span {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .PresentationPanel__hint {
+    flex: 1 1 100%;
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+    overflow-wrap: anywhere;
+  }
+
+  .PresentationPanel__add {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ui-space-1_5);
+    min-width: 0;
+  }
+
+  .PresentationPanel__empty .PresentationPanel__add {
+    align-items: center;
+  }
+
+  .PresentationPanel__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--ui-space-3);
+    border: 1px dashed var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-6) var(--ui-space-4);
+    color: var(--ui-text-secondary);
+    text-align: center;
+
+    p {
+      margin: 0;
+      line-height: var(--ui-line-normal);
+      overflow-wrap: anywhere;
+    }
+  }
+
+  .PresentationPanel__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-2);
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .PresentationPanel__slide {
+    position: relative;
+    min-width: 0;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--app-sidebar-panel-bg, var(--ui-surface));
+
+    &.is-expanded {
+      border-color: var(--ui-border-strong);
+    }
+
+    &.is-hidden .PresentationPanel__thumb {
+      opacity: 0.4;
+    }
+
+    &.is-dropBefore::before,
+    &.is-dropAfter::after {
+      content: "";
+      position: absolute;
+      left: var(--ui-space-2);
+      right: var(--ui-space-2);
+      height: 2px;
+      border-radius: var(--ui-radius-pill);
+      background: var(--color-primary);
+      pointer-events: none;
+    }
+
+    &.is-dropBefore::before {
+      top: calc(-1 * var(--ui-space-1) - 1px);
+    }
+
+    &.is-dropAfter::after {
+      bottom: calc(-1 * var(--ui-space-1) - 1px);
+    }
+  }
+
+  .PresentationPanel__slideButton {
+    box-sizing: border-box;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--ui-space-2);
+    width: 100%;
+    min-width: 0;
+    border: 0;
+    border-radius: var(--ui-radius-lg);
+    padding: var(--ui-space-2);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color var(--ui-transition);
+
+    &:hover {
+      background: var(--app-sidebar-control-hover-bg, var(--button-hover-bg));
+    }
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: -2px;
+    }
+  }
+
+  .PresentationPanel__number {
+    min-width: 1.25rem;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .PresentationPanel__thumb {
+    box-sizing: border-box;
+    width: 6rem;
+    height: 3.375rem;
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-sm);
+    background-color: var(--ui-surface-sunken);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: contain;
+  }
+
+  .PresentationPanel__slideText {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-1);
+    min-width: 0;
+  }
+
+  .PresentationPanel__slideTitle {
+    display: -webkit-box;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: var(--ui-weight-medium);
+    line-height: var(--ui-line-tight);
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .PresentationPanel__slideMeta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-space-1);
+    min-width: 0;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .PresentationPanel__notesMark {
+    display: inline-flex;
+    color: var(--ui-text-secondary);
+
+    svg {
+      width: 0.875rem;
+      height: 0.875rem;
+    }
+  }
+
+  .PresentationPanel__details {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-2);
+    min-width: 0;
+    border-top: 1px solid var(--ui-border);
+    padding: var(--ui-space-2) var(--ui-space-3) var(--ui-space-3);
+
+    .UiField__hint {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: var(--ui-space-1) var(--ui-space-2);
+    }
+  }
+
+  .PresentationPanel__counter {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .PresentationPanel__detailsLabel {
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
+  }
+
+  .PresentationPanel__readonlyNotes {
+    margin: 0;
+    line-height: var(--ui-line-normal);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+    cursor: text;
+  }
+
+  .PresentationPanel__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ui-space-1);
+    min-width: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .PresentationPanel__slideButton {
+      transition: none;
+    }
+  }
+}
