@@ -538,6 +538,23 @@ describe("CommentsPanel", () => {
     });
   });
 
+  it("makes the view-mode trigger look like the regular sidebar trigger", async () => {
+    const { controller } = await startController([]);
+    controllers.push(controller);
+    await render(
+      <Excalidraw>
+        <CommentsViewModeTrigger controller={controller} />
+      </Excalidraw>,
+    );
+    // same title as AppSidebarTrigger, not a comments-specific button
+    expect(
+      screen.getByRole("checkbox", { name: "AI Workbench" }),
+    ).not.toBeNull();
+    expect(
+      document.querySelector(".CommentsViewModeTrigger__badge"),
+    ).toBeNull();
+  });
+
   it("shows 'N new' when a comment arrives while scrolled up", async () => {
     const { service, signal } = await mount([
       makeComment({ body: "first", createdAt: Date.now() - 2 * MIN }),

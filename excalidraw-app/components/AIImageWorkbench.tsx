@@ -4889,8 +4889,7 @@ export const AIImageWorkbench = ({
           />
         </label>
 
-        {/* Full row: a 10-digit seed plus the dice didn't fit a third. */}
-        <label className="AIImageWorkbench__field AIImageWorkbench__field--wide">
+        <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.seed")}</span>
           <div className="AIImageWorkbench__seedField">
             <input

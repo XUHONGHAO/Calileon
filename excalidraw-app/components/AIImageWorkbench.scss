@@ -384,13 +384,9 @@
   }
 
   // Three columns only where they fit: at the 366px sidebar each column was
-  // ~100px, too narrow for a 10-digit seed or "Auto" labels.
+  // ~100px, too narrow for "Auto" labels; narrower panels wrap to two.
   .AIImageWorkbench__grid--three {
     grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
-  }
-
-  .AIImageWorkbench__field--wide {
-    grid-column: 1 / -1;
   }
 
   .AIImageWorkbench__seedField {
@@ -398,9 +394,21 @@
     gap: var(--ui-space-1_5);
     min-width: 0;
 
+    // The seed shares a row with quality and style (~130px column at the
+    // docked width). Spin arrows are useless for a random seed and took the
+    // room a 10-digit seed needs.
     input {
       flex: 1 1 auto;
       min-width: 0;
+      padding-inline: var(--ui-space-1_5);
+      appearance: textfield;
+      font-variant-numeric: tabular-nums;
+
+      &::-webkit-inner-spin-button,
+      &::-webkit-outer-spin-button {
+        margin: 0;
+        appearance: none;
+      }
     }
   }
 
