@@ -33,6 +33,8 @@ import type {
   InitializedExcalidrawAudioElement,
   ExcalidrawFileBackedElement,
   InitializedExcalidrawFileBackedElement,
+  ExcalidrawVideoElement,
+  InitializedExcalidrawVideoElement,
 } from "./types";
 
 export const isInitializedImageElement = (
@@ -59,11 +61,28 @@ export const isInitializedAudioElement = (
   return !!element && element.type === "audio" && !!element.fileId;
 };
 
-/** Elements whose content lives in BinaryFiles (images and audio). */
+export const isVideoElement = (
+  element: ExcalidrawElement | null | undefined,
+): element is ExcalidrawVideoElement => {
+  return !!element && element.type === "video";
+};
+
+export const isInitializedVideoElement = (
+  element: ExcalidrawElement | null | undefined,
+): element is InitializedExcalidrawVideoElement => {
+  return !!element && element.type === "video" && !!element.fileId;
+};
+
+/** Elements whose content lives in BinaryFiles (images, audio and video). */
 export const isFileBackedElement = (
   element: ExcalidrawElement | null | undefined,
 ): element is ExcalidrawFileBackedElement => {
-  return !!element && (element.type === "image" || element.type === "audio");
+  return (
+    !!element &&
+    (element.type === "image" ||
+      element.type === "audio" ||
+      element.type === "video")
+  );
 };
 
 export const isInitializedFileBackedElement = (
@@ -253,6 +272,7 @@ export const isRectangularElement = (
       element.type === "frame" ||
       element.type === "magicframe" ||
       element.type === "audio" ||
+      element.type === "video" ||
       element.type === "freedraw")
   );
 };
@@ -292,6 +312,7 @@ export const isExcalidrawElement = (
     case "magicframe":
     case "image":
     case "audio":
+    case "video":
     case "selection": {
       return true;
     }
@@ -435,6 +456,7 @@ export const isEligibleFrameChildType = (type: ElementOrToolType) => {
     case "text":
     case "image":
     case "audio":
+    case "video":
     case "frame":
     case "embeddable": {
       return true;

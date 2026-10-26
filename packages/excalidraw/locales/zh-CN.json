@@ -579,7 +579,8 @@
     "embeddable": "嵌入网页",
     "selection": "选择",
     "iframe": "IFrame",
-    "audio": "语音消息"
+    "audio": "语音消息",
+    "video": "摄像头录像"
   },
   "headings": {
     "canvasActions": "画布动作",
@@ -2474,6 +2475,66 @@
       "cancel": "取消",
       "unavailable": "暂时无法使用语音输入。",
       "localUnavailable": "本模式不支持语音输入。"
+    }
+  },
+  "video": {
+    "unavailable": "这段录像在这里不可用：可能没有随分享发布，或者还没加载完。",
+    "playbackError": "无法播放这段录像。",
+    "insertBlocked": "这里不能添加摄像头录像。",
+    "collabUnavailable": "摄像头录像不进入实时协作。拍照仍可使用。",
+    "vaultUnavailable": "保险库中暂不支持摄像头录像。拍照仍可使用。",
+    "sharedSceneUnavailable": "共享场景中无法添加摄像头录像。拍照仍可使用。",
+    "collabStartBlocked": "画布上有摄像头录像，实时协作不包含录像。请先删除录像，或在副本中协作。",
+    "notPublished": "摄像头录像不随分享链接发布，读者只能看到封面。"
+  },
+  "camera": {
+    "menuItem": "摄像头",
+    "title": "摄像头",
+    "photo": "拍照",
+    "video": "录像",
+    "mode": "拍摄模式",
+    "camera": "摄像头",
+    "defaultCamera": "默认摄像头",
+    "microphone": "麦克风",
+    "defaultMicrophone": "默认麦克风",
+    "withAudio": "录制声音",
+    "countdown": "倒计时",
+    "countdownOff": "关",
+    "countdownSeconds": "{{seconds}} 秒",
+    "takePhoto": "拍照",
+    "startRecording": "开始录制",
+    "stopRecording": "停止",
+    "retake": "重拍",
+    "insert": "放到画布",
+    "cancel": "取消",
+    "requesting": "正在等待摄像头…",
+    "preview": "摄像头预览",
+    "review": "预览结果",
+    "countingDown": "{{seconds}} 秒后开始",
+    "recording": "录制中",
+    "remaining": "还剩 {{seconds}} 秒",
+    "mirrorHint": "已按真实左右方向保存，和别人看到的你一致。",
+    "tooShort": "太短了，至少录 1 秒。",
+    "tooLarge": "这段录像太大（{{size}} MB），请录短一点。",
+    "discardTitle": "放弃这次拍摄？",
+    "discardMessage": "刚拍的照片或录像会丢失。",
+    "discard": "放弃",
+    "hiddenDiscarded": "页面被隐藏，录制已停止。",
+    "photoAdded": "照片已添加",
+    "videoAdded": "录像已添加",
+    "insertError": "无法添加到画布。",
+    "retry": "重试",
+    "cancelCountdown": "取消倒计时",
+    "errors": {
+      "unsupported": "此浏览器在这里无法使用摄像头，需要安全（HTTPS）页面。",
+      "blocked": "此网站的摄像头权限已被禁止。",
+      "permission": "摄像头权限被拒绝。请在浏览器设置里允许后重试。",
+      "noDevice": "没有找到摄像头。",
+      "busy": "摄像头正被其他应用占用（例如视频会议）。",
+      "micBusy": "麦克风正被其他功能占用。可以关闭声音，或稍后再试。",
+      "recorderUnsupported": "此浏览器无法录像，拍照仍可使用。",
+      "cameraError": "无法启动摄像头，请检查后重试。",
+      "micUnavailable": "无法打开麦克风。关闭“录制声音”即可无声录制。"
     }
   }
 }

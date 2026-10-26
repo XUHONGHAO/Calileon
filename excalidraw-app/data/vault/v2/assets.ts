@@ -18,16 +18,13 @@
  * shared document.
  */
 import { CaptureUpdateAction } from "@excalidraw/excalidraw";
-import {
-  isInitializedFileBackedElement,
-  newElementWith,
-} from "@excalidraw/element";
+import { newElementWith } from "@excalidraw/element";
 
 import type { ExcalidrawElement, FileId } from "@excalidraw/element/types";
 
 import type { BinaryFileData, BinaryFiles } from "@excalidraw/excalidraw/types";
 
-import { FileManager } from "../../FileManager";
+import { FileManager, isRealtimeFileBackedElement } from "../../FileManager";
 import { FileStatusStore } from "../../fileStatusStore";
 import { createVaultAttachmentQueue } from "../attachmentQueue";
 import { downloadVaultFileWithReceipt, uploadVaultFile } from "../fileAssets";
@@ -188,8 +185,9 @@ export class VaultV2Assets {
     const missing = new Set<FileId>();
     for (const element of api.getSceneElementsIncludingDeleted()) {
       if (
-        // audio too, or peers see a saved voice bubble that cannot play
-        isInitializedFileBackedElement(element) &&
+        // audio too, or peers see a saved voice bubble that cannot play;
+        // never camera recordings (ADR 0035 §7)
+        isRealtimeFileBackedElement(element) &&
         !element.isDeleted &&
         element.status === "saved" &&
         !loaded[element.fileId] &&

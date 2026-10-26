@@ -31,6 +31,7 @@ import {
   updateShelfLifeCustomData,
   updateLineToneCustomData,
   restoreAudioFields,
+  restoreVideoFields,
 } from "@excalidraw/element";
 import { normalizeFixedPoint } from "@excalidraw/element";
 import {
@@ -526,6 +527,25 @@ export const restoreElement = (
         ...fields,
       });
       // geometry is clamped, never recomputed from duration (ADR 0034 §1)
+      return { ...restored, width, height, angle };
+    }
+    case "video": {
+      const video = restoreVideoFields(
+        element as unknown as Record<string, unknown>,
+      );
+      if (!video) {
+        return null;
+      }
+      const { width, height, angle, ...fields } = video;
+      const restored = restoreElementWithProperties(element, {
+        status:
+          element.status === "saved" || element.status === "error"
+            ? element.status
+            : "pending",
+        fileId: typeof element.fileId === "string" ? element.fileId : null,
+        ...fields,
+      });
+      // validated, never recomputed; never rotated (ADR 0035 §2)
       return { ...restored, width, height, angle };
     }
     case "line":

@@ -1,0 +1,15 @@
+.excalidraw {
+  .excalidraw-video-playback {
+    position: absolute;
+    // above the static canvas, below toolbars and dialogs
+    z-index: var(--zIndex-canvasButtons);
+    box-sizing: border-box;
+    object-fit: cover;
+    background: #000;
+    outline: none;
+
+    &:focus-visible {
+      box-shadow: 0 0 0 2px var(--color-primary);
+    }
+  }
+}

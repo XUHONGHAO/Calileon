@@ -132,6 +132,10 @@ const getCollabStoragePath = (roomId: string, fileId: FileId) =>
 
 const getSyncableElements = (elements: readonly OrderedExcalidrawElement[]) =>
   elements.filter((element) => {
+    // mirrors data/index.ts: camera recordings stay out of rooms (ADR 0035)
+    if (element.type === "video") {
+      return false;
+    }
     if (element.isDeleted) {
       return element.updated > Date.now() - DELETED_ELEMENT_TIMEOUT;
     }

@@ -33,7 +33,8 @@ interface DimensionDragInputProps {
 
 const STEP_SIZE = 10;
 const _shouldKeepAspectRatio = (element: ExcalidrawElement) => {
-  return element.type === "image";
+  // a video's aspect ratio is fixed by its recording (ADR 0035 §2)
+  return element.type === "image" || element.type === "video";
 };
 
 const handleDimensionChange: DragInputCallbackType<

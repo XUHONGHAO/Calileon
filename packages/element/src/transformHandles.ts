@@ -18,6 +18,7 @@ import {
   isElbowArrow,
   isFrameLikeElement,
   isImageElement,
+  isVideoElement,
   isAudioElement,
   isLinearElement,
 } from "./typeChecks";
@@ -311,10 +312,17 @@ export const getTransformHandles = (
       ...omitSides,
       rotation: true,
     };
+  } else if (isVideoElement(element)) {
+    // corners only (always aspect-locked) and never rotated (ADR 0035 §3)
+    omitSides = {
+      ...omitSides,
+      ...OMIT_SIDES_FOR_MULTIPLE_ELEMENTS,
+      rotation: true,
+    };
   }
   const margin = isLinearElement(element)
     ? DEFAULT_TRANSFORM_HANDLE_SPACING + 8
-    : isImageElement(element)
+    : isImageElement(element) || isVideoElement(element)
     ? 0
     : DEFAULT_TRANSFORM_HANDLE_SPACING;
   return getTransformHandlesFromCoords(
@@ -324,7 +332,7 @@ export const getTransformHandles = (
     pointerType,
     omitSides,
     margin,
-    isImageElement(element) ? 0 : undefined,
+    isImageElement(element) || isVideoElement(element) ? 0 : undefined,
   );
 };
 

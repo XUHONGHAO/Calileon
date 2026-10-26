@@ -14,6 +14,7 @@ import {
   exportToSvg,
   serializeAsJSON,
 } from "@excalidraw/excalidraw";
+import { stripVideoFiles } from "@excalidraw/excalidraw/data/videoFiles";
 
 import type {
   AppState,
@@ -204,14 +205,18 @@ export const EmbedApp = () => {
           api.scrollToContent(payload.elementId, payload);
           return { scrolled: true };
         }
-        case "getScene":
+        case "getScene": {
+          const elements = api.getSceneElements();
           return {
             scene: {
-              elements: api.getSceneElements(),
+              elements,
               appState: api.getAppState(),
-              files: api.getFiles(),
+              // camera recordings never leave through the host API
+              // (ADR 0035 §8); the poster stays on the element
+              files: stripVideoFiles(elements, api.getFiles()).files,
             },
           };
+        }
         case "export": {
           const payload = message.payload as EmbedCommandPayloadMap["export"];
           const elements = api.getSceneElements();
@@ -221,7 +226,7 @@ export const EmbedApp = () => {
               payload.exportBackground ?? api.getAppState().exportBackground,
             exportScale: payload.exportScale ?? api.getAppState().exportScale,
           };
-          const files = api.getFiles();
+          const files = stripVideoFiles(elements, api.getFiles()).files;
           if (payload.format === "json") {
             return {
               format: "json",

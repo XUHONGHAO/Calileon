@@ -57,6 +57,7 @@ import {
   isFreeDrawElement,
   isImageElement,
   isAudioElement,
+  isVideoElement,
   isLinearElement,
   isTextElement,
 } from "./typeChecks";
@@ -99,10 +100,14 @@ export const transformElements = (
   centerY: number,
 ): boolean => {
   const elementsMap = scene.getNonDeletedElementsMap();
+  // a video's aspect ratio is fixed by its recording (ADR 0035 §2)
+  if (selectedElements.some((element) => isVideoElement(element))) {
+    shouldMaintainAspectRatio = true;
+  }
   if (selectedElements.length === 1) {
     const [element] = selectedElements;
     if (transformHandleType === "rotation") {
-      if (!isElbowArrow(element)) {
+      if (!isElbowArrow(element) && !isVideoElement(element)) {
         rotateSingleElement(
           element,
           scene,
@@ -443,9 +448,9 @@ const rotateMultipleElements = (
             // Needed to re-route the arrow
             points: getArrowLocalFixedPoints(element, elementsMap),
           }
-        : isAudioElement(element)
+        : isAudioElement(element) || isVideoElement(element)
         ? {
-            // audio bubbles orbit with the group but never rotate
+            // audio bubbles and videos orbit with the group but never rotate
             x: element.x + (rotatedCX - cx),
             y: element.y + (rotatedCY - cy),
           }
@@ -754,6 +759,18 @@ export const resizeSingleElement = (
       nextWidth,
       nextHeight,
     );
+  }
+
+  // a video keeps its recording's aspect ratio whichever caller resizes it
+  // (pointer, Stats, API); width wins on corners and side handles (ADR 0035)
+  if (isVideoElement(origElement) && origElement.width && origElement.height) {
+    const ratio = origElement.width / origElement.height;
+    const sign = (value: number) => (value < 0 ? -1 : 1);
+    if (handleDirection === "n" || handleDirection === "s") {
+      nextWidth = sign(nextWidth) * Math.abs(nextHeight) * ratio;
+    } else {
+      nextHeight = sign(nextHeight) * (Math.abs(nextWidth) / ratio);
+    }
   }
 
   let boundTextFont: { fontSize?: number } = {};
@@ -1316,6 +1333,7 @@ export const resizeMultipleElements = (
         (item) =>
           item.latest.angle !== 0 ||
           isTextElement(item.latest) ||
+          isVideoElement(item.latest) ||
           isInGroup(item.latest),
       );
 

@@ -8,6 +8,7 @@ import {
   IV_LENGTH_BYTES,
 } from "@excalidraw/excalidraw/data/encryption";
 import { serializeAsJSON } from "@excalidraw/excalidraw/data/json";
+import { stripVideoFiles } from "@excalidraw/excalidraw/data/videoFiles";
 import { isInvisiblySmallElement } from "@excalidraw/element";
 import { isInitializedFileBackedElement } from "@excalidraw/element";
 import { t } from "@excalidraw/excalidraw/i18n";
@@ -47,6 +48,10 @@ export type SyncableExcalidrawElement = OrderedExcalidrawElement &
 export const isSyncableElement = (
   element: OrderedExcalidrawElement,
 ): element is SyncableExcalidrawElement => {
+  // camera recordings never enter realtime collaboration (ADR 0035 §7)
+  if (element.type === "video") {
+    return false;
+  }
   if (element.isDeleted) {
     if (element.updated > Date.now() - DELETED_ELEMENT_TIMEOUT) {
       return true;
@@ -282,9 +287,14 @@ export const exportToBackend = async (
 
   try {
     const filesMap = new Map<FileId, BinaryFileData>();
+    // camera recordings are never published with a link (ADR 0035 §8)
+    const publishable = stripVideoFiles(elements, files).files;
     for (const element of elements) {
-      if (isInitializedFileBackedElement(element) && files[element.fileId]) {
-        filesMap.set(element.fileId, files[element.fileId]);
+      if (
+        isInitializedFileBackedElement(element) &&
+        publishable[element.fileId]
+      ) {
+        filesMap.set(element.fileId, publishable[element.fileId]);
       }
     }
 

@@ -4,6 +4,7 @@ import {
   isInitializedAudioElement,
   isInitializedFileBackedElement,
   isInitializedImageElement,
+  isInitializedVideoElement,
 } from "@excalidraw/element";
 
 import type {
@@ -24,7 +25,10 @@ import type {
   ShareService,
 } from "./types";
 
-/** Images and audio: anything missed here is never uploaded, fetched or kept. */
+/**
+ * Images, audio and video: anything missed here is never uploaded, fetched or
+ * kept.
+ */
 export const getReferencedFileIds = (
   elements: readonly OrderedExcalidrawElement[],
 ): FileId[] => {
@@ -37,10 +41,65 @@ export const getReferencedFileIds = (
   return [...seen];
 };
 
+/**
+ * Files a share or embed link may carry. Camera recordings are never
+ * published with a link; viewers see the poster only (ADR 0035 §8).
+ */
+export const getPublishableFileIds = (
+  elements: readonly OrderedExcalidrawElement[],
+): FileId[] => {
+  const videoFileIds = new Set<FileId>();
+  for (const element of elements) {
+    if (isInitializedVideoElement(element)) {
+      videoFileIds.add(element.fileId);
+    }
+  }
+  return getReferencedFileIds(elements).filter(
+    (fileId) => !videoFileIds.has(fileId),
+  );
+};
+
+// Owner uploads skip files already uploaded this session: fileIds are content
+// hashes, so the same id always means the same bytes (ADR 0035 §4). Keyed by
+// scene + payload kind, since a plain and an encrypted upload differ.
+const uploadedFileIds = new Map<string, Set<FileId>>();
+
+const getUploadedSet = (key: string) => {
+  let set = uploadedFileIds.get(key);
+  if (!set) {
+    set = new Set();
+    uploadedFileIds.set(key, set);
+  }
+  return set;
+};
+
+/** forget dedupe state, e.g. after the server may have dropped assets */
+export const resetUploadedAssetCache = (sceneId?: string) => {
+  if (!sceneId) {
+    uploadedFileIds.clear();
+    return;
+  }
+  for (const key of uploadedFileIds.keys()) {
+    if (key.endsWith(`:${sceneId}`)) {
+      uploadedFileIds.delete(key);
+    }
+  }
+};
+
 const getAssetTypeForElement = (
   elements: readonly OrderedExcalidrawElement[],
   fileId: FileId,
 ): AssetType => {
+  if (
+    elements.some(
+      (candidate) =>
+        !candidate.isDeleted &&
+        isInitializedVideoElement(candidate) &&
+        candidate.fileId === fileId,
+    )
+  ) {
+    return "video";
+  }
   if (
     elements.some(
       (candidate) =>
@@ -92,11 +151,12 @@ export const uploadSceneAssets = async (input: {
     return;
   }
 
+  const uploaded = getUploadedSet(`plain:${input.sceneId}`);
   const fileIds = getReferencedFileIds(input.elements);
   await Promise.all(
     fileIds.map(async (fileId) => {
       const fileData = input.files[fileId];
-      if (!fileData?.dataURL) {
+      if (!fileData?.dataURL || uploaded.has(fileId)) {
         return;
       }
 
@@ -107,6 +167,7 @@ export const uploadSceneAssets = async (input: {
         fileId,
         mimeType: fileData.mimeType,
       });
+      uploaded.add(fileId);
     }),
   );
 };
@@ -125,11 +186,12 @@ export const uploadEncryptedSceneAssets = async (input: {
     return;
   }
 
+  const uploaded = getUploadedSet(`encrypted:${input.sceneId}`);
   const fileIds = getReferencedFileIds(input.elements);
   await Promise.all(
     fileIds.map(async (fileId) => {
       const fileData = input.files[fileId];
-      if (!fileData?.dataURL) {
+      if (!fileData?.dataURL || uploaded.has(fileId)) {
         return;
       }
 
@@ -146,6 +208,7 @@ export const uploadEncryptedSceneAssets = async (input: {
         fileId,
         mimeType: "application/octet-stream",
       });
+      uploaded.add(fileId);
     }),
   );
 };
@@ -157,7 +220,7 @@ export const uploadSharedSceneAssets = async (input: {
   elements: readonly OrderedExcalidrawElement[];
   files: BinaryFiles;
 }): Promise<void> => {
-  const fileIds = getReferencedFileIds(input.elements);
+  const fileIds = getPublishableFileIds(input.elements);
   await Promise.all(
     fileIds.map(async (fileId) => {
       const fileData = input.files[fileId];
@@ -190,7 +253,7 @@ export const uploadEncryptedSharedSceneAssets = async (input: {
     return;
   }
 
-  const fileIds = getReferencedFileIds(input.elements);
+  const fileIds = getPublishableFileIds(input.elements);
   await Promise.all(
     fileIds.map(async (fileId) => {
       const fileData = input.files[fileId];
@@ -222,7 +285,7 @@ export const uploadEmbeddedSceneAssets = async (input: {
   elements: readonly OrderedExcalidrawElement[];
   files: BinaryFiles;
 }): Promise<void> => {
-  const fileIds = getReferencedFileIds(input.elements);
+  const fileIds = getPublishableFileIds(input.elements);
   await Promise.all(
     fileIds.map(async (fileId) => {
       const fileData = input.files[fileId];
@@ -257,7 +320,7 @@ export const uploadEncryptedEmbeddedSceneAssets = async (input: {
     return;
   }
 
-  const fileIds = getReferencedFileIds(input.elements);
+  const fileIds = getPublishableFileIds(input.elements);
   await Promise.all(
     fileIds.map(async (fileId) => {
       const fileData = input.files[fileId];
@@ -449,7 +512,7 @@ export const loadEncryptedAssetRefsForElements = async (input: {
   loadedFiles: BinaryFileData[];
   erroredFiles: Map<FileId, true>;
 }> => {
-  const neededFileIds = new Set(getReferencedFileIds(input.elements));
+  const neededFileIds = new Set(getPublishableFileIds(input.elements));
   if (!input.backend.encryption.isAvailable() || neededFileIds.size === 0) {
     return { loadedFiles: [], erroredFiles: new Map() };
   }
@@ -493,7 +556,7 @@ export const loadAssetRefsForElements = async (input: {
   loadedFiles: BinaryFileData[];
   erroredFiles: Map<FileId, true>;
 }> => {
-  const neededFileIds = new Set(getReferencedFileIds(input.elements));
+  const neededFileIds = new Set(getPublishableFileIds(input.elements));
   if (neededFileIds.size === 0) {
     return { loadedFiles: [], erroredFiles: new Map() };
   }

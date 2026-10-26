@@ -304,7 +304,11 @@ export const createSupabaseEmbedService = (): EmbedService => {
       scene: rowToSceneRecord(payload.scene),
       mode: payload.mode,
       assets: await Promise.all(
-        (payload.assets ?? []).map((row) => rowWithUrlToAssetRef(row)),
+        (payload.assets ?? [])
+          // camera recordings are never published with a link (ADR 0035 §8);
+          // their storage objects aren't readable by link holders anyway
+          .filter((row) => row.type !== "video")
+          .map((row) => rowWithUrlToAssetRef(row)),
       ),
       embed: {
         sceneId: payload.scene.id,

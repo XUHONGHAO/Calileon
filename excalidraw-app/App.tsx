@@ -232,6 +232,8 @@ import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanne
 import { AppSidebar } from "./components/AppSidebar";
 import { ConfirmHost } from "./components/ui";
 import { AIVideoAssetPlayer } from "./components/AIVideoAssetPlayer";
+import { getCollabStartBlock } from "./collab/collabStartGate";
+import { CameraCaptureHost, CameraCaptureMenuItem } from "./components/camera";
 
 import {
   buildAIVideoAssetLink,
@@ -1697,10 +1699,10 @@ const ExcalidrawWrapper = () => {
     if (collabAPI.isCollaborating()) {
       return t("cloud.collabRooms.alreadyCollaborating");
     }
-    if (excalidrawAPI?.getSceneElements().some(hasAIVideoGenerationMarker)) {
-      return t("ai.workbench.videoAssetCollabBlocked");
-    }
-    return null;
+    // same rule Collab.startCollaboration enforces (ADR 0035 §7)
+    return excalidrawAPI
+      ? getCollabStartBlock(excalidrawAPI.getSceneElementsIncludingDeleted())
+      : null;
   }, [collabAPI, excalidrawAPI]);
 
   // Throws when the session did not start, so the caller can roll back the
@@ -1887,6 +1889,25 @@ const ExcalidrawWrapper = () => {
       getAuthor: getVoiceAuthor,
     }),
     [isCollabDisabled, isVaultMode, vaultV2Session, getVoiceAuthor],
+  );
+  // ADR 0035 §7: camera recordings stay local to owner-saved scenes. Where a
+  // recording would not be stored (live rooms, Vaults, shared or embedded
+  // scenes, whose uploads skip video), only photos can be added.
+  const videoBlockedReason =
+    activeVault || vaultV2Session
+      ? t("video.vaultUnavailable")
+      : isCollaborating
+      ? t("video.collabUnavailable")
+      : activeSharedScene || activeEmbeddedScene
+      ? t("video.sharedSceneUnavailable")
+      : null;
+  const videoOptions = useMemo(
+    () => ({
+      // inside an iframe the host's `allow` (0023) doesn't grant the camera
+      enabled: !isCollabDisabled,
+      disabledReason: videoBlockedReason,
+    }),
+    [isCollabDisabled, videoBlockedReason],
   );
 
   // W6: one-off merge notices (2a-2 concurrent edits, 2d-1 tombstone-wins)
@@ -4015,6 +4036,13 @@ const ExcalidrawWrapper = () => {
 
       if (url) {
         setLatestShareableLink(url);
+        if (exportedElements.some((element) => element.type === "video")) {
+          excalidrawAPI?.setToast({
+            message: t("video.notPublished"),
+            duration: 5000,
+            closable: true,
+          });
+        }
       }
     } catch (error: any) {
       if (error.name !== "AbortError") {
@@ -5067,6 +5095,7 @@ const ExcalidrawWrapper = () => {
         validateEmbeddable={validateEmbeddable}
         renderEmbeddable={renderEmbeddable}
         voiceOptions={voiceOptions}
+        videoOptions={videoOptions}
         UIOptions={{
           canvasActions: {
             toggleTheme: true,
@@ -5381,6 +5410,12 @@ const ExcalidrawWrapper = () => {
         )}
 
         {!isVaultMode && <TTDDialogTrigger />}
+        <CameraCaptureMenuItem disabled={isCollabDisabled} />
+        <CameraCaptureHost
+          excalidrawAPI={excalidrawAPI}
+          disabled={isCollabDisabled}
+          videoBlockedReason={videoBlockedReason}
+        />
         {isCollaborating && isOffline && (
           <div className="alertalert--warning">
             {t("alerts.collabOfflineWarning")}

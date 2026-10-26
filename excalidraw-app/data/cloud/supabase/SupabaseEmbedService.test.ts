@@ -218,6 +218,41 @@ describe("SupabaseEmbedService", () => {
     expect(result.assets[0].url).toBe("https://signed.example/asset");
   });
 
+  it("never signs camera recordings for embeds (ADR 0035 §8)", async () => {
+    mockRpc.mockResolvedValue({
+      data: {
+        scene: sceneRow,
+        mode: "read",
+        allowed_origins: ["http://127.0.0.1:4313"],
+        theme: "light",
+        size: "wide",
+        assets: [
+          assetRow,
+          {
+            ...assetRow,
+            id: "asset-v",
+            file_id: "video-1",
+            type: "video",
+            storage_path: "owner-1/private-video/scene-1/video-1",
+          },
+        ],
+      },
+      error: null,
+    });
+
+    const result = await createSupabaseEmbedService().loadScene(
+      "token-1",
+      "http://127.0.0.1:4313/host.html",
+    );
+
+    expect(result.assets).toHaveLength(1);
+    expect(result.assets[0].type).not.toBe("video");
+    expect(mockCreateSignedUrl).not.toHaveBeenCalledWith(
+      expect.stringContaining("private-video"),
+      expect.anything(),
+    );
+  });
+
   it("rejects empty embed RPC results", async () => {
     mockRpc.mockResolvedValue({ data: [], error: null });
 

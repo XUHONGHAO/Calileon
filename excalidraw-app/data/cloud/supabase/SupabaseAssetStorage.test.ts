@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BackendError } from "../errors";
 
-import { createSupabaseAssetStorage } from "./SupabaseAssetStorage";
+import {
+  PRIVATE_VIDEO_FOLDER,
+  createStoragePath,
+  createSupabaseAssetStorage,
+} from "./SupabaseAssetStorage";
 
 const makeBuilder = (result: { data?: unknown; error?: unknown }) => {
   const calls: Array<{ method: string; args: unknown[] }> = [];
@@ -129,6 +133,49 @@ describe("SupabaseAssetStorage", () => {
     });
     expect(upsert?.args[1]).toEqual({
       onConflict: "owner_id,scene_id,file_id",
+    });
+  });
+
+  it("stores camera recordings outside the scene folder links can read (ADR 0035 §8)", async () => {
+    expect(createStoragePath({ ownerId: "o", sceneId: "s", fileId: "f" })).toBe(
+      "o/s/f",
+    );
+    expect(
+      createStoragePath({
+        ownerId: "o",
+        sceneId: "s",
+        fileId: "f",
+        type: "video",
+      }),
+    ).toBe(`o/${PRIVATE_VIDEO_FOLDER}/s/f`);
+
+    const builder = makeBuilder({
+      data: {
+        ...assetRow,
+        type: "video",
+        storage_path: "owner-1/private-video/scene-1/file-1",
+      },
+      error: null,
+    });
+    mockFrom.mockReturnValue(builder);
+    await createSupabaseAssetStorage().upload({
+      blob: new Blob(["data"], { type: "video/mp4" }),
+      type: "video",
+      sceneId: "scene-1",
+      fileId: "file-1",
+    });
+    expect(mockUpload).toHaveBeenCalledWith(
+      "owner-1/private-video/scene-1/file-1",
+      expect.any(Blob),
+      { contentType: "video/mp4", upsert: true },
+    );
+    const upsert = (
+      builder as { __calls: Array<{ method: string; args: unknown[] }> }
+    ).__calls.find((c) => c.method === "upsert");
+    expect(upsert?.args[0]).toMatchObject({
+      type: "video",
+      // the folder below the owner must not be the scene id
+      storage_path: "owner-1/private-video/scene-1/file-1",
     });
   });
 

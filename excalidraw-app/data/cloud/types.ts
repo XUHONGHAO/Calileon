@@ -105,6 +105,8 @@ export type AssetType =
   | "recording"
   // voice messages / generated audio; not "recording", which is Cast scripts
   | "audio"
+  // camera recordings (ADR 0035); never published with share/embed links
+  | "video"
   | "export"
   | "embed-preview";
 

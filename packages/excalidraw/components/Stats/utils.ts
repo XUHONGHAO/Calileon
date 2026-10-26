@@ -8,6 +8,7 @@ import {
 import {
   getAttachedAudioElements,
   isAudioElement,
+  isVideoElement,
   isFrameLikeElement,
 } from "@excalidraw/element";
 
@@ -50,7 +51,10 @@ export const isPropertyEditable = (
   element: ExcalidrawElement,
   property: keyof ExcalidrawElement,
 ) => {
-  if (property === "angle" && isFrameLikeElement(element)) {
+  if (
+    property === "angle" &&
+    (isFrameLikeElement(element) || isVideoElement(element))
+  ) {
     return false;
   }
   // audio width encodes duration (ADR 0034)

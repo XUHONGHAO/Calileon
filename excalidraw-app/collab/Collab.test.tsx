@@ -556,3 +556,37 @@ describe("Collab Vault persistence isolation", () => {
     expect(setErrorDialog).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Collab start gate (ADR 0035 §7)", () => {
+  const createCollabWith = (elements: unknown[]) =>
+    new Collab({
+      excalidrawAPI: {
+        getSceneElementsIncludingDeleted: () => elements,
+        getAppState: () => ({}),
+        updateScene: vi.fn(),
+      },
+    } as never);
+
+  it("refuses to start a room from a scene with a camera recording", async () => {
+    const collab = createCollabWith([
+      { id: "v", type: "video", fileId: "v-1", isDeleted: false },
+    ]);
+    collab.state = { ...collab.state, username: "Alice" };
+    const setErrorDialog = vi
+      .spyOn(collab, "setErrorDialog")
+      .mockImplementation(() => {});
+
+    await expect(collab.startCollaboration(null)).resolves.toBeNull();
+    await expect(
+      collab.startCollaboration(
+        { roomId: "room", roomKey: "key" },
+        { preserveLocalScene: true },
+      ),
+    ).resolves.toBeNull();
+
+    expect(setErrorDialog).toHaveBeenCalledTimes(2);
+    expect(setErrorDialog.mock.calls[0][0]).toMatch(/camera recordings/);
+    expect(socketClient).not.toHaveBeenCalled();
+    expect(appJotaiStore.get(isCollaboratingAtom)).toBe(false);
+  });
+});

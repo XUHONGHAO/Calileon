@@ -213,13 +213,38 @@ export type InitializedExcalidrawAudioElement = MarkNonNullable<
   "fileId"
 >;
 
+/**
+ * A camera recording (ADR 0035). Never synced to realtime collaboration.
+ * The aspect ratio is fixed by the recording; restore validates but never
+ * recomputes geometry, and the element is never rotated.
+ */
+export type ExcalidrawVideoElement = _ExcalidrawElementBase &
+  Readonly<{
+    type: "video";
+    fileId: FileId | null;
+    status: FileElementStatus;
+    source: "camera";
+    /** milliseconds, VIDEO_RECORDING_MIN_DURATION..VIDEO_RECORDING_MAX_DURATION */
+    duration: number;
+    hasAudio: boolean;
+    /** small inline cover (`data:image/webp|jpeg`), drawn without the file */
+    poster: string | null;
+  }>;
+
+export type InitializedExcalidrawVideoElement = MarkNonNullable<
+  ExcalidrawVideoElement,
+  "fileId"
+>;
+
 export type ExcalidrawFileBackedElement =
   | ExcalidrawImageElement
-  | ExcalidrawAudioElement;
+  | ExcalidrawAudioElement
+  | ExcalidrawVideoElement;
 
 export type InitializedExcalidrawFileBackedElement =
   | InitializedExcalidrawImageElement
-  | InitializedExcalidrawAudioElement;
+  | InitializedExcalidrawAudioElement
+  | InitializedExcalidrawVideoElement;
 
 export type ExcalidrawFrameElement = _ExcalidrawElementBase & {
   type: "frame";
@@ -258,6 +283,7 @@ export type ExcalidrawRectanguloidElement =
   | ExcalidrawFrameLikeElement
   | ExcalidrawEmbeddableElement
   | ExcalidrawAudioElement
+  | ExcalidrawVideoElement
   | ExcalidrawSelectionElement;
 
 /**
@@ -276,7 +302,8 @@ export type ExcalidrawElement =
   | ExcalidrawMagicFrameElement
   | ExcalidrawIframeElement
   | ExcalidrawEmbeddableElement
-  | ExcalidrawAudioElement;
+  | ExcalidrawAudioElement
+  | ExcalidrawVideoElement;
 
 export type ExcalidrawNonSelectionElement = Exclude<
   ExcalidrawElement,

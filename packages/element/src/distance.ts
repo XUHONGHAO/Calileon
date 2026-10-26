@@ -41,6 +41,7 @@ export const distanceToElement = (
     case "frame":
     case "magicframe":
     case "audio":
+    case "video":
       return distanceToRectanguloidElement(element, elementsMap, p);
     case "diamond":
       return distanceToDiamondElement(element, elementsMap, p);

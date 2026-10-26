@@ -15,6 +15,7 @@ import {
   newIframeElement,
   newImageElement,
   newAudioElement,
+  newVideoElement,
   newLinearElement,
   newMagicFrameElement,
   newTextElement,
@@ -34,6 +35,7 @@ import type {
   ExcalidrawFreeDrawElement,
   ExcalidrawImageElement,
   ExcalidrawAudioElement,
+  ExcalidrawVideoElement,
   FileId,
   ExcalidrawFrameElement,
   ExcalidrawElementType,
@@ -204,12 +206,16 @@ export class API {
       : never;
     points?: T extends "arrow" | "line" | "freedraw" ? readonly LocalPoint[] : never;
     locked?: boolean;
-    fileId?: T extends "image" | "audio" ? string : never;
+    fileId?: T extends "image" | "audio" | "video" ? string : never;
     scale?: T extends "image" ? ExcalidrawImageElement["scale"] : never;
-    status?: T extends "image" | "audio"
+    status?: T extends "image" | "audio" | "video"
       ? ExcalidrawImageElement["status"]
       : never;
-    duration?: T extends "audio" ? ExcalidrawAudioElement["duration"] : never;
+    duration?: T extends "audio" | "video"
+      ? ExcalidrawAudioElement["duration"]
+      : never;
+    hasAudio?: T extends "video" ? ExcalidrawVideoElement["hasAudio"] : never;
+    poster?: T extends "video" ? ExcalidrawVideoElement["poster"] : never;
     peaks?: T extends "audio" ? ExcalidrawAudioElement["peaks"] : never;
     transcript?: T extends "audio"
       ? ExcalidrawAudioElement["transcript"]
@@ -243,6 +249,8 @@ export class API {
     ? ExcalidrawImageElement
     : T extends "audio"
     ? ExcalidrawAudioElement
+    : T extends "video"
+    ? ExcalidrawVideoElement
     : T extends "frame"
     ? ExcalidrawFrameElement
     : T extends "magicframe"
@@ -386,6 +394,22 @@ export class API {
           author: rest.author ?? null,
           hostId: rest.hostId ?? null,
         });
+        break;
+      case "video":
+        element = newVideoElement({
+          ...base,
+          source: "camera",
+          duration: rest.duration ?? 5000,
+          naturalWidth: width,
+          naturalHeight: height,
+          hasAudio: rest.hasAudio ?? false,
+          poster: rest.poster ?? null,
+          fileId: (rest.fileId as string as FileId) ?? null,
+          status: rest.status || "saved",
+        });
+        // tests pass explicit sizes; keep them instead of the default size
+        element.width = width;
+        element.height = height;
         break;
       case "frame":
         element = newFrameElement({ ...base, width, height });
