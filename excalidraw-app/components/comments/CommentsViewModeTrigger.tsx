@@ -1,6 +1,6 @@
 import { DEFAULT_SIDEBAR } from "@excalidraw/common";
 import { Sidebar } from "@excalidraw/excalidraw";
-import { messageCircleIcon } from "@excalidraw/excalidraw/components/icons";
+import { sidebarRightIcon } from "@excalidraw/excalidraw/components/icons";
 import { t } from "@excalidraw/excalidraw/i18n";
 import { memo } from "react";
 
@@ -12,7 +12,9 @@ import type { CommentsController } from "../../comments/commentsController";
 
 /**
  * View mode (read-only `#cloud=` links) hides the editor's sidebar trigger,
- * so visitors who may comment (C8) get this one, opening the comments tab.
+ * so visitors who may comment (C8) get this stand-in. It looks like the
+ * regular sidebar trigger (same icon and title) but opens the comments tab,
+ * and carries the comments unread dot.
  */
 export const CommentsViewModeTrigger = memo(
   ({ controller }: { controller: CommentsController | null }) => {
@@ -22,8 +24,10 @@ export const CommentsViewModeTrigger = memo(
         <Sidebar.Trigger
           name={DEFAULT_SIDEBAR.name}
           tab="comments"
-          icon={messageCircleIcon}
-          title={badge ? t("comments.tabBadge") : t("ai.sidebar.comments")}
+          icon={sidebarRightIcon}
+          title={
+            badge ? t("comments.tabBadge") : t("ai.sidebar.workbenchTitle")
+          }
         />
         {badge && (
           <span className="CommentsViewModeTrigger__badge" aria-hidden="true" />

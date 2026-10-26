@@ -306,51 +306,7 @@
     }
   }
 
-  .app-sidebar-commandHeader {
-    box-sizing: border-box;
-    display: block;
-    padding: var(--app-sidebar-padding, var(--ui-space-3));
-    padding-bottom: 0;
-    background: var(--sidebar-bg-color);
-  }
-
-  .app-sidebar-commandHeader__flow {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: var(--ui-space-1);
-    min-width: 0;
-
-    span {
-      min-width: 0;
-      border-radius: var(--ui-radius-md);
-      padding: var(--ui-space-1) var(--ui-space-1_5);
-      background: var(--color-surface-mid);
-      color: var(--text-secondary-color);
-      font-size: var(--ui-font-xs);
-      font-weight: var(--ui-weight-semibold);
-      line-height: 1.15;
-      text-align: center;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-
-      &.is-active {
-        background: var(--color-ai-accent-bg);
-        color: var(--color-ai-accent-text);
-        box-shadow: inset 0 0 0 1px var(--color-ai-accent-border);
-      }
-
-      &.is-disabled {
-        opacity: 0.62;
-      }
-    }
-  }
-
   @media (max-width: 520px) {
-    .app-sidebar-commandHeader__flow {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
     .default-sidebar.app-sidebar-dock .app-sidebar-tab-trigger__label {
       display: none;
     }

@@ -274,7 +274,6 @@ export const AppSidebar = memo(
             {...keepMountedProps(keptTabs.has("ai-image"))}
           >
             <TabShown tab="ai-image" onShown={keepTab} />
-            <AppSidebarCommandHeader activeArea="Create" />
             <AIImageWorkbench
               excalidrawAPI={excalidrawAPI}
               persistenceScopeId={persistenceScopeId}
@@ -292,7 +291,6 @@ export const AppSidebar = memo(
             tab="ai-generation-logs"
             className="AIGenerationLogPanelTab"
           >
-            <AppSidebarCommandHeader activeArea="History" />
             <AIGenerationLogPanel onReuseLog={reuseGenerationLog} />
           </Sidebar.Tab>
           <Sidebar.Tab
@@ -301,7 +299,6 @@ export const AppSidebar = memo(
             {...keepMountedProps(keptTabs.has("ai-assistant"))}
           >
             <TabShown tab="ai-assistant" onShown={keepTab} />
-            <AppSidebarCommandHeader activeArea="Assistant" />
             <CustomAgentChat
               excalidrawAPI={excalidrawAPI}
               incomingPrompt={assistantIncomingPrompt}
@@ -462,44 +459,3 @@ const AppSidebarTabTriggerContent = ({
     {label && <span className="app-sidebar-tab-trigger__label">{label}</span>}
   </span>
 );
-
-const AppSidebarCommandHeader = ({
-  activeArea,
-}: {
-  activeArea: "Create" | "Assistant" | "History";
-}) => {
-  return (
-    <div className="app-sidebar-commandHeader">
-      <div
-        className="app-sidebar-commandHeader__flow"
-        role="list"
-        aria-label={t("ai.sidebar.workflow")}
-      >
-        <span
-          role="listitem"
-          className={activeArea === "Create" ? "is-active" : undefined}
-        >
-          {t("ai.workbench.title")}
-        </span>
-        <span role="listitem" className="is-disabled" data-disabled="true">
-          {t("ai.sidebar.references")}
-        </span>
-        <span role="listitem" className="is-disabled" data-disabled="true">
-          {t("ai.common.inpaint")}
-        </span>
-        <span
-          role="listitem"
-          className={activeArea === "Assistant" ? "is-active" : undefined}
-        >
-          {t("ai.sidebar.assistantLabel")}
-        </span>
-        <span
-          role="listitem"
-          className={activeArea === "History" ? "is-active" : undefined}
-        >
-          {t("ai.sidebar.history")}
-        </span>
-      </div>
-    </div>
-  );
-};
