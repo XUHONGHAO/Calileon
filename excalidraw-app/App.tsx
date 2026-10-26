@@ -172,6 +172,11 @@ import {
   uploadSharedSceneAssets,
 } from "./data/cloud/cloudAssets";
 import { recordCloudAITask } from "./data/cloud/cloudAITasks";
+import { isSingleFileRuntime } from "./comments/availability";
+import {
+  useCommentAvailability,
+  useCommentsHost,
+} from "./comments/useSceneComments";
 import { forwardCastEditorPointerUpdate } from "./cast";
 import { getCloudEmbedAccessFromUrl } from "./data/cloud/cloudEmbedLinks";
 import { getCloudShareAccessFromUrl } from "./data/cloud/cloudShareLinks";
@@ -230,6 +235,7 @@ import "./index.scss";
 
 import { ExcalidrawPlusPromoBanner } from "./components/ExcalidrawPlusPromoBanner";
 import { AppSidebar } from "./components/AppSidebar";
+import { CommentsViewModeTrigger } from "./components/comments/CommentsViewModeTrigger";
 import { ConfirmHost } from "./components/ui";
 import { AIVideoAssetPlayer } from "./components/AIVideoAssetPlayer";
 
@@ -1423,6 +1429,9 @@ const ExcalidrawWrapper = () => {
 
   const [errorMessage, setErrorMessage] = useState("");
   const [isCloudAccountOpen, setIsCloudAccountOpen] = useState(false);
+  // the account dialog was opened from the comments tab: after signing in,
+  // stay on the board instead of opening the scene list
+  const commentSignInRef = useRef(false);
   const [isSingleFileDialogOpen, setIsSingleFileDialogOpen] = useState(false);
   const [isCloudSceneListOpen, setIsCloudSceneListOpen] = useState(false);
   const [isCloudAITaskListOpen, setIsCloudAITaskListOpen] = useState(false);
@@ -4992,6 +5001,46 @@ const ExcalidrawWrapper = () => {
     [excalidrawAPI, isCollabDisabled, onCollabDialogOpen, onShareDialogOpen],
   );
 
+  // ADR 0037: comments on plain cloud whiteboards
+  const commentAvailability = useCommentAvailability({
+    enabled: !!getCloudBackend().capabilities.sceneComments,
+    isSignedIn: cloudAuth.isSignedIn,
+    cloudScene: activeCloudScene,
+    sharedScene: activeSharedScene,
+    isEmbedded: !!activeEmbeddedScene || isRunningInIframe(),
+    isVault: isVaultMode,
+    isCollaborating,
+    isSingleFile: isSingleFileRuntime(),
+  });
+  const commentViewerId = cloudAuth.user?.id ?? null;
+  // hosted here, not in the tab, so the badge works with the tab closed and
+  // in view mode, where the sidebar's own trigger is hidden
+  const comments = useCommentsHost(
+    commentAvailability,
+    commentViewerId,
+    getCloudBackend().comments ?? null,
+  );
+  const openCommentSignIn = useCallback(() => {
+    commentSignInRef.current = true;
+    setIsCloudAccountOpen(true);
+  }, []);
+  useEffect(() => {
+    // onSignedIn runs right after onClose, before this effect
+    if (!isCloudAccountOpen) {
+      commentSignInRef.current = false;
+    }
+  }, [isCloudAccountOpen]);
+  const saveCurrentSceneToCloudRef = useRef(saveCurrentSceneToCloud);
+  saveCurrentSceneToCloudRef.current = saveCurrentSceneToCloud;
+  const isSignedInForComments = cloudAuth.isSignedIn;
+  const saveSceneForComments = useCallback(() => {
+    if (!isSignedInForComments) {
+      openCommentSignIn();
+      return;
+    }
+    void saveCurrentSceneToCloudRef.current();
+  }, [isSignedInForComments, openCommentSignIn]);
+
   // browsers generally prevent infinite self-embedding, there are
   // cases where it still happens, and while we disallow self-embedding
   // by not whitelisting our own origin, this serves as an additional guard
@@ -5083,17 +5132,24 @@ const ExcalidrawWrapper = () => {
         autoFocus={true}
         theme={editorTheme}
         onThemeChange={setAppTheme}
-        renderTopRightUI={(isMobile) => {
+        renderTopRightUI={(isMobile, uiAppState) => {
           const canManageVault =
             activeVault?.session.role === "editor" &&
             !["revoked", "expired", "closed"].includes(activeVault.syncStatus);
           const showCollaborationControls =
             !isMobile && !!collabAPI && !isCollabDisabled;
+          // view mode hides the sidebar trigger; read-only visitors may still
+          // comment (ADR 0037 C8)
+          const showCommentsTrigger =
+            uiAppState.viewModeEnabled &&
+            (commentAvailability.kind === "ready" ||
+              commentAvailability.kind === "signed-out");
 
           if (
             !activeVault &&
             !(vaultV2Session && vaultV2UiState) &&
-            !showCollaborationControls
+            !showCollaborationControls &&
+            !showCommentsTrigger
           ) {
             return null;
           }
@@ -5193,6 +5249,9 @@ const ExcalidrawWrapper = () => {
                   />
                 </>
               )}
+              {showCommentsTrigger && (
+                <CommentsViewModeTrigger controller={comments.controller} />
+              )}
             </div>
           );
         }}
@@ -5280,7 +5339,11 @@ const ExcalidrawWrapper = () => {
         <AuthDialog
           open={isCloudAccountOpen}
           onClose={() => setIsCloudAccountOpen(false)}
-          onSignedIn={() => setIsCloudSceneListOpen(true)}
+          onSignedIn={() => {
+            if (!commentSignInRef.current) {
+              setIsCloudSceneListOpen(true);
+            }
+          }}
           onOpenCloudScenes={() => {
             setIsCloudAccountOpen(false);
             setIsCloudSceneListOpen(true);
@@ -5446,6 +5509,12 @@ const ExcalidrawWrapper = () => {
             onMaskReady={registerWorkbenchMaskReadyHandler}
             onCloudAITaskRun={recordActiveCloudAITask}
             onPersistVideoOutput={persistActiveCloudVideoOutput}
+            commentAvailability={commentAvailability}
+            commentsController={comments.controller}
+            commentViewerId={commentViewerId}
+            onCommentRetry={comments.retry}
+            onCommentSignIn={openCommentSignIn}
+            onCommentSaveToCloud={saveSceneForComments}
           />
         )}
 
