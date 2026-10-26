@@ -198,7 +198,7 @@ describe("CameraCaptureDialog (ADR 0035 §5)", () => {
     fireEvent.click(screen.getByTestId("camera-stop-recording"));
     await screen.findByTestId("camera-review-video");
     // the camera light goes off during review
-    expect(harness.camTrack.stop).toHaveBeenCalled();
+    await waitFor(() => expect(harness.camTrack.stop).toHaveBeenCalled());
     fireEvent.click(screen.getByTestId("camera-insert"));
     await waitFor(() => expect(onClose).toHaveBeenCalled());
     expect(api.insertVideoRecording).toHaveBeenCalledWith({
