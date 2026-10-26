@@ -29,6 +29,11 @@ if [ "$VAULT_DEPLOYMENT_SCOPE" = "full" ]; then
   # fixture accounts inside one transaction that always rolls back.
   psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -q \
     -f /schema/schema_comments_smoke.sql
+
+  # Camera recordings (ADR 0035): share and embed RPCs never hand out or
+  # register `video` assets. Fixture rows, rolled back.
+  psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -q \
+    -f /schema/schema_video_privacy_smoke.sql
 fi
 
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_smoke.sql

@@ -133,6 +133,8 @@ as $$
     on a.scene_id = s.id
    and a.owner_id = s.owner_id
    and a.deleted_at is null
+   -- camera recordings stay with the owner; embeds only get the poster (ADR 0035)
+   and a.type <> 'video'
   where e.token = p_token
     and e.revoked = false
     and p_origin = any(e.allowed_origins)
@@ -224,7 +226,7 @@ begin
   end if;
 
   v_expected_path := v_owner_id::text || '/' || v_scene_id::text || '/' || p_file_id;
-  if p_storage_path <> v_expected_path then
+  if p_storage_path <> v_expected_path or p_type = 'video' then
     raise exception 'cloud-embed-forbidden';
   end if;
 
@@ -254,7 +256,13 @@ begin
     mime_type = excluded.mime_type,
     bytes = excluded.bytes,
     deleted_at = null
+  -- an embed host must not repoint the owner's camera recording row
+  where public.assets.type <> 'video'
   returning * into v_asset;
+
+  if not found then
+    raise exception 'cloud-embed-forbidden';
+  end if;
 
   return v_asset;
 end;
