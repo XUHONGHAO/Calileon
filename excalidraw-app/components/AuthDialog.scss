@@ -70,6 +70,25 @@
     padding-bottom: var(--ui-space-4);
   }
 
+  // Signed-in identity + tabs: outside the scroll body so a long panel can
+  // neither scroll them away nor squeeze them (.UiTabs scrolls horizontally,
+  // which lets a flex column shrink it to almost nothing).
+  .AuthDialog__header {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: var(--ui-space-4);
+    min-width: 0;
+    // same inline room as the scroll body, for the focus rings
+    margin-inline: calc(-1 * var(--ui-space-1));
+    padding: var(--ui-space-1) var(--ui-space-1) var(--ui-space-4);
+    margin-top: calc(-1 * var(--ui-space-1));
+  }
+
+  .AuthDialog__tabs {
+    flex-shrink: 0;
+  }
+
   .AuthDialog__intro {
     margin: 0;
     font-size: var(--ui-font-sm);

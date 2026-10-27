@@ -115,7 +115,9 @@ describe("AccountAISettingsSync (ADR 0038)", () => {
     setModels("m1");
     await startEngine(service);
     render(<AccountAISettingsSync />);
-    expect(screen.getByText(/Use your models, agents/)).toBeVisible();
+    expect(
+      screen.getByText(/On another computer or browser, sign in/),
+    ).toBeVisible();
 
     fireEvent.click(theSwitch());
     expect(theSwitch()).toHaveAttribute("aria-checked", "true");
@@ -153,7 +155,7 @@ describe("AccountAISettingsSync (ADR 0038)", () => {
     await startEngine(service);
     render(<AccountAISettingsSync />);
     expect(
-      screen.getByText(/Your account has saved AI settings/),
+      screen.getByText(/This account already has saved AI settings/),
     ).toBeVisible();
 
     fireEvent.click(theSwitch());

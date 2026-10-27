@@ -463,7 +463,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     );
   });
 
-  it("shows current cloud scene cast artifact summary and refreshes it", async () => {
+  it("no longer shows or loads cast recordings on the whiteboard tab", async () => {
     const castSessions = [
       {
         id: "cast-1",
@@ -507,22 +507,10 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     );
     await openDialogTab("This whiteboard");
 
-    expect(await screen.findByText("Recording artifacts")).toBeInTheDocument();
-    expect(screen.getByText("Sessions: 1 · Exports: 1")).toBeInTheDocument();
-    expect(screen.getByText("Latest: Exported")).toBeInTheDocument();
-    expect(backend.cast.listByScene).toHaveBeenCalledWith("scene-1", {
-      limit: 20,
-    });
-    expect(backend.cast.listExportsByScene).toHaveBeenCalledWith("scene-1", {
-      limit: 20,
-    });
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Refresh cast artifacts" }),
-    );
-    await waitFor(() =>
-      expect(backend.cast.listByScene).toHaveBeenCalledTimes(2),
-    );
+    expect(await screen.findByText("Current whiteboard")).toBeInTheDocument();
+    expect(screen.queryByText("Recording artifacts")).not.toBeInTheDocument();
+    expect(backend.cast.listByScene).not.toHaveBeenCalled();
+    expect(backend.cast.listExportsByScene).not.toHaveBeenCalled();
   });
 
   it("shows current cloud scene embed summary and opens management", async () => {
