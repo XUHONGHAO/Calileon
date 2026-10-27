@@ -295,7 +295,9 @@ export const serializePromptTemplates = (templates: PromptTemplate[]) => {
   );
 };
 
-const normalizePromptTemplate = (value: unknown): PromptTemplate | null => {
+export const normalizePromptTemplate = (
+  value: unknown,
+): PromptTemplate | null => {
   if (!value || typeof value !== "object") {
     return null;
   }

@@ -1,22 +1,10 @@
 .excalidraw {
-  .AccountAvatarSettings__body {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    gap: var(--ui-space-4);
-    min-width: 0;
-  }
-
-  .AccountAvatarSettings__controls {
-    display: flex;
-    flex: 1 1 14rem;
-    flex-direction: column;
-    gap: var(--ui-space-3);
-    min-width: 0;
-  }
-
-  .AccountAvatarSettings__glyph {
+  // one glyph in a square: drop UiInput's side padding, which left ~14px for an
+  // 18px CJK character and clipped it
+  .UiInput.AccountAvatarSettings__glyph {
     width: var(--ui-control-lg);
+    height: var(--ui-control-lg);
+    padding: 0;
     text-align: center;
     font-size: var(--ui-font-lg);
     font-weight: var(--ui-weight-semibold);
@@ -56,7 +44,6 @@
     align-items: center;
     justify-content: flex-end;
     gap: var(--ui-space-2);
-    margin-top: var(--ui-space-3);
   }
 
   .AccountAvatarSettings__status {

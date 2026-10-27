@@ -1933,7 +1933,13 @@
       "email": "邮箱",
       "password": "密码",
       "cancel": "取消",
-      "genericError": "登录失败，请重试。"
+      "genericError": "登录失败，请重试。",
+      "tabsLabel": "账号分区",
+      "tabAccount": "账号",
+      "tabWhiteboard": "当前白板",
+      "tabDeployment": "部署",
+      "noCloudWhiteboard": "当前画布还没有保存到账号。保存到云端后，这里会显示版本、协作房间、录制和嵌入。",
+      "preferences": "偏好设置"
     },
     "errors": {
       "notConfigured": "云端后端未配置，本地数据已保留。",
@@ -2158,7 +2164,10 @@
         "olive": "橄榄绿",
         "navy": "藏青",
         "slate": "石板灰"
-      }
+      },
+      "rowHint": "显示在你的语音消息旁。",
+      "edit": "编辑",
+      "done": "完成"
     }
   },
   "vault": {
@@ -2706,6 +2715,64 @@
       "recorderUnsupported": "此浏览器无法录像，拍照仍可使用。",
       "cameraError": "无法启动摄像头，请检查后重试。",
       "micUnavailable": "无法打开麦克风。关闭“录制声音”即可无声录制。"
+    }
+  },
+  "accountSync": {
+    "title": "AI 设置存到账号",
+    "switchLabel": "把 AI 设置存到账号",
+    "unavailable": "当前部署未开启此功能。",
+    "loading": "正在检查账号……",
+    "offEmpty": "在每台设备上使用同一套模型、智能体、提示词模板和网络设置。用只有你知道的同步口令加密。",
+    "offRemote": "你的账号里已存有 AI 设置。打开后输入同步口令即可在本设备使用。",
+    "syncedAt": "已同步 · {{time}}",
+    "justNow": "刚刚",
+    "minutesAgo": "{{count}} 分钟前",
+    "hoursAgo": "{{count}} 小时前",
+    "syncing": "正在同步……",
+    "syncFailed": "同步失败：{{message}}",
+    "retry": "重试",
+    "checkFailed": "无法检查账号：{{message}}",
+    "noticeRemoteRemoved": "账号里的 AI 设置已在其他设备上删除，本设备已停止同步。本设备上的设置保持不变。",
+    "noticePassphraseChanged": "同步口令已在其他设备上修改。输入新口令即可继续同步。",
+    "setupIntro": "设置（含 API Key）会先在本浏览器内加密再上传。服务器看不到口令，也看不到你的密钥。",
+    "passphrase": "同步口令",
+    "passphraseHint": "至少 8 个字符。口令无法找回：忘记后只能删除账号里的副本并重新设置。",
+    "confirmPassphrase": "再次输入口令",
+    "mismatch": "两次输入的口令不一致。",
+    "setupSubmit": "开启同步",
+    "encrypting": "正在加密……",
+    "cancel": "取消",
+    "unlockIntro": "输入你在其他设备上设置的同步口令。",
+    "unlockSubmit": "解锁",
+    "unlocking": "正在解锁……",
+    "forgot": "忘记口令？",
+    "forgotConfirm": "没有口令就无法解密账号里的 AI 设置。要删除它们，并用新口令重新开启同步吗？本设备上的设置保持不变。",
+    "forgotConfirmTitle": "重新开始",
+    "conflictIntro": "本设备和账号里的{{sections}}不一样。要保留哪一份？",
+    "conflictHint": "只有一边有的设置都会保留。",
+    "keepAccount": "用账号里的",
+    "keepDevice": "用本设备的",
+    "sectionModels": "模型",
+    "sectionAgents": "智能体",
+    "sectionTemplates": "提示词模板",
+    "sectionNetwork": "网络设置",
+    "sectionSeparator": "、",
+    "syncNow": "立即同步",
+    "deleteRemote": "从账号删除",
+    "deleteRemoteConfirm": "删除账号里保存的 AI 设置？所有设备都会停止同步，各设备上的设置保持不变。",
+    "deleteRemoteConfirmTitle": "从账号删除 AI 设置",
+    "moreActions": "更多同步操作",
+    "errors": {
+      "wrongPassphrase": "口令不对，无法解锁设置。",
+      "passphraseTooShort": "至少需要 8 个字符。",
+      "unsupportedFormat": "账号里的 AI 设置由更新的版本保存。请刷新页面后重试。",
+      "unsupportedKdf": "账号里的 AI 设置使用了当前版本不接受的加密参数。",
+      "tooLarge": "AI 设置太大，无法同步（超过 512 KB）。",
+      "insecureContext": "加密需要安全连接（HTTPS）。",
+      "remoteMissing": "账号里已没有保存的 AI 设置。",
+      "remoteExists": "账号里已存有 AI 设置，请改为输入它的口令。",
+      "conflict": "另一台设备同时保存了设置，请重试。",
+      "generic": "出了点问题，请重试。"
     }
   }
 }

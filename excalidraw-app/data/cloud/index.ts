@@ -31,6 +31,7 @@ import {
   createLocalShareService,
   createLocalVideoAssetService,
 } from "./LocalAdapter";
+import { createSupabaseAccountSettingsService } from "./supabase/SupabaseAccountSettingsService";
 import { createSupabaseAssetStorage } from "./supabase/SupabaseAssetStorage";
 import { createSupabaseAuthProvider } from "./supabase/SupabaseAuthProvider";
 import { createSupabaseAITaskService } from "./supabase/SupabaseAITaskService";
@@ -121,6 +122,9 @@ const assembleSupabaseBackend = (
       : createLocalAiGateway(),
     ...(capabilities.sceneComments
       ? { comments: createSupabaseCommentService() }
+      : {}),
+    ...(capabilities.accountSettingsSync
+      ? { accountSettings: createSupabaseAccountSettingsService() }
       : {}),
   };
 };
