@@ -10,7 +10,7 @@ import { editorJotaiStore } from "../editor-jotai";
 
 import { API } from "./helpers/api";
 import { Keyboard, Pointer, UI } from "./helpers/ui";
-import { act, fireEvent, render, screen, waitFor } from "./test-utils";
+import { act, fireEvent, render, screen, waitFor, within } from "./test-utils";
 
 import type { VoiceRecording } from "../voice/recorder";
 import type { Collaborator, DataURL, SocketId } from "../types";
@@ -21,18 +21,21 @@ const mocks = vi.hoisted(() => ({
   recording: null as VoiceRecording | null,
   started: 0,
   discarded: 0,
+  devices: [] as MediaDeviceInfo[],
+  startedWith: [] as (string | null | undefined)[],
 }));
 
 vi.mock("../voice/recorder", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../voice/recorder")>();
   return {
     ...actual,
-    listMicrophones: async () => [],
-    startVoiceRecorder: async () => {
+    listMicrophones: async () => mocks.devices,
+    startVoiceRecorder: async ({ deviceId }: { deviceId?: string | null }) => {
       mocks.started++;
+      mocks.startedWith.push(deviceId);
       return {
         track: {} as MediaStreamTrack,
-        deviceId: null,
+        deviceId: deviceId ?? mocks.devices[0]?.deviceId ?? null,
         elapsed: () => 0,
         level: () => 0.5,
         stop: async () => mocks.recording!,
@@ -85,7 +88,52 @@ describe("voice tool (ADR 0034 §4)", () => {
     mocks.recording = recording(5000);
     mocks.started = 0;
     mocks.discarded = 0;
+    mocks.devices = [];
+    mocks.startedWith = [];
+    localStorage.removeItem("excalidraw-voice-input-device");
     mouse.reset();
+  });
+
+  it("switches microphones from a styled dropdown; Esc closes it before discarding", async () => {
+    mocks.devices = [
+      { deviceId: "built-in", label: "Built-in Microphone" },
+      { deviceId: "usb", label: "USB Headset" },
+    ] as MediaDeviceInfo[];
+    await renderVoice();
+    await startRecordingAt(100, 100);
+
+    const trigger = await screen.findByRole("combobox", {
+      name: "Microphone",
+    });
+    expect(trigger).toHaveTextContent("Built-in Microphone");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(trigger);
+    const list = screen.getByRole("listbox", { name: "Microphone" });
+    const options = within(list).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Built-in Microphone",
+      "USB Headset",
+    ]);
+    expect(options[0]).toHaveAttribute("aria-selected", "true");
+
+    // Esc only closes the list; the recording keeps going
+    fireEvent.keyDown(trigger, { key: KEYS.ESCAPE });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(screen.getByRole("group", RECORDER)).toBeInTheDocument();
+    expect(mocks.discarded).toBe(0);
+
+    // keyboard: open, move down, pick -> restarts on the chosen device
+    fireEvent.keyDown(trigger, { key: KEYS.ARROW_DOWN });
+    fireEvent.keyDown(trigger, { key: KEYS.ARROW_DOWN });
+    fireEvent.keyDown(trigger, { key: KEYS.ENTER });
+    await waitFor(() => expect(mocks.startedWith).toEqual([null, "usb"]));
+    expect(
+      await screen.findByRole("combobox", { name: "Microphone" }),
+    ).toHaveTextContent("USB Headset");
+    expect(
+      JSON.parse(localStorage.getItem("excalidraw-voice-input-device")!),
+    ).toBe("usb");
   });
 
   it("is hidden unless the host enables voice", async () => {
