@@ -51,10 +51,7 @@ Pin the official self-hosted images to `versions.env`, then add these repository
 
 Configure the Edge Runtime with:
 
-- `SUPABASE_PUBLIC_URL=<browser-reachable HTTPS Supabase origin>`; signed Vault
-  downloads use this origin. Keep `SUPABASE_URL` on the internal Docker API
-  origin for server-side requests. Hosted Supabase and loopback development
-  may omit the public override when `SUPABASE_URL` is already browser-reachable.
+- `SUPABASE_PUBLIC_URL=<browser-reachable HTTPS Supabase origin>`; signed Vault downloads use this origin. Keep `SUPABASE_URL` on the internal Docker API origin for server-side requests. Hosted Supabase and loopback development may omit the public override when `SUPABASE_URL` is already browser-reachable.
 - `APP_ALLOWED_ORIGINS=<APP_ORIGIN>`;
 - `VAULT_ROOM_CONTROL_PLANE_URL=<APP_ORIGIN>/vault/control-plane/disconnect`;
 - `VAULT_ROOM_CONTROL_PLANE_TOKEN=<same random token as room-server>`.
@@ -63,64 +60,34 @@ Do not expose service-role keys to the App or room-server. Only the Edge Runtime
 
 ## Deployment scope
 
-`VAULT_DEPLOYMENT_SCOPE` selects which database shape the `migrate` and
-`schema-smoke` profiles work with. It is read from the deployment env file and
-defaults to `vault-only` when absent.
+`VAULT_DEPLOYMENT_SCOPE` selects which database shape the `migrate` and `schema-smoke` profiles work with. It is read from the deployment env file and defaults to `vault-only` when absent.
 
 | Value | Installs | Storage smoke |
 | --- | --- | --- |
 | `vault-only` (default) | Only the Vault schema, matching the frozen F4 acceptance for an isolated Vault deployment. | `schema_vault_storage_smoke.sql`, which requires that no client `storage.objects` policy exists. |
 | `full` | The Vault schema **and** the ordinary cloud backend (cloud scenes, assets, shares, embeds, activity log, Cast, collab rooms/persistence, AI tasks, AI video assets). | `vault-storage-smoke-full-scope.sql`, which keeps the Vault bucket and RLS assertions and replaces the isolation assertion with the property that actually protects the Vault. |
 
-The two shapes are mutually exclusive in the database: the ordinary backend needs
-client `storage.objects` policies so browsers can upload assets to
-`excalidraw-assets`, while the isolated Vault acceptance forbids any client
-policy on `storage.objects`. Both the ordinary backend's policies and the Vault
-bucket are bucket-scoped (`bucket_id = 'excalidraw-assets'`), so the Vault's own
-bucket stays unreachable either way.
+The two shapes are mutually exclusive in the database: the ordinary backend needs client `storage.objects` policies so browsers can upload assets to `excalidraw-assets`, while the isolated Vault acceptance forbids any client policy on `storage.objects`. Both the ordinary backend's policies and the Vault bucket are bucket-scoped (`bucket_id = 'excalidraw-assets'`), so the Vault's own bucket stays unreachable either way.
 
-**Choose `full` when the App build enables those features** -- that is the case
-for a build with this repository's default `VITE_APP_*` values. With
-`vault-only` those features fail at runtime even though the App is compiled to
-use them (starting a collaboration session reports "couldn't save to the backend
-database").
+**Choose `full` when the App build enables those features** -- that is the case for a build with this repository's default `VITE_APP_*` values. With `vault-only` those features fail at runtime even though the App is compiled to use them (starting a collaboration session reports "couldn't save to the backend database").
 
-Restores follow the same variable: `restore.ps1` reads it from `-EnvFile` so a
-restored database is reconciled and checked against the shape it was backed up
-from.
+Restores follow the same variable: `restore.ps1` reads it from `-EnvFile` so a restored database is reconciled and checked against the shape it was backed up from.
 
 ## Vault snapshot-update retention
 
-`public.vault_snapshot_updates` is an idempotency ledger, not an archive: before
-inserting, `cas_vault_snapshot` looks a row up by
-`(vault_id, room_id, update_id)` so that a retried update returns success
-instead of creating a second generation. Without a policy it grows without
-bound -- one full encrypted envelope per autosave, up to 50 MiB per row.
+`public.vault_snapshot_updates` is an idempotency ledger, not an archive: before inserting, `cas_vault_snapshot` looks a row up by `(vault_id, room_id, update_id)` so that a retried update returns success instead of creating a second generation. Without a policy it grows without bound -- one full encrypted envelope per autosave, up to 50 MiB per row.
 
-The `migrate` profile therefore installs
-`scripts/vault-snapshot-retention.sql`, which schedules a daily `pg_cron` job.
-Per `(vault_id, room_id)` it keeps the newest 50 rows, plus older rows while
-their cumulative ciphertext stays under 256 MiB. Capping bytes rather than rows
-matters because a single row may be up to 50 MiB.
+The `migrate` profile therefore installs `scripts/vault-snapshot-retention.sql`, which schedules a daily `pg_cron` job. Per `(vault_id, room_id)` it keeps the newest 50 rows, plus older rows while their cumulative ciphertext stays under 256 MiB. Capping bytes rather than rows matters because a single row may be up to 50 MiB.
 
-Deleting an old ledger row cannot lose data: a retry that no longer finds its
-row either runs as a benign duplicate (same content, newer generation) or fails
-the generation check with `VAULT_SNAPSHOT_CONFLICT`, which the client resolves by
-re-reading and merging.
+Deleting an old ledger row cannot lose data: a retry that no longer finds its row either runs as a benign duplicate (same content, newer generation) or fails the generation check with `VAULT_SNAPSHOT_CONFLICT`, which the client resolves by re-reading and merging.
 
-`pg_cron` must be listed in `shared_preload_libraries`; the official Supabase
-self-hosted image ships it preloaded and sets `cron.database_name`.
-`schema-smoke` fails when the job is missing, so a silently absent retention
-policy cannot pass acceptance.
+`pg_cron` must be listed in `shared_preload_libraries`; the official Supabase self-hosted image ships it preloaded and sets `cron.database_name`. `schema-smoke` fails when the job is missing, so a silently absent retention policy cannot pass acceptance.
 
-To change the thresholds, edit the two literals in
-`scripts/vault-snapshot-retention.sql` and re-run the `migrate` profile; the job
-is upserted by name.
+To change the thresholds, edit the two literals in `scripts/vault-snapshot-retention.sql` and re-run the `migrate` profile; the job is upserted by name.
 
 ## First deployment
 
-1. Copy `.env.example` to the ignored `.env` file and replace every placeholder.
-   Set `VAULT_DEPLOYMENT_SCOPE` as described above.
+1. Copy `.env.example` to the ignored `.env` file and replace every placeholder. Set `VAULT_DEPLOYMENT_SCOPE` as described above.
 2. Keep `VAULT_ENABLED=false` while installing Supabase, Edge Functions, schema, TLS, and origin rules.
 3. Validate configuration:
 
