@@ -34,6 +34,11 @@ if [ "$VAULT_DEPLOYMENT_SCOPE" = "full" ]; then
   # register `video` assets. Fixture rows, rolled back.
   psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -q \
     -f /schema/schema_video_privacy_smoke.sql
+
+  # Account AI settings (ADR 0038): owner-only RLS and the revision guard,
+  # also in a rolled-back transaction.
+  psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -q \
+    -f /schema/schema_account_settings_smoke.sql
 fi
 
 psql "$VAULT_DATABASE_URL" -v ON_ERROR_STOP=1 -f /schema/schema_vault_smoke.sql

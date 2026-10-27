@@ -205,7 +205,7 @@ const normalizeManagedRoutes = (value: unknown) => {
   );
 };
 
-const normalizeAIProxyConfig = (
+export const normalizeAIProxyConfig = (
   value: unknown,
   options: { production?: boolean } = {},
 ): AIProxyConfigV2 => {

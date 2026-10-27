@@ -17,6 +17,7 @@ services:
         VITE_APP_SUPABASE_URL: ${SUPABASE_PUBLIC_URL:?SUPABASE_PUBLIC_URL is required}
         VITE_APP_SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required}
         VITE_APP_SCENE_COMMENTS: ${SCENE_COMMENTS_ENABLED:-false}
+        VITE_APP_ACCOUNT_SETTINGS_SYNC: ${ACCOUNT_SETTINGS_SYNC_ENABLED:-false}
     restart: unless-stopped
     read_only: true
     tmpfs:

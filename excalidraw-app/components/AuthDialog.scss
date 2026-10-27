@@ -86,19 +86,26 @@
     }
   }
 
-  .AuthDialog__accountRow {
+  // Signed-in header: avatar, address, sign out. Sits above the tabs.
+  .AuthDialog__identity {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    justify-content: space-between;
-    gap: var(--ui-space-2);
+    gap: var(--ui-space-3);
     min-width: 0;
+
+    .excalidraw-audio-avatar {
+      flex: 0 0 auto;
+    }
+  }
+
+  .AuthDialog__signOut {
+    flex: 0 0 auto;
   }
 
   .AuthDialog__accountIdentity,
   .AuthDialog__summary {
     display: flex;
-    flex: 1 1 12rem;
+    flex: 1 1 auto;
     flex-direction: column;
     gap: var(--ui-space-0_5);
     min-width: 0;
@@ -108,6 +115,229 @@
   .AuthDialog__accountCard span {
     font-size: var(--ui-font-xs);
     color: var(--ui-text-secondary);
+  }
+
+  .AuthDialog__panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-4);
+    min-width: 0;
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+      border-radius: var(--ui-radius-md);
+    }
+  }
+
+  .AuthDialog__empty {
+    margin: 0;
+    padding: var(--ui-space-4);
+    border: 1px dashed var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-sm);
+    line-height: var(--ui-line-normal);
+    text-align: center;
+  }
+
+  .AuthDialog__cardLabel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ui-space-1);
+  }
+
+  .AuthDialog__cardChevron {
+    display: inline-flex;
+    color: var(--ui-text-secondary);
+    transition: transform var(--ui-transition);
+
+    svg {
+      width: var(--ui-space-4);
+      height: var(--ui-space-4);
+    }
+  }
+
+  .AuthDialog__accountCard:hover:not(:disabled) .AuthDialog__cardChevron {
+    transform: translateX(var(--ui-space-0_5));
+  }
+
+  // Grouped settings rows ("Preferences"), one bordered list.
+  .AuthDialog__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-2);
+    min-width: 0;
+  }
+
+  .AuthDialog__groupTitle {
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-weight-semibold);
+    line-height: var(--ui-line-tight);
+  }
+
+  .AuthDialog__groupBody {
+    border: 1px solid var(--ui-border);
+    border-radius: var(--ui-radius-lg);
+    background: var(--ui-surface);
+  }
+
+  .AccountSettingRow {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-3);
+    min-width: 0;
+    padding: var(--ui-space-3);
+
+    // not `& + &`: nested under .AuthDialog that would repeat the ancestor
+    & + .AccountSettingRow {
+      border-top: 1px solid var(--ui-border);
+    }
+  }
+
+  .AccountSettingRow__main {
+    display: flex;
+    align-items: center;
+    gap: var(--ui-space-3);
+    min-width: 0;
+  }
+
+  .AccountSettingRow__leading {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: var(--ui-space-8);
+    height: var(--ui-space-8);
+  }
+
+  .AccountSettingRow__icon {
+    border-radius: var(--ui-radius-md);
+    background: var(--ui-surface-sunken);
+    color: var(--ui-text-secondary);
+
+    svg {
+      width: var(--ui-space-5);
+      height: var(--ui-space-5);
+    }
+  }
+
+  .AccountSettingRow__text {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--ui-space-0_5);
+    min-width: 0;
+  }
+
+  .AccountSettingRow__title {
+    color: var(--ui-text);
+    font-size: var(--ui-font-sm);
+    font-weight: var(--ui-weight-medium);
+    line-height: var(--ui-line-tight);
+  }
+
+  .AccountSettingRow__meta,
+  .AccountSettingRow__intro,
+  .AccountSettingRow__hint {
+    margin: 0;
+    color: var(--ui-text-secondary);
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-line-normal);
+  }
+
+  .AccountSettingRow__meta--error {
+    color: var(--ui-danger-fg);
+  }
+
+  .AccountSettingRow__intro {
+    color: var(--ui-text);
+  }
+
+  .AccountSettingRow__detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-3);
+    min-width: 0;
+    padding-top: var(--ui-space-3);
+    border-top: 1px dashed var(--ui-border);
+  }
+
+  .AccountSettingRow__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ui-space-2);
+  }
+
+  // "Forgot it?" / "Cancel" stay apart from the main choice.
+  .AccountSettingRow__actionStart {
+    margin-inline-end: auto;
+  }
+
+  // On/off switch (no app primitive yet). Track 40×24, thumb 18.
+  .AccountSwitch {
+    --switch-pad: 3px;
+    position: relative;
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    width: var(--ui-control-lg);
+    height: var(--ui-space-6);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ui-radius-pill);
+    // the off track has to read as a control on the panel surface, in both themes
+    background: color-mix(
+      in srgb,
+      var(--ui-text-secondary) 60%,
+      var(--ui-surface)
+    );
+    cursor: pointer;
+    transition: background-color var(--ui-transition);
+
+    &:focus-visible {
+      outline: var(--ui-focus-outline);
+      outline-offset: var(--ui-focus-outline-offset);
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+  }
+
+  .AccountSwitch__thumb {
+    position: absolute;
+    top: var(--switch-pad);
+    left: var(--switch-pad);
+    width: calc(var(--ui-space-6) - 2 * var(--switch-pad));
+    height: calc(var(--ui-space-6) - 2 * var(--switch-pad));
+    border-radius: 50%;
+    background: var(--ui-surface);
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--ui-text) 25%, transparent);
+    transition: transform var(--ui-transition);
+  }
+
+  .AccountSwitch--on {
+    background: var(--color-primary);
+
+    .AccountSwitch__thumb {
+      background: var(--brand-on-gradient);
+      transform: translateX(calc(var(--ui-control-lg) - var(--ui-space-6)));
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .AccountSwitch,
+    .AccountSwitch__thumb,
+    .AuthDialog__cardChevron {
+      transition: none;
+    }
   }
 
   .AuthDialog__accountIdentity strong,
@@ -134,6 +364,11 @@
     color: var(--ui-danger-fg);
   }
 
+  // the count is what the card is for
+  .AuthDialog__accountCard strong {
+    font-size: var(--ui-font-md);
+  }
+
   .AuthDialog__accountGrid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -144,12 +379,12 @@
   .AuthDialog__accountCard {
     display: flex;
     flex-direction: column;
-    gap: var(--ui-space-1);
+    gap: var(--ui-space-0_5);
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
     margin: 0;
-    padding: var(--ui-space-3);
+    padding: var(--ui-space-2) var(--ui-space-3);
     border: 1px solid var(--ui-border);
     border-radius: var(--ui-radius-lg);
     background: var(--ui-surface);
@@ -222,8 +457,18 @@
 
 @media (max-width: 480px) {
   .AuthDialog {
+    // two short counters still fit side by side on a phone
     .AuthDialog__accountGrid {
-      grid-template-columns: 1fr;
+      gap: var(--ui-space-1_5);
+    }
+
+    // give the status line the room; the switch carries the meaning
+    .AccountSettingRow__icon {
+      display: none;
+    }
+
+    .AccountSettingRow__main {
+      gap: var(--ui-space-2);
     }
 
     .AuthDialog__sectionActions > .UiButton {

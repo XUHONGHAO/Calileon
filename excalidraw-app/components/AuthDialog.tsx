@@ -12,8 +12,13 @@
  * which is already sanitized for direct display (NFR-SEC).
  */
 
+import { THEME } from "@excalidraw/common";
+import { chevronRight } from "@excalidraw/excalidraw/components/icons";
+import { useUIAppState } from "@excalidraw/excalidraw/context/ui-appState";
 import { t } from "@excalidraw/excalidraw/i18n";
-import React, { useCallback, useEffect, useState } from "react";
+import { AudioAvatar } from "@excalidraw/excalidraw/voice/AudioAvatar";
+import { getDefaultAudioAvatar } from "@excalidraw/element";
+import React, { useCallback, useEffect, useId, useState } from "react";
 
 import { useCloudAuth } from "../auth/useCloudAuth";
 import {
@@ -28,6 +33,7 @@ import {
 } from "../data/cloud";
 import { readCloudDeploymentConfig } from "../data/cloud/deploymentConfig";
 
+import { AccountAISettingsSync } from "./AccountAISettingsSync";
 import { AccountAvatarSettings } from "./AccountAvatarSettings";
 import {
   AppDialog,
@@ -35,9 +41,11 @@ import {
   DialogActions,
   DialogSection,
   Field,
+  TabList,
   TextInput,
   UiButton,
   confirmAction,
+  getTabPanelProps,
 } from "./ui";
 
 import "./AuthDialog.scss";
@@ -190,6 +198,13 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
   isCollaborationActive = false,
 }) => {
   const { isSignedIn, user, signIn, signOut } = useCloudAuth();
+  const uiAppState = useUIAppState() as ReturnType<typeof useUIAppState> | null;
+  const theme = uiAppState?.theme ?? THEME.LIGHT;
+  const tabIdPrefix = useId();
+  // the component stays mounted while closed, so reopening keeps the tab
+  const [activeTab, setActiveTab] = useState<
+    "account" | "whiteboard" | "deployment"
+  >("account");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<DialogError | null>(null);
@@ -887,6 +902,8 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
 
   const accountLabel =
     user?.email || user?.displayName || t("cloud.auth.account");
+  // same fallback the avatar settings use, so the header matches the bubble
+  const identityName = user?.displayName || user?.email || null;
 
   const cloudSceneCountLabel =
     sceneStats.status === "loading"
@@ -1074,6 +1091,12 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     );
   }
 
+  const accountTabs = [
+    { value: "account" as const, label: t("cloud.auth.tabAccount") },
+    { value: "whiteboard" as const, label: t("cloud.auth.tabWhiteboard") },
+    { value: "deployment" as const, label: t("cloud.auth.tabDeployment") },
+  ];
+
   return (
     <AppDialog
       className="AuthDialogModal"
@@ -1085,321 +1108,389 @@ export const AuthDialog: React.FC<AuthDialogProps> = ({
     >
       <div className="AuthDialog AuthDialog--account">
         <div className="AuthDialog__scrollBody">
-          <p className="AuthDialog__intro">{t("cloud.auth.accountIntro")}</p>
-
-          <DialogSection
-            className="AuthDialog__section"
-            title={t("cloud.auth.account")}
-          >
-            <div className="AuthDialog__accountRow">
-              <div className="AuthDialog__accountIdentity">
-                <span>{t("cloud.auth.signedInAs")}</span>
-                <strong title={accountLabel}>{accountLabel}</strong>
-              </div>
-              <UiButton
-                variant="danger"
-                size="sm"
-                onClick={handleSignOut}
-                loading={signingOut}
-                disabled={sceneBusy}
-              >
-                {signingOut
-                  ? t("cloud.auth.signingOut")
-                  : t("cloud.auth.signOutShort")}
-              </UiButton>
+          <div className="AuthDialog__identity">
+            <AudioAvatar
+              avatar={user?.avatar ?? getDefaultAudioAvatar(identityName)}
+              size={40}
+              theme={theme}
+            />
+            <div className="AuthDialog__accountIdentity">
+              <strong title={accountLabel}>{accountLabel}</strong>
+              <span>{t("cloud.auth.signedInAs")}</span>
             </div>
-
-            <div className="AuthDialog__accountGrid">
-              <button
-                className="AuthDialog__accountCard AuthDialog__accountCard--button"
-                type="button"
-                onClick={handleOpenCloudScenes}
-                disabled={!onOpenCloudScenes || sceneBusy}
-              >
-                <span>{t("cloud.auth.cloudWhiteboards")}</span>
-                <strong>{cloudSceneCountLabel}</strong>
-                {sceneStats.status === "ready" && sceneStats.latestTitle && (
-                  <small title={sceneStats.latestTitle}>
-                    {t("cloud.auth.latestCloudWhiteboard", {
-                      title: sceneStats.latestTitle,
-                    })}
-                  </small>
-                )}
-                {sceneStats.status === "error" && (
-                  <small className="AuthDialog__cardError">
-                    {sceneStats.message}
-                  </small>
-                )}
-              </button>
-
-              <button
-                className="AuthDialog__accountCard AuthDialog__accountCard--button"
-                type="button"
-                onClick={handleOpenAITasks}
-                disabled={!onOpenAITasks || sceneBusy}
-              >
-                <span>{t("cloud.auth.cloudAITasks")}</span>
-                <strong>{cloudTaskCountLabel}</strong>
-                {taskStats.status === "ready" && taskStats.latestStatus && (
-                  <small>
-                    {t("cloud.auth.latestCloudAITask", {
-                      status: getAITaskStatusLabel(taskStats.latestStatus),
-                    })}
-                  </small>
-                )}
-                {taskStats.status === "error" && (
-                  <small className="AuthDialog__cardError">
-                    {taskStats.message}
-                  </small>
-                )}
-              </button>
-            </div>
-          </DialogSection>
-
-          <AccountAvatarSettings />
-
-          {activeCloudScene && (
-            <DialogSection
-              className="AuthDialog__section AuthDialog__currentScene"
-              title={t("cloud.auth.currentCloudWhiteboard")}
+            <UiButton
+              variant="ghost"
+              size="sm"
+              className="AuthDialog__signOut"
+              onClick={handleSignOut}
+              loading={signingOut}
+              disabled={sceneBusy}
             >
-              <div className="AuthDialog__summary">
-                <strong title={activeCloudScene.title}>
-                  {activeCloudScene.title}
-                </strong>
-                <small>
-                  {t("cloud.auth.currentCloudWhiteboardVersion", {
-                    version: activeCloudScene.version,
-                  })}
-                </small>
-                {cloudSceneRemoteUpdate.status !== "remote-newer" &&
-                  cloudSceneRemoteUpdate.status !== "error" && (
-                    <small>{currentSceneStatusLabel}</small>
-                  )}
-              </div>
-              {cloudSceneRemoteUpdate.status === "remote-newer" && (
-                <Callout tone="warning">{currentSceneStatusLabel}</Callout>
-              )}
-              {cloudSceneRemoteUpdate.status === "error" && (
-                <Callout tone="danger" live={false}>
-                  {currentSceneStatusLabel}
-                </Callout>
-              )}
-              <div className="AuthDialog__sectionActions">
-                <UiButton
-                  size="sm"
-                  onClick={() => void handleCheckCurrentCloudScene()}
-                  loading={checkingCurrentScene}
-                  disabled={!canCheckCurrentScene}
+              {signingOut
+                ? t("cloud.auth.signingOut")
+                : t("cloud.auth.signOutShort")}
+            </UiButton>
+          </div>
+
+          <TabList
+            tabs={accountTabs}
+            value={activeTab}
+            onChange={setActiveTab}
+            label={t("cloud.auth.tabsLabel")}
+            idPrefix={tabIdPrefix}
+            className="AuthDialog__tabs"
+          />
+
+          {activeTab === "account" && (
+            <div
+              className="AuthDialog__panel"
+              {...getTabPanelProps(tabIdPrefix, "account")}
+            >
+              <div className="AuthDialog__accountGrid">
+                <button
+                  className="AuthDialog__accountCard AuthDialog__accountCard--button"
+                  type="button"
+                  onClick={handleOpenCloudScenes}
+                  disabled={!onOpenCloudScenes || sceneBusy}
                 >
-                  {checkingCurrentScene
-                    ? t("cloud.auth.currentCloudWhiteboardChecking")
-                    : t("cloud.auth.checkCurrentCloudWhiteboard")}
-                </UiButton>
+                  <span className="AuthDialog__cardLabel">
+                    {t("cloud.auth.cloudWhiteboards")}
+                    <span
+                      className="AuthDialog__cardChevron"
+                      aria-hidden="true"
+                    >
+                      {chevronRight}
+                    </span>
+                  </span>
+                  <strong>{cloudSceneCountLabel}</strong>
+                  {sceneStats.status === "ready" && sceneStats.latestTitle && (
+                    <small title={sceneStats.latestTitle}>
+                      {t("cloud.auth.latestCloudWhiteboard", {
+                        title: sceneStats.latestTitle,
+                      })}
+                    </small>
+                  )}
+                  {sceneStats.status === "error" && (
+                    <small className="AuthDialog__cardError">
+                      {sceneStats.message}
+                    </small>
+                  )}
+                </button>
+
+                <button
+                  className="AuthDialog__accountCard AuthDialog__accountCard--button"
+                  type="button"
+                  onClick={handleOpenAITasks}
+                  disabled={!onOpenAITasks || sceneBusy}
+                >
+                  <span className="AuthDialog__cardLabel">
+                    {t("cloud.auth.cloudAITasks")}
+                    <span
+                      className="AuthDialog__cardChevron"
+                      aria-hidden="true"
+                    >
+                      {chevronRight}
+                    </span>
+                  </span>
+                  <strong>{cloudTaskCountLabel}</strong>
+                  {taskStats.status === "ready" && taskStats.latestStatus && (
+                    <small>
+                      {t("cloud.auth.latestCloudAITask", {
+                        status: getAITaskStatusLabel(taskStats.latestStatus),
+                      })}
+                    </small>
+                  )}
+                  {taskStats.status === "error" && (
+                    <small className="AuthDialog__cardError">
+                      {taskStats.message}
+                    </small>
+                  )}
+                </button>
+              </div>
+
+              <section
+                className="AuthDialog__group"
+                aria-labelledby={`${tabIdPrefix}-preferences`}
+              >
+                <h3
+                  className="AuthDialog__groupTitle"
+                  id={`${tabIdPrefix}-preferences`}
+                >
+                  {t("cloud.auth.preferences")}
+                </h3>
+                <div className="AuthDialog__groupBody">
+                  <AccountAvatarSettings />
+                  <AccountAISettingsSync />
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === "whiteboard" && !activeCloudScene && (
+            <div
+              className="AuthDialog__panel"
+              {...getTabPanelProps(tabIdPrefix, "whiteboard")}
+            >
+              <p className="AuthDialog__empty">
+                {t("cloud.auth.noCloudWhiteboard")}
+              </p>
+            </div>
+          )}
+
+          {activeTab === "whiteboard" && activeCloudScene && (
+            <div
+              className="AuthDialog__panel"
+              {...getTabPanelProps(tabIdPrefix, "whiteboard")}
+            >
+              <DialogSection
+                className="AuthDialog__section AuthDialog__currentScene"
+                title={t("cloud.auth.currentCloudWhiteboard")}
+              >
+                <div className="AuthDialog__summary">
+                  <strong title={activeCloudScene.title}>
+                    {activeCloudScene.title}
+                  </strong>
+                  <small>
+                    {t("cloud.auth.currentCloudWhiteboardVersion", {
+                      version: activeCloudScene.version,
+                    })}
+                  </small>
+                  {cloudSceneRemoteUpdate.status !== "remote-newer" &&
+                    cloudSceneRemoteUpdate.status !== "error" && (
+                      <small>{currentSceneStatusLabel}</small>
+                    )}
+                </div>
                 {cloudSceneRemoteUpdate.status === "remote-newer" && (
+                  <Callout tone="warning">{currentSceneStatusLabel}</Callout>
+                )}
+                {cloudSceneRemoteUpdate.status === "error" && (
+                  <Callout tone="danger" live={false}>
+                    {currentSceneStatusLabel}
+                  </Callout>
+                )}
+                <div className="AuthDialog__sectionActions">
+                  <UiButton
+                    size="sm"
+                    onClick={() => void handleCheckCurrentCloudScene()}
+                    loading={checkingCurrentScene}
+                    disabled={!canCheckCurrentScene}
+                  >
+                    {checkingCurrentScene
+                      ? t("cloud.auth.currentCloudWhiteboardChecking")
+                      : t("cloud.auth.checkCurrentCloudWhiteboard")}
+                  </UiButton>
+                  {cloudSceneRemoteUpdate.status === "remote-newer" && (
+                    <UiButton
+                      size="sm"
+                      variant="primary"
+                      onClick={() => void handleRefreshCurrentCloudScene()}
+                      loading={refreshingCurrentScene}
+                      disabled={!canRefreshCurrentScene}
+                    >
+                      {refreshingCurrentScene
+                        ? t("cloud.auth.refreshingCurrentCloudWhiteboard")
+                        : t("cloud.auth.refreshCurrentCloudWhiteboard")}
+                    </UiButton>
+                  )}
+                </div>
+              </DialogSection>
+
+              <DialogSection
+                className="AuthDialog__section AuthDialog__castCard"
+                title={t("cloud.castArtifacts.title")}
+              >
+                <div className="AuthDialog__summary">
+                  <strong>{castStatsLabel}</strong>
+                  {castStats.status === "ready" && castStats.latestStatus && (
+                    <small>
+                      {t("cloud.castArtifacts.latest", {
+                        status: getCastSessionStatusLabel(
+                          castStats.latestStatus,
+                        ),
+                      })}
+                    </small>
+                  )}
+                  {castStats.status === "ready" && !castStats.latestStatus && (
+                    <small>{t("cloud.castArtifacts.empty")}</small>
+                  )}
+                </div>
+                {castStats.status === "error" && renderStatsError(castStats)}
+                <div className="AuthDialog__sectionActions">
+                  <UiButton
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void handleRefreshCastStats()}
+                    disabled={
+                      sceneBusy || refreshingCastStats || refreshingEmbedStats
+                    }
+                  >
+                    {refreshingCastStats
+                      ? t("cloud.castArtifacts.loading")
+                      : t("cloud.castArtifacts.refresh")}
+                  </UiButton>
+                </div>
+              </DialogSection>
+
+              <DialogSection
+                className="AuthDialog__section AuthDialog__collabRoomCard"
+                title={t("cloud.collabRooms.title")}
+              >
+                <div className="AuthDialog__summary">
+                  <strong>{collabRoomStatsLabel}</strong>
+                  {collabRoomStats.status === "ready" && collabRoomStats.room && (
+                    <small title={collabRoomStats.room.roomId}>
+                      {t("cloud.collabRooms.roomId", {
+                        roomId: collabRoomStats.room.roomId,
+                      })}
+                    </small>
+                  )}
+                  {collabRoomStats.status === "ready" &&
+                    collabRoomStats.room &&
+                    !collabRoomLink && (
+                      <small>{t("cloud.collabRooms.keyNotStored")}</small>
+                    )}
+                </div>
+                {collabRoomStats.status === "error" &&
+                  renderStatsError(collabRoomStats)}
+                {collabRoomNotice && (
+                  <Callout tone="warning">{collabRoomNotice}</Callout>
+                )}
+                <div className="AuthDialog__sectionActions">
                   <UiButton
                     size="sm"
                     variant="primary"
-                    onClick={() => void handleRefreshCurrentCloudScene()}
-                    loading={refreshingCurrentScene}
-                    disabled={!canRefreshCurrentScene}
+                    onClick={() => void handleCreateCollabRoom()}
+                    loading={creatingCollabRoom}
+                    disabled={
+                      roomBusy ||
+                      !getCloudBackend().capabilities.collabRoomBinding
+                    }
                   >
-                    {refreshingCurrentScene
-                      ? t("cloud.auth.refreshingCurrentCloudWhiteboard")
-                      : t("cloud.auth.refreshCurrentCloudWhiteboard")}
+                    {creatingCollabRoom
+                      ? t("cloud.collabRooms.creating")
+                      : t("cloud.collabRooms.create")}
                   </UiButton>
-                )}
-              </div>
-            </DialogSection>
-          )}
+                  <UiButton
+                    size="sm"
+                    onClick={() => void handleCopyCollabRoom()}
+                    disabled={!collabRoomLink || roomBusy}
+                  >
+                    {t("cloud.collabRooms.copyLink")}
+                  </UiButton>
+                  <UiButton
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void handleRefreshCollabRoom()}
+                    disabled={roomBusy}
+                  >
+                    {refreshingCollabRoom
+                      ? t("cloud.collabRooms.loading")
+                      : t("cloud.collabRooms.refresh")}
+                  </UiButton>
+                  <UiButton
+                    size="sm"
+                    variant="danger"
+                    className="AuthDialog__actionEnd"
+                    onClick={() => void handleRevokeCollabRoom()}
+                    loading={revokingCollabRoom}
+                    disabled={
+                      collabRoomStats.status !== "ready" ||
+                      !collabRoomStats.room ||
+                      roomBusy
+                    }
+                  >
+                    {revokingCollabRoom
+                      ? t("cloud.collabRooms.revoking")
+                      : t("cloud.collabRooms.revoke")}
+                  </UiButton>
+                </div>
+              </DialogSection>
 
-          {activeCloudScene && (
-            <DialogSection
-              className="AuthDialog__section AuthDialog__castCard"
-              title={t("cloud.castArtifacts.title")}
-            >
-              <div className="AuthDialog__summary">
-                <strong>{castStatsLabel}</strong>
-                {castStats.status === "ready" && castStats.latestStatus && (
-                  <small>
-                    {t("cloud.castArtifacts.latest", {
-                      status: getCastSessionStatusLabel(castStats.latestStatus),
-                    })}
-                  </small>
-                )}
-                {castStats.status === "ready" && !castStats.latestStatus && (
-                  <small>{t("cloud.castArtifacts.empty")}</small>
-                )}
-              </div>
-              {castStats.status === "error" && renderStatsError(castStats)}
-              <div className="AuthDialog__sectionActions">
-                <UiButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void handleRefreshCastStats()}
-                  disabled={
-                    sceneBusy || refreshingCastStats || refreshingEmbedStats
-                  }
-                >
-                  {refreshingCastStats
-                    ? t("cloud.castArtifacts.loading")
-                    : t("cloud.castArtifacts.refresh")}
-                </UiButton>
-              </div>
-            </DialogSection>
-          )}
-
-          {activeCloudScene && (
-            <DialogSection
-              className="AuthDialog__section AuthDialog__collabRoomCard"
-              title={t("cloud.collabRooms.title")}
-            >
-              <div className="AuthDialog__summary">
-                <strong>{collabRoomStatsLabel}</strong>
-                {collabRoomStats.status === "ready" && collabRoomStats.room && (
-                  <small title={collabRoomStats.room.roomId}>
-                    {t("cloud.collabRooms.roomId", {
-                      roomId: collabRoomStats.room.roomId,
-                    })}
-                  </small>
-                )}
-                {collabRoomStats.status === "ready" &&
-                  collabRoomStats.room &&
-                  !collabRoomLink && (
-                    <small>{t("cloud.collabRooms.keyNotStored")}</small>
+              <DialogSection
+                className="AuthDialog__section AuthDialog__embedCard"
+                title={t("cloud.embed.title")}
+              >
+                <div className="AuthDialog__summary">
+                  <strong>{embedStatsLabel}</strong>
+                  {embedStats.status === "ready" && embedStats.latestMode && (
+                    <small>
+                      {t("cloud.embed.latest", {
+                        mode: getEmbedModeLabel(embedStats.latestMode),
+                      })}
+                    </small>
                   )}
-              </div>
-              {collabRoomStats.status === "error" &&
-                renderStatsError(collabRoomStats)}
-              {collabRoomNotice && (
-                <Callout tone="warning">{collabRoomNotice}</Callout>
-              )}
-              <div className="AuthDialog__sectionActions">
-                <UiButton
-                  size="sm"
-                  variant="primary"
-                  onClick={() => void handleCreateCollabRoom()}
-                  loading={creatingCollabRoom}
-                  disabled={
-                    roomBusy ||
-                    !getCloudBackend().capabilities.collabRoomBinding
-                  }
-                >
-                  {creatingCollabRoom
-                    ? t("cloud.collabRooms.creating")
-                    : t("cloud.collabRooms.create")}
-                </UiButton>
-                <UiButton
-                  size="sm"
-                  onClick={() => void handleCopyCollabRoom()}
-                  disabled={!collabRoomLink || roomBusy}
-                >
-                  {t("cloud.collabRooms.copyLink")}
-                </UiButton>
-                <UiButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void handleRefreshCollabRoom()}
-                  disabled={roomBusy}
-                >
-                  {refreshingCollabRoom
-                    ? t("cloud.collabRooms.loading")
-                    : t("cloud.collabRooms.refresh")}
-                </UiButton>
-                <UiButton
-                  size="sm"
-                  variant="danger"
-                  className="AuthDialog__actionEnd"
-                  onClick={() => void handleRevokeCollabRoom()}
-                  loading={revokingCollabRoom}
-                  disabled={
-                    collabRoomStats.status !== "ready" ||
-                    !collabRoomStats.room ||
-                    roomBusy
-                  }
-                >
-                  {revokingCollabRoom
-                    ? t("cloud.collabRooms.revoking")
-                    : t("cloud.collabRooms.revoke")}
-                </UiButton>
-              </div>
-            </DialogSection>
+                  {embedStats.status === "ready" && !embedStats.latestMode && (
+                    <small>{t("cloud.embed.empty")}</small>
+                  )}
+                </div>
+                {embedStats.status === "error" && renderStatsError(embedStats)}
+                <div className="AuthDialog__sectionActions">
+                  <UiButton
+                    size="sm"
+                    onClick={handleOpenEmbeds}
+                    disabled={!onOpenEmbeds || sceneBusy}
+                  >
+                    {t("cloud.embed.manage")}
+                  </UiButton>
+                  <UiButton
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void handleRefreshEmbedStats()}
+                    disabled={sceneBusy || refreshingEmbedStats}
+                  >
+                    {refreshingEmbedStats
+                      ? t("cloud.embed.loading")
+                      : t("cloud.embed.refresh")}
+                  </UiButton>
+                </div>
+              </DialogSection>
+            </div>
           )}
 
-          {activeCloudScene && (
-            <DialogSection
-              className="AuthDialog__section AuthDialog__embedCard"
-              title={t("cloud.embed.title")}
+          {activeTab === "deployment" && (
+            <div
+              className="AuthDialog__panel"
+              {...getTabPanelProps(tabIdPrefix, "deployment")}
             >
-              <div className="AuthDialog__summary">
-                <strong>{embedStatsLabel}</strong>
-                {embedStats.status === "ready" && embedStats.latestMode && (
-                  <small>
-                    {t("cloud.embed.latest", {
-                      mode: getEmbedModeLabel(embedStats.latestMode),
+              <DialogSection
+                className="AuthDialog__section AuthDialog__deploymentCard"
+                title={t("cloud.deployment.title")}
+                description={t("cloud.deployment.selfHosted")}
+              >
+                <ul className="AuthDialog__statusList">
+                  <li>
+                    {t("cloud.deployment.supabase", {
+                      status: getAvailabilityLabel(
+                        deploymentConfig.hasSupabase,
+                      ),
                     })}
-                  </small>
-                )}
-                {embedStats.status === "ready" && !embedStats.latestMode && (
-                  <small>{t("cloud.embed.empty")}</small>
-                )}
-              </div>
-              {embedStats.status === "error" && renderStatsError(embedStats)}
-              <div className="AuthDialog__sectionActions">
-                <UiButton
-                  size="sm"
-                  onClick={handleOpenEmbeds}
-                  disabled={!onOpenEmbeds || sceneBusy}
-                >
-                  {t("cloud.embed.manage")}
-                </UiButton>
-                <UiButton
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void handleRefreshEmbedStats()}
-                  disabled={sceneBusy || refreshingEmbedStats}
-                >
-                  {refreshingEmbedStats
-                    ? t("cloud.embed.loading")
-                    : t("cloud.embed.refresh")}
-                </UiButton>
-              </div>
-            </DialogSection>
+                  </li>
+                  <li>
+                    {t("cloud.deployment.roomServer", {
+                      status: getAvailabilityLabel(
+                        deploymentConfig.hasRoomServer,
+                      ),
+                    })}
+                  </li>
+                  <li>
+                    {t("cloud.deployment.collabPersistence", {
+                      backend: deploymentConfig.collabPersistenceBackend,
+                      status: getAvailabilityLabel(
+                        getCloudBackend().capabilities.collabPersistence,
+                      ),
+                    })}
+                  </li>
+                  <li>
+                    {t("cloud.deployment.e2e", {
+                      status: getAvailabilityLabel(
+                        deploymentConfig.e2eCloudStorageEnabled,
+                      ),
+                    })}
+                  </li>
+                </ul>
+              </DialogSection>
+            </div>
           )}
-
-          <DialogSection
-            className="AuthDialog__section AuthDialog__deploymentCard"
-            title={t("cloud.deployment.title")}
-            description={t("cloud.deployment.selfHosted")}
-          >
-            <ul className="AuthDialog__statusList">
-              <li>
-                {t("cloud.deployment.supabase", {
-                  status: getAvailabilityLabel(deploymentConfig.hasSupabase),
-                })}
-              </li>
-              <li>
-                {t("cloud.deployment.roomServer", {
-                  status: getAvailabilityLabel(deploymentConfig.hasRoomServer),
-                })}
-              </li>
-              <li>
-                {t("cloud.deployment.collabPersistence", {
-                  backend: deploymentConfig.collabPersistenceBackend,
-                  status: getAvailabilityLabel(
-                    getCloudBackend().capabilities.collabPersistence,
-                  ),
-                })}
-              </li>
-              <li>
-                {t("cloud.deployment.e2e", {
-                  status: getAvailabilityLabel(
-                    deploymentConfig.e2eCloudStorageEnabled,
-                  ),
-                })}
-              </li>
-            </ul>
-          </DialogSection>
 
           {errorCallout}
         </div>

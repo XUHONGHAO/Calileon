@@ -82,6 +82,9 @@ export const readCapabilities = (): BackendCapabilities => {
   // ADR 0037: off until the deployment has installed schema_comments.sql
   const sceneComments =
     hasSupabase && import.meta.env.VITE_APP_SCENE_COMMENTS === "true";
+  // ADR 0038: off until the deployment has installed schema_account_settings.sql
+  const accountSettingsSync =
+    hasSupabase && import.meta.env.VITE_APP_ACCOUNT_SETTINGS_SYNC === "true";
 
   return {
     tier,
@@ -100,5 +103,6 @@ export const readCapabilities = (): BackendCapabilities => {
     aiGateway,
     remoteVideoAssets,
     sceneComments,
+    accountSettingsSync,
   };
 };

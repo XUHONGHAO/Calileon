@@ -43,6 +43,8 @@ export interface BackendCapabilities {
   remoteVideoAssets?: boolean;
   /** Scene comments on plain cloud whiteboards (ADR 0037); default off. */
   sceneComments?: boolean;
+  /** End-to-end encrypted AI settings sync per account (ADR 0038). */
+  accountSettingsSync?: boolean;
 }
 
 // —— Domain types (shared across interfaces) ——
@@ -797,6 +799,51 @@ export interface AiGateway {
   approveDeviceAuthorization(userCode: string): Promise<void>;
 }
 
+// —— Account AI settings sync (ADR 0038) ——
+/** Key derivation parameters stored next to the ciphertext. */
+export interface AccountSettingsKdf {
+  name: "PBKDF2";
+  hash: "SHA-256";
+  iterations: number;
+  /** base64, 16 random bytes */
+  salt: string;
+}
+
+/**
+ * The account's encrypted AI settings. The server only ever holds this
+ * ciphertext; the key comes from a passphrase it never sees.
+ */
+export interface AccountSettingsRecord {
+  formatVersion: 1;
+  kdf: AccountSettingsKdf;
+  /** base64 AES-GCM IV */
+  iv: string;
+  /** base64 AES-GCM ciphertext */
+  ciphertext: string;
+  /** optimistic-concurrency token, starts at 1 */
+  revision: number;
+  updatedAt: number; // epoch ms
+}
+
+export type AccountSettingsWrite = Omit<
+  AccountSettingsRecord,
+  "revision" | "updatedAt"
+>;
+
+export interface AccountSettingsService {
+  /** `null` when the account has no settings stored. */
+  get(): Promise<AccountSettingsRecord | null>;
+  /**
+   * Writes revision `expectedRevision + 1` (`null` = create the first one).
+   * Throws `BackendError("conflict")` when another device wrote first.
+   */
+  put(
+    record: AccountSettingsWrite,
+    expectedRevision: number | null,
+  ): Promise<AccountSettingsRecord>;
+  remove(): Promise<void>;
+}
+
 // —— Assembly entry (upper layers import only this) ——
 export interface CloudBackend {
   capabilities: BackendCapabilities;
@@ -816,4 +863,6 @@ export interface CloudBackend {
   ai: AiGateway;
   /** Present only when `capabilities.sceneComments` (ADR 0037). */
   comments?: SceneCommentService;
+  /** Present only when `capabilities.accountSettingsSync` (ADR 0038). */
+  accountSettings?: AccountSettingsService;
 }

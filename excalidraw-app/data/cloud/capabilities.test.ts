@@ -19,6 +19,7 @@ describe("readCapabilities", () => {
     vi.stubEnv("VITE_APP_E2E_CLOUD_STORAGE", "");
     vi.stubEnv("VITE_APP_REMOTE_VIDEO_ASSETS", "");
     vi.stubEnv("VITE_APP_SCENE_COMMENTS", "");
+    vi.stubEnv("VITE_APP_ACCOUNT_SETTINGS_SYNC", "");
   });
 
   afterEach(() => {
@@ -86,6 +87,18 @@ describe("readCapabilities", () => {
 
     vi.stubEnv("VITE_APP_SUPABASE_URL", "");
     expect(readCapabilities().sceneComments).toBe(false);
+  });
+
+  it("enables account settings sync only with Supabase and its flag", () => {
+    vi.stubEnv("VITE_APP_SUPABASE_URL", "https://demo.supabase.co");
+    vi.stubEnv("VITE_APP_SUPABASE_ANON_KEY", "anon-key-123");
+    expect(readCapabilities().accountSettingsSync).toBe(false);
+
+    vi.stubEnv("VITE_APP_ACCOUNT_SETTINGS_SYNC", "true");
+    expect(readCapabilities().accountSettingsSync).toBe(true);
+
+    vi.stubEnv("VITE_APP_SUPABASE_URL", "");
+    expect(readCapabilities().accountSettingsSync).toBe(false);
   });
 
   it("enables collab room binding when Supabase and a room server are configured", () => {

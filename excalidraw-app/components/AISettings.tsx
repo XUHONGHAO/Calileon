@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { t } from "@excalidraw/excalidraw/i18n";
 
 import {
+  AI_AGENT_CONFIG_UPDATED_EVENT,
   createAIAgentId,
   createSkillId,
   deleteAIAgent,
@@ -17,6 +18,7 @@ import {
   getAIAgentProviderPreset,
 } from "../ai/agentProviderPresets";
 import {
+  AI_IMAGE_CONFIG_UPDATED_EVENT,
   AI_MODEL_MEDIA_TYPES,
   createAIModelConfigId,
   DEFAULT_AI_MODEL_PROVIDER_PRESETS,
@@ -42,6 +44,7 @@ import {
   DEFAULT_AI_IMAGE_NATIVE_MODEL,
 } from "../ai/imageDimensions";
 import {
+  AI_PROMPT_TEMPLATES_UPDATED_EVENT,
   BUILT_IN_TEMPLATES,
   deleteCustomPromptTemplate,
   loadCustomPromptTemplates,
@@ -767,6 +770,27 @@ export const AISettings = ({
       window.removeEventListener(
         AI_PROXY_CONFIG_UPDATED_EVENT,
         handleProxyConfigUpdated,
+      );
+    };
+  }, []);
+
+  // Account sync (ADR 0038) can rewrite the saved lists while this dialog is
+  // open; reload them so a later save starts from the current copy. Editor
+  // drafts are separate state and stay as typed.
+  useEffect(() => {
+    const reloadModels = () => setConfig(loadAIImageConfig());
+    const reloadAgents = () => setAgentConfig(loadAIAgentConfig());
+    const reloadTemplates = () =>
+      setCustomTemplates(loadCustomPromptTemplates());
+    window.addEventListener(AI_IMAGE_CONFIG_UPDATED_EVENT, reloadModels);
+    window.addEventListener(AI_AGENT_CONFIG_UPDATED_EVENT, reloadAgents);
+    window.addEventListener(AI_PROMPT_TEMPLATES_UPDATED_EVENT, reloadTemplates);
+    return () => {
+      window.removeEventListener(AI_IMAGE_CONFIG_UPDATED_EVENT, reloadModels);
+      window.removeEventListener(AI_AGENT_CONFIG_UPDATED_EVENT, reloadAgents);
+      window.removeEventListener(
+        AI_PROMPT_TEMPLATES_UPDATED_EVENT,
+        reloadTemplates,
       );
     };
   }, []);

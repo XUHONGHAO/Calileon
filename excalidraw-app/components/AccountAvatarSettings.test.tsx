@@ -44,6 +44,8 @@ const setup = (overrides: Record<string, unknown> = {}) => {
     ...overrides,
   };
   render(<AccountAvatarSettings />);
+  // the editor is collapsed into a row until "Edit"
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
   return updateAvatar;
 };
 
@@ -63,8 +65,30 @@ describe("normalizeAvatarGlyph", () => {
 
 describe("AccountAvatarSettings (ADR 0034 §6)", () => {
   it("is hidden when the backend can't store an avatar", () => {
-    setup({ updateAvatar: null });
+    authMock.state = { isSignedIn: true, user: user(), updateAvatar: null };
+    render(<AccountAvatarSettings />);
     expect(screen.queryByText("Avatar")).toBeNull();
+  });
+
+  it("opens and closes the editor from the row", () => {
+    authMock.state = {
+      isSignedIn: true,
+      user: user(),
+      updateAvatar: vi.fn(),
+    };
+    render(<AccountAvatarSettings />);
+    const toggle = screen.getByRole("button", { name: "Edit" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("textbox")).toBeNull();
+    // the row's avatar is the preview
+    expect(preview().dataset.glyph).toBe("A");
+
+    fireEvent.click(toggle);
+    expect(glyphInput()).toBeInTheDocument();
+    const done = screen.getByRole("button", { name: "Done" });
+    expect(done).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(done);
+    expect(screen.queryByRole("textbox")).toBeNull();
   });
 
   it("starts from the default avatar and saves the chosen one", async () => {

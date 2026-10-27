@@ -1933,7 +1933,13 @@
       "email": "Email",
       "password": "Password",
       "cancel": "Cancel",
-      "genericError": "Sign-in failed. Please try again."
+      "genericError": "Sign-in failed. Please try again.",
+      "tabsLabel": "Account sections",
+      "tabAccount": "Account",
+      "tabWhiteboard": "This whiteboard",
+      "tabDeployment": "Deployment",
+      "noCloudWhiteboard": "This canvas isn't saved to your account yet. Save it to the cloud to see versions, live rooms, recordings and embeds here.",
+      "preferences": "Preferences"
     },
     "errors": {
       "notConfigured": "Cloud backend is not configured. Local data is preserved.",
@@ -2158,7 +2164,10 @@
         "olive": "Olive",
         "navy": "Navy",
         "slate": "Slate"
-      }
+      },
+      "rowHint": "Shown next to your voice messages.",
+      "edit": "Edit",
+      "done": "Done"
     }
   },
   "vault": {
@@ -2706,6 +2715,64 @@
       "recorderUnsupported": "This browser can't record video. Photos still work.",
       "cameraError": "Couldn't start the camera. Check it and try again.",
       "micUnavailable": "Couldn't open the microphone. Turn sound off to record without it."
+    }
+  },
+  "accountSync": {
+    "title": "Save AI settings to my account",
+    "switchLabel": "Save AI settings to my account",
+    "unavailable": "Not enabled on this deployment.",
+    "loading": "Checking your account…",
+    "offEmpty": "Use your models, agents, templates and network settings on every device. Encrypted with a passphrase only you know.",
+    "offRemote": "Your account has saved AI settings. Turn this on and enter your sync passphrase to use them here.",
+    "syncedAt": "Synced {{time}}",
+    "justNow": "just now",
+    "minutesAgo": "{{count}} min ago",
+    "hoursAgo": "{{count}} h ago",
+    "syncing": "Syncing…",
+    "syncFailed": "Sync failed: {{message}}",
+    "retry": "Retry",
+    "checkFailed": "Couldn't check your account: {{message}}",
+    "noticeRemoteRemoved": "The AI settings in your account were deleted on another device, so syncing stopped here. Your settings on this device are unchanged.",
+    "noticePassphraseChanged": "The sync passphrase was changed on another device. Enter the new one to keep syncing.",
+    "setupIntro": "Your settings, API keys included, are encrypted in this browser before upload. The server never sees the passphrase or your keys.",
+    "passphrase": "Sync passphrase",
+    "passphraseHint": "At least 8 characters. It can't be recovered: if you forget it, delete the copy in your account and set up again.",
+    "confirmPassphrase": "Repeat passphrase",
+    "mismatch": "The passphrases don't match.",
+    "setupSubmit": "Turn on sync",
+    "encrypting": "Encrypting…",
+    "cancel": "Cancel",
+    "unlockIntro": "Enter the sync passphrase you chose on your other device.",
+    "unlockSubmit": "Unlock",
+    "unlocking": "Unlocking…",
+    "forgot": "Forgot it?",
+    "forgotConfirm": "Without the passphrase the AI settings in your account can't be decrypted. Delete them and set up sync again with a new passphrase? The settings on this device stay as they are.",
+    "forgotConfirmTitle": "Start over",
+    "conflictIntro": "This device and your account have different {{sections}}. Which do you want to keep?",
+    "conflictHint": "Settings only one side has are kept either way.",
+    "keepAccount": "Use my account's",
+    "keepDevice": "Use this device's",
+    "sectionModels": "models",
+    "sectionAgents": "agents",
+    "sectionTemplates": "prompt templates",
+    "sectionNetwork": "network settings",
+    "sectionSeparator": ", ",
+    "syncNow": "Sync now",
+    "deleteRemote": "Delete from account",
+    "deleteRemoteConfirm": "Delete the AI settings saved in your account? Every device stops syncing. The settings on each device stay as they are.",
+    "deleteRemoteConfirmTitle": "Delete AI settings from account",
+    "moreActions": "More sync actions",
+    "errors": {
+      "wrongPassphrase": "That passphrase doesn't unlock your settings.",
+      "passphraseTooShort": "Use at least 8 characters.",
+      "unsupportedFormat": "Your account's AI settings were saved by a newer version. Reload the page and try again.",
+      "unsupportedKdf": "Your account's AI settings use encryption settings this version doesn't accept.",
+      "tooLarge": "Your AI settings are too large to sync (over 512 KB).",
+      "insecureContext": "Encryption needs a secure (HTTPS) connection.",
+      "remoteMissing": "Your account has no saved AI settings any more.",
+      "remoteExists": "Your account already has saved AI settings. Enter their passphrase instead.",
+      "conflict": "Another device saved at the same time. Try again.",
+      "generic": "Something went wrong. Try again."
     }
   }
 }

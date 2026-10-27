@@ -88,10 +88,15 @@ const renderDialog = (props: Partial<AuthDialogProps> = {}) =>
     </Provider>,
   );
 
-const clickCreateRoom = async () =>
+const openWhiteboardTab = async () =>
+  fireEvent.click(await screen.findByRole("tab", { name: "This whiteboard" }));
+
+const clickCreateRoom = async () => {
+  await openWhiteboardTab();
   fireEvent.click(
     await screen.findByRole("button", { name: "Create room link" }),
   );
+};
 
 describe("AuthDialog cloud flows", () => {
   beforeEach(() => {
@@ -176,6 +181,46 @@ describe("AuthDialog cloud flows", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Cloud save failed. Local data is preserved.",
     );
+  });
+
+  it("groups the panel into account, whiteboard and deployment tabs", async () => {
+    renderDialog();
+
+    const accountTab = await screen.findByRole("tab", { name: "Account" });
+    expect(accountTab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("me@example.com")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Sign out" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("switch", { name: "Save AI settings to my account" }),
+    ).toBeDisabled();
+    expect(screen.getByText("Not enabled on this deployment.")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Create room link" }),
+    ).toBeNull();
+
+    await openWhiteboardTab();
+    expect(
+      screen.getByRole("tabpanel", { name: "This whiteboard" }),
+    ).toHaveTextContent("Roadmap");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Deployment" }));
+    expect(
+      screen.getByRole("tabpanel", { name: "Deployment" }),
+    ).toHaveTextContent("Supabase");
+    // the sign-out header and save footer stay on every tab
+    expect(
+      screen.getByRole("button", { name: "Sign out" }),
+    ).toBeInTheDocument();
+  });
+
+  it("explains the whiteboard tab when the canvas isn't a cloud whiteboard", async () => {
+    renderDialog({ activeCloudScene: null });
+    await openWhiteboardTab();
+    expect(
+      screen.getByText(/isn't saved to your account yet/),
+    ).toBeInTheDocument();
   });
 
   it("explains why saving is disabled during live collaboration", async () => {

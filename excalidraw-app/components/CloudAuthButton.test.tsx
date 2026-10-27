@@ -20,6 +20,11 @@ import { CloudAuthButton } from "./CloudAuthButton";
 const render = (ui: React.ReactElement) =>
   rtlRender(<Provider store={appJotaiStore}>{ui}</Provider>);
 
+// The signed-in dialog is tabbed: whiteboard and deployment details live
+// behind their own tabs.
+const openDialogTab = async (name: string) =>
+  fireEvent.click(await screen.findByRole("tab", { name }));
+
 // —— Mock the frozen CloudBackend contract (never Supabase directly) ——
 // Each test rebuilds the backend shape via `setBackend`.
 let mockBackend: any;
@@ -322,6 +327,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     expect(await screen.findByText("2 saved")).toBeInTheDocument();
     expect(screen.getByText("Latest: Updated plan")).toBeInTheDocument();
     expect(await screen.findByText("1 recent")).toBeInTheDocument();
+    await openDialogTab("Deployment");
     expect(await screen.findByText("Deployment status")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -436,6 +442,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Cloud account" }),
     );
+    await openDialogTab("This whiteboard");
 
     expect(await screen.findByText("Current whiteboard")).toBeInTheDocument();
     expect(screen.getByText("Version 2")).toBeInTheDocument();
@@ -498,6 +505,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Cloud account" }),
     );
+    await openDialogTab("This whiteboard");
 
     expect(await screen.findByText("Recording artifacts")).toBeInTheDocument();
     expect(screen.getByText("Sessions: 1 · Exports: 1")).toBeInTheDocument();
@@ -553,6 +561,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Cloud account" }),
     );
+    await openDialogTab("This whiteboard");
 
     expect(await screen.findByText("Embeds")).toBeInTheDocument();
     expect(screen.getByText("1 embeds")).toBeInTheDocument();
@@ -602,6 +611,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Cloud account" }),
     );
+    await openDialogTab("This whiteboard");
 
     expect(
       await screen.findByText("Live collaboration room"),
@@ -670,6 +680,7 @@ describe("CloudAuthButton (standalone cloud auth entry)", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Cloud account" }),
     );
+    await openDialogTab("This whiteboard");
 
     expect(
       await screen.findByText("Live collaboration room"),

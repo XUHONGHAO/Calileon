@@ -13,13 +13,13 @@ import {
   isValidAudioAvatarGlyph,
 } from "@excalidraw/element";
 import clsx from "clsx";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 
 import type { AudioAvatar as AudioAvatarData } from "@excalidraw/element/types";
 
 import { useCloudAuth } from "../auth/useCloudAuth";
 
-import { DialogSection, Field, TextInput, UiButton } from "./ui";
+import { Field, TextInput, UiButton } from "./ui";
 
 import "./AccountAvatarSettings.scss";
 
@@ -58,6 +58,8 @@ export const AccountAvatarSettings = () => {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
+  const [editing, setEditing] = useState(false);
+  const editorId = useId();
   const swatchRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   // follow the account when it changes elsewhere (other tab, sign-in)
@@ -112,19 +114,39 @@ export const AccountAvatarSettings = () => {
   };
 
   return (
-    <DialogSection
-      className="AuthDialog__section AccountAvatarSettings"
-      title={t("cloud.avatar.title")}
-      description={t("cloud.avatar.description")}
-    >
-      <div className="AccountAvatarSettings__body">
-        <AudioAvatar
-          avatar={preview}
-          size={56}
-          theme={theme}
-          label={t("cloud.avatar.preview")}
-        />
-        <div className="AccountAvatarSettings__controls">
+    <div className="AccountSettingRow AccountAvatarSettings">
+      <div className="AccountSettingRow__main">
+        <span className="AccountSettingRow__leading">
+          <AudioAvatar
+            avatar={preview}
+            size={32}
+            theme={theme}
+            label={t("cloud.avatar.preview")}
+          />
+        </span>
+        <div className="AccountSettingRow__text">
+          <span className="AccountSettingRow__title">
+            {t("cloud.avatar.title")}
+          </span>
+          <span className="AccountSettingRow__meta">
+            {t("cloud.avatar.rowHint")}
+          </span>
+        </div>
+        <UiButton
+          size="sm"
+          variant="ghost"
+          aria-expanded={editing}
+          aria-controls={editorId}
+          onClick={() => setEditing((value) => !value)}
+        >
+          {editing ? t("cloud.avatar.done") : t("cloud.avatar.edit")}
+        </UiButton>
+      </div>
+      {editing && (
+        <div className="AccountSettingRow__detail" id={editorId}>
+          <p className="AccountSettingRow__intro">
+            {t("cloud.avatar.description")}
+          </p>
           <Field
             label={t("cloud.avatar.glyph")}
             hint={showGlyphError ? undefined : t("cloud.avatar.glyphHint")}
@@ -185,41 +207,41 @@ export const AccountAvatarSettings = () => {
               ))}
             </div>
           </div>
+          <div className="AccountAvatarSettings__actions">
+            <span
+              className={clsx("AccountAvatarSettings__status", {
+                "AccountAvatarSettings__status--error": status === "error",
+              })}
+              role="status"
+            >
+              {status === "saved"
+                ? t("cloud.avatar.saved")
+                : status === "error"
+                ? t("cloud.avatar.saveFailed")
+                : ""}
+            </span>
+            {saved && (
+              <UiButton
+                variant="ghost"
+                size="sm"
+                onClick={() => save(null)}
+                disabled={status === "saving"}
+              >
+                {t("cloud.avatar.reset")}
+              </UiButton>
+            )}
+            <UiButton
+              variant="secondary"
+              size="sm"
+              onClick={() => save(preview)}
+              loading={status === "saving"}
+              disabled={!dirty || !glyphValid || composing}
+            >
+              {t("cloud.avatar.save")}
+            </UiButton>
+          </div>
         </div>
-      </div>
-      <div className="AccountAvatarSettings__actions">
-        <span
-          className={clsx("AccountAvatarSettings__status", {
-            "AccountAvatarSettings__status--error": status === "error",
-          })}
-          role="status"
-        >
-          {status === "saved"
-            ? t("cloud.avatar.saved")
-            : status === "error"
-            ? t("cloud.avatar.saveFailed")
-            : ""}
-        </span>
-        {saved && (
-          <UiButton
-            variant="ghost"
-            size="sm"
-            onClick={() => save(null)}
-            disabled={status === "saving"}
-          >
-            {t("cloud.avatar.reset")}
-          </UiButton>
-        )}
-        <UiButton
-          variant="secondary"
-          size="sm"
-          onClick={() => save(preview)}
-          loading={status === "saving"}
-          disabled={!dirty || !glyphValid || composing}
-        >
-          {t("cloud.avatar.save")}
-        </UiButton>
-      </div>
-    </DialogSection>
+      )}
+    </div>
   );
 };

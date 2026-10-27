@@ -229,6 +229,7 @@ import {
   type AIMaskEditingControllerHandle,
 } from "./components/AIMaskEditingController";
 import { ExcalidrawPlusIframeExport } from "./ExcalidrawPlusIframeExport";
+import { useAccountSettingsSyncDriver } from "./accountSync/useAccountSettingsSync";
 import { useCloudAuth } from "./auth/useCloudAuth";
 
 import "./index.scss";
@@ -1452,6 +1453,7 @@ const ExcalidrawWrapper = () => {
     "account" | "scenes"
   >("account");
   const cloudAuth = useCloudAuth();
+  useAccountSettingsSyncDriver();
   const [activeCloudScene, setActiveCloudScene] =
     useState<ActiveCloudScene | null>(null);
   const activeCloudSceneRef = useRef<ActiveCloudScene | null>(null);
