@@ -19,12 +19,17 @@ import type { ExcalidrawAudioElement } from "@excalidraw/element/types";
 import { EditorLocalStorage } from "../data/EditorLocalStorage";
 import { t } from "../i18n";
 import { useExcalidrawAppState } from "../components/App";
-import { TrashIcon, playerStopFilledIcon } from "../components/icons";
+import {
+  TrashIcon,
+  microphoneIcon,
+  playerStopFilledIcon,
+} from "../components/icons";
 import { joinTranscriptSegments } from "../speech/clean";
 import { SPEECH_LANGUAGES } from "../speech/lang";
 import { useLiveTranscription } from "../speech/useLiveTranscription";
 
 import { acquireMicLock } from "./micLock";
+import { VoiceSelect } from "./VoiceSelect";
 import {
   VoiceRecorderFailure,
   listMicrophones,
@@ -257,7 +262,11 @@ export const RecordingOverlay = ({
   // Esc discards; a hidden page discards so nothing records in the background
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === KEYS.ESCAPE) {
+      // an open dropdown closes itself first; Esc again discards
+      const openSelect =
+        event.target instanceof Element &&
+        event.target.closest(".excalidraw-voice-select[data-open]");
+      if (event.key === KEYS.ESCAPE && !openSelect) {
         event.preventDefault();
         event.stopPropagation();
         onCancel();
@@ -338,6 +347,14 @@ export const RecordingOverlay = ({
   const languages = SPEECH_LANGUAGES.some(({ code }) => code === speech.lang)
     ? SPEECH_LANGUAGES
     : [...SPEECH_LANGUAGES, { code: speech.lang, label: speech.lang }];
+  const deviceOptions = devices.map((device, index) => ({
+    value: device.deviceId,
+    label: device.label || `${t("voice.microphone")} ${index + 1}`,
+  }));
+  const selectedDeviceId = recorderRef.current?.deviceId ?? deviceId ?? "";
+  const selectedDeviceLabel =
+    deviceOptions.find((option) => option.value === selectedDeviceId)?.label ??
+    t("voice.microphone");
 
   const renderCaption = () => {
     if (!speechVisible) {
@@ -509,47 +526,37 @@ export const RecordingOverlay = ({
               </button>
             )}
             {speechVisible && speechOn && (
-              <select
-                className="excalidraw-voice-recorder__select excalidraw-voice-recorder__lang"
+              <VoiceSelect
+                className="excalidraw-voice-recorder__lang"
                 aria-label={t("voice.transcription.language")}
                 value={speech.lang}
-                onChange={(event) => speech.setLang(event.target.value)}
+                options={languages.map(({ code, label }) => ({
+                  value: code,
+                  label,
+                }))}
+                onChange={speech.setLang}
                 disabled={phase.kind === "saving"}
-              >
-                {languages.map(({ code, label }) => (
-                  <option key={code} value={code}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              />
             )}
             {devices.length > 1 && phase.kind === "recording" && (
-              <select
-                className="excalidraw-voice-recorder__select excalidraw-voice-recorder__device"
+              <VoiceSelect
+                className="excalidraw-voice-recorder__device"
                 aria-label={t("voice.microphone")}
-                title={t("voice.switchMicrophoneHint")}
-                value={recorderRef.current?.deviceId ?? deviceId ?? ""}
-                onChange={(event) => {
-                  const next = event.target.value || null;
-                  if (next) {
-                    EditorLocalStorage.set(
-                      EDITOR_LS_KEYS.VOICE_INPUT_DEVICE,
-                      next,
-                    );
-                  } else {
-                    EditorLocalStorage.delete(
-                      EDITOR_LS_KEYS.VOICE_INPUT_DEVICE,
-                    );
-                  }
+                title={`${selectedDeviceLabel} · ${t(
+                  "voice.switchMicrophoneHint",
+                )}`}
+                value={selectedDeviceId}
+                options={deviceOptions}
+                placeholder={t("voice.microphone")}
+                icon={microphoneIcon}
+                onChange={(next) => {
+                  EditorLocalStorage.set(
+                    EDITOR_LS_KEYS.VOICE_INPUT_DEVICE,
+                    next,
+                  );
                   setDeviceId(next);
                 }}
-              >
-                {devices.map((device, index) => (
-                  <option key={device.deviceId} value={device.deviceId}>
-                    {device.label || `${t("voice.microphone")} ${index + 1}`}
-                  </option>
-                ))}
-              </select>
+              />
             )}
             <button
               type="button"

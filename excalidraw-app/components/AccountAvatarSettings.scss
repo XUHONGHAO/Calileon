@@ -15,8 +15,12 @@
     min-width: 0;
   }
 
-  .AccountAvatarSettings__glyph {
+  // one glyph in a square: drop UiInput's side padding, which left ~14px for an
+  // 18px CJK character and clipped it
+  .UiInput.AccountAvatarSettings__glyph {
     width: var(--ui-control-lg);
+    height: var(--ui-control-lg);
+    padding: 0;
     text-align: center;
     font-size: var(--ui-font-lg);
     font-weight: var(--ui-weight-semibold);
