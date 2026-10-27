@@ -356,9 +356,9 @@
     "shapeSwitch": "切换形状",
     "preferences": "偏好设置",
     "preferences_toolLock": "工具锁定",
-    "boxSelectionMode": "框选方式",
-    "boxSelectionContain": "完全包含",
-    "boxSelectionOverlap": "部分重叠",
+    "boxSelectionMode": "选择方式",
+    "boxSelectionContain": "框选",
+    "boxSelectionOverlap": "碰选",
     "arrowBinding": "箭头绑定",
     "midpointSnapping": "吸附到中点"
   },
