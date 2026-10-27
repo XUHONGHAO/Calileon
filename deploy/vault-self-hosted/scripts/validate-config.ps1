@@ -93,6 +93,18 @@ if (
   throw "SCENE_COMMENTS_ENABLED requires VAULT_DEPLOYMENT_SCOPE=full"
 }
 if (
+  $envValues.ContainsKey("ACCOUNT_SETTINGS_SYNC_ENABLED") -and
+  $envValues.ACCOUNT_SETTINGS_SYNC_ENABLED -notin @("true", "false")
+) {
+  throw "ACCOUNT_SETTINGS_SYNC_ENABLED must be true or false"
+}
+if (
+  $envValues.ACCOUNT_SETTINGS_SYNC_ENABLED -eq "true" -and
+  $envValues.VAULT_DEPLOYMENT_SCOPE -ne "full"
+) {
+  throw "ACCOUNT_SETTINGS_SYNC_ENABLED requires VAULT_DEPLOYMENT_SCOPE=full"
+}
+if (
   $envValues.ContainsKey("VAULT_ALLOW_DOCKER_HOST_HTTP") -and
   $envValues.VAULT_ALLOW_DOCKER_HOST_HTTP -eq "true" -and
   -not $Local

@@ -72,6 +72,11 @@ with checks(check_name, ok, details) as (
       'comments list RPC',
       to_regprocedure('public.list_scene_comments(uuid,timestamptz,timestamptz,integer)') is not null,
       coalesce(to_regprocedure('public.list_scene_comments(uuid,timestamptz,timestamptz,integer)')::text, 'missing')
+    ),
+    (
+      'account_ai_settings table',
+      to_regclass('public.account_ai_settings') is not null,
+      coalesce(to_regclass('public.account_ai_settings')::text, 'missing')
     )
 )
 select
