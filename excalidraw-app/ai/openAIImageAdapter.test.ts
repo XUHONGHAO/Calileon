@@ -929,6 +929,25 @@ describe("OpenAI-compatible image adapter", () => {
     );
   });
 
+  it("surfaces bare-string provider errors instead of a generic HTTP status", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(JSON.stringify({ error: "不支持的尺寸" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+
+    await expect(generateImagesWithOpenAIAdapter(baseRequest)).rejects.toEqual(
+      new AIImageGenerationError("不支持的尺寸", "unsupported", {
+        status: 400,
+        providerError: "不支持的尺寸",
+      }),
+    );
+  });
+
   it("does not download image generation API endpoints as image URLs", async () => {
     const fetchMock = vi.fn(async () => {
       return new Response(

@@ -39,11 +39,15 @@ type OpenAIImageResponse = {
   id?: unknown;
   status?: unknown;
   progress?: unknown;
-  error?: {
-    message?: string;
-    type?: string;
-    code?: string | number;
-  };
+  // OpenAI-style `{ error: { message } }`; some relays (Right Code) send the
+  // reason as a bare string, e.g. `{ error: "无效的API Key" }`.
+  error?:
+    | string
+    | {
+        message?: string;
+        type?: string;
+        code?: string | number;
+      };
 };
 
 type NormalizedImageResponseItem = {
@@ -597,7 +601,8 @@ const pollAsyncImageTask = async ({
 
     if (status === "failed") {
       throw new AIImageGenerationError(
-        pollJSON.error?.message || "AI image generation task failed.",
+        readProviderErrorMessage(pollJSON) ||
+          "AI image generation task failed.",
         "request-failed",
         { providerResponse: pollJSON },
       );
@@ -1328,12 +1333,22 @@ const parseResponseJSON = async (response: Response) => {
   }
 };
 
+export const readProviderErrorMessage = (
+  responseJSON: Pick<OpenAIImageResponse, "error">,
+) => {
+  const { error } = responseJSON;
+  const message = typeof error === "string" ? error : error?.message;
+
+  return typeof message === "string" ? message.trim() : "";
+};
+
 export const normalizeProviderError = (
   status: number,
   responseJSON: Pick<OpenAIImageResponse, "error">,
 ) => {
   const message =
-    responseJSON.error?.message || `AI image provider returned HTTP ${status}.`;
+    readProviderErrorMessage(responseJSON) ||
+    `AI image provider returned HTTP ${status}.`;
 
   if (status === 401 || status === 403) {
     return new AIImageGenerationError(
