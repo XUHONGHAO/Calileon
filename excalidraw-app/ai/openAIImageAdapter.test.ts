@@ -13,6 +13,7 @@ import {
   buildOpenAIImageEndpoint,
   buildTaskPollURL,
   buildTextToImageBody,
+  describeImageRequestEndpoints,
   generateImagesWithOpenAIAdapter,
   getEndpointConfigForMode,
 } from "./openAIImageAdapter";
@@ -85,6 +86,46 @@ describe("OpenAI-compatible image adapter", () => {
         "image-to-image",
       ),
     ).toBe("https://api.example.com/v1/images/edits");
+  });
+
+  it("describes the endpoints a request actually hits for the generation log", () => {
+    expect(
+      describeImageRequestEndpoints(
+        "https://www.right.codes/draw",
+        { model: "nano-banana-fast", endpoints: RIGHT_CODE_ENDPOINTS },
+        "image-to-image",
+      ),
+    ).toEqual({
+      endpoint: "https://www.right.codes/draw/v1/images/generations",
+      pollEndpoint: "https://www.right.codes/v1/tasks/{task_id}",
+    });
+    expect(
+      describeImageRequestEndpoints(
+        "https://api.example.com/v1",
+        { model: "gpt-image-2", endpoints: NEWAPI_STYLE_ENDPOINTS },
+        "image-to-image",
+      ),
+    ).toEqual({ endpoint: "https://api.example.com/v1/images/generations" });
+    expect(
+      describeImageRequestEndpoints(
+        "https://generativelanguage.googleapis.com/v1beta",
+        { model: "gemini-2.5-flash-image", endpoints: GEMINI_NATIVE_ENDPOINTS },
+        "text-to-image",
+      ),
+    ).toEqual({
+      endpoint:
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent",
+    });
+    expect(
+      describeImageRequestEndpoints(
+        "https://api.example.com/v1",
+        undefined,
+        "image-to-image",
+      ),
+    ).toEqual({ endpoint: "https://api.example.com/v1/images/edits" });
+    expect(
+      describeImageRequestEndpoints("", undefined, "text-to-image"),
+    ).toEqual({});
   });
 
   it("builds custom endpoint URLs from model endpoint config", () => {

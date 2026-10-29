@@ -17,6 +17,11 @@ const MAX_STRING_LENGTH = 1200;
 const MAX_ARRAY_ITEMS = 12;
 const MAX_OBJECT_DEPTH = 5;
 
+// URL parsing percent-encodes the `{task_id}` placeholder; keep it readable.
+const sanitizePollEndpoint = (value: string) => {
+  return sanitizePersistedURL(value).replace(/%7Btask_id%7D/gi, "{task_id}");
+};
+
 export const createAIGenerationLogId = () => {
   return `ai-generation-log-${Date.now()}-${Math.random()
     .toString(36)
@@ -87,6 +92,7 @@ export const createAIGenerationLogEntry = ({
   params,
   baseURL,
   endpoint,
+  pollEndpoint,
   responseSummary,
   responseDetails,
 }: {
@@ -104,6 +110,7 @@ export const createAIGenerationLogEntry = ({
   params: AIImageGenerationParams;
   baseURL: string;
   endpoint?: string;
+  pollEndpoint?: string;
   responseSummary: string;
   responseDetails: unknown;
 }): AIGenerationLogEntry => {
@@ -121,6 +128,9 @@ export const createAIGenerationLogEntry = ({
     request: {
       baseURL: sanitizePersistedURL(baseURL),
       endpoint: endpoint ? sanitizePersistedURL(endpoint) : undefined,
+      ...(pollEndpoint
+        ? { pollEndpoint: sanitizePollEndpoint(pollEndpoint) }
+        : {}),
     },
     response: {
       summary: redactSecretLikeText(sanitizePersistedURL(responseSummary)),
@@ -266,6 +276,9 @@ const sanitizeGenerationLogEntry = (
       endpoint: entry.request.endpoint
         ? sanitizePersistedURL(entry.request.endpoint)
         : undefined,
+      ...(entry.request.pollEndpoint
+        ? { pollEndpoint: sanitizePollEndpoint(entry.request.pollEndpoint) }
+        : {}),
     },
     response: {
       summary: redactSecretLikeText(

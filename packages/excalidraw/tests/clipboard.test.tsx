@@ -645,3 +645,51 @@ describe("clipboard - pasting mermaid definition", () => {
     });
   });
 });
+
+describe("copy/cut with a DOM text selection", () => {
+  const dispatchClipboardEvent = (type: "copy" | "cut") => {
+    const event = new Event(type, { bubbles: true, cancelable: true });
+    document.dispatchEvent(event);
+    return event;
+  };
+
+  const selectTextInsideEditor = () => {
+    const panel = document.createElement("div");
+    panel.textContent = "generation log details";
+    document.querySelector(".excalidraw-container")!.appendChild(panel);
+    const range = document.createRange();
+    range.selectNodeContents(panel);
+    const selection = document.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    return panel;
+  };
+
+  beforeEach(() => {
+    const rectangle = API.createElement({ type: "rectangle" });
+    API.setElements([rectangle]);
+    API.setSelectedElements([rectangle]);
+    (document.querySelector(".excalidraw-container") as HTMLElement).focus();
+  });
+
+  afterEach(() => {
+    document.getSelection()?.removeAllRanges();
+  });
+
+  it("leaves copy to the browser when UI text is selected", () => {
+    selectTextInsideEditor();
+
+    expect(dispatchClipboardEvent("copy").defaultPrevented).toBe(false);
+  });
+
+  it("does not cut selected elements when UI text is selected", () => {
+    selectTextInsideEditor();
+
+    expect(dispatchClipboardEvent("cut").defaultPrevented).toBe(false);
+    expect(h.elements.filter((element) => !element.isDeleted).length).toBe(1);
+  });
+
+  it("still copies selected elements without a DOM text selection", () => {
+    expect(dispatchClipboardEvent("copy").defaultPrevented).toBe(true);
+  });
+});

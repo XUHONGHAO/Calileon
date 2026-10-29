@@ -56,7 +56,7 @@ import {
 } from "../ai/canvasExport";
 import {
   AIImageGenerationError,
-  buildOpenAIImageEndpoint,
+  describeImageRequestEndpoints,
   generateImagesWithOpenAIAdapter,
 } from "../ai/openAIImageAdapter";
 import {
@@ -2450,9 +2450,11 @@ export const AIImageWorkbench = ({
       const activeBaseURL = activeModelCard?.baseURL || config.baseURL;
       const activeSiteName =
         activeModelCard?.siteName || activeModelCard?.label || "Unknown site";
-      const endpoint = activeBaseURL
-        ? buildOpenAIImageEndpoint(activeBaseURL, activeMode)
-        : undefined;
+      const { endpoint, pollEndpoint } = describeImageRequestEndpoints(
+        activeBaseURL,
+        activeModelCard,
+        activeMode,
+      );
 
       if (mediaType !== "image") {
         setErrorMessage(t("ai.workbench.onlyImageGeneration"));
@@ -2721,6 +2723,7 @@ export const AIImageWorkbench = ({
             params: effectiveParams,
             baseURL: activeBaseURL,
             endpoint,
+            pollEndpoint,
             responseSummary:
               insertedCount === 1
                 ? t("ai.workbench.generatedImageInserted")
@@ -2785,6 +2788,7 @@ export const AIImageWorkbench = ({
                 params: effectiveParams,
                 baseURL: activeBaseURL,
                 endpoint,
+                pollEndpoint,
                 responseSummary: t("ai.workbench.generationTimedOut", {
                   seconds: timeoutSeconds,
                 }),
@@ -2834,6 +2838,7 @@ export const AIImageWorkbench = ({
                 params: effectiveParams,
                 baseURL: activeBaseURL,
                 endpoint,
+                pollEndpoint,
                 responseSummary: t("ai.workbench.generationCanceled"),
                 responseDetails: getRunErrorResponseDetails(error),
               }),
@@ -2900,6 +2905,7 @@ export const AIImageWorkbench = ({
             params: effectiveParams,
             baseURL: activeBaseURL,
             endpoint,
+            pollEndpoint,
             responseSummary: partialFailureMessage,
             responseDetails: getRunErrorResponseDetails(error),
           }),

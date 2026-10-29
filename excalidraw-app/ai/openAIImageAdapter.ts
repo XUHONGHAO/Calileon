@@ -480,7 +480,17 @@ export const buildTaskPollURL = (
   baseURL: string,
   taskId: string,
 ): string => {
-  const encodedTaskId = encodeURIComponent(taskId);
+  return resolveTaskPollURLTemplate(taskPollURL, baseURL).replaceAll(
+    "{task_id}",
+    encodeURIComponent(taskId),
+  );
+};
+
+// The absolute task query URL with `{task_id}` left in place.
+const resolveTaskPollURLTemplate = (
+  taskPollURL: string | undefined,
+  baseURL: string,
+): string => {
   const template = (taskPollURL || "").trim();
 
   if (!template) {
@@ -490,11 +500,8 @@ export const buildTaskPollURL = (
     );
   }
 
-  const substitute = (value: string) =>
-    value.replaceAll("{task_id}", encodedTaskId);
-
   if (/^https?:\/\//i.test(template)) {
-    return substitute(template);
+    return template;
   }
 
   let origin = "";
@@ -511,7 +518,43 @@ export const buildTaskPollURL = (
 
   const path = template.startsWith("/") ? template : `/${template}`;
 
-  return substitute(`${origin}${path}`);
+  return `${origin}${path}`;
+};
+
+// The URLs a local (non-managed) image request actually hits, for the
+// generation log. Resolves the model's endpoint preset the same way
+// fetchImageGenerationResponse does, so the log never drifts from the request.
+export const describeImageRequestEndpoints = (
+  baseURL: string,
+  modelConfig: Pick<AIImageModel, "endpoints" | "model"> | undefined,
+  mode: AIImageGenerationRequest["mode"],
+): { endpoint?: string; pollEndpoint?: string } => {
+  if (!baseURL.trim()) {
+    return {};
+  }
+
+  const endpointConfig = getEndpointConfigForMode(modelConfig, mode);
+  const endpoint = buildEndpointURL(
+    baseURL,
+    endpointConfig,
+    modelConfig?.model,
+  );
+
+  if (!endpointConfig.async) {
+    return { endpoint };
+  }
+
+  try {
+    return {
+      endpoint,
+      pollEndpoint: resolveTaskPollURLTemplate(
+        modelConfig?.endpoints.taskPollURL,
+        baseURL,
+      ),
+    };
+  } catch {
+    return { endpoint };
+  }
 };
 
 const pollAsyncImageTask = async ({

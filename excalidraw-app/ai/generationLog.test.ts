@@ -50,6 +50,32 @@ describe("AI generation log", () => {
     expect(loadAIGenerationLogs()).toEqual([]);
   });
 
+  it("keeps the async task poll endpoint with a readable placeholder", () => {
+    const entry = createAIGenerationLogEntry({
+      submittedAt: "2026-10-29T10:00:00.000Z",
+      mediaType: "image",
+      mode: "text-to-image",
+      status: "success",
+      model: { id: "m", name: "nano-banana-fast", siteName: "Right Code" },
+      prompt: "red square",
+      params: { size: "1024x1024", n: 1 },
+      baseURL: "https://www.right.codes/draw",
+      endpoint: "https://www.right.codes/draw/v1/images/generations",
+      pollEndpoint: "https://www.right.codes/v1/tasks/{task_id}?token=secret",
+      responseSummary: "ok",
+      responseDetails: {},
+    });
+
+    expect(entry.request).toEqual({
+      baseURL: "https://www.right.codes/draw",
+      endpoint: "https://www.right.codes/draw/v1/images/generations",
+      pollEndpoint: "https://www.right.codes/v1/tasks/{task_id}",
+    });
+
+    appendAIGenerationLog(entry);
+    expect(loadAIGenerationLogs()[0].request).toEqual(entry.request);
+  });
+
   it("redacts secrets and summarizes image data URLs", () => {
     expect(
       sanitizeLogDetails({

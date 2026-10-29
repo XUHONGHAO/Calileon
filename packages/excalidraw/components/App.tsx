@@ -4115,11 +4115,23 @@ class App extends React.Component<AppProps, AppState> {
 
   // Copy/paste
 
+  // Text selected in the UI (sidebar panels, dialogs) belongs to the browser's
+  // own copy. Pointerdown on the canvas clears any DOM selection, so a live
+  // selection never means "copy the selected elements".
+  private static hasDOMTextSelection() {
+    const selection = document.getSelection();
+    return !!selection && selection.rangeCount > 0 && !selection.isCollapsed;
+  }
+
   private onCut = withBatchedUpdates((event: ClipboardEvent) => {
     const isExcalidrawActive = this.excalidrawContainerRef.current?.contains(
       document.activeElement,
     );
-    if (!isExcalidrawActive || isWritableElement(event.target)) {
+    if (
+      !isExcalidrawActive ||
+      isWritableElement(event.target) ||
+      App.hasDOMTextSelection()
+    ) {
       return;
     }
     this.actionManager.executeAction(actionCut, "keyboard", event);
@@ -4131,7 +4143,11 @@ class App extends React.Component<AppProps, AppState> {
     const isExcalidrawActive = this.excalidrawContainerRef.current?.contains(
       document.activeElement,
     );
-    if (!isExcalidrawActive || isWritableElement(event.target)) {
+    if (
+      !isExcalidrawActive ||
+      isWritableElement(event.target) ||
+      App.hasDOMTextSelection()
+    ) {
       return;
     }
     this.actionManager.executeAction(actionCopy, "keyboard", event);

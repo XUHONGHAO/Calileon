@@ -303,6 +303,8 @@ export type AIGenerationLogEntry = {
   request: {
     baseURL: string;
     endpoint?: string;
+    /** Async endpoints: task query URL, `{task_id}` left as a placeholder. */
+    pollEndpoint?: string;
   };
   response: {
     summary: string;
