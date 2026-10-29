@@ -16,12 +16,14 @@ import {
   describeImageRequestEndpoints,
   generateImagesWithOpenAIAdapter,
   getEndpointConfigForMode,
+  snapRightCodeImageSize,
 } from "./openAIImageAdapter";
 import {
   GEMINI_NATIVE_ENDPOINTS,
   NEWAPI_STYLE_ENDPOINTS,
   OPENAI_STANDARD_ENDPOINTS,
   RIGHT_CODE_ENDPOINTS,
+  RIGHT_CODE_GEMINI_ENDPOINTS,
   UNIFIED_JSON_ENDPOINTS,
 } from "./endpointPresets";
 
@@ -91,13 +93,13 @@ describe("OpenAI-compatible image adapter", () => {
   it("describes the endpoints a request actually hits for the generation log", () => {
     expect(
       describeImageRequestEndpoints(
-        "https://www.right.codes/draw",
-        { model: "nano-banana-fast", endpoints: RIGHT_CODE_ENDPOINTS },
+        "https://rightapi.ai",
+        { model: "gpt-image-2", endpoints: RIGHT_CODE_ENDPOINTS },
         "image-to-image",
       ),
     ).toEqual({
-      endpoint: "https://www.right.codes/draw/v1/images/generations",
-      pollEndpoint: "https://www.right.codes/v1/tasks/{task_id}",
+      endpoint: "https://rightapi.ai/v1/images/edits",
+      pollEndpoint: "https://rightapi.ai/v1/tasks/{task_id}",
     });
     expect(
       describeImageRequestEndpoints(
@@ -1397,12 +1399,12 @@ describe("OpenAI-compatible image adapter", () => {
     const rightCodeModelCard = {
       id: "right-code-card",
       siteName: "Right Code",
-      baseURL: "https://www.right.codes/draw",
+      baseURL: "https://rightapi.ai",
       apiKey: "sk-right-code",
-      model: "nano-banana-fast",
-      label: "nano-banana-fast",
+      model: "gpt-image-2",
+      label: "gpt-image-2",
       mediaType: "image" as const,
-      nativeModel: "nano-banana" as const,
+      nativeModel: "gpt-image-2" as const,
       capabilities: ["text-to-image" as const, "image-to-image" as const],
       endpoints: RIGHT_CODE_ENDPOINTS,
       requestTimeoutSeconds: 600,
@@ -1418,30 +1420,31 @@ describe("OpenAI-compatible image adapter", () => {
       model: "right-code-card",
       prompt: "a small library",
       params: {
-        size: "1344x768",
+        size: "1920x1080",
         n: 1,
+        seed: 7,
+        quality: "high",
+        style: "natural",
+        referenceStrength: 0.6,
         aspectRatio: "16:9",
-        resolution: "1k",
+        resolution: "2k",
       },
     };
+    const jsonResponse = (value: unknown) =>
+      new Response(JSON.stringify(value), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
 
-    it("submits with async=true + imageSize tier, polls the site-level task query, then extracts the completed image", async () => {
+    it("submits the documented body with async=true, polls the same host, then extracts the completed image", async () => {
       const fetchMock = vi
         .fn()
         .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({ task_id: "task_abc", status: "processing" }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
+          jsonResponse({ task_id: "task_abc", status: "processing" }),
         )
         .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              status: "completed",
-              data: [{ b64_json: "QUJD" }],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } },
-          ),
+          // Completed tasks carry no `status`, only the protocol's result.
+          jsonResponse({ created: 1, data: [{ b64_json: "QUJD" }] }),
         );
 
       vi.stubGlobal("fetch", fetchMock);
@@ -1450,12 +1453,12 @@ describe("OpenAI-compatible image adapter", () => {
 
       expect(fetchMock).toHaveBeenNthCalledWith(
         1,
-        "https://www.right.codes/draw/v1/images/generations",
+        "https://rightapi.ai/v1/images/generations",
         expect.any(Object),
       );
       expect(fetchMock).toHaveBeenNthCalledWith(
         2,
-        "https://www.right.codes/v1/tasks/task_abc",
+        "https://rightapi.ai/v1/tasks/task_abc",
         expect.any(Object),
       );
 
@@ -1463,11 +1466,14 @@ describe("OpenAI-compatible image adapter", () => {
         string,
         RequestInit,
       ];
-      const submitBody = JSON.parse(submitInit.body as string);
-      expect(submitBody.async).toBe(true);
-      expect(submitBody.size).toBe("16:9");
-      expect(submitBody.imageSize).toBe("1K");
-      expect(submitBody.model).toBe("nano-banana-fast");
+      expect(JSON.parse(submitInit.body as string)).toEqual({
+        model: "gpt-image-2",
+        prompt: "a small library",
+        n: 1,
+        size: "1920x1088",
+        async: true,
+        quality: "high",
+      });
       expect((submitInit.headers as Headers).get("Authorization")).toBe(
         "Bearer sk-right-code",
       );
@@ -1573,5 +1579,225 @@ describe("OpenAI-compatible image adapter", () => {
         ),
       ).toBe("https://www.right.codes/v1/tasks/task_123");
     });
+
+    it("sends reference images to the edits route as data URLs, even when the Base URL ends in /v1", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ task_id: "task_edit" }))
+        .mockResolvedValueOnce(
+          jsonResponse({ data: [{ url: "data:image/png;base64,QUJD" }] }),
+        );
+
+      vi.stubGlobal("fetch", fetchMock);
+
+      await generateImagesWithOpenAIAdapter({
+        ...rightCodeRequest,
+        config: {
+          ...rightCodeRequest.config,
+          models: [
+            { ...rightCodeModelCard, baseURL: "https://rightapi.ai/v1" },
+          ],
+        },
+        mode: "image-to-image",
+        sources: [
+          {
+            elementId: "element-a",
+            file: new File(["a"], "a.png", { type: "image/png" }),
+            dataURL: "data:image/png;base64,AAAA" as DataURL,
+          },
+          {
+            elementId: "element-b",
+            file: new File(["b"], "b.png", { type: "image/png" }),
+            dataURL: "data:image/png;base64,BBBB" as DataURL,
+          },
+        ],
+      });
+
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        "https://rightapi.ai/v1/images/edits",
+        "https://rightapi.ai/v1/tasks/task_edit",
+      ]);
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1]
+          .body as string,
+      );
+      expect(body.image).toEqual([
+        "data:image/png;base64,AAAA",
+        "data:image/png;base64,BBBB",
+      ]);
+      expect(body.reference_weights).toBeUndefined();
+      expect(body.reference_strength).toBeUndefined();
+    });
+
+    it("treats an expired task as failed", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi
+          .fn()
+          .mockResolvedValueOnce(jsonResponse({ task_id: "task_old" }))
+          .mockResolvedValueOnce(
+            jsonResponse({
+              status: "expired",
+              error: { message: "task expired" },
+            }),
+          ),
+      );
+
+      await expect(
+        generateImagesWithOpenAIAdapter(rightCodeRequest),
+      ).rejects.toThrow("task expired");
+    });
+
+    it("fails on a submit-stage failure without polling", async () => {
+      const fetchMock = vi.fn().mockResolvedValueOnce(
+        jsonResponse({
+          task_id: "task_bad",
+          status: "failed",
+          error: "上游 HTTP 404: 404 page not found",
+        }),
+      );
+
+      vi.stubGlobal("fetch", fetchMock);
+
+      await expect(
+        generateImagesWithOpenAIAdapter(rightCodeRequest),
+      ).rejects.toThrow("上游 HTTP 404: 404 page not found");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("runs the Gemini protocol: async generateContent with imageConfig, URL result in a text part", async () => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(jsonResponse({ task_id: "task_gem" }))
+        .mockResolvedValueOnce(
+          jsonResponse({
+            candidates: [
+              {
+                content: {
+                  role: "model",
+                  parts: [{ text: "data:image/png;base64,R0VN" }],
+                },
+                finishReason: "STOP",
+              },
+            ],
+          }),
+        );
+
+      vi.stubGlobal("fetch", fetchMock);
+
+      const outputs = await generateImagesWithOpenAIAdapter({
+        ...rightCodeRequest,
+        config: {
+          ...rightCodeRequest.config,
+          models: [
+            {
+              ...rightCodeModelCard,
+              model: "gemini-3-pro-image-preview",
+              label: "gemini-3-pro-image-preview",
+              nativeModel: "nano-banana-pro",
+              endpoints: RIGHT_CODE_GEMINI_ENDPOINTS,
+            },
+          ],
+        },
+        mode: "image-to-image",
+        sources: [
+          {
+            elementId: "element-a",
+            file: new File(["a"], "a.png", { type: "image/png" }),
+            dataURL: "data:image/png;base64,AAAA" as DataURL,
+          },
+        ],
+      });
+
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+        "https://rightapi.ai/v1beta/models/gemini-3-pro-image-preview:generateContent",
+        "https://rightapi.ai/v1/tasks/task_gem",
+      ]);
+      const [, submitInit] = fetchMock.mock.calls[0] as unknown as [
+        string,
+        RequestInit,
+      ];
+      expect(JSON.parse(submitInit.body as string)).toEqual({
+        async: true,
+        contents: [
+          {
+            role: "user",
+            parts: [
+              { text: "a small library" },
+              { inline_data: { mime_type: "image/png", data: "AAAA" } },
+            ],
+          },
+        ],
+        generationConfig: {
+          imageConfig: { aspectRatio: "16:9", imageSize: "2K" },
+        },
+      });
+      const headers = submitInit.headers as Headers;
+      expect(headers.get("Authorization")).toBe("Bearer sk-right-code");
+      expect(headers.get("x-goog-api-key")).toBeNull();
+      expect(outputs).toEqual([
+        expect.objectContaining({ dataURL: "data:image/png;base64,R0VN" }),
+      ]);
+    });
+
+    it("snaps sizes onto Right Code's 16-px grid and pixel window", () => {
+      expect(snapRightCodeImageSize("1920x1080")).toBe("1920x1088");
+      expect(snapRightCodeImageSize("1024x1024")).toBe("1024x1024");
+      expect(snapRightCodeImageSize("1536x1024")).toBe("1536x1024");
+      expect(snapRightCodeImageSize("3840x2160")).toBe("3840x2160");
+      expect(snapRightCodeImageSize("auto")).toBe("auto");
+      expect(snapRightCodeImageSize(undefined)).toBe("auto");
+
+      const sizes = ["512x512", "8000x2000", "4000x1000", "100x900"];
+      for (let width = 64; width <= 8192; width += 389) {
+        for (let height = 64; height <= 8192; height += 433) {
+          sizes.push(`${width}x${height}`);
+        }
+      }
+
+      for (const size of sizes) {
+        const [width, height] = snapRightCodeImageSize(size)
+          .split("x")
+          .map(Number);
+
+        expect(width % 16).toBe(0);
+        expect(height % 16).toBe(0);
+        expect(Math.max(width, height)).toBeLessThanOrEqual(3840);
+        expect(
+          Math.max(width, height) / Math.min(width, height),
+        ).toBeLessThanOrEqual(3);
+        expect(width * height).toBeGreaterThanOrEqual(655_360);
+        expect(width * height).toBeLessThanOrEqual(8_294_400);
+      }
+    });
+  });
+
+  it("does not double the API version when the Base URL already carries it", () => {
+    expect(
+      buildEndpointURL("https://rightapi.ai/v1", {
+        path: "/v1/images/generations",
+        format: "json",
+      }),
+    ).toBe("https://rightapi.ai/v1/images/generations");
+    expect(
+      buildEndpointURL("https://generativelanguage.googleapis.com/v1beta", {
+        path: "/models/{model}:generateContent",
+        format: "gemini",
+      }),
+    ).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/:generateContent",
+    );
+    expect(
+      buildEndpointURL("https://rightapi.ai/v1", {
+        path: "/v1beta/models/m:generateContent",
+        format: "gemini",
+      }),
+    ).toBe("https://rightapi.ai/v1beta/models/m:generateContent");
+    expect(
+      buildEndpointURL("https://api.example.com/v1", {
+        path: "/images/generations",
+        format: "json",
+      }),
+    ).toBe("https://api.example.com/v1/images/generations");
   });
 });

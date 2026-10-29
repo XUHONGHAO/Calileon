@@ -2,8 +2,10 @@ import { STORAGE_KEYS } from "../app_constants";
 
 import {
   cloneAIImageEndpoints,
+  isLegacyRightCodeEndpoints,
   OPENAI_STANDARD_ENDPOINTS,
   RIGHT_CODE_ENDPOINTS,
+  RIGHT_CODE_GEMINI_ENDPOINTS,
 } from "./endpointPresets";
 import { normalizeAIImageNativeModel } from "./imageDimensions";
 
@@ -164,22 +166,37 @@ export const DEFAULT_AI_MODEL_PROVIDER_PRESETS: AIModelProviderPreset[] = [
     endpointPresetId: "openai-standard",
   },
   {
-    // Right Code async draw API. baseURL keeps the `/draw` prefix so the
-    // generations path resolves to https://www.right.codes/draw/v1/images/generations;
-    // the task query is site-level and lives in RIGHT_CODE_ENDPOINTS.taskPollURL.
+    // Right Code async draw API, OpenAI protocol. Paths carry `/v1`, so the
+    // Base URL is the bare host; the task query path follows the same host.
     id: "right-code",
     name: "Right Code",
     description:
-      "Right Code async draw API. Submits with async=true and polls the task query for the result. Add your API key to use nano-banana-fast.",
+      "Right Code async draw API (OpenAI protocol). Submits with async=true and polls the task query for the result. Add your API key to use gpt-image-2.",
     siteName: "Right Code",
-    baseURL: "https://www.right.codes/draw",
-    model: "nano-banana-fast",
-    label: "nano-banana-fast",
+    baseURL: "https://rightapi.ai",
+    model: "gpt-image-2",
+    label: "gpt-image-2",
     mediaType: "image",
-    nativeModel: "nano-banana",
-    capabilities: ["text-to-image", "image-to-image", "seed"],
+    nativeModel: "gpt-image-2",
+    capabilities: ["text-to-image", "image-to-image"],
     endpoints: RIGHT_CODE_ENDPOINTS,
     endpointPresetId: "right-code",
+  },
+  {
+    // Right Code async draw API, Gemini protocol (Nano Banana family).
+    id: "right-code-gemini",
+    name: "Right Code Gemini",
+    description:
+      "Right Code async draw API (Gemini protocol). Submits with async=true and polls the task query for the result. Add your API key to use gemini-3-pro-image-preview.",
+    siteName: "Right Code",
+    baseURL: "https://rightapi.ai",
+    model: "gemini-3-pro-image-preview",
+    label: "gemini-3-pro-image-preview",
+    mediaType: "image",
+    nativeModel: "nano-banana-pro",
+    capabilities: ["text-to-image", "image-to-image"],
+    endpoints: RIGHT_CODE_GEMINI_ENDPOINTS,
+    endpointPresetId: "right-code-gemini",
   },
 ];
 
@@ -340,9 +357,14 @@ export const normalizeAIImageFieldMapping = (
 export const migrateModelConfig = (
   model: AIImageModel | (Partial<AIImageModel> & Record<string, unknown>),
 ): AIImageModel => {
+  const endpoints = normalizeAIImageEndpoints((model as any).endpoints);
   const migratedModel: AIImageModel = {
     ...(model as AIImageModel),
-    endpoints: normalizeAIImageEndpoints((model as any).endpoints),
+    // The earlier Right Code preset pinned the poll URL to www.right.codes and
+    // sent reference images to the generations route; follow the current docs.
+    endpoints: isLegacyRightCodeEndpoints(endpoints)
+      ? cloneAIImageEndpoints(RIGHT_CODE_ENDPOINTS)
+      : endpoints,
   };
   const fieldMapping = normalizeAIImageFieldMapping(
     (model as any).fieldMapping,

@@ -23,7 +23,6 @@ import type {
   AIImageEndpointConfig,
   AIImageFieldMapping,
   AIImageGenerationOutput,
-  AIImageGenerationParams,
   AIImageGenerationRequest,
   AIImageModel,
 } from "./types";
@@ -70,7 +69,8 @@ type AIImageProviderFlavor =
   | "openai-compatible"
   | "lconai"
   | "gemini-native"
-  | "right-code";
+  | "right-code"
+  | "right-code-gemini";
 
 export class AIImageGenerationError extends Error {
   constructor(
@@ -117,8 +117,15 @@ export const buildEndpointURL = (
   const normalizedPath = trimmedPath.startsWith("/")
     ? trimmedPath
     : `/${trimmedPath}`;
+  // A path that carries its own API version (Right Code: `/v1/...`,
+  // `/v1beta/...`) owns the version, so a version segment the user also put
+  // at the end of the Base URL is dropped instead of doubled.
+  const API_VERSION_SEGMENT = /^\/v\d+(?:beta|alpha)?\//i;
+  const baseURLWithoutVersion = API_VERSION_SEGMENT.test(normalizedPath)
+    ? normalizedBaseURL.replace(/\/v\d+(?:beta|alpha)?$/i, "")
+    : normalizedBaseURL;
 
-  return `${normalizedBaseURL}${normalizedPath}`;
+  return `${baseURLWithoutVersion}${normalizedPath}`;
 };
 
 export const getEndpointConfigForMode = (
@@ -195,28 +202,92 @@ const shouldOmitResponseFormat = (
     isOpenAIOfficialBaseURL(baseURL) &&
     /^gpt-image(-|$)/i.test((model || "").trim()));
 
-// Right Code takes `size` as an aspect ratio (or pixel string) plus a separate
-// `imageSize` tier (1K/2K/4K), unlike the OpenAI-compatible path that sends one
-// merged pixel string. Reconstruct both from the workbench params: the aspect
-// ratio drives `size` when set (else the already-merged pixel size is a valid
-// fallback Right Code also accepts), and the resolution tier maps to `imageSize`
-// (skipped for auto / the 512 tier, which Right Code does not expose).
+// Right Code's OpenAI protocol takes `size` as `auto` or `WxH` pixels where
+// both sides are multiples of 16, each side <= 3840, long:short <= 3:1 and
+// 655,360 <= W*H <= 8,294,400. Snap the workbench size onto that grid keeping
+// its aspect ratio (1920x1080 -> 1920x1088) so a valid request never 400s.
+const RIGHT_CODE_SIZE_STEP = 16;
+const RIGHT_CODE_MAX_SIDE = 3840;
+const RIGHT_CODE_MAX_RATIO = 3;
+const RIGHT_CODE_MIN_PIXELS = 655_360;
+const RIGHT_CODE_MAX_PIXELS = 8_294_400;
+
+export const snapRightCodeImageSize = (size: string | undefined): string => {
+  const match = /^\s*(\d+)\s*[x×*]\s*(\d+)\s*$/i.exec(size || "");
+
+  if (!match) {
+    return "auto";
+  }
+
+  let width = Number(match[1]);
+  let height = Number(match[2]);
+
+  if (!width || !height) {
+    return "auto";
+  }
+
+  const ratio = Math.min(
+    Math.max(width / height, 1 / RIGHT_CODE_MAX_RATIO),
+    RIGHT_CODE_MAX_RATIO,
+  );
+  const pixels = Math.min(
+    Math.max(width * height, RIGHT_CODE_MIN_PIXELS),
+    RIGHT_CODE_MAX_PIXELS,
+  );
+  width = Math.sqrt(pixels * ratio);
+  height = width / ratio;
+
+  const scale = Math.min(
+    1,
+    RIGHT_CODE_MAX_SIDE / width,
+    RIGHT_CODE_MAX_SIDE / height,
+  );
+  const snap = (value: number) =>
+    Math.max(
+      RIGHT_CODE_SIZE_STEP,
+      Math.round((value * scale) / RIGHT_CODE_SIZE_STEP) * RIGHT_CODE_SIZE_STEP,
+    );
+  let snappedWidth = snap(width);
+  let snappedHeight = snap(height);
+
+  // Snapping each side separately can push a 3:1 size just past 3:1.
+  while (
+    Math.max(snappedWidth, snappedHeight) >
+    RIGHT_CODE_MAX_RATIO * Math.min(snappedWidth, snappedHeight)
+  ) {
+    if (snappedWidth >= snappedHeight) {
+      snappedWidth -= RIGHT_CODE_SIZE_STEP;
+    } else {
+      snappedHeight -= RIGHT_CODE_SIZE_STEP;
+    }
+  }
+
+  // Rounding can step just outside the pixel window. Grow the short side or
+  // shrink the long side, which both move the ratio back toward 1:1.
+  while (snappedWidth * snappedHeight < RIGHT_CODE_MIN_PIXELS) {
+    if (snappedWidth >= snappedHeight) {
+      snappedHeight += RIGHT_CODE_SIZE_STEP;
+    } else {
+      snappedWidth += RIGHT_CODE_SIZE_STEP;
+    }
+  }
+  while (snappedWidth * snappedHeight > RIGHT_CODE_MAX_PIXELS) {
+    if (snappedWidth >= snappedHeight) {
+      snappedWidth -= RIGHT_CODE_SIZE_STEP;
+    } else {
+      snappedHeight -= RIGHT_CODE_SIZE_STEP;
+    }
+  }
+
+  return `${snappedWidth}x${snappedHeight}`;
+};
+
+// Right Code's Gemini protocol sizes with `imageConfig.aspectRatio` plus an
+// `imageSize` tier; `K` must be upper-case and auto / 512 are left out.
 const RIGHT_CODE_IMAGE_SIZE_TIERS: Record<string, string> = {
   "1k": "1K",
   "2k": "2K",
   "4k": "4K",
-};
-
-const buildRightCodeSizing = (params: AIImageGenerationParams) => {
-  const aspectRatio = params.aspectRatio?.trim();
-  const size =
-    aspectRatio && aspectRatio !== "auto" ? aspectRatio : params.size;
-  const resolution = params.resolution?.trim().toLowerCase();
-  const imageSize = resolution
-    ? RIGHT_CODE_IMAGE_SIZE_TIERS[resolution]
-    : undefined;
-
-  return { size, imageSize };
 };
 
 const assertImageModeInputs = (request: AIImageGenerationRequest) => {
@@ -246,19 +317,20 @@ export const buildJSONRequestBody = (
   baseURL?: string,
 ): Record<string, unknown> => {
   const { model, prompt, negativePrompt, params, sources, mask } = request;
-  const includeAdvancedParameters = providerFlavor !== "lconai";
   const isRightCode = providerFlavor === "right-code";
-  const rightCodeSizing = isRightCode ? buildRightCodeSizing(params) : null;
+  // Right Code documents a closed parameter list (model, prompt, n, size,
+  // quality, async, image); seed / style / negative prompt / reference
+  // strength are not part of it, so they stay off like on lconai.
+  const includeAdvancedParameters = providerFlavor !== "lconai" && !isRightCode;
   const body = stripUndefinedValues({
     [getMappedFieldName(fieldMapping, "model", "model")]: model,
     [getMappedFieldName(fieldMapping, "prompt", "prompt")]: prompt,
     [getMappedFieldName(fieldMapping, "negativePrompt", "negative_prompt")]:
       includeAdvancedParameters && negativePrompt ? negativePrompt : undefined,
     [getMappedFieldName(fieldMapping, "n", "n")]: params.n,
-    [getMappedFieldName(fieldMapping, "size", "size")]: rightCodeSizing
-      ? rightCodeSizing.size
+    [getMappedFieldName(fieldMapping, "size", "size")]: isRightCode
+      ? snapRightCodeImageSize(params.size)
       : params.size,
-    imageSize: rightCodeSizing?.imageSize,
     // Async endpoints submit the task and return a task id; the adapter polls
     // taskPollURL for the result. Right Code requires this flag on every call.
     async: isRightCode ? true : undefined,
@@ -266,9 +338,10 @@ export const buildJSONRequestBody = (
       ? undefined
       : "b64_json",
     seed: includeAdvancedParameters ? params.seed ?? undefined : undefined,
-    quality: includeAdvancedParameters
-      ? params.quality || undefined
-      : undefined,
+    quality:
+      includeAdvancedParameters || isRightCode
+        ? params.quality || undefined
+        : undefined,
     style: includeAdvancedParameters ? params.style || undefined : undefined,
     reference_strength:
       includeAdvancedParameters && params.referenceStrength != null
@@ -277,6 +350,18 @@ export const buildJSONRequestBody = (
   });
 
   assertImageModeInputs(request);
+
+  // Right Code edits take `image` as an array of full data URLs (or public
+  // URLs). Its mask is accepted but ignored, so none is sent.
+  if (isRightCode) {
+    if (sources?.length) {
+      body[getMappedFieldName(fieldMapping, "image", "image")] = sources.map(
+        (source) => source.dataURL,
+      );
+    }
+
+    return body;
+  }
 
   if (sources?.length) {
     const imagePayloads = sources.map((source) =>
@@ -302,11 +387,44 @@ export const buildJSONRequestBody = (
 
 export const buildGeminiNativeRequestBody = (
   request: AIImageGenerationRequest,
+  providerFlavor: AIImageProviderFlavor = "gemini-native",
 ): Record<string, unknown> => {
   const { prompt, params, sources, mask } = request;
   const parts: Array<Record<string, unknown>> = [{ text: prompt }];
 
   assertImageModeInputs(request);
+
+  // Right Code: `async: true`, sizing under generationConfig.imageConfig, no
+  // mask (not supported). The result comes back as a URL in parts[].text.
+  if (providerFlavor === "right-code-gemini") {
+    for (const source of sources || []) {
+      parts.push({
+        inline_data: {
+          mime_type: source.file.type || getMimeTypeFromDataURL(source.dataURL),
+          data: dataURLToBase64Payload(source.dataURL),
+        },
+      });
+    }
+
+    const aspectRatio = params.aspectRatio?.trim();
+    const imageSize =
+      RIGHT_CODE_IMAGE_SIZE_TIERS[
+        params.resolution?.trim().toLowerCase() || ""
+      ];
+    const imageConfig = stripUndefinedValues({
+      aspectRatio:
+        aspectRatio && aspectRatio !== "auto" ? aspectRatio : undefined,
+      imageSize,
+    });
+
+    return stripUndefinedValues({
+      async: true,
+      contents: [{ role: "user", parts }],
+      generationConfig: Object.keys(imageConfig).length
+        ? { imageConfig }
+        : undefined,
+    });
+  }
 
   for (const source of sources || []) {
     parts.push({
@@ -356,7 +474,8 @@ export const buildFormDataRequestBody = (
   baseURL?: string,
 ) => {
   const { model, prompt, negativePrompt, params, sources, mask } = request;
-  const includeAdvancedParameters = providerFlavor !== "lconai";
+  const isRightCode = providerFlavor === "right-code";
+  const includeAdvancedParameters = providerFlavor !== "lconai" && !isRightCode;
 
   assertImageModeInputs(request);
 
@@ -366,8 +485,14 @@ export const buildFormDataRequestBody = (
   formData.append(getMappedFieldName(fieldMapping, "n", "n"), String(params.n));
   formData.append(
     getMappedFieldName(fieldMapping, "size", "size"),
-    params.size,
+    isRightCode ? snapRightCodeImageSize(params.size) : params.size,
   );
+  if (isRightCode) {
+    formData.append("async", "true");
+    if (params.quality) {
+      formData.append("quality", params.quality);
+    }
+  }
   if (!shouldOmitResponseFormat(model, providerFlavor, baseURL)) {
     formData.append("response_format", "b64_json");
   }
@@ -428,7 +553,8 @@ export const buildImageEditBody = (
 // the task query endpoint on a fixed cadence until the status resolves. Cadence
 // and lifetime are bounded by the caller's AbortSignal (the workbench arms it
 // with the model's requestTimeoutSeconds), so no separate timeout is needed.
-const ASYNC_TASK_POLL_INTERVAL_MS = 2500;
+// Right Code recommends polling every 3–5 s.
+const ASYNC_TASK_POLL_INTERVAL_MS = 3000;
 
 const readAsyncTaskId = (response: OpenAIImageResponse): string => {
   return (
@@ -444,9 +570,10 @@ const readTrimmedString = (value: unknown): string => {
 
 type AsyncTaskStatus = "pending" | "completed" | "failed";
 
-// Right Code statuses: queued / in_progress keep polling; completed / failed
-// are terminal. Unknown values keep polling so a new status spelling does not
-// abort a task that is still making progress.
+// Right Code statuses: queued / in_progress / processing keep polling; failed /
+// expired / canceled are terminal failures (completion drops `status`, see
+// hasAsyncTaskResult). Unknown values keep polling so a new status spelling
+// does not abort a task that is still making progress.
 const normalizeAsyncStatus = (raw: string): AsyncTaskStatus => {
   const value = raw.trim().toLowerCase();
 
@@ -464,7 +591,8 @@ const normalizeAsyncStatus = (raw: string): AsyncTaskStatus => {
     value === "failure" ||
     value === "error" ||
     value === "canceled" ||
-    value === "cancelled"
+    value === "cancelled" ||
+    value === "expired"
   ) {
     return "failed";
   }
@@ -472,9 +600,18 @@ const normalizeAsyncStatus = (raw: string): AsyncTaskStatus => {
   return "pending";
 };
 
-// Resolve the task query URL. The Right Code preset ships an absolute,
-// site-level template (no `/draw` prefix); a "/"-prefixed template resolves
-// against the provider base URL's origin. `{task_id}` is substituted last.
+// Right Code drops `status` once a task completes and returns the protocol's
+// own result shape instead: OpenAI `data[]` or Gemini `candidates[]`.
+const hasAsyncTaskResult = (response: OpenAIImageResponse) => {
+  return (
+    (Array.isArray(response.data) && response.data.length > 0) ||
+    (Array.isArray(response.candidates) && response.candidates.length > 0)
+  );
+};
+
+// Resolve the task query URL. An absolute template is used verbatim; a
+// "/"-prefixed one (the Right Code presets ship `/v1/tasks/{task_id}`)
+// resolves against the provider base URL's origin. `{task_id}` is substituted last.
 export const buildTaskPollURL = (
   taskPollURL: string | undefined,
   baseURL: string,
@@ -658,8 +795,13 @@ const pollAsyncImageTask = async ({
     }
 
     const rawStatus = readTrimmedString(pollJSON.status);
-    const status =
-      !rawStatus && pollJSON.error ? "failed" : normalizeAsyncStatus(rawStatus);
+    const status = rawStatus
+      ? normalizeAsyncStatus(rawStatus)
+      : pollJSON.error
+      ? "failed"
+      : hasAsyncTaskResult(pollJSON)
+      ? "completed"
+      : "pending";
 
     if (status === "failed") {
       throw new AIImageGenerationError(
@@ -747,20 +889,38 @@ export const generateImagesWithOpenAIAdapter = async (
     throw normalizeProviderError(response.status, submitJSON, submitContext);
   }
 
+  // Right Code reports submit-stage failures (bad params, balance, upstream
+  // refusal) as HTTP 200 with `status: "failed"` and a string `error`.
+  if (
+    endpointConfig.async &&
+    normalizeAsyncStatus(readTrimmedString(submitJSON.status)) === "failed"
+  ) {
+    throw new AIImageGenerationError(
+      readProviderErrorMessage(submitJSON) ||
+        "AI image generation task failed.",
+      "request-failed",
+      { providerResponse: submitJSON, ...submitContext },
+    );
+  }
+
   // Async (Right Code) endpoints return a task id rather than the image itself;
   // poll the task query until it completes, then extract from the final body.
-  // Synchronous endpoints keep the submit response as the result body.
-  const responseJSON = endpointConfig.async
-    ? await pollAsyncImageTask({
-        submitJSON,
-        baseURL: providerConfig.baseURL,
-        apiKey: providerConfig.apiKey,
-        taskPollURL: providerConfig.modelConfig?.endpoints.taskPollURL,
-        signal: request.signal,
-        ...(responseManagedRoute ? { managedRoute: responseManagedRoute } : {}),
-        ...(managed ? { transportConfig } : {}),
-      })
-    : submitJSON;
+  // Synchronous endpoints, or an async submit that already carries the result,
+  // keep the submit response as the result body.
+  const responseJSON =
+    endpointConfig.async && !hasAsyncTaskResult(submitJSON)
+      ? await pollAsyncImageTask({
+          submitJSON,
+          baseURL: providerConfig.baseURL,
+          apiKey: providerConfig.apiKey,
+          taskPollURL: providerConfig.modelConfig?.endpoints.taskPollURL,
+          signal: request.signal,
+          ...(responseManagedRoute
+            ? { managedRoute: responseManagedRoute }
+            : {}),
+          ...(managed ? { transportConfig } : {}),
+        })
+      : submitJSON;
 
   const imageItems = extractImageResponseItems(responseJSON);
 
@@ -921,6 +1081,13 @@ const normalizeImageObject = (
     ) ||
     normalizeImageString(readString(value.data_url), revisedPrompt, mimeType) ||
     normalizeImageString(readString(value.dataURL), revisedPrompt, mimeType) ||
+    // Right Code's Gemini protocol returns the image URL as a text part. Only
+    // a bare URL counts, so ordinary Gemini prose parts are never mistaken.
+    normalizeImageString(
+      readImageURLText(value.text),
+      revisedPrompt,
+      mimeType,
+    ) ||
     (includeResult
       ? normalizeImageString(readString(value.result), revisedPrompt, mimeType)
       : null);
@@ -940,6 +1107,12 @@ const normalizeImageObject = (
     : [];
 
   return directImage ? [directImage, ...nestedItems] : nestedItems;
+};
+
+const readImageURLText = (value: unknown) => {
+  const text = readString(value).trim();
+
+  return /^(?:https?:\/\/|data:image\/)\S+$/i.test(text) ? text : "";
 };
 
 const extractImageItemsFromString = (
@@ -1082,10 +1255,16 @@ const getAIImageProviderFlavor = (
   if (wireProtocol.includes("gemini")) {
     return "gemini-native";
   }
-  if (
+  const isGeminiEndpoint =
     endpointConfig.format === "gemini" ||
-    /:generateContent\b/i.test(endpointConfig.path)
-  ) {
+    /:generateContent\b/i.test(endpointConfig.path);
+
+  // Right Code's async generateContent: Gemini-shaped body plus `async: true`
+  // and `imageConfig`, Bearer auth, and the same task polling as its OpenAI side.
+  if (isGeminiEndpoint && endpointConfig.async) {
+    return "right-code-gemini";
+  }
+  if (isGeminiEndpoint) {
     return "gemini-native";
   }
 
@@ -1305,7 +1484,7 @@ const fetchImageGenerationResponse = async (
           }),
           body: JSON.stringify(
             endpointConfig.format === "gemini"
-              ? buildGeminiNativeRequestBody(providerRequest)
+              ? buildGeminiNativeRequestBody(providerRequest, providerFlavor)
               : buildJSONRequestBody(
                   providerRequest,
                   providerConfig.fieldMapping,

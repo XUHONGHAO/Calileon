@@ -235,9 +235,16 @@ describe("AI image config", () => {
         expect.objectContaining({
           id: "right-code",
           siteName: "Right Code",
-          baseURL: "https://www.right.codes/draw",
-          model: "nano-banana-fast",
+          baseURL: "https://rightapi.ai",
+          model: "gpt-image-2",
           endpointPresetId: "right-code",
+        }),
+        expect.objectContaining({
+          id: "right-code-gemini",
+          siteName: "Right Code",
+          baseURL: "https://rightapi.ai",
+          model: "gemini-3-pro-image-preview",
+          endpointPresetId: "right-code-gemini",
         }),
       ]),
     );

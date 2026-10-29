@@ -50,8 +50,8 @@ export type AIImageEndpoints = {
   inpaint: AIImageEndpointConfig;
   // Poll URL template for async endpoints, containing a `{task_id}` placeholder.
   // An absolute URL is used verbatim; a "/"-prefixed path resolves against the
-  // provider base URL's origin (Right Code's task query is site-level, i.e. it
-  // omits the `/draw` prefix the generation endpoints use).
+  // provider base URL's origin, so Right Code's `/v1/tasks/{task_id}` follows
+  // whichever host the model's Base URL points at.
   taskPollURL?: string;
 };
 

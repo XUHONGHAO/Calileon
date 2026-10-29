@@ -3,9 +3,11 @@ import {
   GEMINI_NATIVE_ENDPOINTS,
   getPresetById,
   getPresetIdForConfig,
+  LEGACY_RIGHT_CODE_ENDPOINTS,
   NEWAPI_STYLE_ENDPOINTS,
   OPENAI_STANDARD_ENDPOINTS,
   RIGHT_CODE_ENDPOINTS,
+  RIGHT_CODE_GEMINI_ENDPOINTS,
   UNIFIED_JSON_ENDPOINTS,
   UNIFIED_JSON_FIELD_MAPPING,
 } from "./endpointPresets";
@@ -19,6 +21,7 @@ describe("AI image endpoint presets", () => {
       "unified-json",
       "gemini-native",
       "right-code",
+      "right-code-gemini",
       "custom",
     ]);
   });
@@ -55,6 +58,9 @@ describe("AI image endpoint presets", () => {
     ).toBe("unified-json");
     expect(getPresetIdForConfig(GEMINI_NATIVE_ENDPOINTS)).toBe("gemini-native");
     expect(getPresetIdForConfig(RIGHT_CODE_ENDPOINTS)).toBe("right-code");
+    expect(getPresetIdForConfig(RIGHT_CODE_GEMINI_ENDPOINTS)).toBe(
+      "right-code-gemini",
+    );
     expect(
       getPresetIdForConfig({
         ...OPENAI_STANDARD_ENDPOINTS,
@@ -92,5 +98,26 @@ describe("AI image endpoint presets", () => {
       id: "legacy",
       endpoints: OPENAI_STANDARD_ENDPOINTS,
     });
+  });
+
+  it("moves models saved with the earlier Right Code preset to the current endpoints", () => {
+    const migrated = migrateModelConfig({
+      id: "rc",
+      siteName: "Right Code",
+      baseURL: "https://www.right.codes/draw",
+      apiKey: "sk-keep",
+      model: "nano-banana-fast",
+      label: "nano-banana-fast",
+      mediaType: "image",
+      capabilities: ["text-to-image", "image-to-image"],
+      endpoints: LEGACY_RIGHT_CODE_ENDPOINTS,
+      requestTimeoutSeconds: 600,
+    });
+
+    expect(migrated.endpoints).toEqual(RIGHT_CODE_ENDPOINTS);
+    expect(getPresetIdForConfig(migrated.endpoints)).toBe("right-code");
+    // Only the endpoint shapes move; host and key are the user's.
+    expect(migrated.baseURL).toBe("https://www.right.codes/draw");
+    expect(migrated.apiKey).toBe("sk-keep");
   });
 });

@@ -6,6 +6,7 @@ export type EndpointPresetId =
   | "unified-json"
   | "gemini-native"
   | "right-code"
+  | "right-code-gemini"
   | "custom";
 
 export type EndpointPreset = {
@@ -82,13 +83,57 @@ export const GEMINI_NATIVE_ENDPOINTS: AIImageEndpoints = {
   },
 };
 
-// Right Code draw API. Async: every image call submits with `async: true` and
-// returns a task id; the adapter then polls `taskPollURL` until completion.
-// Text-to-image and reference-image both use the OpenAI-compatible generations
-// path (reference images ride along as the standard `image` field). Right Code
-// exposes no dedicated inpaint route, so inpaint reuses the same async path.
-// The poll URL is site-level (no `/draw` prefix), so it is an absolute URL.
+// Right Code draw API (https://rightapi.ai, docs: rcdoc src/docs/rc_draw).
+// Async: every image call submits with `async: true` and returns a task id; the
+// adapter then polls `taskPollURL` until completion. The poll path is relative,
+// so it follows whichever Right Code host the model's Base URL points at.
+// OpenAI protocol (gpt-image-2 family): reference images go to the dedicated
+// edits route as JSON data URLs. There is no working mask, so inpaint shares
+// the edits route and the preset leaves the inpaint capability off.
 export const RIGHT_CODE_ENDPOINTS: AIImageEndpoints = {
+  textToImage: {
+    path: "/v1/images/generations",
+    format: "json",
+    async: true,
+  },
+  imageToImage: {
+    path: "/v1/images/edits",
+    format: "json",
+    async: true,
+  },
+  inpaint: {
+    path: "/v1/images/edits",
+    format: "json",
+    async: true,
+  },
+  taskPollURL: "/v1/tasks/{task_id}",
+};
+
+// Right Code Gemini protocol (Nano Banana family): one async generateContent
+// route for text-to-image and reference images, polled like the OpenAI one.
+export const RIGHT_CODE_GEMINI_ENDPOINTS: AIImageEndpoints = {
+  textToImage: {
+    path: "/v1beta/models/{model}:generateContent",
+    format: "gemini",
+    async: true,
+  },
+  imageToImage: {
+    path: "/v1beta/models/{model}:generateContent",
+    format: "gemini",
+    async: true,
+  },
+  inpaint: {
+    path: "/v1beta/models/{model}:generateContent",
+    format: "gemini",
+    async: true,
+  },
+  taskPollURL: "/v1/tasks/{task_id}",
+};
+
+// Shapes saved by the earlier Right Code preset (draw host, site-level poll
+// URL, reference images on the generations route). Saved models matching it
+// are moved to RIGHT_CODE_ENDPOINTS on load; their Base URL is left alone.
+export const LEGACY_RIGHT_CODE_ENDPOINTS: AIImageEndpoints = {
   textToImage: {
     path: "/v1/images/generations",
     format: "json",
@@ -136,10 +181,17 @@ export const ENDPOINT_PRESETS: EndpointPreset[] = [
   },
   {
     id: "right-code",
-    name: "Right Code",
+    name: "Right Code (OpenAI)",
     description:
-      "Right Code async draw API: submits with async=true, then polls the site-level task query for the result.",
+      "Right Code async draw API, OpenAI protocol (gpt-image-2 family): submits with async=true to /v1/images/generations or /v1/images/edits, then polls /v1/tasks/{task_id}.",
     endpoints: RIGHT_CODE_ENDPOINTS,
+  },
+  {
+    id: "right-code-gemini",
+    name: "Right Code (Gemini)",
+    description:
+      "Right Code async draw API, Gemini protocol (Nano Banana family): submits with async=true to /v1beta/models/{model}:generateContent, then polls /v1/tasks/{task_id}.",
+    endpoints: RIGHT_CODE_GEMINI_ENDPOINTS,
   },
   {
     id: "custom",
@@ -191,6 +243,9 @@ const endpointConfigsEqual = (
     (left.taskPollURL || "") === (right.taskPollURL || "")
   );
 };
+
+export const isLegacyRightCodeEndpoints = (endpoints: AIImageEndpoints) =>
+  endpointConfigsEqual(endpoints, LEGACY_RIGHT_CODE_ENDPOINTS);
 
 const fieldMappingsEqual = (
   left: AIImageFieldMapping | undefined,
