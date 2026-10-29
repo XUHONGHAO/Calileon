@@ -113,6 +113,28 @@ describe("AI image config", () => {
     expect(loadAIImageConfig().models[0].requestTimeoutSeconds).toBe(91);
   });
 
+  it("trims, caps and round-trips per-model notes; drops empty ones", () => {
+    const [base] = parseModelListInput("gpt-image-1 | GPT Image");
+    const savedConfig = saveAIImageConfig({
+      baseURL: "",
+      apiKey: "",
+      defaultModel: "a",
+      models: [
+        { ...base, id: "a", note: "  cheap  " },
+        { ...base, id: "b", model: "b", note: "x".repeat(600) },
+        { ...base, id: "c", model: "c", note: "   " },
+      ],
+    });
+
+    expect(savedConfig.models.map((model) => model.note)).toEqual([
+      "cheap",
+      "x".repeat(500),
+      undefined,
+    ]);
+    expect("note" in savedConfig.models[2]).toBe(false);
+    expect(loadAIImageConfig().models[0].note).toBe("cheap");
+  });
+
   it("serializes models back to editable text", () => {
     const models = parseModelListInput(
       "gpt-image-1 | GPT Image | text-to-image,inpaint",

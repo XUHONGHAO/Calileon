@@ -415,6 +415,49 @@ describe("AISettings", () => {
     expect(screen.getByLabelText(/API Key/)).toHaveValue("same-host-key");
   });
 
+  it("edits a note per model ID and saves it with each model", async () => {
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE,
+      JSON.stringify({
+        defaultModel: "m1",
+        models: ["fast", "pro"].map((model, index) => ({
+          id: `m${index + 1}`,
+          siteName: "Relay",
+          baseURL: "https://relay.example/v1",
+          apiKey: "relay-key",
+          model,
+          label: model,
+          mediaType: "image",
+          capabilities: ["text-to-image"],
+          requestTimeoutSeconds: 600,
+          ...(model === "fast" ? { note: "cheap, 1K only" } : {}),
+        })),
+      }),
+    );
+    render(<AISettings />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("Note for fast")).toHaveValue(
+      "cheap, 1K only",
+    );
+    fireEvent.change(screen.getByLabelText("Note for pro"), {
+      target: { value: "  best quality, slow  " },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save model" }));
+
+    await waitFor(() => {
+      const saved = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE) || "{}",
+      );
+      expect(
+        saved.models.map((model: any) => [model.model, model.note]),
+      ).toEqual([
+        ["fast", "cheap, 1K only"],
+        ["pro", "best quality, slow"],
+      ]);
+    });
+  });
+
   it("keeps an edited network draft when another surface saves proxy settings", () => {
     render(<AISettings initialTab="network" />);
 

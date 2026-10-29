@@ -120,6 +120,29 @@ describe("Select", () => {
     expect(onChange).toHaveBeenCalledWith("a");
   });
 
+  it("shows <option title> as the option tooltip and on the trigger", () => {
+    render(
+      <div className="excalidraw">
+        <label htmlFor="model">Model</label>
+        <Select id="model" value="a" onChange={() => {}}>
+          <option value="a" title="cheap, 1K only">
+            fast
+          </option>
+          <option value="b">pro</option>
+        </Select>
+      </div>,
+    );
+    const trigger = screen.getByLabelText("Model");
+    expect(trigger).toHaveAttribute("title", "fast\ncheap, 1K only");
+
+    fireEvent.click(trigger);
+    const [fast, pro] = within(screen.getByRole("listbox")).getAllByRole(
+      "option",
+    );
+    expect(fast).toHaveAttribute("title", "cheap, 1K only");
+    expect(pro).not.toHaveAttribute("title");
+  });
+
   it("shows the placeholder and an empty hint without options", () => {
     render(
       <div className="excalidraw">

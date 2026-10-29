@@ -354,7 +354,21 @@ export const migrateModelConfig = (
     delete (migratedModel as Partial<AIImageModel>).fieldMapping;
   }
 
+  const note = normalizeAIModelNote((model as any).note);
+
+  if (note) {
+    migratedModel.note = note;
+  } else {
+    delete (migratedModel as Partial<AIImageModel>).note;
+  }
+
   return migratedModel;
+};
+
+export const MAX_AI_MODEL_NOTE_LENGTH = 500;
+
+export const normalizeAIModelNote = (value: unknown) => {
+  return readStringField(value).slice(0, MAX_AI_MODEL_NOTE_LENGTH);
 };
 
 const normalizeRequestTimeoutSeconds = (value: unknown) => {
@@ -435,6 +449,7 @@ export const normalizeAIImageConfig = (
             requestTimeoutSeconds: normalizeRequestTimeoutSeconds(
               (model as any).requestTimeoutSeconds,
             ),
+            note: (model as any).note,
           });
         })
         .filter((model): model is AIImageModel => !!model)

@@ -4763,6 +4763,8 @@ export const AIImageWorkbench = ({
   const renderModelSelect = (disabled = false) => (
     <label className="AIImageWorkbench__field">
       <span>{t("ai.workbench.modelId")}</span>
+      {/* The model note (AI settings) is the hover tooltip of its option and,
+          for the selected model, of the closed select. */}
       <Select
         value={selectedModelId}
         disabled={disabled}
@@ -4776,7 +4778,11 @@ export const AIImageWorkbench = ({
               })}
         </option>
         {modelsForMediaType.map((model) => (
-          <option key={model.id} value={model.id}>
+          <option
+            key={model.id}
+            value={model.id}
+            title={model.note || undefined}
+          >
             {model.model} / {model.siteName}
           </option>
         ))}

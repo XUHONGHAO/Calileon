@@ -25,9 +25,11 @@ import {
   DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS,
   getDefaultCapabilitiesForMediaType,
   loadAIImageConfig,
+  MAX_AI_MODEL_NOTE_LENGTH,
   MODEL_CAPABILITY_OPTIONS,
   normalizeAIImageEndpoints,
   normalizeAIImageFieldMapping,
+  normalizeAIModelNote,
   parseModelIdListInput,
   saveAIImageConfig,
 } from "../ai/config";
@@ -236,9 +238,11 @@ type EditorState =
       baseline: string;
     };
 
-type AIModelDraft = Omit<AIImageModel, "requestTimeoutSeconds"> & {
+type AIModelDraft = Omit<AIImageModel, "requestTimeoutSeconds" | "note"> & {
   requestTimeoutSeconds: string;
   endpointPresetId: EndpointPresetId;
+  /** One draft card can hold several model IDs; notes are per model ID. */
+  notes: Record<string, string>;
 };
 
 type AIModelGroup = {
@@ -512,6 +516,7 @@ const createModelDraft = (mediaType: AIModelMediaType): AIModelDraft => ({
   endpoints: cloneAIImageEndpoints(OPENAI_STANDARD_ENDPOINTS),
   endpointPresetId: "openai-standard",
   requestTimeoutSeconds: String(DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS),
+  notes: {},
 });
 
 const createModelDraftFromProviderPreset = (
@@ -542,7 +547,7 @@ const createModelDraftFromProviderPreset = (
 const createModelDraftFromSavedModels = (
   models: AIImageModel[],
 ): AIModelDraft => {
-  const model = models[0];
+  const { note: _note, ...model } = models[0];
   const endpoints = normalizeAIImageEndpoints(model.endpoints);
   const fieldMapping = normalizeAIImageFieldMapping(model.fieldMapping);
 
@@ -555,6 +560,11 @@ const createModelDraftFromSavedModels = (
     endpointPresetId: getPresetIdForConfig(endpoints, fieldMapping),
     requestTimeoutSeconds: String(
       model.requestTimeoutSeconds || DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS,
+    ),
+    notes: Object.fromEntries(
+      models
+        .filter((savedModel) => savedModel.note)
+        .map((savedModel) => [savedModel.model, savedModel.note as string]),
     ),
   };
 };
@@ -619,6 +629,7 @@ const getSavedModels = (
     requestTimeoutSeconds,
     endpoints: draftEndpoints,
     fieldMapping: draftFieldMapping,
+    notes,
     ...modelDraft
   } = draft;
   const modelNames = parseModelIdListInput(draft.model);
@@ -654,6 +665,12 @@ const getSavedModels = (
 
     if (fieldMapping) {
       savedModel.fieldMapping = fieldMapping;
+    }
+
+    const note = normalizeAIModelNote(notes[modelName]);
+
+    if (note) {
+      savedModel.note = note;
     }
 
     return savedModel;
@@ -2981,6 +2998,7 @@ export const AISettings = ({
       Boolean,
     ).length;
     const capabilityCount = draft.capabilities.length;
+    const draftModelIds = parseModelIdListInput(draft.model);
     const updateEndpoint = (
       endpointKey: AIImageEndpointMode,
       patch: Partial<AIImageEndpointConfig>,
@@ -3126,6 +3144,32 @@ export const AISettings = ({
                 onChange={(event) => updateDraft({ model: event.target.value })}
               />
             </Field>
+
+            {draftModelIds.map((modelId, index) => (
+              <Field
+                key={modelId}
+                label={
+                  draftModelIds.length > 1
+                    ? t("ai.settings.modelEditor.noteFor", { model: modelId })
+                    : t("ai.settings.modelEditor.note")
+                }
+                hint={
+                  index === draftModelIds.length - 1
+                    ? t("ai.settings.modelEditor.noteHint")
+                    : undefined
+                }
+              >
+                <TextInput
+                  value={draft.notes[modelId] || ""}
+                  maxLength={MAX_AI_MODEL_NOTE_LENGTH}
+                  onChange={(event) =>
+                    updateDraft({
+                      notes: { ...draft.notes, [modelId]: event.target.value },
+                    })
+                  }
+                />
+              </Field>
+            ))}
 
             <div className="AISettings__formGrid">
               {draft.mediaType === "image" && (

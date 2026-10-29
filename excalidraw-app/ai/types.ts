@@ -83,6 +83,8 @@ export type AIImageModel = {
   endpoints: AIImageEndpoints;
   fieldMapping?: AIImageFieldMapping;
   requestTimeoutSeconds: number;
+  /** User's free-text note, shown when hovering the model in the workbench. */
+  note?: string;
 };
 
 export type AIImageProviderConfig = {

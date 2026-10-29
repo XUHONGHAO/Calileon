@@ -20,6 +20,8 @@ type SelectOption = {
   label: React.ReactNode;
   /** Plain text used for typeahead and the trigger title. */
   text: string;
+  /** `<option title>`: hover tooltip of the option (and the trigger). */
+  title?: string;
   disabled: boolean;
 };
 
@@ -84,6 +86,7 @@ const collectOptions = (children: React.ReactNode): SelectOption[] => {
       value?: string | number;
       children?: React.ReactNode;
       disabled?: boolean;
+      title?: string;
     };
     if (child.type === React.Fragment) {
       options.push(...collectOptions(props.children));
@@ -97,6 +100,7 @@ const collectOptions = (children: React.ReactNode): SelectOption[] => {
       value: String(props.value ?? text),
       label: props.children,
       text,
+      title: props.title || undefined,
       disabled: !!props.disabled,
     });
   });
@@ -360,7 +364,12 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
           {...aria}
           data-value={value}
           disabled={disabled}
-          title={title ?? selected?.text}
+          title={
+            title ??
+            (selected?.title
+              ? `${selected.text}\n${selected.title}`
+              : selected?.text)
+          }
           style={style}
           className={clsx("UiInput", "UiSelect", className, {
             "UiSelect--open": open,
@@ -414,6 +423,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                   role="option"
                   aria-selected={index === selectedIndex}
                   aria-disabled={option.disabled || undefined}
+                  title={option.title}
                   className={clsx("UiPopover__item", "UiSelect__option", {
                     "is-active": index === activeIndex,
                     "is-selected": index === selectedIndex,
