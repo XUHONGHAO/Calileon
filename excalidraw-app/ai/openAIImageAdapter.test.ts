@@ -48,6 +48,15 @@ const baseRequest: AIImageGenerationRequest = {
   },
 };
 
+const getRejection = async (promise: Promise<unknown>) => {
+  try {
+    await promise;
+  } catch (error: any) {
+    return error;
+  }
+  throw new Error("expected the promise to reject");
+};
+
 describe("OpenAI-compatible image adapter", () => {
   beforeEach(() => {
     localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY);
@@ -832,18 +841,27 @@ describe("OpenAI-compatible image adapter", () => {
       }),
     );
 
-    await expect(generateImagesWithOpenAIAdapter(baseRequest)).rejects.toEqual(
-      new AIImageGenerationError(
-        "AI image request was rejected by the provider. Check the configured API key and model permissions.",
-        "auth",
-        {
-          status: 401,
-          providerError: {
-            message: "The supplied key sk-local-only is invalid.",
-          },
-        },
-      ),
+    const error = await getRejection(
+      generateImagesWithOpenAIAdapter(baseRequest),
     );
+
+    expect(error).toBeInstanceOf(AIImageGenerationError);
+    expect(error.message).toBe(
+      "AI image request was rejected by the provider. Check the configured API key and model permissions.",
+    );
+    expect(error.message).not.toContain("sk-local-only");
+    expect(error.code).toBe("auth");
+    expect(error.details).toMatchObject({
+      status: 401,
+      providerError: {
+        message: "The supplied key sk-local-only is invalid.",
+      },
+      stage: "submit",
+      method: "POST",
+      endpoint: "https://api.example.com/v1/images/generations",
+      transport: "direct",
+      headers: { "content-type": "application/json" },
+    });
   });
 
   it("normalizes browser-side network failures without echoing the API key", async () => {
@@ -854,16 +872,37 @@ describe("OpenAI-compatible image adapter", () => {
       }),
     );
 
-    await expect(generateImagesWithOpenAIAdapter(baseRequest)).rejects.toEqual(
-      new AIImageGenerationError(
-        "AI image request failed before reaching the provider. Check that the model Base URL is reachable from this browser, uses HTTPS, and allows CORS for image requests.",
-        "cors-or-network",
-        {
-          endpoint: "https://api.example.com/v1/images/generations",
-          errorMessage: "Failed to fetch",
-        },
-      ),
+    const error = await getRejection(
+      generateImagesWithOpenAIAdapter(baseRequest),
     );
+
+    expect(error).toBeInstanceOf(AIImageGenerationError);
+    expect(error.message).toBe(
+      "AI image request failed before reaching the provider. Check that the model Base URL is reachable from this browser, uses HTTPS, and allows CORS for image requests.",
+    );
+    expect(error.code).toBe("cors-or-network");
+    expect(error.details).toMatchObject({
+      stage: "submit",
+      endpoint: "https://api.example.com/v1/images/generations",
+      errorName: "TypeError",
+      errorMessage: "Failed to fetch",
+      transport: "direct",
+      request: {
+        mode: "text-to-image",
+        model: "gpt-image-1",
+        body: {
+          format: "json",
+          body: {
+            model: "gpt-image-1",
+            prompt: "[string, 15 chars]",
+            size: "1024x1024",
+            n: 1,
+          },
+        },
+      },
+    });
+    expect(typeof error.details.elapsedMs).toBe("number");
+    expect(JSON.stringify(error.details)).not.toContain("sk-local-only");
   });
 
   it("routes image generation through the configured proxy without changing provider payloads", async () => {
@@ -914,19 +953,19 @@ describe("OpenAI-compatible image adapter", () => {
       }),
     );
 
-    await expect(generateImagesWithOpenAIAdapter(baseRequest)).rejects.toEqual(
-      new AIImageGenerationError(
-        "Invalid URL (GET /v1/images/generations)",
-        "request-failed",
-        {
-          status: 200,
-          providerError: {
-            message: "Invalid URL (GET /v1/images/generations)",
-            type: "invalid_request_error",
-          },
-        },
-      ),
+    const error = await getRejection(
+      generateImagesWithOpenAIAdapter(baseRequest),
     );
+
+    expect(error.message).toBe("Invalid URL (GET /v1/images/generations)");
+    expect(error.code).toBe("request-failed");
+    expect(error.details).toMatchObject({
+      status: 200,
+      providerError: {
+        message: "Invalid URL (GET /v1/images/generations)",
+        type: "invalid_request_error",
+      },
+    });
   });
 
   it("surfaces bare-string provider errors instead of a generic HTTP status", async () => {
@@ -935,17 +974,73 @@ describe("OpenAI-compatible image adapter", () => {
       vi.fn(async () => {
         return new Response(JSON.stringify({ error: "不支持的尺寸" }), {
           status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "X-Request-Id": "req-123",
+          },
+        });
+      }),
+    );
+
+    const error = await getRejection(
+      generateImagesWithOpenAIAdapter(baseRequest),
+    );
+
+    expect(error.message).toBe("不支持的尺寸");
+    expect(error.code).toBe("unsupported");
+    expect(error.details).toMatchObject({
+      status: 400,
+      providerError: "不支持的尺寸",
+      headers: { "x-request-id": "req-123" },
+    });
+  });
+
+  it("reads top-level message/detail error bodies", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response(JSON.stringify({ detail: "size must be 1:1" }), {
+          status: 422,
           headers: { "Content-Type": "application/json" },
         });
       }),
     );
 
-    await expect(generateImagesWithOpenAIAdapter(baseRequest)).rejects.toEqual(
-      new AIImageGenerationError("不支持的尺寸", "unsupported", {
-        status: 400,
-        providerError: "不支持的尺寸",
+    const error = await getRejection(
+      generateImagesWithOpenAIAdapter(baseRequest),
+    );
+
+    expect(error.message).toBe("size must be 1:1");
+    expect(error.details).toMatchObject({
+      status: 422,
+      providerResponse: { detail: "size must be 1:1" },
+    });
+  });
+
+  it("keeps non-JSON error bodies such as gateway HTML pages", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        return new Response("<html><h1>502 Bad Gateway</h1></html>", {
+          status: 502,
+          statusText: "Bad Gateway",
+          headers: { "Content-Type": "text/html", "CF-Ray": "abc123-HKG" },
+        });
       }),
     );
+
+    const error = await getRejection(
+      generateImagesWithOpenAIAdapter(baseRequest),
+    );
+
+    expect(error.message).toBe("AI image provider returned HTTP 502.");
+    expect(error.code).toBe("request-failed");
+    expect(error.details).toMatchObject({
+      status: 502,
+      statusText: "Bad Gateway",
+      rawBody: "<html><h1>502 Bad Gateway</h1></html>",
+      headers: { "content-type": "text/html", "cf-ray": "abc123-HKG" },
+    });
   });
 
   it("does not download image generation API endpoints as image URLs", async () => {

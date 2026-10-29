@@ -144,4 +144,37 @@ describe("AI generation log", () => {
       ],
     });
   });
+
+  it("redacts secret-like text that providers echo back in error bodies", () => {
+    expect(
+      sanitizeLogDetails({
+        message: "The supplied key sk-abcdef1234567890 is invalid.",
+        rawBody: "<pre>Authorization: Bearer abc.def-ghi_jkl</pre>",
+        providerError: "bad key AIzaSyA1234567890abcdefghijklmn",
+        size: "1024x1024",
+      }),
+    ).toEqual({
+      message: "The supplied key [redacted] is invalid.",
+      rawBody: "<pre>Authorization: [redacted]</pre>",
+      providerError: "bad key [redacted]",
+      size: "1024x1024",
+    });
+  });
+
+  it("redacts secret-like text in the persisted response summary", () => {
+    const entry = createAIGenerationLogEntry({
+      submittedAt: "2026-10-28T10:00:00.000Z",
+      mediaType: "image",
+      mode: "text-to-image",
+      status: "failed",
+      model: { id: "m", name: "nano-banana-fast", siteName: "Right Code" },
+      prompt: "cat",
+      params: { size: "1:1", n: 1 },
+      baseURL: "https://www.right.codes/draw",
+      responseSummary: "Invalid key sk-abcdef1234567890",
+      responseDetails: {},
+    });
+
+    expect(entry.response.summary).toBe("Invalid key [redacted]");
+  });
 });

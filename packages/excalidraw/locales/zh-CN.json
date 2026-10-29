@@ -1254,6 +1254,8 @@
       "settingsSent": "生成设置已发送到创意生成。",
       "copyPrompt": "复制提示词",
       "promptCopied": "提示词已复制。",
+      "copyDetails": "复制详情",
+      "detailsCopied": "详情已复制，反馈问题时粘贴即可。",
       "status": {
         "success": "成功",
         "canceled": "已取消",
@@ -1273,6 +1275,7 @@
       "generating": "正在生成...",
       "generatingImage": "正在生成图像...",
       "generationCanceled": "生成已取消。",
+      "errorDetailsHint": "完整错误详情见「生成记录」，可在那里点「复制详情」。",
       "onlyImageGeneration": "当前阶段仅接入了图像生成。",
       "promptRequired": "请输入提示词。",
       "selectElementsFirst": "请先在画布上选择元素。",

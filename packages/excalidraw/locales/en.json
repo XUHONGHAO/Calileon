@@ -1254,6 +1254,8 @@
       "settingsSent": "Generation settings sent to Generate.",
       "copyPrompt": "Copy prompt",
       "promptCopied": "Prompt copied.",
+      "copyDetails": "Copy details",
+      "detailsCopied": "Details copied. Paste them when reporting the problem.",
       "status": {
         "success": "Success",
         "canceled": "Canceled",
@@ -1273,6 +1275,7 @@
       "generating": "Generating...",
       "generatingImage": "Generating image...",
       "generationCanceled": "Generation canceled.",
+      "errorDetailsHint": "Full error details are in Generation history; use \"Copy details\" there.",
       "onlyImageGeneration": "Only image generation is wired in this phase.",
       "promptRequired": "Prompt is required.",
       "selectElementsFirst": "Select elements on canvas first.",

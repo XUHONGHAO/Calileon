@@ -84,6 +84,7 @@ import {
   createAIGenerationLogEntry,
   createErrorResponseDetails,
   createSuccessResponseDetails,
+  getLoggableErrorDetails,
 } from "../ai/generationLog";
 import {
   AI_PROMPT_TEMPLATES_UPDATED_EVENT,
@@ -2843,7 +2844,11 @@ export const AIImageWorkbench = ({
           return;
         }
 
-        console.error("AI image generation failed", error);
+        console.error(
+          "AI image generation failed",
+          error,
+          getLoggableErrorDetails(error),
+        );
 
         const errorMessage =
           error instanceof AIImageGenerationError
@@ -3014,7 +3019,10 @@ export const AIImageWorkbench = ({
             }
 
             consecutivePollErrors += 1;
-            console.warn("AI video task polling failed; retrying.");
+            console.warn(
+              "AI video task polling failed; retrying.",
+              getLoggableErrorDetails(error),
+            );
 
             if (mountedRef.current) {
               setErrorMessage(
@@ -3172,7 +3180,11 @@ export const AIImageWorkbench = ({
         // or inserting the result) are not a terminal provider task failure.
         // Keep the persisted task so a remount can recover it instead of losing
         // a completed-but-not-yet-inserted result.
-        console.error("AI video task result processing failed", error);
+        console.error(
+          "AI video task result processing failed",
+          error,
+          getLoggableErrorDetails(error),
+        );
         if (mountedRef.current) {
           setErrorMessage(
             error instanceof AIImageGenerationError
@@ -3390,7 +3402,11 @@ export const AIImageWorkbench = ({
         return;
       }
 
-      console.error("AI video submission failed", error);
+      console.error(
+        "AI video submission failed",
+        error,
+        getLoggableErrorDetails(error),
+      );
       appendGenerationLogEntry(
         createAIGenerationLogEntry({
           submittedAt,
@@ -3921,6 +3937,11 @@ export const AIImageWorkbench = ({
         }
       >
         {errorMessage || statusMessage}
+        {errorMessage && runStatus === "failed" && (
+          <p className="AIImageWorkbench__messageHint">
+            {t("ai.workbench.errorDetailsHint")}
+          </p>
+        )}
       </Callout>
     ) : null;
 

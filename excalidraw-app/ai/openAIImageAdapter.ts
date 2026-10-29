@@ -10,7 +10,15 @@ import {
   MANAGED_GATEWAY_TARGET,
 } from "./requestTransport";
 import { loadAIProxyConfig } from "./proxyConfig";
+import {
+  createAIRequestTimer,
+  describeNetworkFailure,
+  readDiagnosticResponseHeaders,
+  readProviderResponseBody,
+  summarizeRequestBody,
+} from "./requestDiagnostics";
 
+import type { AIRequestDiagnostics } from "./requestDiagnostics";
 import type {
   AIImageEndpointConfig,
   AIImageFieldMapping,
@@ -555,6 +563,15 @@ const pollAsyncImageTask = async ({
     signal?.throwIfAborted();
 
     let response: Response;
+    const elapsed = createAIRequestTimer();
+    const getDiagnostics = (): AIRequestDiagnostics => ({
+      stage: "poll",
+      method: "GET",
+      endpoint: managedRoute ? `managed:${managedRoute.id}` : pollURL,
+      transport: transportConfig?.mode || loadAIProxyConfig().mode,
+      elapsedMs: elapsed(),
+      request: { taskId },
+    });
 
     try {
       response = await fetchAIRequest(
@@ -575,24 +592,26 @@ const pollAsyncImageTask = async ({
       }
 
       if (error instanceof AIProxyTransportError) {
-        throw new AIImageGenerationError(
-          error.message,
-          error.code,
-          error.details,
-        );
+        throw new AIImageGenerationError(error.message, error.code, {
+          ...(error.details as object | undefined),
+          ...getDiagnostics(),
+        });
       }
 
       throw new AIImageGenerationError(
         "AI image status request failed. Check that the provider allows CORS for the task query endpoint.",
         "cors-or-network",
-        { endpoint: pollURL, errorMessage: error?.message },
+        describeNetworkFailure(error, getDiagnostics()),
       );
     }
 
-    const pollJSON = (await parseResponseJSON(response)) as OpenAIImageResponse;
+    const { json: pollJSON, context: pollContext } = await parseResponseJSON(
+      response,
+      getDiagnostics(),
+    );
 
     if (!response.ok) {
-      throw normalizeProviderError(response.status, pollJSON);
+      throw normalizeProviderError(response.status, pollJSON, pollContext);
     }
 
     const rawStatus = readTrimmedString(pollJSON.status);
@@ -604,7 +623,7 @@ const pollAsyncImageTask = async ({
         readProviderErrorMessage(pollJSON) ||
           "AI image generation task failed.",
         "request-failed",
-        { providerResponse: pollJSON },
+        { providerResponse: pollJSON, ...pollContext },
       );
     }
 
@@ -674,14 +693,15 @@ export const generateImagesWithOpenAIAdapter = async (
     response,
     managedRoute: responseManagedRoute,
     endpointConfig,
+    diagnostics,
   } = responseInfo;
-  const submitJSON = (await parseResponseJSON(response)) as OpenAIImageResponse;
+  const { json: submitJSON, context: submitContext } = await parseResponseJSON(
+    response,
+    diagnostics,
+  );
 
-  if (!response.ok) {
-    throw normalizeProviderError(response.status, submitJSON);
-  }
-  if (submitJSON.error) {
-    throw normalizeProviderError(response.status, submitJSON);
+  if (!response.ok || submitJSON.error) {
+    throw normalizeProviderError(response.status, submitJSON, submitContext);
   }
 
   // Async (Right Code) endpoints return a task id rather than the image itself;
@@ -1264,6 +1284,21 @@ const fetchImageGenerationResponse = async (
           signal: request.signal,
         };
 
+  const elapsed = createAIRequestTimer();
+  const getDiagnostics = (): AIRequestDiagnostics => ({
+    stage: "submit",
+    method: "POST",
+    endpoint: managedRoute ? `managed:${managedRoute.id}` : endpoint,
+    transport: transportConfig.mode,
+    elapsedMs: elapsed(),
+    request: {
+      mode: request.mode,
+      model: providerConfig.modelName,
+      providerFlavor,
+      body: summarizeRequestBody(init.body),
+    },
+  });
+
   try {
     const response = await fetchAIRequest(endpoint, init, {
       kind: "image-generation",
@@ -1275,24 +1310,28 @@ const fetchImageGenerationResponse = async (
       ...(managedRoute ? { managedRoute } : {}),
       ...(managed ? { config: transportConfig } : {}),
     });
-    return { response, managedRoute, endpointConfig };
+    return {
+      response,
+      managedRoute,
+      endpointConfig,
+      diagnostics: getDiagnostics(),
+    };
   } catch (error: any) {
     if (error?.name === "AbortError") {
       throw error;
     }
 
     if (error instanceof AIProxyTransportError) {
-      throw new AIImageGenerationError(
-        error.message,
-        error.code,
-        error.details,
-      );
+      throw new AIImageGenerationError(error.message, error.code, {
+        ...(error.details as object | undefined),
+        ...getDiagnostics(),
+      });
     }
 
     throw new AIImageGenerationError(
       "AI image request failed before reaching the provider. Check that the model Base URL is reachable from this browser, uses HTTPS, and allows CORS for image requests.",
       "cors-or-network",
-      { endpoint, errorMessage: error?.message },
+      describeNetworkFailure(error, getDiagnostics()),
     );
   }
 };
@@ -1317,20 +1356,27 @@ const getProviderConfigForRequest = (
   };
 };
 
-const parseResponseJSON = async (response: Response) => {
-  try {
-    return await response.json();
-  } catch (error: any) {
-    if (response.ok) {
-      throw new AIImageGenerationError(
-        "Generation failed: provider returned a non-JSON response.",
-        "invalid-response",
-        { status: response.status },
-      );
-    }
+const parseResponseJSON = async (
+  response: Response,
+  diagnostics: AIRequestDiagnostics,
+) => {
+  const { json, rawBody } = await readProviderResponseBody(response);
+  const context: ProviderErrorContext = {
+    ...diagnostics,
+    statusText: response.statusText || undefined,
+    headers: readDiagnosticResponseHeaders(response),
+    rawBody,
+  };
 
-    return {};
+  if (rawBody !== undefined && response.ok) {
+    throw new AIImageGenerationError(
+      "Generation failed: provider returned a non-JSON response.",
+      "invalid-response",
+      { status: response.status, ...context },
+    );
   }
+
+  return { json: json as OpenAIImageResponse, context };
 };
 
 export const readProviderErrorMessage = (
@@ -1342,36 +1388,61 @@ export const readProviderErrorMessage = (
   return typeof message === "string" ? message.trim() : "";
 };
 
+// Debug context merged into the error details for the generation log.
+export type ProviderErrorContext = Partial<AIRequestDiagnostics> & {
+  statusText?: string;
+  headers?: Record<string, string>;
+  rawBody?: string;
+};
+
+// Non-OpenAI error bodies such as `{ "message": ... }` or FastAPI's
+// `{ "detail": ... }`; only consulted when `error` carries no message.
+const readTopLevelErrorMessage = (responseJSON: Record<string, unknown>) => {
+  for (const key of ["message", "detail", "msg"]) {
+    const value = responseJSON[key];
+
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return "";
+};
+
 export const normalizeProviderError = (
   status: number,
   responseJSON: Pick<OpenAIImageResponse, "error">,
+  context?: ProviderErrorContext,
 ) => {
+  const body = responseJSON as Record<string, unknown>;
   const message =
     readProviderErrorMessage(responseJSON) ||
+    readTopLevelErrorMessage(body) ||
     `AI image provider returned HTTP ${status}.`;
+  const details = {
+    status,
+    providerError: responseJSON.error,
+    // Keep the whole body when it has no `error` field to read from.
+    providerResponse:
+      responseJSON.error === undefined && Object.keys(body).length
+        ? body
+        : undefined,
+    ...context,
+  };
 
   if (status === 401 || status === 403) {
     return new AIImageGenerationError(
       "AI image request was rejected by the provider. Check the configured API key and model permissions.",
       "auth",
-      {
-        status,
-        providerError: responseJSON.error,
-      },
+      details,
     );
   }
 
   if (status === 400 || status === 404 || status === 422) {
-    return new AIImageGenerationError(message, "unsupported", {
-      status,
-      providerError: responseJSON.error,
-    });
+    return new AIImageGenerationError(message, "unsupported", details);
   }
 
-  return new AIImageGenerationError(message, "request-failed", {
-    status,
-    providerError: responseJSON.error,
-  });
+  return new AIImageGenerationError(message, "request-failed", details);
 };
 
 export const fetchRemoteImageAsDataURL = async (

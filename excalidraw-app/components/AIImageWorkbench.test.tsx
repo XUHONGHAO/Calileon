@@ -1474,6 +1474,7 @@ describe("AIImageWorkbench", () => {
     ]);
     expect(warnSpy).toHaveBeenCalledWith(
       "AI video task polling failed; retrying.",
+      expect.objectContaining({ message: expect.any(String) }),
     );
 
     unmount();
@@ -1515,6 +1516,7 @@ describe("AIImageWorkbench", () => {
     expect(pollVideoTask).toHaveBeenCalledTimes(2);
     expect(warnSpy).toHaveBeenCalledWith(
       "AI video task polling failed; retrying.",
+      expect.objectContaining({ message: expect.any(String) }),
     );
     expect(loadPendingVideoTasks()).toEqual([
       expect.objectContaining({ taskId: "video-stuck-poll" }),

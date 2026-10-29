@@ -1004,6 +1004,11 @@
     overflow-wrap: anywhere;
   }
 
+  .AIImageWorkbench__messageHint {
+    margin: var(--ui-space-1) 0 0;
+    font-size: var(--ui-font-xs);
+  }
+
   .AIImageWorkbench__metadata {
     display: flex;
     flex-direction: column;

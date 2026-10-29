@@ -123,7 +123,7 @@ export const createAIGenerationLogEntry = ({
       endpoint: endpoint ? sanitizePersistedURL(endpoint) : undefined,
     },
     response: {
-      summary: sanitizePersistedURL(responseSummary),
+      summary: redactSecretLikeText(sanitizePersistedURL(responseSummary)),
       details: sanitizeLogDetails(responseDetails),
     },
   };
@@ -163,6 +163,12 @@ export const createErrorResponseDetails = (error: any) => {
   };
 };
 
+/** Sanitized error details for console output (DevTools does not expand
+ * custom Error fields such as `code` and `details` on its own). */
+export const getLoggableErrorDetails = (error: unknown) => {
+  return sanitizeLogDetails(createErrorResponseDetails(error));
+};
+
 const dispatchAIGenerationLogsUpdated = (logs: AIGenerationLogEntry[]) => {
   if (typeof window === "undefined") {
     return;
@@ -193,9 +199,9 @@ export const sanitizeLogDetails = (
       };
     }
 
-    const sanitizedValue = shouldPreserveTextField(fieldName)
-      ? value
-      : sanitizePersistedURL(value);
+    const sanitizedValue = redactSecretLikeText(
+      shouldPreserveTextField(fieldName) ? value : sanitizePersistedURL(value),
+    );
 
     return sanitizedValue.length > MAX_STRING_LENGTH
       ? `${sanitizedValue.slice(0, MAX_STRING_LENGTH)}...`
@@ -234,6 +240,14 @@ const shouldRedactField = (key: string) => {
   return /api[-_]?key|authorization|token|secret|password/i.test(key);
 };
 
+// Providers sometimes echo the key back in an error message or HTML page.
+const SECRET_LIKE_TEXT =
+  /\b(?:sk|rk|pk)-[A-Za-z0-9_-]{8,}|\bAIza[A-Za-z0-9_-]{20,}|\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/g;
+
+const redactSecretLikeText = (value: string) => {
+  return value.replace(SECRET_LIKE_TEXT, "[redacted]");
+};
+
 const shouldPreserveTextField = (key?: string) => {
   return (
     !!key &&
@@ -254,7 +268,9 @@ const sanitizeGenerationLogEntry = (
         : undefined,
     },
     response: {
-      summary: sanitizePersistedURL(entry.response.summary),
+      summary: redactSecretLikeText(
+        sanitizePersistedURL(entry.response.summary),
+      ),
       details: sanitizeLogDetails(entry.response.details),
     },
   };

@@ -89,6 +89,17 @@ export const AIGenerationLogPanel = ({
     }
   };
 
+  const copyDetails = async (log: AIGenerationLogEntry) => {
+    try {
+      await copyTextToSystemClipboard(formatLogReport(log));
+      setStatusIsError(false);
+      setStatusMessage(t("ai.generationLog.detailsCopied"));
+    } catch {
+      setStatusIsError(true);
+      setStatusMessage(t("alerts.couldNotCopyToClipboard"));
+    }
+  };
+
   return (
     <div className="AIGenerationLogPanel">
       {logs.length > 0 && (
@@ -160,6 +171,9 @@ export const AIGenerationLogPanel = ({
                     <UiButton size="sm" onClick={() => copyPrompt(log)}>
                       {t("ai.generationLog.copyPrompt")}
                     </UiButton>
+                    <UiButton size="sm" onClick={() => copyDetails(log)}>
+                      {t("ai.generationLog.copyDetails")}
+                    </UiButton>
                   </div>
                   <dl>
                     <div>
@@ -212,6 +226,21 @@ const getStatusLabel = (status: AIGenerationLogEntry["status"], t: I18nT) => {
   }
 
   return t("ai.generationLog.status.failed");
+};
+
+// Plain-text report for bug reports: the header identifies the run, the JSON
+// is the same (already sanitized) payload the panel shows.
+const formatLogReport = (log: AIGenerationLogEntry) => {
+  return [
+    `status: ${log.status}`,
+    `model: ${log.model.name} / ${log.model.siteName}`,
+    `type: ${log.mediaType} / ${log.mode}`,
+    `submitted: ${log.submittedAt}`,
+    `completed: ${log.completedAt}`,
+    `summary: ${log.response.summary}`,
+    "",
+    stringifyLogDetails(log),
+  ].join("\n");
 };
 
 const stringifyLogDetails = (log: AIGenerationLogEntry) => {

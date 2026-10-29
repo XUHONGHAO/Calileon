@@ -13,7 +13,16 @@ import {
   getManagedRouteForCapability,
   MANAGED_GATEWAY_TARGET,
 } from "./requestTransport";
+import {
+  createAIRequestTimer,
+  describeNetworkFailure,
+  readDiagnosticResponseHeaders,
+  readProviderResponseBody,
+  summarizeRequestBody,
+} from "./requestDiagnostics";
 
+import type { ProviderErrorContext } from "./openAIImageAdapter";
+import type { AIRequestDiagnostics } from "./requestDiagnostics";
 import type {
   AIVideoGenerationOutput,
   AIVideoGenerationRequest,
@@ -273,20 +282,25 @@ const extractThumbnailURL = (response: OpenAIVideoResponse): string => {
 
 const parseResponseJSON = async (
   response: Response,
-): Promise<OpenAIVideoResponse> => {
-  try {
-    return (await response.json()) as OpenAIVideoResponse;
-  } catch (error: any) {
-    if (response.ok) {
-      throw new AIImageGenerationError(
-        "Video request failed: provider returned a non-JSON response.",
-        "invalid-response",
-        { status: response.status },
-      );
-    }
+  diagnostics: AIRequestDiagnostics,
+) => {
+  const { json, rawBody } = await readProviderResponseBody(response);
+  const context: ProviderErrorContext = {
+    ...diagnostics,
+    statusText: response.statusText || undefined,
+    headers: readDiagnosticResponseHeaders(response),
+    rawBody,
+  };
 
-    return {};
+  if (rawBody !== undefined && response.ok) {
+    throw new AIImageGenerationError(
+      "Video request failed: provider returned a non-JSON response.",
+      "invalid-response",
+      { status: response.status, ...context },
+    );
   }
+
+  return { json: json as OpenAIVideoResponse, context };
 };
 
 const buildAuthHeaders = (apiKey: string, contentType?: string) => {
@@ -348,6 +362,19 @@ export const submitVideoTask = async (
   }
 
   let response: Response;
+  const requestBody = JSON.stringify(body);
+  const elapsed = createAIRequestTimer();
+  const getDiagnostics = (): AIRequestDiagnostics => ({
+    stage: "submit",
+    method: "POST",
+    endpoint: managedRoute ? `managed:${managedRoute.id}` : endpoint,
+    transport: transportConfig.mode,
+    elapsedMs: elapsed(),
+    request: {
+      model: providerConfig.modelName,
+      body: summarizeRequestBody(requestBody),
+    },
+  });
 
   try {
     response = await fetchAIRequest(
@@ -355,7 +382,7 @@ export const submitVideoTask = async (
       {
         method: "POST",
         headers,
-        body: JSON.stringify(body),
+        body: requestBody,
         signal: request.signal,
       },
       {
@@ -372,24 +399,26 @@ export const submitVideoTask = async (
     }
 
     if (error instanceof AIProxyTransportError) {
-      throw new AIImageGenerationError(
-        error.message,
-        error.code,
-        error.details,
-      );
+      throw new AIImageGenerationError(error.message, error.code, {
+        ...(error.details as object | undefined),
+        ...getDiagnostics(),
+      });
     }
 
     throw new AIImageGenerationError(
       "AI video request failed before reaching the provider. Check that the model Base URL is reachable from this browser, uses HTTPS, and allows CORS for video requests.",
       "cors-or-network",
-      { endpoint, errorMessage: error?.message },
+      describeNetworkFailure(error, getDiagnostics()),
     );
   }
 
-  const responseJSON = await parseResponseJSON(response);
+  const { json: responseJSON, context } = await parseResponseJSON(
+    response,
+    getDiagnostics(),
+  );
 
   if (!response.ok || responseJSON.error) {
-    throw normalizeProviderError(response.status, responseJSON);
+    throw normalizeProviderError(response.status, responseJSON, context);
   }
 
   const taskId = readTaskId(responseJSON);
@@ -398,7 +427,7 @@ export const submitVideoTask = async (
     throw new AIImageGenerationError(
       "Video submission failed: provider did not return a task id.",
       "invalid-response",
-      { providerResponse: responseJSON },
+      { providerResponse: responseJSON, ...context },
     );
   }
 
@@ -453,6 +482,15 @@ export const pollVideoTask = async ({
   }
 
   let response: Response;
+  const elapsed = createAIRequestTimer();
+  const getDiagnostics = (): AIRequestDiagnostics => ({
+    stage: "poll",
+    method: "GET",
+    endpoint: managedRoute ? `managed:${managedRoute.id}` : endpoint,
+    transport: transportConfig.mode,
+    elapsedMs: elapsed(),
+    request: { taskId },
+  });
 
   try {
     response = await fetchAIRequest(
@@ -476,27 +514,29 @@ export const pollVideoTask = async ({
     }
 
     if (error instanceof AIProxyTransportError) {
-      throw new AIImageGenerationError(
-        error.message,
-        error.code,
-        error.details,
-      );
+      throw new AIImageGenerationError(error.message, error.code, {
+        ...(error.details as object | undefined),
+        ...getDiagnostics(),
+      });
     }
 
     throw new AIImageGenerationError(
       "AI video status request failed. Check that the provider allows CORS for the video polling endpoint.",
       "cors-or-network",
-      { endpoint, errorMessage: error?.message },
+      describeNetworkFailure(error, getDiagnostics()),
     );
   }
 
-  const responseJSON = await parseResponseJSON(response);
+  const { json: responseJSON, context } = await parseResponseJSON(
+    response,
+    getDiagnostics(),
+  );
 
   // Only HTTP-level failures throw here. A 200 body carrying `status: "failed"`
   // plus an `error` object is a *task* failure, handled by the status machine
   // below so the caller can surface the reason without a thrown error.
   if (!response.ok) {
-    throw normalizeProviderError(response.status, responseJSON);
+    throw normalizeProviderError(response.status, responseJSON, context);
   }
 
   const rawStatus =

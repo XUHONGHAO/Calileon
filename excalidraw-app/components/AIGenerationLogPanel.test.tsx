@@ -111,6 +111,42 @@ describe("AIGenerationLogPanel", () => {
     expect(screen.getByText("Prompt copied.")).toBeInTheDocument();
   });
 
+  it("copies a plain-text report with the run header and details JSON", async () => {
+    const log = {
+      ...createGenerationLog(),
+      status: "failed" as const,
+      response: {
+        summary: "size must be 1:1",
+        details: { code: "unsupported", details: { status: 422 } },
+      },
+    };
+
+    saveAIGenerationLogs([log]);
+    render(<AIGenerationLogPanel />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /fixture-native-model \/ Fixture Site/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Copy details" }));
+
+    await waitFor(() => {
+      expect(copyTextToSystemClipboard).toHaveBeenCalledTimes(1);
+    });
+    const report = vi.mocked(copyTextToSystemClipboard).mock
+      .calls[0][0] as string;
+    expect(report).toContain("status: failed");
+    expect(report).toContain("model: fixture-native-model / Fixture Site");
+    expect(report).toContain("summary: size must be 1:1");
+    expect(report).toContain('"status": 422');
+    expect(
+      screen.getByText(
+        "Details copied. Paste them when reporting the problem.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("hides the clear-logs header while there are no logs", () => {
     render(<AIGenerationLogPanel />);
 
