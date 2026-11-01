@@ -15,6 +15,9 @@ const ALLOWED_MIME_TYPES: Record<AIVideoReference["kind"], readonly string[]> =
     audio: ["audio/mpeg", "audio/mp4", "audio/webm", "audio/ogg"],
   };
 
+/** The bucket's `file_size_limit` after schema_video_assets.sql (100 MiB). */
+export const MAX_VIDEO_REFERENCE_BYTES = 100 * 1024 * 1024;
+
 /** References left behind by a closed tab are swept after this long. */
 export const STALE_VIDEO_REFERENCE_MS = 24 * 60 * 60 * 1000;
 

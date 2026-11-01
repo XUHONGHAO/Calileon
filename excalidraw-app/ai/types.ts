@@ -489,6 +489,8 @@ export type PendingVideoTask = {
   videoProtocol?: AIVideoProtocol;
   /** Uploaded reference assets to delete once the task ends (ADR 0039 §4). */
   referenceAssetIds?: string[];
+  /** A reference video was sent, so per-token cost uses that price tier. */
+  hasReferenceVideo?: boolean;
 };
 
 export type AIImageCustomData = {

@@ -26,8 +26,9 @@ import {
 import { loadPendingVideoTasks } from "../ai/videoTaskStore";
 
 import { AIImageWorkbench } from "./AIImageWorkbench";
+import { getSelectOptionLabels } from "./ui/testing";
 
-import type { AIImageProviderConfig } from "../ai/types";
+import type { AIImageModel, AIImageProviderConfig } from "../ai/types";
 
 vi.mock("../data/AIWorkbenchIndexedDB", () => ({
   AIWorkbenchIndexedDBAdapter: {
@@ -50,6 +51,46 @@ vi.mock("../ai/openAIVideoAdapter", async (importOriginal) => ({
   pollVideoTask: vi.fn(),
 }));
 
+// Signed-in state and the reference service are switched per test.
+const authState = { isSignedIn: false };
+vi.mock("../auth/useCloudAuth", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../auth/useCloudAuth")>()),
+  useCloudAuth: () => ({
+    isAuthAvailable: true,
+    status: authState.isSignedIn ? "signed-in" : "signed-out",
+    user: null,
+    isSignedIn: authState.isSignedIn,
+    signIn: vi.fn(),
+    signOut: vi.fn(),
+    updateAvatar: null,
+  }),
+}));
+
+const videoReferences = {
+  upload: vi.fn(),
+  remove: vi.fn(),
+  removeStale: vi.fn(),
+};
+const backendState = { withReferences: false };
+vi.mock("../data/cloud", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../data/cloud")>();
+  return {
+    ...actual,
+    getCloudBackend: () => {
+      const backend = actual.getCloudBackend();
+      return backendState.withReferences
+        ? { ...backend, videoReferences }
+        : backend;
+    },
+  };
+});
+
+vi.mock("../ai/rolldekVideoOptions", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../ai/rolldekVideoOptions")>()),
+  // jsdom cannot read media metadata.
+  probeMediaDurationSeconds: vi.fn(async () => 3),
+}));
+
 vi.mock("../ai/videoCanvas", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../ai/videoCanvas")>()),
   getVideoDimensions: vi.fn(),
@@ -58,7 +99,9 @@ vi.mock("../ai/videoCanvas", async (importOriginal) => ({
 
 const VOLC_MODEL = "doubao-seedance-2-5-260628";
 
-const createRollDekConfig = (): AIImageProviderConfig => ({
+const createRollDekConfig = (
+  billing: AIImageModel["billing"] = { mode: "per-token", multiplier: 0.75 },
+): AIImageProviderConfig => ({
   baseURL: "https://rolldek.com",
   apiKey: "",
   defaultModel: "rolldek-volc",
@@ -80,7 +123,7 @@ const createRollDekConfig = (): AIImageProviderConfig => ({
       },
       requestTimeoutSeconds: 30,
       videoProtocol: "volc-tasks",
-      billing: { mode: "per-token", multiplier: 0.75 },
+      billing,
     },
   ],
 });
@@ -108,6 +151,11 @@ describe("AIImageWorkbench with RollDek video", () => {
 
   beforeEach(() => {
     localStorage.clear();
+    authState.isSignedIn = false;
+    backendState.withReferences = false;
+    videoReferences.upload.mockReset();
+    videoReferences.remove.mockReset().mockResolvedValue(undefined);
+    videoReferences.removeStale.mockReset().mockResolvedValue(0);
     vi.mocked(submitRollDekVideoTask).mockReset();
     vi.mocked(pollRollDekVideoTask).mockReset();
     vi.mocked(downloadRollDekVideoResult).mockReset();
@@ -322,5 +370,150 @@ describe("AIImageWorkbench with RollDek video", () => {
     expect(insertVideoEmbedIntoCanvas).not.toHaveBeenCalled();
 
     unmount();
+  });
+
+  it("offers the catalog options and a per-token estimate", () => {
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Video" }));
+
+    expect(
+      getSelectOptionLabels(screen.getByLabelText("Aspect ratio")),
+    ).toEqual(["16:9", "9:16", "1:1", "21:9", "4:3", "3:4"]);
+    expect(getSelectOptionLabels(screen.getByLabelText("Resolution"))).toEqual([
+      "720P",
+      "1080P",
+    ]);
+    expect(screen.getByLabelText("Duration")).toHaveAttribute("max", "15");
+    // 10 s 720p = 216,000 tokens × ¥70/M × 0.75 = 11.34.
+    expect(
+      screen.getByText(/About 216,000 tokens · about \$11\.34\./),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "First/last frame" }),
+    ).toBeDisabled();
+  });
+
+  it("shows no estimate for per-request cards", () => {
+    saveAIImageConfig(createRollDekConfig({ mode: "per-request" }));
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Video" }));
+
+    expect(screen.queryByText(/tokens/)).toBeNull();
+  });
+
+  it("keeps references off when signed out", () => {
+    backendState.withReferences = true;
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Video" }));
+
+    expect(screen.getByRole("button", { name: "Reference" })).toBeDisabled();
+    expect(
+      screen.getByText(/Sign in to a cloud account to use reference/),
+    ).toBeTruthy();
+  });
+
+  it("uploads a video reference after the privacy notice is acknowledged", async () => {
+    authState.isSignedIn = true;
+    backendState.withReferences = true;
+    videoReferences.upload.mockResolvedValue({
+      assetId: "ref-1",
+      url: "https://storage.example/ref-1?token=signed",
+      expiresAt: "2026-11-01T12:00:00Z",
+    });
+    vi.mocked(submitRollDekVideoTask).mockResolvedValue({
+      taskId: "task_ref",
+      endpoint: "https://api-cn.rolldek.com/api/v3/contents/generations/tasks",
+    });
+    vi.mocked(pollRollDekVideoTask).mockResolvedValue({
+      status: "processing",
+    });
+
+    const { unmount } = render(
+      <AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Video" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+    expect(
+      screen.getByText(/Add a reference image in the Image tab/),
+    ).toBeTruthy();
+
+    const clip = new File(["clip"], "clip.mp4", { type: "video/mp4" });
+    fireEvent.change(screen.getByTestId("rolldek-video-input"), {
+      target: { files: [clip] },
+    });
+    await waitFor(() => {
+      expect(screen.getByText("3 s")).toBeTruthy();
+    });
+    expect(screen.getByText("clip.mp4")).toBeTruthy();
+    expect(
+      screen.queryByText(/Add a reference image in the Image tab/),
+    ).toBeNull();
+    // (10 + 3) s × 921,600 px × 24 / 1024 = 280,800 tokens at the
+    // with-video price: × ¥42/M × 0.75 = 8.85.
+    expect(
+      screen.getByText(
+        /About 280,800 tokens · about \$8\.85\. With a reference video/,
+      ),
+    ).toBeTruthy();
+
+    const editor = screen.getByLabelText("Prompt");
+    editor.textContent = "沿用 #1 的运镜";
+    fireEvent.input(editor);
+    const generate = screen.getByRole("button", { name: "Generate video" });
+    expect(generate).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Got it" }));
+    expect(localStorage.getItem("excalidraw-ai-video-reference-notice")).toBe(
+      "1",
+    );
+    fireEvent.click(generate);
+
+    await waitFor(() => {
+      expect(submitRollDekVideoTask).toHaveBeenCalled();
+    });
+    expect(videoReferences.upload).toHaveBeenCalledWith(
+      expect.objectContaining({ blob: clip, mimeType: "video/mp4" }),
+    );
+    expect(submitRollDekVideoTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "reference-to-video",
+        references: [
+          {
+            kind: "video",
+            url: "https://storage.example/ref-1?token=signed",
+            durationSeconds: 3,
+          },
+        ],
+      }),
+    );
+    await waitFor(() => {
+      expect(loadPendingVideoTasks()).toEqual([
+        expect.objectContaining({
+          taskId: "task_ref",
+          referenceAssetIds: ["ref-1"],
+          hasReferenceVideo: true,
+        }),
+      ]);
+    });
+
+    unmount();
+  });
+
+  it("rejects media types the bucket does not accept", async () => {
+    authState.isSignedIn = true;
+    backendState.withReferences = true;
+    render(<AIImageWorkbench excalidrawAPI={createExcalidrawAPI()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Video" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reference" }));
+
+    fireEvent.change(screen.getByTestId("rolldek-video-input"), {
+      target: {
+        files: [new File(["x"], "take.mov", { type: "video/quicktime" })],
+      },
+    });
+
+    expect(
+      await screen.findByText(/take\.mov is not a supported format/),
+    ).toBeTruthy();
   });
 });

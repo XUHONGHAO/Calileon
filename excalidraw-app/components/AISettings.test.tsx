@@ -12,6 +12,7 @@ import { saveAIProxyConfig } from "../ai/proxyConfig";
 import { STORAGE_KEYS } from "../app_constants";
 
 import { AISettings } from "./AISettings";
+import { chooseSelectOption } from "./ui/testing";
 
 describe("AISettings", () => {
   beforeEach(() => {
@@ -455,6 +456,62 @@ describe("AISettings", () => {
         ["fast", "cheap, 1K only"],
         ["pro", "best quality, slow"],
       ]);
+    });
+  });
+
+  it("edits the billing mode and group multiplier of a RollDek video card", async () => {
+    localStorage.setItem(
+      STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE,
+      JSON.stringify({
+        defaultModel: "v1",
+        models: [
+          {
+            id: "v1",
+            siteName: "RollDek",
+            baseURL: "https://rolldek.com",
+            apiKey: "relay-key",
+            model: "doubao-seedance-2-5-260628",
+            label: "doubao-seedance-2-5-260628",
+            mediaType: "video",
+            capabilities: ["text-to-video"],
+            requestTimeoutSeconds: 600,
+            videoProtocol: "volc-tasks",
+            billing: { mode: "per-token", multiplier: 1 },
+          },
+        ],
+      }),
+    );
+    render(<AISettings />);
+
+    fireEvent.click(screen.getByRole("tab", { name: "Video" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const multiplier = screen.getByLabelText("Group multiplier");
+    // A half-typed value stays in the field without reaching the draft.
+    fireEvent.change(multiplier, { target: { value: "0." } });
+    expect(multiplier).toHaveValue("0.");
+    fireEvent.change(multiplier, { target: { value: "0.75" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save model" }));
+
+    await waitFor(() => {
+      const saved = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE) || "{}",
+      );
+      expect(saved.models[0].billing).toEqual({
+        mode: "per-token",
+        multiplier: 0.75,
+      });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    chooseSelectOption(screen.getByLabelText("Billing"), "Per request");
+    expect(screen.queryByLabelText("Group multiplier")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save model" }));
+
+    await waitFor(() => {
+      const saved = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_IMAGE) || "{}",
+      );
+      expect(saved.models[0].billing).toEqual({ mode: "per-request" });
     });
   });
 

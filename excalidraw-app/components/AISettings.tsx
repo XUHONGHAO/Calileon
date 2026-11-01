@@ -684,6 +684,42 @@ const getSavedModels = (
   });
 };
 
+// Kept as text while typing ("0." is not a number yet); only valid values
+// reach the draft, and blur restores the last valid one.
+const BillingMultiplierInput = ({
+  value,
+  onChange,
+  ...fieldProps
+}: {
+  value: number;
+  onChange: (value: number) => void;
+  // Injected by `Field`.
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean | "true" | "false";
+}) => {
+  const [text, setText] = useState(String(value));
+
+  return (
+    <TextInput
+      {...fieldProps}
+      inputMode="decimal"
+      type="text"
+      value={text}
+      onChange={(event) => {
+        const nextText = event.target.value.trim();
+        const nextValue = Number(nextText);
+
+        setText(nextText);
+        if (nextText && Number.isFinite(nextValue) && nextValue > 0) {
+          onChange(Math.min(nextValue, 100));
+        }
+      }}
+      onBlur={() => setText(String(value))}
+    />
+  );
+};
+
 export const AISettings = ({
   initialTab = "models",
   onDirtyChange,
@@ -3241,6 +3277,63 @@ export const AISettings = ({
                   }
                 />
               </Field>
+
+              {draft.mediaType === "video" &&
+                (draft.videoProtocol === "rolldek-sd" ||
+                  draft.videoProtocol === "volc-tasks") && (
+                  <Field label={t("ai.settings.modelEditor.billing")}>
+                    <Select
+                      value={draft.billing?.mode || ""}
+                      onChange={(event) => {
+                        const mode = event.target.value;
+
+                        updateDraft({
+                          billing:
+                            mode === "per-token"
+                              ? {
+                                  mode,
+                                  multiplier:
+                                    draft.billing?.mode === "per-token"
+                                      ? draft.billing.multiplier
+                                      : 1,
+                                }
+                              : mode === "per-request"
+                              ? { mode }
+                              : undefined,
+                        });
+                      }}
+                    >
+                      <option value="">
+                        {t("ai.settings.modelEditor.billingNone")}
+                      </option>
+                      <option value="per-request">
+                        {t("ai.settings.modelEditor.billingPerRequest")}
+                      </option>
+                      <option value="per-token">
+                        {t("ai.settings.modelEditor.billingPerToken")}
+                      </option>
+                    </Select>
+                  </Field>
+                )}
+
+              {draft.mediaType === "video" &&
+                draft.billing?.mode === "per-token" && (
+                  <Field
+                    label={t("ai.settings.modelEditor.billingMultiplier")}
+                    hint={t("ai.settings.modelEditor.billingHint")}
+                  >
+                    <BillingMultiplierInput
+                      key={draft.id}
+                      value={draft.billing.multiplier}
+                      onChange={(multiplier) =>
+                        draft.billing?.mode === "per-token" &&
+                        updateDraft({
+                          billing: { ...draft.billing, multiplier },
+                        })
+                      }
+                    />
+                  </Field>
+                )}
             </div>
           </DialogSection>
 

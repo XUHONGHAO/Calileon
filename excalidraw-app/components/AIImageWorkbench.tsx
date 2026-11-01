@@ -1,5 +1,6 @@
 import clsx from "clsx";
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -76,10 +77,23 @@ import {
   isUnknownSubmitOutcome,
   submitRollDekVideoRun,
   sweepStaleVideoReferences,
-  toImageReferenceUploads,
 } from "../ai/rolldekVideoRun";
-import { releaseVideoReferences } from "../ai/videoReferenceUploads";
-import { computeVideoTokenCost } from "../ai/videoBilling";
+import {
+  buildRollDekReferenceUploads,
+  clampRollDekVideoParams,
+  getRollDekReferenceIssue,
+  getRollDekVideoOptions,
+  probeMediaDurationSeconds,
+  resolveRollDekVideoMode,
+  sumRollDekReferenceVideoSeconds,
+} from "../ai/rolldekVideoOptions";
+import {
+  MAX_VIDEO_REFERENCE_BYTES,
+  isAllowedVideoReferenceType,
+  releaseVideoReferences,
+} from "../ai/videoReferenceUploads";
+import { computeVideoTokenCost, estimateVideoCost } from "../ai/videoBilling";
+import { useCloudAuth } from "../auth/useCloudAuth";
 import {
   getVideoDimensions,
   insertVideoEmbedIntoCanvas,
@@ -190,6 +204,12 @@ import type { PromptEditorHandle } from "./AIImageWorkbenchPromptEditor";
 import type { AIImageWorkbenchRunStatus } from "./AIImageWorkbenchStatus";
 import type { GeneratedAsset } from "./AIImageWorkbenchAssets";
 import type { CloudAITaskRun } from "../data/cloud/cloudAITasks";
+import type {
+  RollDekMediaReference,
+  RollDekReferenceIssue,
+  RollDekVideoMode,
+  RollDekVideoOptions,
+} from "../ai/rolldekVideoOptions";
 import type { VideoAssetIngestResult } from "../data/cloud";
 
 export type PersistAIVideoOutputInput = {
@@ -230,6 +250,10 @@ const DEFAULT_VIDEO_PARAMS: AIImageGenerationParams = {
   resolution: "720P",
 };
 
+// Choices for openai-videos cards; RollDek cards use the model catalog.
+const DEFAULT_VIDEO_ASPECT_RATIOS = ["16:9", "9:16", "1:1", "4:3"];
+const DEFAULT_VIDEO_RESOLUTIONS = ["720p", "1080p"];
+
 const MODE_OPTIONS: Array<{
   value: AIImageGenerationMode;
   labelKey: "ai.common.text" | "ai.common.reference" | "ai.common.inpaint";
@@ -238,6 +262,23 @@ const MODE_OPTIONS: Array<{
   { value: "image-to-image", labelKey: "ai.common.reference" },
   { value: "inpaint", labelKey: "ai.common.inpaint" },
 ];
+
+const ROLLDEK_MODE_OPTIONS: Array<{
+  value: RollDekVideoMode;
+  labelKey:
+    | "ai.common.text"
+    | "ai.common.reference"
+    | "ai.workbench.rolldekFirstLastFrame";
+}> = [
+  { value: "text-to-video", labelKey: "ai.common.text" },
+  { value: "reference-to-video", labelKey: "ai.common.reference" },
+  { value: "first-last-frame", labelKey: "ai.workbench.rolldekFirstLastFrame" },
+];
+
+const ROLLDEK_MEDIA_ACCEPT = {
+  video: "video/mp4,video/webm",
+  audio: "audio/mpeg,audio/mp4,audio/webm,audio/ogg",
+} as const;
 
 const MEDIA_TYPE_OPTIONS: Array<{
   value: AIModelMediaType;
@@ -1067,6 +1108,26 @@ export const AIImageWorkbench = ({
   const [pendingVideoTasks, setPendingVideoTasks] = useState<
     PendingVideoTask[]
   >([]);
+  // RollDek (ADR 0039): `null` mode follows the tray; media is session-only.
+  const [rolldekModeChoice, setRolldekModeChoice] =
+    useState<RollDekVideoMode | null>(null);
+  const [rolldekMedia, setRolldekMedia] = useState<RollDekMediaReference[]>([]);
+  const [rolldekMediaWarning, setRolldekMediaWarning] = useState("");
+  const [hasAcknowledgedReferenceNotice, setHasAcknowledgedReferenceNotice] =
+    useState(() => {
+      try {
+        return (
+          localStorage.getItem(
+            STORAGE_KEYS.LOCAL_STORAGE_AI_VIDEO_REFERENCE_NOTICE,
+          ) === "1"
+        );
+      } catch {
+        return false;
+      }
+    });
+  const cloudAuth = useCloudAuth();
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const audioFileInputRef = useRef<HTMLInputElement | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   // Per-task abort controllers keyed by taskId, so each poll loop can be
   // cancelled independently of the synchronous image generation.
@@ -1699,6 +1760,87 @@ export const AIImageWorkbench = ({
     (model) => model.mediaType === "image",
   );
   const hasActiveVideoTasks = pendingVideoTasks.length > 0;
+
+  // RollDek video cards (ADR 0039): catalog-driven options and references.
+  const selectedVideoProtocol =
+    mediaType === "video" && selectedModel
+      ? getAIVideoProtocol(selectedModel)
+      : null;
+  const rolldekProtocolForUI =
+    proxyConfig.mode !== "managed-gateway" &&
+    (selectedVideoProtocol === "rolldek-sd" ||
+      selectedVideoProtocol === "volc-tasks")
+      ? selectedVideoProtocol
+      : null;
+  const rolldekOptions = useMemo(
+    () =>
+      rolldekProtocolForUI && selectedModel
+        ? getRollDekVideoOptions(selectedModel.model, rolldekProtocolForUI)
+        : null,
+    [rolldekProtocolForUI, selectedModel],
+  );
+  // References go out as signed links to our storage: cloud sign-in only,
+  // never in Vault (the host turns uploads off there).
+  const hasVideoReferenceService =
+    allowVideoReferenceUploads && !!getCloudBackend().videoReferences;
+  const rolldekReferencesAvailable =
+    hasVideoReferenceService && cloudAuth.isSignedIn;
+  const rolldekAllowedOptions = useMemo(
+    () =>
+      rolldekOptions && !rolldekReferencesAvailable
+        ? { ...rolldekOptions, modes: ["text-to-video" as const] }
+        : rolldekOptions,
+    [rolldekOptions, rolldekReferencesAvailable],
+  );
+  const rolldekMode = rolldekAllowedOptions
+    ? resolveRollDekVideoMode(
+        rolldekModeChoice,
+        rolldekAllowedOptions,
+        availableSelectedSources.length > 0,
+      )
+    : null;
+  const rolldekIssue =
+    rolldekAllowedOptions && rolldekMode
+      ? getRollDekReferenceIssue(
+          rolldekMode,
+          rolldekAllowedOptions,
+          availableSelectedSources.length,
+          rolldekMedia,
+        )
+      : null;
+  const needsReferenceNotice =
+    !!rolldekMode &&
+    rolldekMode !== "text-to-video" &&
+    !hasAcknowledgedReferenceNotice;
+  const rolldekCostEstimate =
+    rolldekMode && selectedModel
+      ? estimateVideoCost({
+          billing: selectedModel.billing,
+          model: selectedModel.model,
+          outputSeconds: params.duration ?? 0,
+          resolution: params.resolution,
+          inputVideoSeconds:
+            rolldekMode === "reference-to-video"
+              ? sumRollDekReferenceVideoSeconds(rolldekMedia)
+              : 0,
+          hasReferenceVideo:
+            rolldekMode === "reference-to-video" &&
+            rolldekMedia.some((item) => item.kind === "video"),
+        })
+      : null;
+
+  // Read by generateVideo, which keeps a short dependency list.
+  const rolldekStateRef = useRef({
+    modeChoice: rolldekModeChoice,
+    media: rolldekMedia,
+    referencesAvailable: rolldekReferencesAvailable,
+  });
+  rolldekStateRef.current = {
+    modeChoice: rolldekModeChoice,
+    media: rolldekMedia,
+    referencesAvailable: rolldekReferencesAvailable,
+  };
+
   const canGenerateVideo =
     mediaType === "video" &&
     !isRestoringPersistence &&
@@ -1706,7 +1848,9 @@ export const AIImageWorkbench = ({
     !hasActiveVideoTasks &&
     !!prompt.trim() &&
     !!selectedModelId &&
-    hasSelectedModelEndpoint;
+    hasSelectedModelEndpoint &&
+    !rolldekIssue &&
+    !needsReferenceNotice;
 
   const seedDisabled =
     !!selectedModel && !supportsAIImageMode(selectedModel, "seed");
@@ -1717,6 +1861,66 @@ export const AIImageWorkbench = ({
     },
     [setParams],
   );
+
+  // Keep the video draft inside what the selected RollDek model accepts.
+  useEffect(() => {
+    if (mediaType !== "video" || !rolldekOptions) {
+      return;
+    }
+
+    setParams((current) => clampRollDekVideoParams(current, rolldekOptions));
+  }, [mediaType, rolldekOptions, setParams]);
+
+  const addRollDekMedia = useCallback(
+    async (kind: RollDekMediaReference["kind"], file: File) => {
+      if (!isAllowedVideoReferenceType(kind, file.type)) {
+        setRolldekMediaWarning(
+          t("ai.workbench.rolldekMediaUnsupported", {
+            name: file.name,
+          }),
+        );
+        return;
+      }
+      if (file.size > MAX_VIDEO_REFERENCE_BYTES) {
+        setRolldekMediaWarning(
+          t("ai.workbench.rolldekMediaTooLarge", { name: file.name }),
+        );
+        return;
+      }
+
+      const id = String(createAIReferenceId());
+
+      setRolldekMediaWarning("");
+      setRolldekMedia((current) => [...current, { id, kind, file }]);
+
+      const durationSeconds = await probeMediaDurationSeconds(file, kind);
+
+      if (durationSeconds != null && mountedRef.current) {
+        setRolldekMedia((current) =>
+          current.map((item) =>
+            item.id === id ? { ...item, durationSeconds } : item,
+          ),
+        );
+      }
+    },
+    [],
+  );
+
+  const removeRollDekMedia = useCallback((id: string) => {
+    setRolldekMedia((current) => current.filter((item) => item.id !== id));
+  }, []);
+
+  const acknowledgeReferenceNotice = useCallback(() => {
+    try {
+      localStorage.setItem(
+        STORAGE_KEYS.LOCAL_STORAGE_AI_VIDEO_REFERENCE_NOTICE,
+        "1",
+      );
+    } catch {
+      // Private mode: the acknowledgement lasts for this session only.
+    }
+    setHasAcknowledgedReferenceNotice(true);
+  }, []);
 
   const addSelectionAsReference = useCallback(async () => {
     // One export at a time: a second click used to append a duplicate.
@@ -3337,7 +3541,7 @@ export const AIImageWorkbench = ({
                         model: task.model,
                         totalTokens: result.totalTokens,
                         resolution: task.params.resolution,
-                        hasReferenceVideo: false,
+                        hasReferenceVideo: !!task.hasReferenceVideo,
                       }),
                     }
                   : {}),
@@ -3434,7 +3638,7 @@ export const AIImageWorkbench = ({
     // Normalize framing so the request reflects what the dropdowns display even
     // when the stored value is still "auto" (untouched) or an inherited image
     // pixel size. Video frames via aspect_ratio + resolution, never pixel size.
-    const videoParams: AIImageGenerationParams = {
+    const draftVideoParams: AIImageGenerationParams = {
       ...videoDraft.params,
       size: "",
       aspectRatio:
@@ -3486,10 +3690,33 @@ export const AIImageWorkbench = ({
     const videoSources = generationStateRef.current.selectedSources.filter(
       (source) => !source.missingElement,
     );
-    const mode: AIVideoGenerationMode = rolldekProtocol
-      ? videoSources.length > 0
-        ? "reference-to-video"
-        : "text-to-video"
+    const rolldekState = rolldekStateRef.current;
+    const rolldekRunOptions =
+      rolldekProtocol && modelCard
+        ? getRollDekVideoOptions(modelCard.model, rolldekProtocol)
+        : null;
+    const rolldekRunMode = rolldekRunOptions
+      ? resolveRollDekVideoMode(
+          rolldekState.modeChoice,
+          rolldekState.referencesAvailable
+            ? rolldekRunOptions
+            : { ...rolldekRunOptions, modes: ["text-to-video"] },
+          videoSources.length > 0,
+        )
+      : null;
+    const rolldekUploads = rolldekRunMode
+      ? buildRollDekReferenceUploads(
+          rolldekRunMode,
+          videoSources,
+          rolldekState.media,
+        )
+      : [];
+    // What the RollDek model accepts; the task and log record the same values.
+    const videoParams = rolldekRunOptions
+      ? clampRollDekVideoParams(draftVideoParams, rolldekRunOptions)
+      : draftVideoParams;
+    const mode: AIVideoGenerationMode = rolldekRunMode
+      ? rolldekRunMode
       : videoSources.length > 0 &&
         (!modelCard || supportsAIImageMode(modelCard, "image-to-video"))
       ? "image-to-video"
@@ -3525,8 +3752,7 @@ export const AIImageWorkbench = ({
       let referenceAssetIds: string[] = [];
 
       if (rolldekProtocol && modelCard) {
-        const uploads =
-          mode === "text-to-video" ? [] : toImageReferenceUploads(videoSources);
+        const uploads = rolldekUploads;
         if (uploads.length) {
           setStatusMessage(t("ai.workbench.rolldekUploadingReferences"));
         }
@@ -3595,7 +3821,13 @@ export const AIImageWorkbench = ({
         status: "queued",
         submittedAt,
         ...(rolldekProtocol
-          ? { videoProtocol: rolldekProtocol, referenceAssetIds }
+          ? {
+              videoProtocol: rolldekProtocol,
+              referenceAssetIds,
+              ...(rolldekUploads.some((upload) => upload.kind === "video")
+                ? { hasReferenceVideo: true }
+                : {}),
+            }
           : {}),
       };
 
@@ -5328,8 +5560,216 @@ export const AIImageWorkbench = ({
     </>
   );
 
+  const renderRollDekModeSelector = (options: RollDekVideoOptions) => (
+    <div className="AIImageWorkbench__segmentedControl">
+      {ROLLDEK_MODE_OPTIONS.filter((option) =>
+        options.modes.includes(option.value),
+      ).map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          className={
+            rolldekMode === option.value
+              ? "AIImageWorkbench__segment is-selected"
+              : "AIImageWorkbench__segment"
+          }
+          disabled={!rolldekAllowedOptions?.modes.includes(option.value)}
+          onClick={() => setRolldekModeChoice(option.value)}
+        >
+          {t(option.labelKey)}
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderRollDekMediaPanel = (options: RollDekVideoOptions) => {
+    const videoCount = rolldekMedia.filter(
+      (item) => item.kind === "video",
+    ).length;
+    const audioCount = rolldekMedia.length - videoCount;
+    const limits = options.references;
+    const totalFull =
+      limits?.total != null &&
+      availableSelectedSources.length + rolldekMedia.length >= limits.total;
+    const canAddVideo = !totalFull && (!limits || videoCount < limits.videos);
+    const canAddAudio = !totalFull && (!limits || audioCount < limits.audios);
+    const showVideo = !limits || limits.videos > 0;
+    const showAudio = !limits || limits.audios > 0;
+
+    if (!showVideo && !showAudio) {
+      return null;
+    }
+
+    const renderFileInput = (kind: RollDekMediaReference["kind"]) => (
+      <input
+        ref={kind === "video" ? videoFileInputRef : audioFileInputRef}
+        type="file"
+        accept={ROLLDEK_MEDIA_ACCEPT[kind]}
+        hidden
+        data-testid={`rolldek-${kind}-input`}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) {
+            void addRollDekMedia(kind, file);
+          }
+          event.target.value = "";
+        }}
+      />
+    );
+
+    return (
+      <div className="AIImageWorkbench__referencePanel">
+        <div className="AIImageWorkbench__referenceHeader">
+          <span>{t("ai.workbench.rolldekMediaReferences")}</span>
+          <div className="AIImageWorkbench__referenceToolbar">
+            {showVideo && (
+              <button
+                type="button"
+                disabled={!canAddVideo}
+                onClick={() => videoFileInputRef.current?.click()}
+              >
+                {t("ai.workbench.rolldekAddVideo")}
+              </button>
+            )}
+            {showVideo && renderFileInput("video")}
+            {showAudio && (
+              <button
+                type="button"
+                disabled={!canAddAudio}
+                onClick={() => audioFileInputRef.current?.click()}
+              >
+                {t("ai.workbench.rolldekAddAudio")}
+              </button>
+            )}
+            {showAudio && renderFileInput("audio")}
+          </div>
+        </div>
+        {rolldekMedia.length > 0 && (
+          <ul className="AIImageWorkbench__mediaList">
+            {rolldekMedia.map((item, index) => (
+              <li key={item.id}>
+                <strong>#{availableSelectedSources.length + index + 1}</strong>
+                <span className="AIImageWorkbench__mediaKind">
+                  {item.kind === "video"
+                    ? t("ai.common.video")
+                    : t("ai.common.audio")}
+                </span>
+                <span
+                  className="AIImageWorkbench__mediaName"
+                  title={item.file.name}
+                >
+                  {item.file.name}
+                </span>
+                {item.durationSeconds != null && (
+                  <span>
+                    {t("ai.workbench.rolldekMediaSeconds", {
+                      seconds: Math.round(item.durationSeconds),
+                    })}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  aria-label={`${t("ai.common.remove")} ${item.file.name}`}
+                  onClick={() => removeRollDekMedia(item.id)}
+                >
+                  {t("ai.common.remove")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="AIImageWorkbench__referenceHint">
+          {t("ai.workbench.rolldekMediaHint", {
+            count: availableSelectedSources.length,
+          })}
+        </div>
+        {rolldekMediaWarning && (
+          <Callout
+            tone="warning"
+            live={false}
+            className="AIImageWorkbench__warning"
+          >
+            {rolldekMediaWarning}
+          </Callout>
+        )}
+      </div>
+    );
+  };
+
+  const renderRollDekNotices = (options: RollDekVideoOptions) => {
+    const notices: ReactElement[] = [];
+
+    if (!rolldekReferencesAvailable && options.modes.length > 1) {
+      notices.push(
+        <Fragment key="unavailable">
+          {renderNotice(
+            hasVideoReferenceService
+              ? t("ai.workbench.rolldekSignInForReferences")
+              : t("ai.workbench.rolldekReferencesNotSupported"),
+          )}
+        </Fragment>,
+      );
+    }
+
+    if (rolldekMode === "first-last-frame") {
+      notices.push(
+        <Fragment key="first-last">
+          {renderNotice(
+            [
+              t("ai.workbench.rolldekFirstLastNotice"),
+              availableSelectedSources.length > 2
+                ? t("ai.workbench.rolldekFirstLastExtra", {
+                    count: availableSelectedSources.length - 2,
+                  })
+                : "",
+              rolldekMedia.length
+                ? t("ai.workbench.rolldekFirstLastNoMedia")
+                : "",
+            ]
+              .filter(Boolean)
+              .join(" "),
+          )}
+        </Fragment>,
+      );
+    }
+
+    if (rolldekIssue) {
+      notices.push(
+        <Fragment key="issue">
+          {renderNotice(
+            getRollDekIssueMessage(rolldekIssue),
+            undefined,
+            "warning",
+          )}
+        </Fragment>,
+      );
+    }
+
+    if (rolldekCostEstimate) {
+      notices.push(
+        <p key="estimate" className="AIImageWorkbench__costEstimate">
+          {rolldekCostEstimate.cost != null
+            ? t("ai.workbench.rolldekEstimate", {
+                tokens: rolldekCostEstimate.tokens.toLocaleString(),
+                cost: rolldekCostEstimate.cost.toFixed(2),
+              })
+            : t("ai.workbench.rolldekEstimateTokensOnly", {
+                tokens: rolldekCostEstimate.tokens.toLocaleString(),
+              })}{" "}
+          {rolldekCostEstimate.mayHitMinimum &&
+            `${t("ai.workbench.rolldekEstimateMinimum")} `}
+          {t("ai.workbench.rolldekEstimateDisclaimer")}
+        </p>,
+      );
+    }
+
+    return notices;
+  };
+
   const renderVideoParameters = () => (
     <>
+      {rolldekOptions && renderRollDekModeSelector(rolldekOptions)}
+
       <div className="AIImageWorkbench__field">
         <span aria-hidden="true">{t("ai.common.prompt")}</span>
         {/* Same editor as images: references drive image-to-video, so `#n`
@@ -5338,8 +5778,14 @@ export const AIImageWorkbench = ({
           className="AIImageWorkbench__promptInput"
           value={prompt}
           referenceCount={
-            selectedModel &&
-            supportsAIImageMode(selectedModel, "image-to-video")
+            rolldekMode
+              ? rolldekMode === "reference-to-video"
+                ? availableSelectedSources.length + rolldekMedia.length
+                : rolldekMode === "first-last-frame"
+                ? Math.min(2, availableSelectedSources.length)
+                : 0
+              : selectedModel &&
+                supportsAIImageMode(selectedModel, "image-to-video")
               ? availableSelectedSources.length
               : 0
           }
@@ -5371,23 +5817,30 @@ export const AIImageWorkbench = ({
               updateParams({ aspectRatio: event.target.value })
             }
           >
-            <option value="16:9">16:9</option>
-            <option value="9:16">9:16</option>
-            <option value="1:1">1:1</option>
-            <option value="4:3">4:3</option>
+            {(rolldekOptions?.aspectRatios || DEFAULT_VIDEO_ASPECT_RATIOS).map(
+              (ratio) => (
+                <option key={ratio} value={ratio}>
+                  {ratio}
+                </option>
+              ),
+            )}
           </Select>
         </label>
 
         <label className="AIImageWorkbench__field">
           <span>{t("ai.workbench.duration")}</span>
           <input
-            min={1}
-            max={30}
+            min={rolldekOptions?.duration.min ?? 1}
+            max={rolldekOptions?.duration.max ?? 30}
             type="number"
             value={params.duration ?? 5}
             onChange={(event) =>
               updateParams({
-                duration: clampNumber(Number(event.target.value), 1, 30),
+                duration: clampNumber(
+                  Number(event.target.value),
+                  rolldekOptions?.duration.min ?? 1,
+                  rolldekOptions?.duration.max ?? 30,
+                ),
               })
             }
           />
@@ -5405,19 +5858,41 @@ export const AIImageWorkbench = ({
               updateParams({ resolution: event.target.value })
             }
           >
-            <option value="720P">720P</option>
-            <option value="1080P">1080P</option>
+            {(rolldekOptions?.resolutions || DEFAULT_VIDEO_RESOLUTIONS).map(
+              (tier) => (
+                <option key={tier} value={tier.toUpperCase()}>
+                  {tier.toUpperCase()}
+                </option>
+              ),
+            )}
           </Select>
         </label>
       </div>
 
-      {selectedSources.length > 0 &&
+      {rolldekOptions &&
+        rolldekMode === "reference-to-video" &&
+        renderRollDekMediaPanel(rolldekOptions)}
+
+      {rolldekOptions && renderRollDekNotices(rolldekOptions)}
+
+      {!rolldekOptions &&
+        selectedSources.length > 0 &&
         selectedModel &&
         supportsAIImageMode(selectedModel, "image-to-video") &&
         renderNotice(
           t("ai.workbench.videoImageToVideoNotice", {
             count: selectedSources.length,
           }),
+        )}
+
+      {needsReferenceNotice &&
+        renderNotice(
+          t("ai.workbench.rolldekReferencePrivacy"),
+          {
+            label: t("ai.workbench.rolldekReferencePrivacyAccept"),
+            onClick: acknowledgeReferenceNotice,
+          },
+          "warning",
         )}
 
       {/* Sticky footer: message, running tasks and the primary action stay
@@ -5738,6 +6213,28 @@ const renderNotice = (
       {message}
     </Callout>
   );
+};
+
+const getRollDekIssueMessage = (issue: RollDekReferenceIssue) => {
+  if (issue.kind === "first-last-needs-two") {
+    return t("ai.workbench.rolldekFirstLastNeedsTwo");
+  }
+  if (issue.kind === "reference-needs-one") {
+    return t("ai.workbench.rolldekReferenceNeedsOne");
+  }
+
+  const { images, videos, audios, total } = issue.limits;
+  const message = t("ai.workbench.rolldekTooManyReferences", {
+    images,
+    videos,
+    audios,
+  });
+
+  return total != null
+    ? `${message} ${t("ai.workbench.rolldekTooManyReferencesTotal", {
+        total,
+      })}`
+    : message;
 };
 
 const getSourceTypeLabel = (

@@ -48,6 +48,8 @@ export const STORAGE_KEYS = {
   LOCAL_STORAGE_AI_PROXY: "excalidraw-ai-proxy",
   LOCAL_STORAGE_AI_GENERATION_LOGS: "excalidraw-ai-generation-logs",
   LOCAL_STORAGE_AI_VIDEO_TASKS: "excalidraw-ai-video-tasks",
+  LOCAL_STORAGE_AI_VIDEO_REFERENCE_NOTICE:
+    "excalidraw-ai-video-reference-notice",
   LOCAL_STORAGE_AI_WORKBENCH_MEDIA_TYPE: "excalidraw-ai-workbench-media-type",
   LOCAL_STORAGE_AI_WORKBENCH_DRAFT: "excalidraw-ai-workbench-draft",
   LOCAL_STORAGE_AI_WORKBENCH_LOCAL_DOCUMENT_ID:
