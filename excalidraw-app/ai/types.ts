@@ -485,6 +485,10 @@ export type PendingVideoTask = {
   params: AIImageGenerationParams;
   status: AIVideoTaskStatus;
   submittedAt: string;
+  /** RollDek protocol, so a resumed poll uses the right paths (ADR 0039). */
+  videoProtocol?: AIVideoProtocol;
+  /** Uploaded reference assets to delete once the task ends (ADR 0039 §4). */
+  referenceAssetIds?: string[];
 };
 
 export type AIImageCustomData = {

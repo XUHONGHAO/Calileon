@@ -55,6 +55,23 @@ describe("video task store", () => {
     expect(loadPendingVideoTasks()).toEqual([frames, reference]);
   });
 
+  it("keeps the protocol and reference ids through status updates", () => {
+    upsertVideoTask(
+      createTask({
+        taskId: "task-volc",
+        videoProtocol: "volc-tasks",
+        referenceAssetIds: ["asset-1", "asset-2"],
+      }),
+    );
+    updateVideoTaskStatus("task-volc", "processing");
+
+    expect(loadPendingVideoTasks()[0]).toMatchObject({
+      status: "processing",
+      videoProtocol: "volc-tasks",
+      referenceAssetIds: ["asset-1", "asset-2"],
+    });
+  });
+
   it("inserts new tasks at the front and keeps existing task positions", () => {
     upsertVideoTask(createTask({ taskId: "task-1" }));
     upsertVideoTask(createTask({ taskId: "task-2" }));

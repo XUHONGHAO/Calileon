@@ -44,6 +44,7 @@ import { createSupabaseSceneActivityService } from "./supabase/SupabaseSceneActi
 import { createSupabaseSceneStorage } from "./supabase/SupabaseSceneStorage";
 import { createSupabaseShareService } from "./supabase/SupabaseShareService";
 import { createSupabaseVideoAssetService } from "./supabase/SupabaseVideoAssetService";
+import { createSupabaseVideoReferenceService } from "./supabase/SupabaseVideoReferenceService";
 
 import type { BackendCapabilities, CloudBackend } from "./types";
 
@@ -100,6 +101,7 @@ const assembleSupabaseBackend = (
     videoAssets: capabilities.remoteVideoAssets
       ? createSupabaseVideoAssetService()
       : createLocalVideoAssetService(),
+    videoReferences: createSupabaseVideoReferenceService(),
     shares: createSupabaseShareService(),
     aiTasks: createSupabaseAITaskService(),
     activity: createSupabaseSceneActivityService(),

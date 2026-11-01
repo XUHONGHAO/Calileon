@@ -111,6 +111,8 @@ export type AssetType =
   | "audio"
   // camera recordings (ADR 0035); never published with share/embed links
   | "video"
+  // short-lived inputs handed to a video provider by signed URL (ADR 0039)
+  | "ai-video-reference"
   | "export"
   | "embed-preview";
 
@@ -447,6 +449,23 @@ export interface VideoAssetService {
     access: VideoAssetAccessContext;
     signal?: AbortSignal;
   }): Promise<VideoAssetResolution>;
+}
+
+/**
+ * Reference images/videos/audio for a video provider that only accepts public
+ * HTTPS URLs (ADR 0039 §4). Stored outside any scene folder, so share and
+ * embed links never grant them, and deleted once the task ends.
+ */
+export interface VideoReferenceService {
+  upload(input: {
+    blob: Blob;
+    mimeType: string;
+    signal?: AbortSignal;
+  }): Promise<{ assetId: string; url: string; expiresAt: number }>;
+  /** Deletes the object and its row. Missing ids are ignored. */
+  remove(assetIds: readonly string[]): Promise<void>;
+  /** Deletes references older than `olderThanMs`; returns how many. */
+  removeStale(olderThanMs: number): Promise<number>;
 }
 
 // —— Share (BR-SHARE, Phase 2; D5: read/write/revocable) ——
@@ -862,6 +881,8 @@ export interface CloudBackend {
   scenes: SceneStorage;
   assets: AssetStorage;
   videoAssets?: VideoAssetService;
+  /** Present only with Supabase (ADR 0039); needs a signed-in user. */
+  videoReferences?: VideoReferenceService;
   shares: ShareService;
   aiTasks: AITaskService;
   activity: SceneActivityService;
