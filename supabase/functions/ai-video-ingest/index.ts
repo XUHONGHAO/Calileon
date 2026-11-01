@@ -4,6 +4,7 @@ import { errorResponse, getCorsHeaders, jsonResponse } from "../_shared/http.ts"
 import { createServiceClient, createUserClient } from "../_shared/supabase.ts";
 import {
   fetchVideoWithValidatedRedirects,
+  hasVideoSignature,
   parseAllowedVideoHosts,
   readVideoBodyWithLimit,
 } from "../_shared/videoSecurity.ts";
@@ -11,6 +12,8 @@ import {
 const BUCKET = "excalidraw-assets";
 const DEFAULT_MAX_BYTES = 100 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set(["video/mp4", "video/webm"]);
+// The key becomes the last storage path segment: no slashes or dot segments.
+const RAW_IDEMPOTENCY_KEY_RE = /^(?!\.{1,2}$)[A-Za-z0-9._:-]{1,200}$/;
 
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
@@ -21,16 +24,38 @@ Deno.serve(async (request) => {
   }
 
   try {
-    const body = await request.json();
-    const sceneId = typeof body.sceneId === "string" ? body.sceneId : "";
-    const sourceUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
-    const idempotencyKey =
-      typeof body.idempotencyKey === "string" ? body.idempotencyKey : "";
-    const expectedMimeType =
-      typeof body.expectedMimeType === "string"
-        ? body.expectedMimeType.toLowerCase()
-        : undefined;
-    if (!sceneId || !sourceUrl || !idempotencyKey) {
+    // Two entries (ADR 0039 §7):
+    // - JSON `{sceneId, sourceUrl, idempotencyKey}`: the server downloads.
+    // - Raw bytes with a video Content-Type, `?sceneId=&idempotencyKey=`: the
+    //   browser already downloaded a result that needs the provider key.
+    const requestMimeType = (request.headers.get("Content-Type") || "")
+      .split(";", 1)[0]
+      .trim()
+      .toLowerCase();
+    const isRawUpload = ALLOWED_MIME_TYPES.has(requestMimeType);
+    let sceneId = "";
+    let sourceUrl = "";
+    let idempotencyKey = "";
+    let expectedMimeType: string | undefined;
+    if (isRawUpload) {
+      const params = new URL(request.url).searchParams;
+      sceneId = params.get("sceneId") || "";
+      idempotencyKey = params.get("idempotencyKey") || "";
+      if (!RAW_IDEMPOTENCY_KEY_RE.test(idempotencyKey)) {
+        return errorResponse(request, 400, "invalid-request");
+      }
+    } else {
+      const body = await request.json();
+      sceneId = typeof body.sceneId === "string" ? body.sceneId : "";
+      sourceUrl = typeof body.sourceUrl === "string" ? body.sourceUrl : "";
+      idempotencyKey =
+        typeof body.idempotencyKey === "string" ? body.idempotencyKey : "";
+      expectedMimeType =
+        typeof body.expectedMimeType === "string"
+          ? body.expectedMimeType.toLowerCase()
+          : undefined;
+    }
+    if (!sceneId || (!isRawUpload && !sourceUrl) || !idempotencyKey) {
       return errorResponse(request, 400, "invalid-request");
     }
 
@@ -69,47 +94,57 @@ Deno.serve(async (request) => {
       });
     }
 
-    const allowedHosts = parseAllowedVideoHosts(
-      Deno.env.get("AI_VIDEO_INGEST_ALLOWED_HOSTS"),
-    );
-    if (!allowedHosts.length) {
-      return errorResponse(request, 503, "video-ingest-not-configured");
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(
-      () => controller.abort(),
-      Number(Deno.env.get("AI_VIDEO_INGEST_TIMEOUT_MS") || 60_000),
-    );
-    let response: Response;
-    try {
-      response = await fetchVideoWithValidatedRedirects({
-        sourceUrl,
-        allowedHosts,
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeoutId);
-    }
-    if (!response.ok) {
-      return errorResponse(request, 502, "video-download-failed");
-    }
-
-    const mimeType = (response.headers.get("Content-Type") || "")
-      .split(";", 1)[0]
-      .trim()
-      .toLowerCase();
-    if (
-      !ALLOWED_MIME_TYPES.has(mimeType) ||
-      (expectedMimeType && expectedMimeType !== mimeType)
-    ) {
-      return errorResponse(request, 415, "unsupported-video-type");
-    }
-
     const maxBytes = Number(
       Deno.env.get("AI_VIDEO_INGEST_MAX_BYTES") || DEFAULT_MAX_BYTES,
     );
-    const bytes = await readVideoBodyWithLimit(response, maxBytes);
+    let mimeType: string;
+    let bytes: Uint8Array;
+    if (isRawUpload) {
+      mimeType = requestMimeType;
+      bytes = await readVideoBodyWithLimit(request, maxBytes);
+      if (!hasVideoSignature(bytes, mimeType)) {
+        return errorResponse(request, 415, "unsupported-video-type");
+      }
+    } else {
+      const allowedHosts = parseAllowedVideoHosts(
+        Deno.env.get("AI_VIDEO_INGEST_ALLOWED_HOSTS"),
+      );
+      if (!allowedHosts.length) {
+        return errorResponse(request, 503, "video-ingest-not-configured");
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        Number(Deno.env.get("AI_VIDEO_INGEST_TIMEOUT_MS") || 60_000),
+      );
+      let response: Response;
+      try {
+        response = await fetchVideoWithValidatedRedirects({
+          sourceUrl,
+          allowedHosts,
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
+      if (!response.ok) {
+        return errorResponse(request, 502, "video-download-failed");
+      }
+
+      mimeType = (response.headers.get("Content-Type") || "")
+        .split(";", 1)[0]
+        .trim()
+        .toLowerCase();
+      if (
+        !ALLOWED_MIME_TYPES.has(mimeType) ||
+        (expectedMimeType && expectedMimeType !== mimeType)
+      ) {
+        return errorResponse(request, 415, "unsupported-video-type");
+      }
+
+      bytes = await readVideoBodyWithLimit(response, maxBytes);
+    }
     const storagePath = `${authData.user.id}/${sceneId}/${idempotencyKey}`;
     const { error: uploadError } = await serviceClient.storage
       .from(BUCKET)

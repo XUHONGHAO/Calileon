@@ -686,3 +686,164 @@ export const pollRollDekVideoTask = async ({
     ...(totalTokens != null ? { totalTokens } : {}),
   };
 };
+
+/** Matches the `ai-video-ingest` server limit. */
+export const ROLLDEK_VIDEO_DOWNLOAD_MAX_BYTES = 100 * 1024 * 1024;
+
+const readBodyWithLimit = async (response: Response, maxBytes: number) => {
+  const reader = response.body?.getReader?.();
+
+  if (!reader) {
+    const buffer = new Uint8Array(await response.arrayBuffer());
+    if (buffer.byteLength > maxBytes) {
+      throw new Error("video-too-large");
+    }
+    return buffer;
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    totalBytes += value.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new Error("video-too-large");
+    }
+    chunks.push(value);
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return bytes;
+};
+
+// An MP4 starts with a box whose type (bytes 4–8) is `ftyp`.
+const hasMP4Signature = (bytes: Uint8Array) =>
+  bytes.byteLength >= 8 &&
+  String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]) === "ftyp";
+
+/**
+ * Downloads a finished task's video with the API key (ADR 0039 §7). The URL
+ * is built from the configured Base URL. Failures carry
+ * `details.downloadFailed`; the task should be kept, since downloading again
+ * is free.
+ */
+export const downloadRollDekVideoResult = async ({
+  baseURL,
+  apiKey,
+  taskId,
+  signal,
+  config: configOverride,
+  maxBytes = ROLLDEK_VIDEO_DOWNLOAD_MAX_BYTES,
+}: {
+  baseURL: string;
+  apiKey: string;
+  taskId: string;
+  signal?: AbortSignal;
+  config?: AIProxyConfigV2;
+  maxBytes?: number;
+}): Promise<{ blob: Blob; mimeType: string; bytes: number }> => {
+  const config = configOverride || loadAIProxyConfig();
+
+  assertRollDekTransport(baseURL, config);
+
+  const endpoint = buildRollDekContentURL(baseURL, taskId);
+  const headers = buildHeaders(apiKey, false);
+  headers.set("Accept", "video/mp4");
+  const fail = (message: string, details: Record<string, unknown> = {}) =>
+    new AIImageGenerationError(message, "invalid-response", {
+      endpoint,
+      downloadFailed: true,
+      ...details,
+    });
+
+  let response: Response;
+  try {
+    response = await fetchAIRequest(
+      endpoint,
+      { method: "GET", headers, signal },
+      { kind: "video-poll", signal, config },
+    );
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw error;
+    }
+    if (error instanceof AIProxyTransportError) {
+      throw new AIImageGenerationError(error.message, error.code, {
+        ...error.details,
+        endpoint,
+        downloadFailed: true,
+      });
+    }
+    throw new AIImageGenerationError(
+      "Downloading the generated video failed. The video is still on RollDek; try downloading again.",
+      "cors-or-network",
+      { endpoint, errorMessage: error?.message, downloadFailed: true },
+    );
+  }
+
+  if (!response.ok) {
+    const error = normalizeProviderError(
+      response.status,
+      (await readJSON(response)) as any,
+      { endpoint },
+    );
+    error.details = { ...(error.details as object), downloadFailed: true };
+    throw error;
+  }
+
+  const mimeType = (response.headers.get("Content-Type") || "")
+    .split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  if (mimeType !== "video/mp4") {
+    throw fail(
+      `The generated video has an unexpected type (${mimeType || "none"}).`,
+      { mimeType },
+    );
+  }
+
+  const declaredLength = Number(response.headers.get("Content-Length") || 0);
+  if (declaredLength > maxBytes) {
+    throw fail("The generated video is too large to save.", {
+      bytes: declaredLength,
+    });
+  }
+
+  let bytes: Uint8Array;
+  try {
+    bytes = await readBodyWithLimit(response, maxBytes);
+  } catch (error: any) {
+    if (error?.name === "AbortError") {
+      throw error;
+    }
+    if (error?.message === "video-too-large") {
+      throw fail("The generated video is too large to save.");
+    }
+    throw new AIImageGenerationError(
+      "Downloading the generated video was interrupted. Try downloading again.",
+      "cors-or-network",
+      { endpoint, errorMessage: error?.message, downloadFailed: true },
+    );
+  }
+
+  if (!hasMP4Signature(bytes)) {
+    throw fail("The downloaded file is not a valid MP4 video.", {
+      bytes: bytes.byteLength,
+    });
+  }
+
+  return {
+    blob: new Blob([bytes as Uint8Array<ArrayBuffer>], { type: mimeType }),
+    mimeType,
+    bytes: bytes.byteLength,
+  };
+};

@@ -431,6 +431,17 @@ export interface VideoAssetService {
     idempotencyKey: string;
     signal?: AbortSignal;
   }): Promise<VideoAssetIngestResult>;
+  /**
+   * Stores bytes the browser already downloaded, for providers whose result
+   * URL needs the API key (ADR 0039 §7). Same idempotency as `ingest`.
+   */
+  ingestBytes?(input: {
+    sceneId: string;
+    blob: Blob;
+    mimeType: string;
+    idempotencyKey: string;
+    signal?: AbortSignal;
+  }): Promise<VideoAssetIngestResult>;
   resolve(input: {
     assetId: string;
     access: VideoAssetAccessContext;

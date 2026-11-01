@@ -119,6 +119,30 @@ export const createSupabaseVideoAssetService = (): VideoAssetService => ({
     return data;
   },
 
+  ingestBytes: async (input) => {
+    throwIfAborted(input.signal);
+    const query = new URLSearchParams({
+      sceneId: input.sceneId,
+      idempotencyKey: input.idempotencyKey,
+    });
+    const { data, error } = await getSupabaseClient().functions.invoke(
+      `${INGEST_FUNCTION}?${query}`,
+      {
+        body: input.blob,
+        headers: { "Content-Type": input.mimeType },
+        signal: input.signal,
+      },
+    );
+    throwIfAborted(input.signal);
+    if (error) {
+      throw mapFunctionError(error);
+    }
+    if (!isIngestResult(data)) {
+      throw mapFunctionError(null);
+    }
+    return data;
+  },
+
   resolve: async (input) => {
     throwIfAborted(input.signal);
     const { data, error } = await getSupabaseClient().functions.invoke(

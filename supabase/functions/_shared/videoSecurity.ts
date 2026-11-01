@@ -89,15 +89,15 @@ export const fetchVideoWithValidatedRedirects = async (input: {
 };
 
 export const readVideoBodyWithLimit = async (
-  response: Response,
+  message: Pick<Response, "headers" | "body">,
   maxBytes: number,
 ) => {
-  const declaredLength = Number(response.headers.get("Content-Length") || 0);
+  const declaredLength = Number(message.headers.get("Content-Length") || 0);
   if (declaredLength > maxBytes) {
     throw new Error("video-too-large");
   }
 
-  const reader = response.body?.getReader();
+  const reader = message.body?.getReader();
   if (!reader) {
     throw new Error("video-body-missing");
   }
@@ -124,6 +124,29 @@ export const readVideoBodyWithLimit = async (
     offset += chunk.byteLength;
   });
   return bytes;
+};
+
+/**
+ * Checks the container signature, so uploaded bytes cannot claim a video MIME
+ * type they do not have. MP4: an `ftyp` box first. WebM: the EBML magic.
+ */
+export const hasVideoSignature = (bytes: Uint8Array, mimeType: string) => {
+  if (mimeType === "video/mp4") {
+    return (
+      bytes.byteLength >= 8 &&
+      String.fromCharCode(bytes[4], bytes[5], bytes[6], bytes[7]) === "ftyp"
+    );
+  }
+  if (mimeType === "video/webm") {
+    return (
+      bytes.byteLength >= 4 &&
+      bytes[0] === 0x1a &&
+      bytes[1] === 0x45 &&
+      bytes[2] === 0xdf &&
+      bytes[3] === 0xa3
+    );
+  }
+  return false;
 };
 
 const decodeBase64Url = (value: string) => {

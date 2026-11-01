@@ -272,7 +272,10 @@ import {
 } from "./ai/videoAssetMigration";
 import {
   loadLocalAIVideoAsset,
+  loadLocalAIVideoBlobAsset,
+  persistLocalAIVideoBlob,
   persistLocalAIVideoURL,
+  resolveLocalAIVideoPlayback,
 } from "./data/AIVideoURLVault";
 
 import { isVaultV2Enabled, isVaultV2Route } from "./data/vault/v2/flag";
@@ -4571,7 +4574,7 @@ const ExcalidrawWrapper = () => {
             "Local AI video assets are unavailable outside their local document.",
           );
         }
-        const asset = await loadLocalAIVideoAsset(assetId);
+        const asset = await resolveLocalAIVideoPlayback(assetId);
         if (!asset) {
           throw new Error("Local AI video asset is unavailable.");
         }
@@ -4648,6 +4651,7 @@ const ExcalidrawWrapper = () => {
       taskId,
       output,
       signal,
+      videoBlob,
     }: PersistAIVideoOutputInput): Promise<VideoAssetIngestResult | null> => {
       const getCurrentContextToken = () =>
         resolveAIVideoPersistenceContextToken({
@@ -4681,13 +4685,24 @@ const ExcalidrawWrapper = () => {
         ) {
           throw new Error("Remote AI video asset persistence is unavailable.");
         }
-        const asset = await backend.videoAssets.ingest({
-          sceneId: activeScene.id,
-          sourceUrl: output.videoURL,
-          expectedMimeType: output.mimeType,
-          idempotencyKey: taskId,
-          signal,
-        });
+        if (videoBlob && !backend.videoAssets.ingestBytes) {
+          throw new Error("Remote AI video upload is unavailable.");
+        }
+        const asset = videoBlob
+          ? await backend.videoAssets.ingestBytes!({
+              sceneId: activeScene.id,
+              blob: videoBlob,
+              mimeType: output.mimeType,
+              idempotencyKey: taskId,
+              signal,
+            })
+          : await backend.videoAssets.ingest({
+              sceneId: activeScene.id,
+              sourceUrl: output.videoURL,
+              expectedMimeType: output.mimeType,
+              idempotencyKey: taskId,
+              signal,
+            });
         assertCurrentContext();
         const resolution = await backend.videoAssets.resolve({
           assetId: asset.assetId,
@@ -4697,6 +4712,27 @@ const ExcalidrawWrapper = () => {
         assertCurrentContext();
         seedVideoPlaybackURLCache(contextToken, asset.assetId, resolution);
         return asset;
+      }
+
+      if (videoBlob) {
+        const blobAsset = await persistLocalAIVideoBlob({
+          taskId,
+          blob: videoBlob,
+          mimeType: output.mimeType,
+        });
+        assertCurrentContext();
+        const playback = await resolveLocalAIVideoPlayback(blobAsset.assetId);
+        if (playback) {
+          seedVideoPlaybackURLCache(contextToken, blobAsset.assetId, {
+            ...playback,
+            expiresAt: Date.now() + 5 * 60 * 1000,
+          });
+        }
+        return {
+          assetId: blobAsset.assetId,
+          mimeType: blobAsset.mimeType,
+          bytes: blobAsset.bytes,
+        };
       }
 
       const localAsset = await persistLocalAIVideoURL({
@@ -4811,15 +4847,30 @@ const ExcalidrawWrapper = () => {
               candidate.kind === "legacy"
                 ? candidate.sourceUrl
                 : (await loadLocalAIVideoAsset(candidate.localAssetId))?.url;
-            if (!sourceUrl) {
+            // Local videos from key-protected providers are stored as bytes.
+            const blobAsset =
+              !sourceUrl &&
+              candidate.kind === "local" &&
+              backend.videoAssets.ingestBytes
+                ? await loadLocalAIVideoBlobAsset(candidate.localAssetId)
+                : undefined;
+            if (!sourceUrl && !blobAsset) {
               return;
             }
-            asset = await backend.videoAssets.ingest({
-              sceneId: activeScene.id,
-              sourceUrl,
-              expectedMimeType: metadata.mimeType,
-              idempotencyKey: `${candidate.kind}-${element.id}-${element.version}`,
-            });
+            const idempotencyKey = `${candidate.kind}-${element.id}-${element.version}`;
+            asset = blobAsset
+              ? await backend.videoAssets.ingestBytes!({
+                  sceneId: activeScene.id,
+                  blob: blobAsset.blob,
+                  mimeType: blobAsset.mimeType,
+                  idempotencyKey,
+                })
+              : await backend.videoAssets.ingest({
+                  sceneId: activeScene.id,
+                  sourceUrl: sourceUrl!,
+                  expectedMimeType: metadata.mimeType,
+                  idempotencyKey,
+                });
             const resolution = await backend.videoAssets.resolve({
               assetId: asset.assetId,
               access: { kind: "owner" },

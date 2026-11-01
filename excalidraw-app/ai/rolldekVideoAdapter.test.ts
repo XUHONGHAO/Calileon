@@ -7,6 +7,7 @@ import {
   buildRollDekSdRequestBody,
   buildRollDekSubmitURL,
   buildRollDekVolcRequestBody,
+  downloadRollDekVideoResult,
   normalizeRollDekBaseURL,
   normalizeRollDekStatus,
   pollRollDekVideoTask,
@@ -585,5 +586,116 @@ describe("RollDek video adapter network", () => {
       );
       expect(error.details).toMatchObject({ taskNotFound: true });
     }
+  });
+});
+
+describe("RollDek video download", () => {
+  // `....ftypisom` — the first box of an MP4.
+  const mp4Bytes = () =>
+    new Uint8Array([0, 0, 0, 24, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f]);
+  const videoResponse = (
+    bytes: Uint8Array,
+    headers: Record<string, string> = { "Content-Type": "video/mp4" },
+  ) => new Response(bytes as Uint8Array<ArrayBuffer>, { status: 200, headers });
+  const download = (
+    overrides: Partial<Parameters<typeof downloadRollDekVideoResult>[0]> = {},
+  ) =>
+    downloadRollDekVideoResult({
+      baseURL: "https://api-cn.rolldek.com/v1",
+      apiKey: "sk-local-only",
+      taskId: "task_1",
+      ...overrides,
+    });
+
+  beforeEach(() => {
+    localStorage.removeItem(STORAGE_KEYS.LOCAL_STORAGE_AI_PROXY);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("downloads from the configured host with Bearer auth", async () => {
+    const fetchMock = vi.fn(async () => videoResponse(mp4Bytes()));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await download();
+
+    expect(result).toMatchObject({ mimeType: "video/mp4", bytes: 11 });
+    expect(result.blob.size).toBe(11);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe("https://api-cn.rolldek.com/v1/videos/task_1/content");
+    expect(new Headers(init.headers).get("Authorization")).toBe(
+      "Bearer sk-local-only",
+    );
+  });
+
+  it("rejects wrong types, bad signatures and oversized files", async () => {
+    for (const [response, maxBytes] of [
+      [videoResponse(mp4Bytes(), { "Content-Type": "text/html" }), undefined],
+      [videoResponse(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9])), undefined],
+      [
+        videoResponse(mp4Bytes(), {
+          "Content-Type": "video/mp4",
+          "Content-Length": "999",
+        }),
+        100,
+      ],
+      [videoResponse(mp4Bytes()), 4],
+    ] as const) {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => response),
+      );
+      const error = await expectError(download({ maxBytes }), {
+        code: "invalid-response",
+      });
+      expect(error.details).toMatchObject({ downloadFailed: true });
+    }
+  });
+
+  it("flags HTTP and network failures as retryable downloads", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        jsonResponse({ error: { code: "unauthorized", message: "no" } }, 401),
+      ),
+    );
+    const httpError = await expectError(download(), { code: "auth" });
+    expect(httpError.details).toMatchObject({ downloadFailed: true });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      }),
+    );
+    const networkError = await expectError(download(), {
+      code: "cors-or-network",
+    });
+    expect(networkError.details).toMatchObject({ downloadFailed: true });
+  });
+
+  it("refuses the managed gateway", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expectError(
+      download({
+        config: {
+          version: 2,
+          mode: "managed-gateway",
+          endpoint: "",
+          accessToken: "",
+          gatewayEndpoint: "",
+          managedRoutes: {},
+        },
+      }),
+      { code: "proxy-config" },
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

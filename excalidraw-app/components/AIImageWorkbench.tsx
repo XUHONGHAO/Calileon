@@ -180,6 +180,11 @@ export type PersistAIVideoOutputInput = {
   taskId: string;
   output: AIVideoGenerationOutput;
   signal: AbortSignal;
+  /**
+   * Bytes the browser already downloaded, for providers whose result URL
+   * needs the API key (ADR 0039 §7). When set, `output.videoURL` is not stored.
+   */
+  videoBlob?: Blob;
 };
 
 const DEFAULT_PARAMS: AIImageGenerationParams = {

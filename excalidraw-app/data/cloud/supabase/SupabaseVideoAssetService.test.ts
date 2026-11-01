@@ -46,6 +46,31 @@ describe("SupabaseVideoAssetService", () => {
     });
   });
 
+  it("uploads browser-downloaded bytes with the video type and ids in the query", async () => {
+    mockInvoke.mockResolvedValue({
+      data: { assetId: "asset-2", mimeType: "video/mp4", bytes: 8 },
+      error: null,
+    });
+    const blob = new Blob([new Uint8Array(8)], { type: "video/mp4" });
+
+    const result = await createSupabaseVideoAssetService().ingestBytes!({
+      sceneId: "scene 1",
+      blob,
+      mimeType: "video/mp4",
+      idempotencyKey: "task_1",
+    });
+
+    expect(result.assetId).toBe("asset-2");
+    expect(mockInvoke).toHaveBeenCalledWith(
+      "ai-video-ingest?sceneId=scene+1&idempotencyKey=task_1",
+      {
+        body: blob,
+        headers: { "Content-Type": "video/mp4" },
+        signal: undefined,
+      },
+    );
+  });
+
   it("resolves owner/share/embed access without persisting the returned URL", async () => {
     mockInvoke.mockResolvedValue({
       data: {
