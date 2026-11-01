@@ -8,16 +8,21 @@ import {
   RIGHT_CODE_GEMINI_ENDPOINTS,
 } from "./endpointPresets";
 import { normalizeAIImageNativeModel } from "./imageDimensions";
+import { getAIVideoCatalogModels } from "./videoModelCatalog";
 
 import type { EndpointPresetId } from "./endpointPresets";
 import type {
   AIImageEndpointConfig,
   AIImageEndpoints,
   AIImageFieldMapping,
+  AIModelBilling,
   AIModelMediaType,
+  AIModelTokenPrices,
   AIImageModel,
   AIImageModelCapability,
   AIImageProviderConfig,
+  AIVideoProtocol,
+  AIVideoResolutionTier,
 } from "./types";
 
 export const AI_IMAGE_CONFIG_UPDATED_EVENT = "excalidraw-ai-image-config";
@@ -197,6 +202,41 @@ export const DEFAULT_AI_MODEL_PROVIDER_PRESETS: AIModelProviderPreset[] = [
     capabilities: ["text-to-image", "image-to-image"],
     endpoints: RIGHT_CODE_GEMINI_ENDPOINTS,
     endpointPresetId: "right-code-gemini",
+  },
+  {
+    // RollDek Seedance (ADR 0039). Bare-host Base URL: the adapters own the
+    // `/v1` and `/api/v3` paths. The China route is api-cn.rolldek.com. Which
+    // models a key can see depends on its group; remove the others.
+    id: "rolldek-seedance-sd",
+    name: "RollDek Seedance (SD)",
+    description:
+      "RollDek sd-* Seedance channels: POST /v1/videos, 720p, billed per task. Base URL https://rolldek.com, or https://api-cn.rolldek.com for the China route. Remove the model IDs your key cannot see.",
+    siteName: "RollDek",
+    baseURL: "https://rolldek.com",
+    model: getAIVideoCatalogModels("rolldek-sd").join("\n"),
+    label: "RollDek Seedance (SD)",
+    mediaType: "video",
+    capabilities: DEFAULT_VIDEO_MODEL_CAPABILITIES,
+    endpoints: OPENAI_STANDARD_ENDPOINTS,
+    endpointPresetId: "openai-standard",
+    videoProtocol: "rolldek-sd",
+    billing: { mode: "per-request" },
+  },
+  {
+    id: "rolldek-seedance-volc",
+    name: "RollDek Seedance (Volcengine)",
+    description:
+      "RollDek doubao-seedance models in the Volcengine task format: POST /api/v3/contents/generations/tasks, 720p/1080p, billed per token. Set the group multiplier to see a cost estimate.",
+    siteName: "RollDek",
+    baseURL: "https://rolldek.com",
+    model: getAIVideoCatalogModels("volc-tasks").join("\n"),
+    label: "RollDek Seedance (Volcengine)",
+    mediaType: "video",
+    capabilities: DEFAULT_VIDEO_MODEL_CAPABILITIES,
+    endpoints: OPENAI_STANDARD_ENDPOINTS,
+    endpointPresetId: "openai-standard",
+    videoProtocol: "volc-tasks",
+    billing: { mode: "per-token", multiplier: 1 },
   },
 ];
 
@@ -384,7 +424,118 @@ export const migrateModelConfig = (
     delete (migratedModel as Partial<AIImageModel>).note;
   }
 
+  // Video-only fields (ADR 0039). The default protocol is left implicit so
+  // existing cards serialize exactly as before.
+  const isVideo = migratedModel.mediaType === "video";
+  const videoProtocol = isVideo
+    ? normalizeAIVideoProtocol((model as any).videoProtocol)
+    : undefined;
+  const billing = isVideo
+    ? normalizeAIModelBilling((model as any).billing)
+    : undefined;
+
+  if (videoProtocol && videoProtocol !== "openai-videos") {
+    migratedModel.videoProtocol = videoProtocol;
+  } else {
+    delete (migratedModel as Partial<AIImageModel>).videoProtocol;
+  }
+
+  if (billing) {
+    migratedModel.billing = billing;
+  } else {
+    delete (migratedModel as Partial<AIImageModel>).billing;
+  }
+
   return migratedModel;
+};
+
+const AI_VIDEO_PROTOCOLS: AIVideoProtocol[] = [
+  "openai-videos",
+  "rolldek-sd",
+  "volc-tasks",
+];
+
+export const normalizeAIVideoProtocol = (
+  value: unknown,
+): AIVideoProtocol | undefined => {
+  return AI_VIDEO_PROTOCOLS.includes(value as AIVideoProtocol)
+    ? (value as AIVideoProtocol)
+    : undefined;
+};
+
+export const getAIVideoProtocol = (
+  model: Pick<AIImageModel, "videoProtocol"> | undefined,
+): AIVideoProtocol => model?.videoProtocol || "openai-videos";
+
+// Bounds keep a typo from producing an absurd estimate; they are not limits
+// on what a relay may charge.
+const MAX_BILLING_MULTIPLIER = 100;
+const MAX_PRICE_PER_MILLION = 100_000;
+const BILLING_RESOLUTION_TIERS: AIVideoResolutionTier[] = [
+  "480p",
+  "720p",
+  "1080p",
+];
+
+const readPositiveNumber = (value: unknown, max: number) => {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value > 0 &&
+    value <= max
+    ? value
+    : undefined;
+};
+
+const normalizeAIModelTokenPrices = (
+  value: unknown,
+): AIModelTokenPrices | undefined => {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const prices: AIModelTokenPrices = {};
+
+  for (const tier of BILLING_RESOLUTION_TIERS) {
+    const entry = (value as any)[tier];
+    const base = readPositiveNumber(entry?.base, MAX_PRICE_PER_MILLION);
+
+    if (base == null) {
+      continue;
+    }
+
+    const withVideo = readPositiveNumber(
+      entry?.withVideo,
+      MAX_PRICE_PER_MILLION,
+    );
+
+    prices[tier] = withVideo != null ? { base, withVideo } : { base };
+  }
+
+  return Object.keys(prices).length ? prices : undefined;
+};
+
+export const normalizeAIModelBilling = (
+  value: unknown,
+): AIModelBilling | undefined => {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const mode = (value as any).mode;
+
+  if (mode === "per-request") {
+    return { mode };
+  }
+
+  if (mode !== "per-token") {
+    return undefined;
+  }
+
+  const multiplier =
+    readPositiveNumber((value as any).multiplier, MAX_BILLING_MULTIPLIER) ?? 1;
+  const prices = normalizeAIModelTokenPrices((value as any).prices);
+
+  return prices ? { mode, multiplier, prices } : { mode, multiplier };
 };
 
 export const MAX_AI_MODEL_NOTE_LENGTH = 500;
@@ -472,6 +623,8 @@ export const normalizeAIImageConfig = (
               (model as any).requestTimeoutSeconds,
             ),
             note: (model as any).note,
+            videoProtocol: (model as any).videoProtocol,
+            billing: (model as any).billing,
           });
         })
         .filter((model): model is AIImageModel => !!model)

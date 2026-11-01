@@ -14,6 +14,7 @@ import type {
 } from "@excalidraw/element/types";
 
 import { getGeneratedImagePosition } from "./imageCanvas";
+import { isAIVideoGenerationMode } from "./videoModelCatalog";
 
 import type { AIVideoGenerationMetadata } from "./types";
 
@@ -113,7 +114,7 @@ const isAIVideoGenerationMetadata = (
   return (
     (metadata.version === 1 || metadata.version === 2) &&
     metadata.kind === "video" &&
-    (metadata.mode === "text-to-video" || metadata.mode === "image-to-video") &&
+    isAIVideoGenerationMode(metadata.mode) &&
     typeof metadata.model === "string" &&
     typeof metadata.prompt === "string" &&
     !!params &&

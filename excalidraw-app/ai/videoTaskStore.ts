@@ -1,5 +1,7 @@
 import { STORAGE_KEYS } from "../app_constants";
 
+import { isAIVideoGenerationMode } from "./videoModelCatalog";
+
 import type { AIVideoTaskStatus, PendingVideoTask } from "./types";
 
 /**
@@ -33,7 +35,7 @@ const isPendingVideoTask = (value: unknown): value is PendingVideoTask => {
     typeof task.modelId === "string" &&
     typeof task.model === "string" &&
     typeof task.siteName === "string" &&
-    (task.mode === "text-to-video" || task.mode === "image-to-video") &&
+    isAIVideoGenerationMode(task.mode) &&
     typeof task.prompt === "string" &&
     !!task.params &&
     typeof task.params === "object" &&

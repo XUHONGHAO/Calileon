@@ -542,6 +542,9 @@ const createModelDraftFromProviderPreset = (
   endpoints: cloneAIImageEndpoints(preset.endpoints),
   fieldMapping: cloneAIImageFieldMapping(preset.fieldMapping),
   endpointPresetId: preset.endpointPresetId,
+  // Set explicitly so a preset never inherits the previous draft's protocol.
+  videoProtocol: preset.videoProtocol,
+  billing: preset.billing ? { ...preset.billing } : undefined,
 });
 
 const createModelDraftFromSavedModels = (
@@ -579,6 +582,10 @@ const getModelProviderGroupKey = (model: AIImageModel) => {
     endpoints: model.endpoints,
     fieldMapping: model.fieldMapping,
     requestTimeoutSeconds: model.requestTimeoutSeconds,
+    // Cards on different protocols or billing must not share one editor,
+    // since saving the group writes these fields to every card in it.
+    videoProtocol: model.videoProtocol,
+    billing: model.billing,
   });
 };
 

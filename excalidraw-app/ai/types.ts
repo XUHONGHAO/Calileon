@@ -85,7 +85,41 @@ export type AIImageModel = {
   requestTimeoutSeconds: number;
   /** User's free-text note, shown when hovering the model in the workbench. */
   note?: string;
+  /** Video wire protocol (ADR 0039). Absent means "openai-videos". */
+  videoProtocol?: AIVideoProtocol;
+  /** How the provider bills this model; drives the cost estimate (ADR 0039). */
+  billing?: AIModelBilling;
 };
+
+/**
+ * Video wire protocols (ADR 0039):
+ * - `openai-videos`: `POST {baseURL}/videos` + `GET /videos/{id}` (ADR 0015).
+ * - `rolldek-sd`: RollDek sd-* channels, `POST /v1/videos` with top-level
+ *   `duration` / `image_refs` / `first_image` fields.
+ * - `volc-tasks`: Volcengine Ark format, `POST /api/v3/contents/generations/
+ *   tasks` with a `content[]` array.
+ * The two RollDek protocols take a bare-host Base URL; the adapter owns paths.
+ */
+export type AIVideoProtocol = "openai-videos" | "rolldek-sd" | "volc-tasks";
+
+export type AIVideoResolutionTier = "480p" | "720p" | "1080p";
+
+/**
+ * Per-million-token prices, keyed by output resolution; `withVideo` applies
+ * when the request carries a reference video (Volcengine prices it lower).
+ */
+export type AIModelTokenPrices = Partial<
+  Record<AIVideoResolutionTier, { base: number; withVideo?: number }>
+>;
+
+/**
+ * `per-request` models are billed a flat price per task and get no estimate.
+ * `per-token` models show an estimate: `prices` overrides the catalog list
+ * prices for this card, and `multiplier` is the relay's group rate.
+ */
+export type AIModelBilling =
+  | { mode: "per-request" }
+  | { mode: "per-token"; multiplier: number; prices?: AIModelTokenPrices };
 
 export type AIImageProviderConfig = {
   baseURL: string;
@@ -338,7 +372,14 @@ export type AIImageGenerationMetadata = {
   createdAt: string;
 };
 
-export type AIVideoGenerationMode = "text-to-video" | "image-to-video";
+// `image-to-video` is the openai-videos first-frame mode (ADR 0015) and stays
+// readable in saved metadata. `reference-to-video` (images/videos/audios as
+// references) and `first-last-frame` come from the RollDek protocols (ADR 0039).
+export type AIVideoGenerationMode =
+  | "text-to-video"
+  | "image-to-video"
+  | "reference-to-video"
+  | "first-last-frame";
 
 export type AIVideoGenerationRequest = {
   config: AIImageProviderConfig;
@@ -376,6 +417,20 @@ export type AIVideoPollResult = {
   durationSeconds?: number;
   revisedPrompt?: string;
   error?: string;
+  /** Billed tokens, from per-token providers once the task succeeded. */
+  totalTokens?: number;
+};
+
+/**
+ * A reference passed to the RollDek video protocols (ADR 0039). `url` must be
+ * a public HTTPS URL (a short-lived signed storage URL); data/blob URLs are
+ * rejected because RollDek only fails them asynchronously, after queueing.
+ */
+export type AIVideoReference = {
+  kind: "image" | "video" | "audio";
+  url: string;
+  /** Length of a reference video, for the per-token estimate. */
+  durationSeconds?: number;
 };
 
 // Stored on the inserted embeddable element's `customData.aiVideoGeneration`.

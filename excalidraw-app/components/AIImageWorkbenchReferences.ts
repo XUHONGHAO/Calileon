@@ -4,6 +4,7 @@ import type { FileId } from "@excalidraw/element/types";
 import type { BinaryFiles, DataURL } from "@excalidraw/excalidraw/types";
 
 import { dataURLToFile, fileToDataURL } from "../ai/imageCanvas";
+import { PROMPT_REFERENCE_PATTERN } from "../ai/promptReferencePattern";
 import { getAIWorkbenchReferenceManifestKey } from "../ai/workbenchPersistenceScope";
 import { AIWorkbenchIndexedDBAdapter } from "../data/AIWorkbenchIndexedDB";
 
@@ -154,12 +155,6 @@ export const markMissingReferenceElements = (
     };
   });
 };
-
-// Shared matcher for reference tokens (`#1`, `图 2`, `image 3`). Kept in one
-// place so validation warnings and the inline highlight layer always agree on
-// what counts as a reference.
-// `#?` marks a token whose image was removed (see remapPromptReferences).
-const PROMPT_REFERENCE_PATTERN = /#(\d+)|图\s*(\d+)|image\s+(\d+)|#\?/gi;
 
 /** Token left in the prompt where a reference image was removed. */
 export const REMOVED_PROMPT_REFERENCE = "#?";

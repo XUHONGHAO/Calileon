@@ -135,6 +135,109 @@ describe("AI image config", () => {
     expect(loadAIImageConfig().models[0].note).toBe("cheap");
   });
 
+  it("round-trips video protocol and billing; drops them when invalid or not video", () => {
+    const [video] = parseModelListInput("doubao-seedance-2-5-260628 | video");
+    const [image] = parseModelListInput("gpt-image-1");
+    const savedConfig = saveAIImageConfig({
+      baseURL: "",
+      apiKey: "",
+      defaultModel: "volc",
+      models: [
+        {
+          ...video,
+          id: "volc",
+          videoProtocol: "volc-tasks",
+          billing: {
+            mode: "per-token",
+            multiplier: 0.75,
+            prices: {
+              "720p": { base: 70, withVideo: 42 },
+              "1080p": { base: -1 },
+            },
+          },
+        },
+        {
+          ...video,
+          id: "sd",
+          model: "sd-2.5-ch5",
+          videoProtocol: "rolldek-sd",
+          billing: { mode: "per-request" },
+        },
+        {
+          ...video,
+          id: "legacy",
+          model: "grok-video",
+          videoProtocol: "openai-videos",
+          billing: { mode: "per-token", multiplier: Number.NaN },
+        },
+        {
+          ...video,
+          id: "junk",
+          model: "junk",
+          videoProtocol: "bogus" as any,
+          billing: { mode: "free" } as any,
+        },
+        {
+          ...image,
+          id: "image",
+          videoProtocol: "volc-tasks",
+          billing: { mode: "per-request" },
+        },
+      ],
+    });
+
+    const [volc, sd, legacy, junk, imageModel] = savedConfig.models;
+
+    expect(volc.videoProtocol).toBe("volc-tasks");
+    expect(volc.billing).toEqual({
+      mode: "per-token",
+      multiplier: 0.75,
+      prices: { "720p": { base: 70, withVideo: 42 } },
+    });
+    expect(sd).toMatchObject({
+      videoProtocol: "rolldek-sd",
+      billing: { mode: "per-request" },
+    });
+    // The default protocol stays implicit; a bad multiplier falls back to 1.
+    expect("videoProtocol" in legacy).toBe(false);
+    expect(legacy.billing).toEqual({ mode: "per-token", multiplier: 1 });
+    expect("videoProtocol" in junk).toBe(false);
+    expect("billing" in junk).toBe(false);
+    expect("videoProtocol" in imageModel).toBe(false);
+    expect("billing" in imageModel).toBe(false);
+    expect(loadAIImageConfig()).toEqual(savedConfig);
+  });
+
+  it("offers RollDek presets with bare-host Base URLs and catalog model IDs", () => {
+    const sd = DEFAULT_AI_MODEL_PROVIDER_PRESETS.find(
+      (preset) => preset.id === "rolldek-seedance-sd",
+    );
+    const volc = DEFAULT_AI_MODEL_PROVIDER_PRESETS.find(
+      (preset) => preset.id === "rolldek-seedance-volc",
+    );
+
+    expect(sd).toMatchObject({
+      baseURL: "https://rolldek.com",
+      mediaType: "video",
+      videoProtocol: "rolldek-sd",
+      billing: { mode: "per-request" },
+    });
+    expect(parseModelIdListInput(sd!.model)).toContain("SD2.0满血稳定933");
+    expect(parseModelIdListInput(sd!.model)).not.toContain("sd-2.5-ch6");
+    expect(volc).toMatchObject({
+      baseURL: "https://rolldek.com",
+      mediaType: "video",
+      videoProtocol: "volc-tasks",
+      billing: { mode: "per-token", multiplier: 1 },
+    });
+    expect(parseModelIdListInput(volc!.model)).toEqual([
+      "doubao-seedance-2-0-260128",
+      "doubao-seedance-2-0-fast-260128",
+      "doubao-seedance-2-0-mini-260615",
+      "doubao-seedance-2-5-260628",
+    ]);
+  });
+
   it("serializes models back to editable text", () => {
     const models = parseModelListInput(
       "gpt-image-1 | GPT Image | text-to-image,inpaint",

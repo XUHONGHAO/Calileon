@@ -39,6 +39,22 @@ describe("video task store", () => {
     expect(loadPendingVideoTasks()).toEqual([task]);
   });
 
+  it("keeps tasks submitted in the RollDek modes", () => {
+    const reference = createTask({
+      taskId: "task-ref",
+      mode: "reference-to-video",
+    });
+    const frames = createTask({
+      taskId: "task-frames",
+      mode: "first-last-frame",
+    });
+
+    upsertVideoTask(reference);
+    upsertVideoTask(frames);
+
+    expect(loadPendingVideoTasks()).toEqual([frames, reference]);
+  });
+
   it("inserts new tasks at the front and keeps existing task positions", () => {
     upsertVideoTask(createTask({ taskId: "task-1" }));
     upsertVideoTask(createTask({ taskId: "task-2" }));
