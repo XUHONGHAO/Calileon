@@ -479,7 +479,10 @@ const buildHeaders = (apiKey: string, json: boolean) => {
   return headers;
 };
 
-const assertRollDekTransport = (baseURL: string, config: AIProxyConfigV2) => {
+export const assertRollDekTransport = (
+  baseURL: string,
+  config: AIProxyConfigV2,
+) => {
   // The managed gateway only knows routes declared at deploy time; never fall
   // back to a direct request on the user's behalf (ADR 0027 / 0039 §10).
   if (config.mode === "managed-gateway") {

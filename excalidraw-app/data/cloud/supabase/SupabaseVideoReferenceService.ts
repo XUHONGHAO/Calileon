@@ -145,6 +145,10 @@ export const createSupabaseVideoReferenceService =
     },
 
     removeStale: async (olderThanMs) => {
+      const { data: auth } = await getSupabaseClient().auth.getUser();
+      if (!auth.user) {
+        return 0;
+      }
       const cutoff = new Date(Date.now() - olderThanMs).toISOString();
       const { data, error } = await getSupabaseClient()
         .from(TABLE)

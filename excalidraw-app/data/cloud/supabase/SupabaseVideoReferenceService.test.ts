@@ -173,6 +173,15 @@ describe("SupabaseVideoReferenceService", () => {
     vi.useRealTimers();
   });
 
+  it("skips the stale sweep when nobody is signed in", async () => {
+    mockGetUser.mockResolvedValue({ data: { user: null }, error: null });
+
+    await expect(
+      createSupabaseVideoReferenceService().removeStale(1000),
+    ).resolves.toBe(0);
+    expect(mockFrom).not.toHaveBeenCalled();
+  });
+
   it("does nothing for an empty id list", async () => {
     await createSupabaseVideoReferenceService().remove([]);
     expect(mockFrom).not.toHaveBeenCalled();

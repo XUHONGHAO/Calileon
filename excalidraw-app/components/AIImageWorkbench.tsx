@@ -28,6 +28,7 @@ import { STORAGE_KEYS } from "../app_constants";
 import {
   AI_IMAGE_CONFIG_UPDATED_EVENT,
   DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS,
+  getAIVideoProtocol,
   loadAIImageConfig,
   supportsAIImageMode,
 } from "../ai/config";
@@ -65,6 +66,20 @@ import {
   pollVideoTask,
   submitVideoTask,
 } from "../ai/openAIVideoAdapter";
+import {
+  ROLLDEK_VIDEO_POLL_INTERVAL_MS,
+  buildRollDekSubmitURL,
+  downloadRollDekVideoResult,
+  pollRollDekVideoTask,
+} from "../ai/rolldekVideoAdapter";
+import {
+  isUnknownSubmitOutcome,
+  submitRollDekVideoRun,
+  sweepStaleVideoReferences,
+  toImageReferenceUploads,
+} from "../ai/rolldekVideoRun";
+import { releaseVideoReferences } from "../ai/videoReferenceUploads";
+import { computeVideoTokenCost } from "../ai/videoBilling";
 import {
   getVideoDimensions,
   insertVideoEmbedIntoCanvas,
@@ -165,6 +180,7 @@ import type {
   AIReferenceExportOptions,
   AIVideoGenerationMode,
   AIVideoGenerationOutput,
+  AIVideoPollResult,
   PendingVideoTask,
   PromptTemplate,
   PromptTemplateCategory,
@@ -334,6 +350,12 @@ type AIImageWorkbenchProps = {
     input: PersistAIVideoOutputInput,
   ) => Promise<VideoAssetIngestResult | null>;
   persistenceScopeId?: string | null;
+  /**
+   * RollDek references are uploaded in plaintext and handed to a third party
+   * (ADR 0039 §4). Vault mode already hides the whole sidebar; this lets a
+   * host turn uploads off without that.
+   */
+  allowVideoReferenceUploads?: boolean;
 };
 
 const isAIModelMediaType = (value: unknown): value is AIModelMediaType => {
@@ -686,6 +708,7 @@ export const AIImageWorkbench = ({
   onCloudAITaskRun,
   onPersistVideoOutput,
   persistenceScopeId,
+  allowVideoReferenceUploads = true,
 }: AIImageWorkbenchProps) => {
   const [initialState] = useState(() => ({
     config: loadAIImageConfig(),
@@ -2950,7 +2973,6 @@ export const AIImageWorkbench = ({
   // generation and survives across a resume-on-mount.
   const runVideoPollLoop = useCallback(
     async (task: PendingVideoTask, controller: AbortController) => {
-      const POLL_INTERVAL_MS = 4000;
       const delay = (ms: number) =>
         new Promise<void>((resolve) => {
           let settled = false;
@@ -2982,15 +3004,32 @@ export const AIImageWorkbench = ({
         modelCard?.baseURL || task.baseURL || currentConfig.baseURL;
       const apiKey = modelCard?.apiKey || currentConfig.apiKey;
       const siteName = task.siteName;
-      const endpoint = baseURL ? buildVideoSubmitEndpoint(baseURL) : undefined;
+      // The protocol recorded at submit wins over the current model card.
+      const videoProtocol = task.videoProtocol || getAIVideoProtocol(modelCard);
+      const rolldekProtocol =
+        videoProtocol === "rolldek-sd" || videoProtocol === "volc-tasks"
+          ? videoProtocol
+          : null;
+      const POLL_INTERVAL_MS = rolldekProtocol
+        ? ROLLDEK_VIDEO_POLL_INTERVAL_MS
+        : 4000;
+      const endpoint = !baseURL
+        ? undefined
+        : rolldekProtocol
+        ? buildRollDekSubmitURL(rolldekProtocol, baseURL)
+        : buildVideoSubmitEndpoint(baseURL);
       const pollRequestTimeoutMs =
         (modelCard?.requestTimeoutSeconds ||
           DEFAULT_AI_IMAGE_REQUEST_TIMEOUT_SECONDS) * 1000;
+      const referenceService = getCloudBackend().videoReferences;
+      const releaseReferences = () =>
+        releaseVideoReferences(referenceService, task.referenceAssetIds);
       let consecutivePollErrors = 0;
+      let consecutiveTaskNotFound = 0;
 
       try {
         while (!controller.signal.aborted) {
-          let result;
+          let result: AIVideoPollResult;
 
           try {
             const pollController = new AbortController();
@@ -3004,16 +3043,29 @@ export const AIImageWorkbench = ({
               once: true,
             });
             try {
-              result = await pollVideoTask({
-                baseURL,
-                apiKey,
-                taskId: task.taskId,
-                signal: pollController.signal,
-                ...(task.transportMode ? { config: taskTransportConfig } : {}),
-                ...(managed && task.managedRouteId
-                  ? { managedRouteId: task.managedRouteId }
-                  : {}),
-              });
+              result = rolldekProtocol
+                ? await pollRollDekVideoTask({
+                    protocol: rolldekProtocol,
+                    baseURL,
+                    apiKey,
+                    taskId: task.taskId,
+                    signal: pollController.signal,
+                    ...(task.transportMode
+                      ? { config: taskTransportConfig }
+                      : {}),
+                  })
+                : await pollVideoTask({
+                    baseURL,
+                    apiKey,
+                    taskId: task.taskId,
+                    signal: pollController.signal,
+                    ...(task.transportMode
+                      ? { config: taskTransportConfig }
+                      : {}),
+                    ...(managed && task.managedRouteId
+                      ? { managedRouteId: task.managedRouteId }
+                      : {}),
+                  });
             } catch (error) {
               if (didPollTimeout && !controller.signal.aborted) {
                 throw new Error("AI video status request timed out.");
@@ -3024,8 +3076,40 @@ export const AIImageWorkbench = ({
               controller.signal.removeEventListener("abort", abortPoll);
             }
             consecutivePollErrors = 0;
+            consecutiveTaskNotFound = 0;
           } catch (error: any) {
             if (error?.name === "AbortError" || controller.signal.aborted) {
+              return;
+            }
+
+            // RollDek can briefly miss a just-submitted task; three misses in
+            // a row mean it is gone (ADR 0039 §6).
+            consecutiveTaskNotFound = error?.details?.taskNotFound
+              ? consecutiveTaskNotFound + 1
+              : 0;
+            if (consecutiveTaskNotFound >= 3 && mountedRef.current) {
+              const message = t("ai.workbench.rolldekTaskNotFound");
+              appendGenerationLogEntry(
+                createAIGenerationLogEntry({
+                  submittedAt: task.submittedAt,
+                  mediaType: "video",
+                  mode: task.mode,
+                  status: "failed",
+                  model: { id: task.modelId, name: task.model, siteName },
+                  prompt: task.prompt,
+                  params: task.params,
+                  baseURL,
+                  endpoint,
+                  responseSummary: message,
+                  responseDetails: createErrorResponseDetails(error),
+                }),
+              );
+              await releaseReferences();
+              removeVideoTask(task.taskId);
+              syncPendingVideoTasks();
+              setErrorMessage(message);
+              setStatusMessage("");
+              setRunStatus("failed");
               return;
             }
 
@@ -3059,6 +3143,14 @@ export const AIImageWorkbench = ({
           setErrorMessage("");
 
           if (result.status === "failed") {
+            const failureMessage = rolldekProtocol
+              ? `${result.error || t("ai.workbench.videoTaskFailed")} ${t(
+                  "ai.workbench.rolldekFailedRefund",
+                )}`
+              : result.error || t("ai.workbench.videoTaskFailed");
+            if (rolldekProtocol) {
+              await releaseReferences();
+            }
             appendGenerationLogEntry(
               createAIGenerationLogEntry({
                 submittedAt: task.submittedAt,
@@ -3081,7 +3173,7 @@ export const AIImageWorkbench = ({
             );
             removeVideoTask(task.taskId);
             syncPendingVideoTasks();
-            setErrorMessage(result.error || t("ai.workbench.videoTaskFailed"));
+            setErrorMessage(failureMessage);
             setStatusMessage("");
             setRunStatus("failed");
             return;
@@ -3105,13 +3197,78 @@ export const AIImageWorkbench = ({
           // insert it as an inline-playing embeddable card.
           const output = buildVideoOutput(result);
 
+          // RollDek's result URL needs the API key, so the browser downloads
+          // the bytes and nothing stores the URL (ADR 0039 §7).
+          let videoBlob: Blob | undefined;
+          if (rolldekProtocol) {
+            setStatusMessage(t("ai.workbench.rolldekDownloading"));
+            for (let attempt = 1; ; attempt++) {
+              const downloadController = new AbortController();
+              let didDownloadTimeout = false;
+              const abortDownload = () => downloadController.abort();
+              const downloadTimeoutId = window.setTimeout(() => {
+                didDownloadTimeout = true;
+                downloadController.abort();
+              }, Math.max(pollRequestTimeoutMs, 120_000));
+              controller.signal.addEventListener("abort", abortDownload, {
+                once: true,
+              });
+              try {
+                videoBlob = (
+                  await downloadRollDekVideoResult({
+                    baseURL,
+                    apiKey,
+                    taskId: task.taskId,
+                    signal: downloadController.signal,
+                    ...(task.transportMode
+                      ? { config: taskTransportConfig }
+                      : {}),
+                  }).catch((error) => {
+                    if (didDownloadTimeout && !controller.signal.aborted) {
+                      throw new AIImageGenerationError(
+                        t("ai.workbench.rolldekDownloadFailed"),
+                        "cors-or-network",
+                        { downloadFailed: true, timedOut: true },
+                      );
+                    }
+                    throw error;
+                  })
+                ).blob;
+                break;
+              } catch (error: any) {
+                if (
+                  attempt >= 3 ||
+                  error?.name === "AbortError" ||
+                  controller.signal.aborted
+                ) {
+                  throw error;
+                }
+                console.warn(
+                  "AI video download failed; retrying.",
+                  getLoggableErrorDetails(error),
+                );
+                await delay(POLL_INTERVAL_MS);
+              } finally {
+                window.clearTimeout(downloadTimeoutId);
+                controller.signal.removeEventListener("abort", abortDownload);
+              }
+            }
+          }
+
           // Metadata-only probe for the real aspect ratio. Cross-origin safe
           // (reading videoWidth/Height never taints a canvas) and falls back to
           // a 16:9 default on failure/timeout, so it never blocks insertion.
-          const dimensions = await getVideoDimensions(
-            output.videoURL,
-            controller.signal,
-          );
+          const probeURL = videoBlob
+            ? URL.createObjectURL(videoBlob)
+            : output.videoURL;
+          let dimensions: Awaited<ReturnType<typeof getVideoDimensions>>;
+          try {
+            dimensions = await getVideoDimensions(probeURL, controller.signal);
+          } finally {
+            if (videoBlob) {
+              URL.revokeObjectURL(probeURL);
+            }
+          }
 
           if (controller.signal.aborted || !mountedRef.current) {
             return;
@@ -3124,6 +3281,7 @@ export const AIImageWorkbench = ({
             taskId: task.taskId,
             output,
             signal: controller.signal,
+            ...(videoBlob ? { videoBlob } : {}),
           });
           if (!persistedAsset) {
             throw new Error("AI video asset persistence returned no asset.");
@@ -3170,10 +3328,26 @@ export const AIImageWorkbench = ({
               responseDetails: {
                 assetId: persistedAsset.assetId,
                 durationSeconds: output.durationSeconds,
+                // Field names avoid "token": the log sanitizer redacts them.
+                ...(result.totalTokens != null
+                  ? {
+                      billedUnits: result.totalTokens,
+                      estimatedCost: computeVideoTokenCost({
+                        billing: modelCard?.billing,
+                        model: task.model,
+                        totalTokens: result.totalTokens,
+                        resolution: task.params.resolution,
+                        hasReferenceVideo: false,
+                      }),
+                    }
+                  : {}),
               },
             }),
           );
 
+          if (rolldekProtocol) {
+            await releaseReferences();
+          }
           removeVideoTask(task.taskId);
           syncPendingVideoTasks();
           setStatusMessage(t("ai.workbench.videoReady"));
@@ -3300,15 +3474,31 @@ export const AIImageWorkbench = ({
       return;
     }
 
+    const videoProtocol = getAIVideoProtocol(modelCard);
+    const rolldekProtocol =
+      !managed &&
+      modelCard &&
+      (videoProtocol === "rolldek-sd" || videoProtocol === "volc-tasks")
+        ? videoProtocol
+        : null;
+
     // Reference sources drive image-to-video when the model supports it.
     const videoSources = generationStateRef.current.selectedSources.filter(
       (source) => !source.missingElement,
     );
-    const mode: AIVideoGenerationMode =
-      videoSources.length > 0 &&
-      (!modelCard || supportsAIImageMode(modelCard, "image-to-video"))
-        ? "image-to-video"
-        : "text-to-video";
+    const mode: AIVideoGenerationMode = rolldekProtocol
+      ? videoSources.length > 0
+        ? "reference-to-video"
+        : "text-to-video"
+      : videoSources.length > 0 &&
+        (!modelCard || supportsAIImageMode(modelCard, "image-to-video"))
+      ? "image-to-video"
+      : "text-to-video";
+    const submitEndpoint = rolldekProtocol
+      ? buildRollDekSubmitURL(rolldekProtocol, baseURL)
+      : buildVideoSubmitEndpoint(baseURL);
+    // Set once the billed POST starts; an abort before it created no task.
+    let rolldekSubmitStarted = false;
     const submittedAt = new Date().toISOString();
     const controller = new AbortController();
     const timeoutSeconds =
@@ -3329,34 +3519,66 @@ export const AIImageWorkbench = ({
     setErrorMessage("");
 
     try {
-      const { taskId, model, managedRouteId } = await submitVideoTask({
-        config: {
-          ...config,
-          ...(modelCard
-            ? {
-                baseURL: modelCard.baseURL,
-                apiKey: modelCard.apiKey,
-                models: [
-                  modelCard,
-                  ...config.models.filter((model) => model.id !== modelCard.id),
-                ],
-              }
-            : {}),
-        },
-        mode,
-        model: modelCard?.model || videoDraft.selectedModelId,
-        prompt: trimmedPrompt,
-        params: videoParams,
-        sources: mode === "image-to-video" ? videoSources : undefined,
-        signal: controller.signal,
-      });
+      let taskId: string;
+      let model: string;
+      let managedRouteId: string | undefined;
+      let referenceAssetIds: string[] = [];
 
-      if (
-        controller.signal.aborted ||
-        !mountedRef.current ||
-        videoSubmitControllerRef.current !== controller
-      ) {
-        return;
+      if (rolldekProtocol && modelCard) {
+        const uploads =
+          mode === "text-to-video" ? [] : toImageReferenceUploads(videoSources);
+        if (uploads.length) {
+          setStatusMessage(t("ai.workbench.rolldekUploadingReferences"));
+        }
+        const run = await submitRollDekVideoRun({
+          request: {
+            protocol: rolldekProtocol,
+            baseURL,
+            apiKey: modelCard.apiKey || config.apiKey,
+            model: modelCard.model,
+            mode,
+            prompt: trimmedPrompt,
+            params: videoParams,
+            signal: controller.signal,
+            config: transportConfig,
+          },
+          uploads,
+          referenceService: getCloudBackend().videoReferences,
+          referencesAllowed: allowVideoReferenceUploads,
+          onSubmitting: () => {
+            rolldekSubmitStarted = true;
+            if (mountedRef.current) {
+              setStatusMessage(t("ai.workbench.generatingVideo"));
+            }
+          },
+        });
+        taskId = run.taskId;
+        model = modelCard.model;
+        referenceAssetIds = run.referenceAssetIds;
+      } else {
+        ({ taskId, model, managedRouteId } = await submitVideoTask({
+          config: {
+            ...config,
+            ...(modelCard
+              ? {
+                  baseURL: modelCard.baseURL,
+                  apiKey: modelCard.apiKey,
+                  models: [
+                    modelCard,
+                    ...config.models.filter(
+                      (model) => model.id !== modelCard.id,
+                    ),
+                  ],
+                }
+              : {}),
+          },
+          mode,
+          model: modelCard?.model || videoDraft.selectedModelId,
+          prompt: trimmedPrompt,
+          params: videoParams,
+          sources: mode === "image-to-video" ? videoSources : undefined,
+          signal: controller.signal,
+        }));
       }
 
       const task: PendingVideoTask = {
@@ -3372,9 +3594,28 @@ export const AIImageWorkbench = ({
         params: videoParams,
         status: "queued",
         submittedAt,
+        ...(rolldekProtocol
+          ? { videoProtocol: rolldekProtocol, referenceAssetIds }
+          : {}),
       };
 
-      upsertVideoTask(task);
+      // A RollDek task is billed once it exists: keep it even if the panel
+      // closed meanwhile, so the next mount resumes polling (ADR 0039 §6).
+      if (rolldekProtocol) {
+        upsertVideoTask(task);
+      }
+
+      if (
+        controller.signal.aborted ||
+        !mountedRef.current ||
+        videoSubmitControllerRef.current !== controller
+      ) {
+        return;
+      }
+
+      if (!rolldekProtocol) {
+        upsertVideoTask(task);
+      }
       syncPendingVideoTasks();
       setStatusMessage(t("ai.workbench.videoTaskQueued"));
       startVideoPolling(task);
@@ -3384,9 +3625,13 @@ export const AIImageWorkbench = ({
           return;
         }
 
-        const responseSummary = didTimeout
+        const baseSummary = didTimeout
           ? t("ai.workbench.generationTimedOut", { seconds: timeoutSeconds })
           : t("ai.workbench.generationCanceled");
+        const mayExist = !!rolldekProtocol && rolldekSubmitStarted;
+        const responseSummary = mayExist
+          ? `${baseSummary} ${t("ai.workbench.rolldekSubmitUnknown")}`
+          : baseSummary;
         appendGenerationLogEntry(
           createAIGenerationLogEntry({
             submittedAt,
@@ -3402,16 +3647,27 @@ export const AIImageWorkbench = ({
             prompt: trimmedPrompt,
             params: videoParams,
             baseURL,
-            endpoint: buildVideoSubmitEndpoint(baseURL),
+            endpoint: submitEndpoint,
             responseSummary,
             responseDetails: createErrorResponseDetails(error),
           }),
         );
-        setErrorMessage(didTimeout ? responseSummary : "");
-        setStatusMessage(didTimeout ? "" : responseSummary);
-        setRunStatus(didTimeout ? "failed" : "canceled");
+        setErrorMessage(didTimeout || mayExist ? responseSummary : "");
+        setStatusMessage(didTimeout || mayExist ? "" : responseSummary);
+        setRunStatus(didTimeout || mayExist ? "failed" : "canceled");
         return;
       }
+
+      const submitErrorMessage =
+        rolldekProtocol && isUnknownSubmitOutcome(error)
+          ? `${
+              error instanceof AIImageGenerationError
+                ? error.message
+                : getUnknownErrorMessage(error, t)
+            } ${t("ai.workbench.rolldekSubmitUnknown")}`
+          : error instanceof AIImageGenerationError
+          ? error.message
+          : getUnknownErrorMessage(error, t);
 
       console.error(
         "AI video submission failed",
@@ -3433,19 +3689,12 @@ export const AIImageWorkbench = ({
           prompt: trimmedPrompt,
           params: videoParams,
           baseURL,
-          endpoint: buildVideoSubmitEndpoint(baseURL),
-          responseSummary:
-            error instanceof AIImageGenerationError
-              ? error.message
-              : getUnknownErrorMessage(error, t),
+          endpoint: submitEndpoint,
+          responseSummary: submitErrorMessage,
           responseDetails: createErrorResponseDetails(error),
         }),
       );
-      setErrorMessage(
-        error instanceof AIImageGenerationError
-          ? error.message
-          : getUnknownErrorMessage(error, t),
-      );
+      setErrorMessage(submitErrorMessage);
       setStatusMessage("");
       setRunStatus("failed");
     } finally {
@@ -3460,7 +3709,24 @@ export const AIImageWorkbench = ({
         }
       }
     }
-  }, [excalidrawAPI, startVideoPolling, syncPendingVideoTasks]);
+  }, [
+    allowVideoReferenceUploads,
+    excalidrawAPI,
+    startVideoPolling,
+    syncPendingVideoTasks,
+  ]);
+
+  // Delete RollDek references a closed tab never cleaned up. Only when a
+  // RollDek card exists, so other users make no extra request.
+  const hasRollDekVideoModel = config.models.some((model) => {
+    const protocol = getAIVideoProtocol(model);
+    return protocol === "rolldek-sd" || protocol === "volc-tasks";
+  });
+  useEffect(() => {
+    if (hasRollDekVideoModel && allowVideoReferenceUploads) {
+      sweepStaleVideoReferences(getCloudBackend().videoReferences);
+    }
+  }, [allowVideoReferenceUploads, hasRollDekVideoModel]);
 
   // Resume-on-mount: pick up any unfinished video tasks persisted in a previous
   // session (e.g. before a page refresh) and continue polling them. Runs once.
