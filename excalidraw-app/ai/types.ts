@@ -195,6 +195,8 @@ export type ChatConversation = {
   mode: ChatMode;
   messages: ChatMessage[];
   pendingSkillId?: string;
+  /** A bundled skill whose instructions remain active across chat turns. */
+  activeSkillId?: string;
   createdAt: number;
   updatedAt: number;
 };

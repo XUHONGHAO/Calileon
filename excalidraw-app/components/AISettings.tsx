@@ -73,6 +73,7 @@ import {
 } from "../ai/requestTransport";
 import { getCloudBackend } from "../data/cloud";
 import { createHttpAiGateway } from "../data/cloud/HttpAiGateway";
+import { getBuiltInSkills } from "../ai/skillPresets";
 
 import "./AISettings.scss";
 
@@ -723,8 +724,10 @@ const BillingMultiplierInput = ({
 export const AISettings = ({
   initialTab = "models",
   onDirtyChange,
+  onApplySkill,
 }: {
   initialTab?: AISettingsTab;
+  onApplySkill?: (skill: AISkill) => void;
   /**
    * Reports whether any editor (model, agent, skill, template) or the network
    * form holds unsaved changes, so the host dialog can confirm before closing.
@@ -2266,6 +2269,48 @@ export const AISettings = ({
         </UiButton>
       }
     >
+      <ul className="AISettings__list">
+        {getBuiltInSkills().map((skill) => (
+          <ListRow
+            key={skill.id}
+            className="AISettings__builtInSkill"
+            leading={
+              <span className="AISettings__iconBadge" aria-hidden="true">
+                {skill.icon}
+              </span>
+            }
+            title={skill.name}
+            badges={
+              <Badge tone="info">{t("ai.settings.agents.builtInSkill")}</Badge>
+            }
+            meta={
+              <span className="AISettings__metaLines">
+                <span>{skill.description}</span>
+                <span>{skill.scopeDescription}</span>
+                <a href={skill.sourceURL} target="_blank" rel="noreferrer">
+                  {skill.sourceLabel}
+                </a>
+              </span>
+            }
+            actions={
+              <UiButton
+                size="sm"
+                onClick={() => {
+                  if (!agentConfig.llmAgents.length) {
+                    setActiveAgentSubTab("base");
+                    return;
+                  }
+                  onApplySkill?.(skill);
+                }}
+              >
+                {agentConfig.llmAgents.length
+                  ? t("ai.settings.agents.useSkill")
+                  : t("ai.settings.agents.addLLMAgent")}
+              </UiButton>
+            }
+          />
+        ))}
+      </ul>
       {agentConfig.skills.length === 0 && (
         <div className="AISettings__emptyState">
           {t("ai.settings.agents.emptySkills")}

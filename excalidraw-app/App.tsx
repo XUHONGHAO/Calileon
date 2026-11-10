@@ -115,6 +115,7 @@ import Collab, {
 } from "./collab/Collab";
 import { AppFooter } from "./components/AppFooter";
 import { AppMainMenu } from "./components/AppMainMenu";
+import { getAllAISkills } from "./ai/skillPresets";
 import { SingleFileDialog } from "./components/SingleFileDialog";
 import { AppWelcomeScreen } from "./components/AppWelcomeScreen";
 import { AITaskListDialog } from "./components/AITaskListDialog";
@@ -1513,8 +1514,8 @@ const ExcalidrawWrapper = () => {
   );
   const [aiGenerationLogs, setAIGenerationLogs] =
     useState<AIGenerationLogEntry[]>(loadAIGenerationLogs);
-  const [aiSkills, setAISkills] = useState<AISkill[]>(
-    () => loadAIAgentConfig().skills,
+  const [aiSkills, setAISkills] = useState<AISkill[]>(() =>
+    getAllAISkills(loadAIAgentConfig().skills),
   );
   const maskEditingControllerRef = useRef<AIMaskEditingControllerHandle>(null);
   const workbenchMaskReadyHandlerRef = useRef<
@@ -1603,7 +1604,7 @@ const ExcalidrawWrapper = () => {
     const reloadAICommandSources = () => {
       setAIPromptTemplates(getAllPromptTemplates());
       setAIGenerationLogs(loadAIGenerationLogs());
-      setAISkills(loadAIAgentConfig().skills);
+      setAISkills(getAllAISkills(loadAIAgentConfig().skills));
     };
 
     window.addEventListener(
@@ -5360,6 +5361,7 @@ const ExcalidrawWrapper = () => {
         }}
       >
         <AppMainMenu
+          onApplyAISkill={requestAssistantSkillApply}
           onCollabDialogOpen={onCollabDialogOpen}
           isCollaborating={isCollaborating}
           isCollabEnabled={!isCollabDisabled}

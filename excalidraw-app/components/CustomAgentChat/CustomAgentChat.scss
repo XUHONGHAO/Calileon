@@ -182,6 +182,27 @@
     font-size: var(--ui-font-xs);
   }
 
+  .CustomAgentChat__composerControls .CustomAgentChat__activeSkill {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-1);
+    min-width: 0;
+    max-width: 100%;
+
+    span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    svg {
+      flex: 0 0 auto;
+      width: 0.75rem;
+      height: 0.75rem;
+    }
+  }
+
   .CustomAgentChat__messages {
     display: flex;
     flex-direction: column;

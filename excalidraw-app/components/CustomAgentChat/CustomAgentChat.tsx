@@ -39,6 +39,11 @@ import {
 } from "../../ai/chatHistory";
 import { hasMermaidCodeBlock } from "../../ai/codeBlockDetector";
 import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
+import {
+  getAllAISkills,
+  getBuiltInSkill,
+  isBuiltInSkill,
+} from "../../ai/skillPresets";
 import { createAIOpenSettingsEvent } from "../../ai/workflowEvents";
 
 import {
@@ -219,14 +224,16 @@ export const CustomAgentChat = ({
         : null,
     [activeConversation, agentConfig.llmAgents],
   );
+  const skills = getAllAISkills(agentConfig.skills);
+  const activeSkill = getBuiltInSkill(activeConversation?.activeSkillId);
   const pendingSkill = useMemo(
     () =>
       activeConversation?.pendingSkillId
-        ? agentConfig.skills.find(
+        ? skills.find(
             (skill) => skill.id === activeConversation.pendingSkillId,
           ) || null
         : null,
-    [activeConversation?.pendingSkillId, agentConfig.skills],
+    [activeConversation?.pendingSkillId, skills],
   );
   const scrollConversationId = activeConversation?.id || "";
   const scrollMessageCount = activeConversation?.messages.length || 0;
@@ -356,7 +363,7 @@ export const CustomAgentChat = ({
   );
 
   const createNewConversation = useCallback(
-    (agentId?: string, pendingSkillId?: string) => {
+    (agentId?: string, pendingSkillId?: string, activeSkillId?: string) => {
       const defaultAgent = getDefaultLLMAgent(agentConfig);
       const nextAgentId = agentId || defaultAgent?.id || "";
 
@@ -370,6 +377,7 @@ export const CustomAgentChat = ({
       const conversation = {
         ...createConversation(nextAgentId),
         pendingSkillId,
+        activeSkillId,
       };
       const nextHistory = {
         conversations: [conversation, ...historyRef.current.conversations],
@@ -669,24 +677,29 @@ export const CustomAgentChat = ({
   const selectSkill = useCallback(
     (skill: AISkill) => {
       abortActiveGeneration();
+      const activeSkillId = isBuiltInSkill(skill.id) ? skill.id : undefined;
 
       if (activeConversation) {
         updateActiveConversation((conversation) => ({
           ...conversation,
           pendingSkillId: skill.initialPrompt ? skill.id : undefined,
+          activeSkillId,
           updatedAt: Date.now(),
         }));
       } else {
         createNewConversation(
           undefined,
           skill.initialPrompt ? skill.id : undefined,
+          activeSkillId,
         );
       }
 
       setIsSkillsPanelOpen(false);
       setIsAgentMenuOpen(false);
       setStatusMessage(
-        skill.initialPrompt
+        activeSkillId
+          ? t("ai.assistant.messages.skillActivated", { name: skill.name })
+          : skill.initialPrompt
           ? t("ai.assistant.messages.skillSelectedWithInput", {
               name: skill.name,
             })
@@ -782,6 +795,9 @@ export const CustomAgentChat = ({
     const result = await sendMessageToGeneralAgent({
       agentId,
       messages: messagesForAgent,
+      ...(conversation.activeSkillId
+        ? { activeSkillId: conversation.activeSkillId }
+        : {}),
       signal: abortController.signal,
       onChunk: (chunk) => {
         if (!mountedRef.current || activeRequestRef.current?.id !== requestId) {
@@ -1105,12 +1121,12 @@ export const CustomAgentChat = ({
               className="CustomAgentChat__picker"
             >
               <PopoverHeading>{t("ai.assistant.skills")}</PopoverHeading>
-              {agentConfig.skills.length === 0 && (
+              {skills.length === 0 && (
                 <div className="UiPopover__empty" role="presentation">
                   {t("ai.assistant.noSkills")}
                 </div>
               )}
-              {agentConfig.skills.map((skill) => (
+              {skills.map((skill) => (
                 <button
                   key={skill.id}
                   type="button"
@@ -1259,6 +1275,31 @@ export const CustomAgentChat = ({
                   {pendingSkill.icon} {pendingSkill.name}
                 </span>
               )}
+              {activeSkill && (
+                <button
+                  type="button"
+                  className="CustomAgentChat__activeSkill"
+                  title={t("ai.assistant.deactivateSkill", {
+                    name: activeSkill.name,
+                  })}
+                  aria-label={t("ai.assistant.deactivateSkill", {
+                    name: activeSkill.name,
+                  })}
+                  onClick={() => {
+                    abortActiveGeneration();
+                    updateActiveConversation((conversation) => ({
+                      ...conversation,
+                      activeSkillId: undefined,
+                    }));
+                    setStatusMessage("");
+                  }}
+                >
+                  <span>
+                    {activeSkill.icon} {activeSkill.name}
+                  </span>
+                  {CloseIcon}
+                </button>
+              )}
             </div>
 
             <div className="CustomAgentChat__composerActions">
@@ -1314,7 +1355,9 @@ export const CustomAgentChat = ({
                 rows={4}
                 disabled={isGenerating || !agentConfig.llmAgents.length}
                 placeholder={
-                  pendingSkill?.initialPrompt
+                  activeSkill
+                    ? activeSkill.inputPlaceholder
+                    : pendingSkill?.initialPrompt
                     ? t("ai.assistant.skillInputPlaceholder")
                     : t("ai.assistant.inputPlaceholder")
                 }

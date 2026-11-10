@@ -194,6 +194,22 @@
     align-items: flex-start;
   }
 
+  .AISettings__builtInSkill {
+    align-items: flex-start;
+
+    .UiListRow__titleLine {
+      flex-wrap: wrap;
+    }
+
+    .UiListRow__title,
+    .UiListRow__meta,
+    .AISettings__metaLines > span {
+      overflow: visible;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+  }
+
   .AISettings__iconBadge {
     display: inline-flex;
     align-items: center;

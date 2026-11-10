@@ -1523,6 +1523,28 @@
       "common": {
         "icon": "图标"
       },
+      "seedance25Skill": {
+        "name": "Seedance 2.5 视频提示词编写",
+        "description": "遵循 Seedance 2.5 官方素材职责、事件状态、长视频与声画编辑规范。在当前会话中持续生效。",
+        "modes": "文生视频 · 多模态参考 · 关键帧/分镜/白模 · 声画编辑 · 延长",
+        "source": "Seedance 2.5 官方指南",
+        "input": "粘贴提示词，或描述视频创意、任务类型、素材编号与预期结果..."
+      },
+      "seedance20Skill": {
+        "name": "Seedance 2.0 视频提示词编写",
+        "description": "遵循 Seedance 2.0 官方主体绑定、镜头分镜和声音符号规范。在当前会话中持续生效。",
+        "modes": "参考生成 · 视频编辑 · 向前/向后延长 · 组合任务",
+        "source": "Seedance 2.0 官方指南",
+        "input": "粘贴提示词，或描述主体、动作、场景与参考素材编号..."
+      },
+      "h3Skill": {
+        "builtIn": "内置技能",
+        "name": "H3 视频提示词编写",
+        "description": "遵循 MiniMax H3 官方镜头、时间线、参考素材和声音规范，编写与修改视频提示词。在当前会话中持续生效。",
+        "modes": "T2VA · I2VA · FL2VA · L2VA · Ref2VA",
+        "source": "MiniMax 官方指南",
+        "use": "使用技能"
+      },
       "agentTypes": {
         "text": "文本",
         "vision": "视觉",
@@ -1591,11 +1613,13 @@
         "customDescription": "定义可复用的助手角色，并配置各自的系统提示词。每个自定义智能体都会使用一个 LLM 智能体作为基础模型。",
         "needLLM": "创建自定义智能体前请先添加 LLM 智能体。",
         "emptyCustom": "暂无自定义智能体。添加一个以创建可复用的助手角色。",
+        "builtInSkill": "内置技能",
+        "useSkill": "使用技能",
         "skillsTitle": "技能",
         "addSkill": "添加技能",
-        "skillsDescription": "创建快速启动场景，并可选地提供包含 {{placeholder}} 的初始提示词模板。使用技能时在 AI 助手里选择通用智能体。",
+        "skillsDescription": "使用在会话中持续生效的内置技能，或创建包含 {{placeholder}} 占位符的自定义启动模板。使用时在 AI助手里选择通用智能体。",
         "needCustomAgent": "使用技能前请先添加通用智能体。",
-        "emptySkills": "暂无技能。添加一个以创建可复用的启动模板。",
+        "emptySkills": "暂无自定义技能。添加一个以创建可复用的启动模板。",
         "modelPrefix": "模型：",
         "agentPrefix": "智能体：",
         "triggerPrefix": "触发词：",
@@ -1819,6 +1843,8 @@
       "startConversation": "与 {{agent}} 开始新对话。",
       "fallbackAgent": "一个智能体",
       "message": "消息",
+      "h3SkillInput": "描述视频创意、生成模式、时长（4–15 秒）和参考素材...",
+      "deactivateSkill": "停用 {{name}}",
       "skillInputPlaceholder": "输入该技能需要处理的内容...",
       "inputPlaceholder": "描述你的需求...（使用Shift+Enter换行）",
       "agent": "智能体",
@@ -1852,6 +1878,7 @@
         "allChatsCleared": "所有聊天已清空。",
         "agentSwitched": "已切换智能体。",
         "skillSelectedWithInput": "已选择 {{name}}。请输入内容开始。",
+        "skillActivated": "已在当前会话启用 {{name}}。请描述视频创意、模式、时长和参考素材。",
         "skillSelected": "已选择 {{name}}。",
         "responseCanceled": "回复已取消。",
         "requestFailed": "AI助手请求失败。",

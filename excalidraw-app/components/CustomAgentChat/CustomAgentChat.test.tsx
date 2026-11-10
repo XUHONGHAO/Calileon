@@ -10,6 +10,12 @@ import { saveAIAgentConfig } from "../../ai/agentConfig";
 import { loadChatHistory } from "../../ai/chatHistory";
 import { sendMessageToGeneralAgent } from "../../ai/customAgentAdapter";
 import { AI_OPEN_SETTINGS_EVENT } from "../../ai/workflowEvents";
+import {
+  getBuiltInSkill,
+  H3_PROMPT_SKILL_ID,
+  SEEDANCE20_PROMPT_SKILL_ID,
+  SEEDANCE25_PROMPT_SKILL_ID,
+} from "../../ai/skillPresets";
 
 import {
   ChatMessageView,
@@ -320,6 +326,171 @@ describe("CustomAgentChat", () => {
     vi.restoreAllMocks();
   });
 
+  it.each([SEEDANCE20_PROMPT_SKILL_ID, SEEDANCE25_PROMPT_SKILL_ID])(
+    "keeps %s active on revisions and restores its own composer guidance",
+    async (id) => {
+      const skill = getBuiltInSkill(id)!;
+      vi.mocked(sendMessageToGeneralAgent).mockResolvedValue({
+        content: "<远处传来狗叫声> {你好} 【标题】",
+        error: null,
+      });
+      const first = render(
+        <CustomAgentChat
+          excalidrawAPI={null}
+          incomingSkill={{ id: 1, skill }}
+        />,
+      );
+      expect(screen.getByLabelText("Message")).toHaveAttribute(
+        "placeholder",
+        skill.inputPlaceholder,
+      );
+      typeAndSend("参考 @图片1，生成一个咖啡馆场景");
+      await waitFor(() =>
+        expect(sendMessageToGeneralAgent).toHaveBeenCalledTimes(1),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Send message" }),
+        ).toBeInTheDocument(),
+      );
+      typeAndSend("保持人物不变，调整运镜");
+      await waitFor(() =>
+        expect(sendMessageToGeneralAgent).toHaveBeenCalledTimes(2),
+      );
+      expect(
+        vi
+          .mocked(sendMessageToGeneralAgent)
+          .mock.calls.map(([options]) => options.activeSkillId),
+      ).toEqual([id, id]);
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Send message" }),
+        ).toBeInTheDocument(),
+      );
+      first.unmount();
+      render(<CustomAgentChat excalidrawAPI={null} />);
+      expect(screen.getByLabelText("Message")).toHaveAttribute(
+        "placeholder",
+        skill.inputPlaceholder,
+      );
+      expect(loadChatHistory().conversations[0].activeSkillId).toBe(id);
+      fireEvent.click(
+        screen.getByRole("button", { name: `Deactivate ${skill.name}` }),
+      );
+      expect(loadChatHistory().conversations[0].activeSkillId).toBeUndefined();
+    },
+  );
+
+  it("switches directly between Seedance versions without retaining the previous skill", () => {
+    const firstSkill = getBuiltInSkill(SEEDANCE20_PROMPT_SKILL_ID)!;
+    const secondSkill = getBuiltInSkill(SEEDANCE25_PROMPT_SKILL_ID)!;
+    const { rerender } = render(
+      <CustomAgentChat
+        excalidrawAPI={null}
+        incomingSkill={{ id: 1, skill: firstSkill }}
+      />,
+    );
+    rerender(
+      <CustomAgentChat
+        excalidrawAPI={null}
+        incomingSkill={{ id: 2, skill: secondSkill }}
+      />,
+    );
+    expect(loadChatHistory().conversations[0].activeSkillId).toBe(
+      secondSkill.id,
+    );
+    expect(
+      screen.queryByRole("button", { name: `Deactivate ${firstSkill.name}` }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: `Deactivate ${secondSkill.name}` }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps H3 active across turns and reloads, and allows explicit deactivation", async () => {
+    vi.mocked(sendMessageToGeneralAgent).mockResolvedValue({
+      content: "non_diegetic_music: N/A",
+      error: null,
+    });
+    const first = render(<CustomAgentChat excalidrawAPI={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Skills" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "H3 Video Prompt Writing" }),
+    );
+    expect(screen.getByLabelText("Message")).toHaveAttribute(
+      "placeholder",
+      expect.stringContaining("4–15"),
+    );
+    expect(loadChatHistory().conversations[0].activeSkillId).toBe(
+      H3_PROMPT_SKILL_ID,
+    );
+    typeAndSend("T2VA, 8 seconds, a rainy cafe");
+    await waitFor(() =>
+      expect(sendMessageToGeneralAgent).toHaveBeenCalledTimes(1),
+    );
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Send message" }),
+      ).toBeInTheDocument(),
+    );
+    typeAndSend("Change to a 10-second FL2VA shot");
+    await waitFor(() =>
+      expect(sendMessageToGeneralAgent).toHaveBeenCalledTimes(2),
+    );
+    expect(
+      vi
+        .mocked(sendMessageToGeneralAgent)
+        .mock.calls.map(([options]) => options.activeSkillId),
+    ).toEqual([H3_PROMPT_SKILL_ID, H3_PROMPT_SKILL_ID]);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Send message" }),
+      ).toBeInTheDocument(),
+    );
+    first.unmount();
+    render(<CustomAgentChat excalidrawAPI={null} />);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Deactivate H3 Video Prompt Writing",
+      }),
+    );
+    expect(loadChatHistory().conversations[0].activeSkillId).toBeUndefined();
+    typeAndSend("Let's discuss something else");
+    await waitFor(() =>
+      expect(sendMessageToGeneralAgent).toHaveBeenCalledTimes(3),
+    );
+    expect(
+      vi.mocked(sendMessageToGeneralAgent).mock.calls[2][0].activeSkillId,
+    ).toBeUndefined();
+  });
+
+  it("clears H3 instructions when a custom startup skill is selected", async () => {
+    const { loadAIAgentConfig } = await import("../../ai/agentConfig");
+    saveAIAgentConfig({
+      ...loadAIAgentConfig(),
+      skills: [
+        {
+          id: "custom",
+          name: "Custom Skill",
+          description: "",
+          icon: "AI",
+          initialPrompt: "Help with {user_input}",
+        },
+      ],
+    });
+    render(<CustomAgentChat excalidrawAPI={null} />);
+    fireEvent.click(screen.getByRole("button", { name: "Skills" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "H3 Video Prompt Writing" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Skills" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Custom Skill" }));
+    expect(loadChatHistory().conversations[0]).toMatchObject({
+      activeSkillId: undefined,
+      pendingSkillId: "custom",
+    });
+  });
+
   it("loads incoming Workbench prompts into the assistant composer", async () => {
     render(
       <CustomAgentChat
@@ -446,7 +617,7 @@ describe("CustomAgentChat", () => {
     fireEvent.click(skillsButton);
     expect(skillsButton).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("menu", { name: "Skills" })).toHaveTextContent(
-      "No Skills configured.",
+      "H3 Video Prompt Writing",
     );
     fireEvent.pointerDown(screen.getByLabelText("Message"));
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();

@@ -11,3 +11,8 @@ dev-dist
 coverage
 logs/
 deploy/vault-self-hosted/backups/
+# Vendored official prompt guides must remain byte-for-byte upstream copies.
+excalidraw-app/ai/skills/h3-prompt-writing/SKILL.md
+excalidraw-app/ai/skills/h3-prompt-writing/references/
+excalidraw-app/ai/skills/sd2-pe/SKILL.md
+excalidraw-app/ai/skills/sd25-pe/SKILL.md

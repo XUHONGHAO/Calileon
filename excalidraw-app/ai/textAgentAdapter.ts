@@ -26,6 +26,8 @@ type LLMMessage = {
 type TextAgentSubmitOptions = {
   agent: AIAgent | null;
   messages: readonly LLMMessage[];
+  /** Runtime skill instructions; never persisted in the agent configuration. */
+  systemPrompt?: string;
   onChunk?: (chunk: string) => void;
   onStreamCreated?: () => void;
   signal?: AbortSignal;
@@ -512,9 +514,12 @@ export const submitTextAgent = async (
         t("ai.proxy.errors.managedRouteMissing"),
       );
     }
-    const effectiveAgent = managedRoute
+    const configuredAgent = managedRoute
       ? createManagedAgent(managedRoute, agent)
       : (agent as AIAgent);
+    const effectiveAgent = options.systemPrompt
+      ? { ...configuredAgent, systemPrompt: options.systemPrompt }
+      : configuredAgent;
     const executionOptions: TextAgentExecutionOptions = {
       ...options,
       ...(managedRoute ? { managedRoute, transportConfig } : {}),
@@ -528,7 +533,10 @@ export const submitTextAgent = async (
             effectiveAgent,
             executionOptions,
           );
-    const cleanedResponse = cleanMermaidCode(generatedResponse);
+    const cleanedResponse =
+      effectiveAgent.type === "text"
+        ? cleanMermaidCode(generatedResponse)
+        : generatedResponse;
 
     return {
       generatedResponse: cleanedResponse,

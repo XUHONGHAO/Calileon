@@ -5,10 +5,17 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 
 import { AI_PROMPT_TEMPLATES_STORAGE_KEY } from "../ai/promptTemplates";
 import { saveAIProxyConfig } from "../ai/proxyConfig";
+import { DEFAULT_AI_AGENT_CONFIG, saveAIAgentConfig } from "../ai/agentConfig";
+import {
+  getBuiltInSkills,
+  H3_PROMPT_SKILL_ID,
+  H3_PROMPT_SKILL_SOURCE,
+} from "../ai/skillPresets";
 import { STORAGE_KEYS } from "../app_constants";
 
 import { AISettings } from "./AISettings";
@@ -21,6 +28,102 @@ describe("AISettings", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("shows the read-only official H3 skill and guides setup when no General Agent exists", () => {
+    render(<AISettings initialTab="agents" />);
+    fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    expect(screen.getByText("H3 Video Prompt Writing")).toBeInTheDocument();
+    expect(screen.getAllByText("Built-in Skill")).toHaveLength(3);
+    expect(
+      screen.getByRole("link", { name: "MiniMax official guide" }),
+    ).toHaveAttribute("href", H3_PROMPT_SKILL_SOURCE);
+    expect(
+      screen.queryByRole("button", { name: "Edit" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "More actions" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Add General Agent" })[0],
+    );
+    expect(screen.getByRole("tab", { name: "Base" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  });
+
+  it("hands the built-in H3 skill to the assistant without saving a custom copy", () => {
+    saveAIAgentConfig({
+      ...DEFAULT_AI_AGENT_CONFIG,
+      llmAgents: [
+        {
+          id: "llm",
+          name: "Writer",
+          type: "llm",
+          provider: "openai-compatible",
+          baseURL: "https://relay.example/v1",
+          apiKey: "",
+          model: "writer",
+        },
+      ],
+    });
+    const onApplySkill = vi.fn();
+    render(<AISettings initialTab="agents" onApplySkill={onApplySkill} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    fireEvent.click(
+      within(
+        screen.getByText("H3 Video Prompt Writing").closest("li")!,
+      ).getByRole("button", { name: "Use Skill" }),
+    );
+    expect(onApplySkill).toHaveBeenCalledWith(
+      expect.objectContaining({ id: H3_PROMPT_SKILL_ID }),
+    );
+    expect(
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_AGENT)!)
+        .skills,
+    ).toEqual([]);
+  });
+
+  it("shows independent Seedance sources and hands each card to the assistant", () => {
+    saveAIAgentConfig({
+      ...DEFAULT_AI_AGENT_CONFIG,
+      llmAgents: [
+        {
+          id: "llm",
+          name: "Writer",
+          type: "llm",
+          provider: "openai-compatible",
+          baseURL: "https://relay.example/v1",
+          apiKey: "",
+          model: "writer",
+        },
+      ],
+    });
+    const onApplySkill = vi.fn();
+    render(<AISettings initialTab="agents" onApplySkill={onApplySkill} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    for (const skill of getBuiltInSkills().slice(1)) {
+      const card = within(screen.getByText(skill.name).closest("li")!);
+      expect(
+        card.getByRole("link", { name: skill.sourceLabel }),
+      ).toHaveAttribute("href", skill.sourceURL);
+      expect(card.getByText(skill.scopeDescription)).toBeInTheDocument();
+      expect(
+        card.queryByRole("button", { name: "Edit" }),
+      ).not.toBeInTheDocument();
+      expect(
+        card.queryByRole("button", { name: "More actions" }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(card.getByRole("button", { name: "Use Skill" }));
+      expect(onApplySkill).toHaveBeenLastCalledWith(
+        expect.objectContaining({ id: skill.id }),
+      );
+    }
+    expect(
+      JSON.parse(localStorage.getItem(STORAGE_KEYS.LOCAL_STORAGE_AI_AGENT)!)
+        .skills,
+    ).toEqual([]);
   });
 
   it("opens on the requested templates tab", () => {

@@ -2,6 +2,7 @@ import { STORAGE_KEYS } from "../app_constants";
 
 import { detectCodeBlocks } from "./codeBlockDetector";
 import { detectPrompt } from "./promptDetector";
+import { isBuiltInSkill } from "./skillPresets";
 
 import type {
   ChatConversation,
@@ -203,6 +204,9 @@ const normalizeConversation = (value: unknown): ChatConversation | null => {
       conversation.pendingSkillId.trim()
         ? conversation.pendingSkillId.trim()
         : undefined,
+    activeSkillId: isBuiltInSkill(conversation.activeSkillId)
+      ? conversation.activeSkillId
+      : undefined,
     createdAt:
       typeof conversation.createdAt === "number"
         ? conversation.createdAt

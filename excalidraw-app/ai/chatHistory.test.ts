@@ -8,6 +8,12 @@ import {
   updateConversationTitle,
 } from "./chatHistory";
 
+import {
+  H3_PROMPT_SKILL_ID,
+  SEEDANCE20_PROMPT_SKILL_ID,
+  SEEDANCE25_PROMPT_SKILL_ID,
+} from "./skillPresets";
+
 import type { ChatConversation, CustomAgentChatHistory } from "./types";
 
 describe("chatHistory", () => {
@@ -40,6 +46,27 @@ describe("chatHistory", () => {
     saveChatHistory(history);
 
     expect(loadChatHistory()).toEqual(history);
+  });
+
+  it.each([
+    H3_PROMPT_SKILL_ID,
+    SEEDANCE20_PROMPT_SKILL_ID,
+    SEEDANCE25_PROMPT_SKILL_ID,
+  ])("restores %s and drops unsupported persisted IDs", (skillId) => {
+    const conversation = {
+      ...createConversation("agent-1"),
+      activeSkillId: skillId,
+    };
+    saveChatHistory({
+      conversations: [conversation],
+      activeConversationId: conversation.id,
+    });
+    expect(loadChatHistory().conversations[0].activeSkillId).toBe(skillId);
+    expect(
+      normalizeChatHistory({
+        conversations: [{ ...conversation, activeSkillId: "untrusted" }],
+      }).conversations[0].activeSkillId,
+    ).toBeUndefined();
   });
 
   it("generates and updates conversation title", () => {

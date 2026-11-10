@@ -45,6 +45,7 @@ import { ShelfLifeHost, ShelfLifeMenuItem } from "./labs/shelfLife";
 import { SynesthesiaHost, SynesthesiaMenuItem } from "./labs/synesthesia";
 
 import type { AISettingsTab } from "../ai/workflowEvents";
+import type { AISkill } from "../ai/types";
 
 import type { ActiveCloudSceneInfo } from "./AuthDialog";
 
@@ -65,6 +66,7 @@ export const AppMainMenu: React.FC<{
   activeCloudScene?: ActiveCloudSceneInfo | null;
   langCode?: ExcalidrawProps["langCode"];
   externalFeaturesDisabled?: boolean;
+  onApplyAISkill?: (skill: AISkill) => void;
 }> = React.memo((props) => {
   const [isAISettingsOpen, setIsAISettingsOpen] = React.useState(false);
   const [isCastDialogOpen, setIsCastDialogOpen] = React.useState(false);
@@ -341,6 +343,10 @@ export const AppMainMenu: React.FC<{
             key={initialAISettingsTab}
             initialTab={initialAISettingsTab}
             onDirtyChange={handleAISettingsDirtyChange}
+            onApplySkill={(skill) => {
+              props.onApplyAISkill?.(skill);
+              setIsAISettingsOpen(false);
+            }}
           />
         </AppDialog>
       )}

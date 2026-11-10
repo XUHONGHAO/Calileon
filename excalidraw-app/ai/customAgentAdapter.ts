@@ -2,12 +2,14 @@ import { t } from "@excalidraw/excalidraw/i18n";
 
 import { loadAIAgentConfig } from "./agentConfig";
 import { submitTextAgent } from "./textAgentAdapter";
+import { getSkillSystemPrompt } from "./skillPresets";
 
 import type { ChatMessage } from "./types";
 
 type SendMessageOptions = {
   agentId: string;
   messages: readonly ChatMessage[];
+  activeSkillId?: string;
   onChunk?: (chunk: string) => void;
   onStreamCreated?: () => void;
   signal?: AbortSignal;
@@ -26,6 +28,7 @@ type SendMessageResult =
 export const sendMessageToGeneralAgent = async ({
   agentId,
   messages,
+  activeSkillId,
   onChunk,
   onStreamCreated,
   signal,
@@ -42,6 +45,7 @@ export const sendMessageToGeneralAgent = async ({
 
   const result = await submitTextAgent({
     agent: generalAgent,
+    systemPrompt: getSkillSystemPrompt(activeSkillId),
     messages: messages.map((message) => ({
       role: message.role,
       content: message.content,

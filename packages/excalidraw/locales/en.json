@@ -1523,6 +1523,28 @@
       "common": {
         "icon": "Icon"
       },
+      "seedance25Skill": {
+        "name": "Seedance 2.5 Video Prompt Writing",
+        "description": "Use the official Seedance 2.5 workflow for reference mapping, event states, long videos and audiovisual editing. Stays active throughout the conversation.",
+        "modes": "Text · Multimodal references · Keyframes/storyboards/blockouts · Editing · Extension",
+        "source": "Seedance 2.5 official guide",
+        "input": "Paste a prompt or describe the video, task, reference labels and desired result..."
+      },
+      "seedance20Skill": {
+        "name": "Seedance 2.0 Video Prompt Writing",
+        "description": "Follow the official Seedance 2.0 subject bindings, shot order and sound notation. Stays active throughout the conversation.",
+        "modes": "Reference generation · Video editing · Forward/backward extension · Combined tasks",
+        "source": "Seedance 2.0 official guide",
+        "input": "Paste a prompt or describe subjects, actions, scenes and reference labels..."
+      },
+      "h3Skill": {
+        "builtIn": "Built-in Skill",
+        "name": "H3 Video Prompt Writing",
+        "description": "Write and refine MiniMax H3 video prompts using the official shot, timing, reference and audio rules. Stays active throughout the conversation.",
+        "modes": "T2VA · I2VA · FL2VA · L2VA · Ref2VA",
+        "source": "MiniMax official guide",
+        "use": "Use Skill"
+      },
       "agentTypes": {
         "text": "Text",
         "vision": "Vision",
@@ -1591,11 +1613,13 @@
         "customDescription": "Define reusable assistant roles with their own System Prompt. Each Custom Agent uses one LLM Agent as its base model.",
         "needLLM": "Add an LLM Agent before creating Custom Agents.",
         "emptyCustom": "No Custom Agents yet. Add one to create reusable assistant roles.",
+        "builtInSkill": "Built-in Skill",
+        "useSkill": "Use Skill",
         "skillsTitle": "Skills",
         "addSkill": "Add Skill",
-        "skillsDescription": "Create quick-start scenarios with an optional initial prompt template using {{placeholder}}. Choose the General Agent in AI Assistant when using a Skill.",
+        "skillsDescription": "Use built-in Skills with conversation-wide instructions, or create custom startup templates with an optional {{placeholder}} placeholder. Choose a General Agent in AI Assistant.",
         "needCustomAgent": "Add a General Agent before using Skills.",
-        "emptySkills": "No Skills yet. Add one to create a reusable start template.",
+        "emptySkills": "No custom Skills yet. Add one to create a reusable startup template.",
         "modelPrefix": "Model:",
         "agentPrefix": "Agent:",
         "triggerPrefix": "Trigger:",
@@ -1819,6 +1843,8 @@
       "startConversation": "Start a new conversation with {{agent}}.",
       "fallbackAgent": "an agent",
       "message": "Message",
+      "h3SkillInput": "Describe the video, generation mode, duration (4–15 seconds), and reference assets...",
+      "deactivateSkill": "Deactivate {{name}}",
       "skillInputPlaceholder": "Type the input for this Skill...",
       "inputPlaceholder": "Describe what you need... (Shift+Enter for new line)",
       "agent": "Agent",
@@ -1852,6 +1878,7 @@
         "allChatsCleared": "All chats cleared.",
         "agentSwitched": "Agent switched.",
         "skillSelectedWithInput": "{{name}} selected. Type your input to start.",
+        "skillActivated": "{{name}} is active for this conversation. Describe your video, mode, duration and references.",
         "skillSelected": "{{name}} selected.",
         "responseCanceled": "Response canceled.",
         "requestFailed": "AI Assistant request failed.",

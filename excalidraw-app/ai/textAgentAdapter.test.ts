@@ -3,6 +3,12 @@ import { vi } from "vitest";
 import { STORAGE_KEYS } from "../app_constants";
 
 import { submitTextAgent } from "./textAgentAdapter";
+import {
+  getSkillSystemPrompt,
+  H3_PROMPT_SKILL_ID,
+  SEEDANCE20_PROMPT_SKILL_ID,
+  SEEDANCE25_PROMPT_SKILL_ID,
+} from "./skillPresets";
 
 import { saveAIProxyConfig } from "./proxyConfig";
 
@@ -49,6 +55,56 @@ describe("textAgentAdapter", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it.each(
+    (["openai-compatible", "anthropic", "gemini"] as const).flatMap(
+      (provider) =>
+        [
+          H3_PROMPT_SKILL_ID,
+          SEEDANCE20_PROMPT_SKILL_ID,
+          SEEDANCE25_PROMPT_SKILL_ID,
+        ].map((skillId) => [provider, skillId] as const),
+    ),
+  )("preserves prompt syntax through %s with %s", async (provider, skillId) => {
+    const prompt =
+      skillId === H3_PROMPT_SKILL_ID
+        ? 'integrated_multimodal_description: [Shot 1] <Subject 1> (S1) says: <d>[Chinese] 你好。</d> A sign reads "营业中". <Picture 1> <Video 1> <Audio 1> <scenetrans> <cutoff>\n\noverall_soundscape: Rain.\n\nnon_diegetic_music: N/A'
+        : '【参考素材职责】@图片1 中的女子为<主体1>。\n镜头1：<主体1>说{你好，世界}，<远处传来狗叫声>，（舒缓的钢琴乐），画面出现"咖啡馆"。';
+    const event =
+      provider === "anthropic"
+        ? { delta: { text: prompt } }
+        : provider === "gemini"
+        ? { candidates: [{ content: { parts: [{ text: prompt }] } }] }
+        : { choices: [{ delta: { content: prompt } }] };
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        createSSEBody(`data: ${JSON.stringify(event)}\n\ndata: [DONE]\n\n`),
+        { status: 200 },
+      ),
+    );
+    const onChunk = vi.fn();
+    const systemPrompt = getSkillSystemPrompt(skillId)!;
+    const result = await submitTextAgent({
+      agent: createAgent({
+        type: "llm",
+        provider,
+        systemPrompt: "Other role",
+      }),
+      systemPrompt,
+      messages: [{ role: "user", content: "Write a cafe video prompt" }],
+      onChunk,
+    });
+    expect(result).toMatchObject({ generatedResponse: prompt, error: null });
+    expect(onChunk).toHaveBeenCalledWith(prompt);
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body));
+    const sentSystem =
+      provider === "anthropic"
+        ? body.system
+        : provider === "gemini"
+        ? body.systemInstruction.parts[0].text
+        : body.messages[0].content;
+    expect(sentSystem).toBe(systemPrompt.trim());
   });
 
   it("accepts SSE data lines without a space after the colon", async () => {
