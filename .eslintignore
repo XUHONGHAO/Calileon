@@ -16,3 +16,6 @@ excalidraw-app/ai/skills/h3-prompt-writing/SKILL.md
 excalidraw-app/ai/skills/h3-prompt-writing/references/
 excalidraw-app/ai/skills/sd2-pe/SKILL.md
 excalidraw-app/ai/skills/sd25-pe/SKILL.md
+# Preserve redistributed font license text verbatim.
+packages/excalidraw/fonts/CalileonCJKSerif/LICENSE-NeoZhiSong.md
+packages/excalidraw/fonts/CalileonCJKSans/LICENSE-XiHei.md

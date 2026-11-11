@@ -7,6 +7,7 @@ type DataURL = string;
 export class ExcalidrawFontFace {
   public readonly urls: URL[] | DataURL[];
   public readonly fontFace: FontFace;
+  public readonly license?: string;
 
   private static readonly ASSETS_FALLBACK_URL = `https://esm.sh/${
     import.meta.env.PKG_NAME
@@ -14,7 +15,13 @@ export class ExcalidrawFontFace {
       : "@excalidraw/excalidraw" // fallback to the latest package version (i.e. for app)
   }/dist/prod/`;
 
-  constructor(family: string, uri: string, descriptors?: FontFaceDescriptors) {
+  constructor(
+    family: string,
+    uri: string,
+    descriptors?: FontFaceDescriptors,
+    license?: string,
+  ) {
+    this.license = license;
     this.urls = ExcalidrawFontFace.createUrls(uri);
 
     const sources = this.urls

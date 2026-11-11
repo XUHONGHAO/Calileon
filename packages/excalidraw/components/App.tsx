@@ -65,6 +65,7 @@ import {
   debounce,
   distance,
   getFontString,
+  getDefaultFontFamily,
   getNearestScrollableContainer,
   isInputLike,
   isToolIcon,
@@ -925,7 +926,7 @@ class App extends React.Component<AppProps, AppState> {
 
   constructor(props: AppProps) {
     super(props);
-    const defaultAppState = getDefaultAppState();
+    const defaultAppState = getDefaultAppState(props.langCode);
     const {
       viewModeEnabled = false,
       zenModeEnabled = false,
@@ -14293,7 +14294,11 @@ class App extends React.Component<AppProps, AppState> {
   private async updateLanguage() {
     const currentLang = resolveLanguage(this.props.langCode);
     await setLanguage(currentLang);
-    this.setAppState({});
+    this.setAppState((state) => ({
+      currentItemFontFamily: state.currentItemFontFamilyIsDefault
+        ? getDefaultFontFamily(currentLang.code)
+        : state.currentItemFontFamily,
+    }));
   }
 }
 

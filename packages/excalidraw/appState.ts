@@ -2,7 +2,7 @@ import {
   COLOR_PALETTE,
   ARROW_TYPE,
   DEFAULT_ELEMENT_PROPS,
-  DEFAULT_FONT_FAMILY,
+  getDefaultFontFamily,
   DEFAULT_FONT_SIZE,
   DEFAULT_TEXT_ALIGN,
   DEFAULT_GRID_SIZE,
@@ -13,16 +13,17 @@ import {
   isTestEnv,
 } from "@excalidraw/common";
 
+import { getLanguage } from "./i18n";
+
 import type { AppState, NormalizedZoomValue } from "./types";
 
 const defaultExportScale = EXPORT_SCALES.includes(devicePixelRatio)
   ? devicePixelRatio
   : 1;
 
-export const getDefaultAppState = (): Omit<
-  AppState,
-  "offsetTop" | "offsetLeft" | "width" | "height"
-> => {
+export const getDefaultAppState = (
+  languageCode = getLanguage().code,
+): Omit<AppState, "offsetTop" | "offsetLeft" | "width" | "height"> => {
   return {
     showWelcomeScreen: false,
     theme: THEME.LIGHT,
@@ -30,7 +31,8 @@ export const getDefaultAppState = (): Omit<
     currentItemBackgroundColor: DEFAULT_ELEMENT_PROPS.backgroundColor,
     currentItemEndArrowhead: "arrow",
     currentItemFillStyle: DEFAULT_ELEMENT_PROPS.fillStyle,
-    currentItemFontFamily: DEFAULT_FONT_FAMILY,
+    currentItemFontFamily: getDefaultFontFamily(languageCode),
+    currentItemFontFamilyIsDefault: true,
     currentItemFontSize: DEFAULT_FONT_SIZE,
     currentItemOpacity: DEFAULT_ELEMENT_PROPS.opacity,
     currentItemRoughness: DEFAULT_ELEMENT_PROPS.roughness,
@@ -159,6 +161,11 @@ const APP_STATE_STORAGE_CONF = (<
   currentItemEndArrowhead: { browser: true, export: false, server: false },
   currentItemFillStyle: { browser: true, export: false, server: false },
   currentItemFontFamily: { browser: true, export: false, server: false },
+  currentItemFontFamilyIsDefault: {
+    browser: true,
+    export: false,
+    server: false,
+  },
   currentItemFontSize: { browser: true, export: false, server: false },
   currentItemRoundness: {
     browser: true,

@@ -1120,6 +1120,20 @@ export const restoreAppState = (
     nextAppState.boxSelectionMode = boxSelectionMode;
   }
 
+  // Migrate the old default preference, without rewriting existing text or
+  // overriding a font explicitly chosen in this version (including Excalifont).
+  const fontFamily =
+    appState.currentItemFontFamily ?? localAppState?.currentItemFontFamily;
+  nextAppState.currentItemFontFamilyIsDefault =
+    appState.currentItemFontFamilyIsDefault ??
+    (appState.currentItemFontFamily === undefined
+      ? localAppState?.currentItemFontFamilyIsDefault
+      : undefined) ??
+    (fontFamily === undefined || fontFamily === DEFAULT_FONT_FAMILY);
+  if (nextAppState.currentItemFontFamilyIsDefault) {
+    nextAppState.currentItemFontFamily = defaultAppState.currentItemFontFamily;
+  }
+
   return {
     ...nextAppState,
     cursorButton: localAppState?.cursorButton || "up",

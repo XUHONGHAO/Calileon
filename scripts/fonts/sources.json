@@ -1,0 +1,54 @@
+[
+  {
+    "directory": "LXGWWenKaiGB",
+    "family": "LXGW WenKai GB",
+    "displayName": "霞鹜文楷 GB",
+    "export": "WenKaiGBFontFaces",
+    "repository": "LxgwWenKaiGB",
+    "version": "v1.530",
+    "sourceFile": "LXGWWenKaiGB-Regular.ttf",
+    "licenseFile": "OFL-GB.txt",
+    "sourceSha256": "5561d48097d92e5ab99fe7b1459d381bbcdff533bfc479207b089c6860c3990e",
+    "sourceURL": "https://github.com/lxgw/LxgwWenKaiGB/releases/download/v1.530/LXGWWenKaiGB-Regular.ttf"
+  },
+  {
+    "directory": "LXGWWenKaiTC",
+    "family": "LXGW WenKai TC",
+    "displayName": "霞鶩文楷 TC",
+    "export": "WenKaiTCFontFaces",
+    "repository": "LxgwWenKaiTC",
+    "version": "v1.530",
+    "sourceFile": "LXGWWenKaiTC-Regular.ttf",
+    "licenseFile": "OFL-TC.txt",
+    "sourceSha256": "6662480a3f95b4a90c80b189c679617a48adce3a505118a6af63ce5a482b83fa",
+    "sourceURL": "https://github.com/lxgw/LxgwWenKaiTC/releases/download/v1.530/LXGWWenKaiTC-Regular.ttf"
+  },
+  {
+    "directory": "CalileonCJKSerif",
+    "family": "Calileon CJK Serif",
+    "displayName": "霞鶩新緻宋",
+    "export": "NeoZhiSongFontFaces",
+    "repository": "LxgwNeoZhiSong",
+    "version": "v1.071",
+    "sourceFile": "LXGWNeoZhiSong.ttf",
+    "licenseFile": "LICENSE-NeoZhiSong.md",
+    "sourceSha256": "fd5856f9e43513ab1ed6e50abd057b37b50f15faae1ff292c028049f168cb44f",
+    "sourceURL": "https://github.com/lxgw/LxgwNeoZhiSong/releases/download/v1.071/LXGWNeoZhiSong.ttf",
+    "sourceFamily": "LXGW Neo ZhiSong",
+    "webFamily": "Calileon CJK Serif"
+  },
+  {
+    "directory": "CalileonCJKSans",
+    "family": "Calileon CJK Sans",
+    "displayName": "霞鶩晰黑",
+    "export": "XiHeiFontFaces",
+    "repository": "LxgwXiHei",
+    "version": "v1.003",
+    "sourceFile": "LXGWXiHeiMN.ttf",
+    "licenseFile": "LICENSE-XiHei.md",
+    "sourceSha256": "182f3f16691268334b6688539e1908f3cf171ae0dddd8879083357059a751f18",
+    "sourceURL": "https://github.com/lxgw/LxgwXiHei/releases/download/v1.003/LXGWXiHeiMN.ttf",
+    "sourceFamily": "LXGW XiHei MN",
+    "webFamily": "Calileon CJK Sans"
+  }
+]

@@ -1,1 +1,7 @@
 * text=auto eol=lf
+
+# Redistribute upstream font licenses verbatim, including their whitespace.
+packages/excalidraw/fonts/CalileonCJKSerif/LICENSE-NeoZhiSong.md -text -whitespace
+packages/excalidraw/fonts/CalileonCJKSans/LICENSE-XiHei.md -text -whitespace
+packages/excalidraw/fonts/LXGWWenKaiGB/OFL-GB.txt -text -whitespace
+packages/excalidraw/fonts/LXGWWenKaiTC/OFL-TC.txt -text -whitespace

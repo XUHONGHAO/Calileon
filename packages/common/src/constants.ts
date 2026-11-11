@@ -138,6 +138,10 @@ export const FONT_FAMILY = {
   "Comic Shanns": 8,
   "Liberation Sans": 9,
   Assistant: 10,
+  "LXGW WenKai GB": 11,
+  "LXGW WenKai TC": 12,
+  "Calileon CJK Serif": 13,
+  "Calileon CJK Sans": 14,
 };
 
 // Segoe UI Emoji fails to properly fallback for some glyphs: ∞, ∫, ≠
@@ -212,6 +216,20 @@ export const FRAME_STYLE = {
 export const MIN_FONT_SIZE = 1;
 export const DEFAULT_FONT_SIZE = 20;
 export const DEFAULT_FONT_FAMILY: FontFamilyValues = FONT_FAMILY.Excalifont;
+
+/** Locale affects new text only; font IDs stored on elements remain stable. */
+export const getDefaultFontFamily = (
+  languageCode: string,
+): FontFamilyValues => {
+  const code = languageCode.trim().toLowerCase();
+  if (/^zh-(hant(?:-|$)|tw$|hk$|mo$)/.test(code)) {
+    return FONT_FAMILY["LXGW WenKai TC"];
+  }
+  if (/^zh-(hans(?:-|$)|cn$|sg$)/.test(code)) {
+    return FONT_FAMILY["LXGW WenKai GB"];
+  }
+  return DEFAULT_FONT_FAMILY;
+};
 export const DEFAULT_TEXT_ALIGN = "left";
 export const DEFAULT_VERTICAL_ALIGN = "top";
 export const DEFAULT_VERSION = "{version}";

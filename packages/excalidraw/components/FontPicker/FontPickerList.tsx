@@ -13,6 +13,7 @@ import {
   arrayToList,
   debounce,
   FONT_FAMILY,
+  getFontFamilyDisplayName,
   getFontFamilyString,
 } from "@excalidraw/common";
 
@@ -72,6 +73,8 @@ interface FontPickerListProps {
 const getFontFamilyIcon = (fontFamily: FontFamilyValues): JSX.Element => {
   switch (fontFamily) {
     case FONT_FAMILY.Excalifont:
+    case FONT_FAMILY["LXGW WenKai GB"]:
+    case FONT_FAMILY["LXGW WenKai TC"]:
     case FONT_FAMILY.Virgil:
       return FreedrawIcon;
     case FONT_FAMILY.Nunito:
@@ -90,11 +93,7 @@ const getFontFamilyIcon = (fontFamily: FontFamilyValues): JSX.Element => {
 const getFontFamilyLabel = (
   fontFamily: FontFamilyValues,
   fontFaces: ExcalidrawFontFace[],
-) =>
-  // prefer our config as the browser resolved names may be wrapped in quotes and such
-  Object.entries(FONT_FAMILY).find(([, id]) => id === fontFamily)?.[0] ??
-  fontFaces[0]?.fontFace?.family ??
-  "Unknown";
+) => getFontFamilyDisplayName(fontFamily, fontFaces[0]?.fontFace?.family);
 
 export const FontPickerList = React.memo(
   ({
@@ -371,7 +370,7 @@ export const FontPickerList = React.memo(
       <PropertiesPopover
         className="properties-content"
         container={container}
-        style={{ width: "15rem" }}
+        style={{ width: "22rem", maxWidth: "calc(100vw - 3rem)" }}
         onClose={() => {
           onClose();
 

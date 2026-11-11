@@ -1098,7 +1098,7 @@ describe("textWysiwyg", () => {
 
       expect(text.fontFamily).toEqual(FONT_FAMILY.Excalifont);
 
-      fireEvent.click(screen.getByTitle(/code/i));
+      fireEvent.click(screen.getByTitle("Calileon Comic Shanns"));
 
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).fontFamily,
@@ -1524,7 +1524,7 @@ describe("textWysiwyg", () => {
       mouse.select(rectangle);
       Keyboard.keyPress(KEYS.ENTER);
 
-      fireEvent.click(screen.getByTitle(/code/i));
+      fireEvent.click(screen.getByTitle("Calileon Comic Shanns"));
 
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).fontFamily,
@@ -1552,7 +1552,7 @@ describe("textWysiwyg", () => {
       mouse.select(rectangle);
       Keyboard.keyPress(KEYS.ENTER);
 
-      fireEvent.click(screen.getByTitle(/code/i));
+      fireEvent.click(screen.getByTitle("Calileon Comic Shanns"));
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).fontFamily,
       ).toEqual(FONT_FAMILY["Comic Shanns"]);
@@ -1560,7 +1560,7 @@ describe("textWysiwyg", () => {
         (h.elements[1] as ExcalidrawTextElementWithContainer).lineHeight,
       ).toEqual(1.25);
 
-      fireEvent.click(screen.getByTitle(/normal/i));
+      fireEvent.click(screen.getByTitle("Calileon Nunito"));
       expect(
         (h.elements[1] as ExcalidrawTextElementWithContainer).fontFamily,
       ).toEqual(FONT_FAMILY.Nunito);

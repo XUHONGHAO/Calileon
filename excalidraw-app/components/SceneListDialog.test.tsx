@@ -39,6 +39,7 @@ vi.mock("@excalidraw/excalidraw/components/Dialog", () => ({
 }));
 
 vi.mock("@excalidraw/excalidraw/i18n", () => ({
+  getLanguage: () => ({ code: "en", label: "English" }),
   t: (key: string, replacement?: Record<string, string | number>) => {
     const values: Record<string, string> = {
       "cloud.scenes.back": "Back",

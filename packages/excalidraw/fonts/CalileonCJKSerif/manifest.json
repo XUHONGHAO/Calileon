@@ -1,0 +1,1403 @@
+{
+  "directory": "CalileonCJKSerif",
+  "family": "Calileon CJK Serif",
+  "displayName": "霞鶩新緻宋",
+  "export": "NeoZhiSongFontFaces",
+  "repository": "LxgwNeoZhiSong",
+  "version": "v1.071",
+  "sourceFile": "LXGWNeoZhiSong.ttf",
+  "licenseFile": "LICENSE-NeoZhiSong.md",
+  "sourceSha256": "fd5856f9e43513ab1ed6e50abd057b37b50f15faae1ff292c028049f168cb44f",
+  "sourceURL": "https://github.com/lxgw/LxgwNeoZhiSong/releases/download/v1.071/LXGWNeoZhiSong.ttf",
+  "metrics": {
+    "unitsPerEm": 2048,
+    "ascender": 1802,
+    "descender": -246,
+    "lineHeight": 1.25
+  },
+  "codepointCount": 27702,
+  "chunks": [
+    {
+      "file": "CalileonCJKSerif-Regular-c930dec8c44c31ad.woff2",
+      "sha256": "c930dec8c44c31ad24ae4f95efe9c98ad6055d421744102718a94c12833236cf",
+      "bytes": 47836,
+      "unicodeRange": "U+20-7E,U+A0-1FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-34e1cf9ca8aa787e.woff2",
+      "sha256": "34e1cf9ca8aa787ee5acb9ce24168289804ef82a42e2ec8f5aa602ca82fa05eb",
+      "bytes": 23920,
+      "unicodeRange": "U+200-2B8,U+2BB-2BC,U+2C0-2C1,U+2C6-2D6,U+2D8-2EC,U+2F3,U+2F7,U+2FA,U+2FD,U+300-30D,U+30F,U+311,U+318-31A,U+31C-320,U+323-327,U+329-32A,U+32C,U+32F-330,U+332,U+334-336,U+338-33D,U+345-346,U+351,U+357-358,U+35C-35D,U+361,U+370-377,U+37A-37F,U+384-38A,U+38C,U+38E-3A1,U+3A3-3E1,U+3F0-3FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b0a2866db35b9dca.woff2",
+      "sha256": "b0a2866db35b9dcab7857d78e70f849a0b0284be4bab8c61e714c3e710c1c427",
+      "bytes": 13296,
+      "unicodeRange": "U+400-45F,U+462-46B,U+470-479,U+490-493,U+496-49D,U+4A0-4A3,U+4AA-4AB,U+4AE-4B3,U+4B6-4BB,U+4C0-4C2,U+4C9-4CA,U+4CF-4D9,U+4DE-4EB,U+4EE-4F5,U+4FE-501,U+510-511,U+51A-51D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2974e802afdaec67.woff2",
+      "sha256": "2974e802afdaec67ba63a9a1e80e8fd37c0c3a5fd7a309a8448e2cedd2cd2102",
+      "bytes": 1268,
+      "unicodeRange": "U+E3F"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a293115b0e83aef7.woff2",
+      "sha256": "a293115b0e83aef7f4b01f41b5f03d20a7b0e900ac87e555669ec0acbb077a1b",
+      "bytes": 5496,
+      "unicodeRange": "U+1D00,U+1D04-1D05,U+1D07,U+1D0A-1D0B,U+1D0D,U+1D0F,U+1D18,U+1D1B-1D1C,U+1D20-1D22,U+1D2C,U+1D2E,U+1D30-1D31,U+1D33-1D3A,U+1D3C,U+1D3E-1D45,U+1D47-1D4A,U+1D4D,U+1D4F-1D53,U+1D56-1D58,U+1D5A-1D5B,U+1D5D,U+1D62-1D66,U+1D9C,U+1D9E,U+1DA0,U+1DA3,U+1DA6,U+1DAB,U+1DB0,U+1DB4,U+1DB8,U+1DBA-1DBB,U+1DBF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6d20be79b115a6c7.woff2",
+      "sha256": "6d20be79b115a6c7445a680a8868c365c2ce5a9cd1a8daecc457e41bdfb3e079",
+      "bytes": 17092,
+      "unicodeRange": "U+1E00-1F15,U+1F18-1F1D,U+1F20-1F45,U+1F48-1F4D,U+1F50-1F57,U+1F59,U+1F5B,U+1F5D,U+1F5F-1F7D,U+1F80-1FB4,U+1FB6-1FC4,U+1FC6-1FD3,U+1FD6-1FDB,U+1FDD-1FEF,U+1FF2-1FF4,U+1FF6-1FFE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b3566ffe6b4eb604.woff2",
+      "sha256": "b3566ffe6b4eb60423aae5c24c2e4b77294345a9bb778639ae49e9de27007b75",
+      "bytes": 18408,
+      "unicodeRange": "U+2002-2003,U+2010-2016,U+2018-2022,U+2025-2027,U+2030-2037,U+2039-2040,U+2042,U+2044,U+2047-2049,U+2051,U+205A,U+205D,U+2070-2071,U+2074-20C4,U+2100-2101,U+2103,U+2105-2106,U+2109,U+210F,U+2113,U+2116-2117,U+211E,U+2120-2122,U+2126-2127,U+212B,U+212E,U+2135,U+213B,U+214D,U+2150-2182,U+2189,U+2190-2199,U+219C-219D,U+21A8,U+21B0-21B9,U+21C4-21D5,U+21E6-21EA,U+21F5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b9f40eb8ff7e8aba.woff2",
+      "sha256": "b9f40eb8ff7e8aba8baf0d0fb74e49dc0fde35d5ef6e25cb4956e1fa678d1d19",
+      "bytes": 11148,
+      "unicodeRange": "U+2200-220D,U+220F,U+2211-2213,U+2215-2216,U+2219-2220,U+2223-2230,U+2234-2237,U+223C-223E,U+2242-2243,U+2245,U+2248,U+224B-224C,U+2251-2253,U+225C,U+2260-2262,U+2264-226B,U+226E-226F,U+2272-2273,U+2276-2277,U+2282-228B,U+2295-2299,U+229C-229E,U+22A0,U+22A5,U+22BF,U+22C5,U+22DA-22DB,U+22EE-22F1,U+2300,U+2302-2307,U+2310,U+2312,U+2318,U+2320-2321,U+2325-2326,U+2329-232B,U+237B,U+2387,U+238B,U+2393,U+23B0-23B1,U+23BE-23CC,U+23CE,U+23DA-23DB,U+23E8"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-bae19f0fe9ed4eed.woff2",
+      "sha256": "bae19f0fe9ed4eedc04f0ddc44e5e5835f4a666540cee86e2d1b8912e7831b61",
+      "bytes": 19208,
+      "unicodeRange": "U+2400-2426,U+2460-2595,U+25A0-25A1,U+25AC,U+25B1-25B3,U+25B6-25B7,U+25BA,U+25BC-25BD,U+25C0-25C1,U+25C4,U+25C6-25C7,U+25C9-25CC,U+25CE-25D3,U+25D8-25D9,U+25E2-25E6,U+25EF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-efbd406aef0c9665.woff2",
+      "sha256": "efbd406aef0c96659d6b1e91222ece485860db3f91cd29f4ae9b2edef664b564",
+      "bytes": 9584,
+      "unicodeRange": "U+2600-2603,U+2605-2606,U+2609,U+260E-2612,U+2616-2617,U+261A-261F,U+262F-2637,U+263A-263C,U+2640-2642,U+2660-266F,U+2680-2685,U+268A-268F,U+2713,U+2717,U+273D,U+2756,U+2776-2793,U+27A1,U+27E6-27EB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6f46c6e7e9042bd7.woff2",
+      "sha256": "6f46c6e7e9042bd7a09e06041e58eadd2a5360507a379569c35bca7d5f023d40",
+      "bytes": 1668,
+      "unicodeRange": "U+2934-2937,U+293A-293B,U+29BF,U+29FA-29FB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b35fcdca2ee5e5f6.woff2",
+      "sha256": "b35fcdca2ee5e5f6ac57253f8a08560fb8ae8c28762e81150c4669efdc600aec",
+      "bytes": 1684,
+      "unicodeRange": "U+2A7D-2A7E,U+2ACB-2ACC,U+2B05-2B07,U+2B1A,U+2B95"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-24d238b53dcaf3af.woff2",
+      "sha256": "24d238b53dcaf3af1b3b34a7c5dc09532cd9e81163ccf1645c0501c7e04090b9",
+      "bytes": 1364,
+      "unicodeRange": "U+2C71,U+2C7C-2C7D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-7c5406a1ab4142b4.woff2",
+      "sha256": "7c5406a1ab4142b4a8e80db8fc27921f1d817cae0c85356ede9e6c8cb2973e75",
+      "bytes": 40504,
+      "unicodeRange": "U+2E2E,U+2E3A-2E3B,U+2E40,U+2E55-2E56,U+2E80-2E99,U+2E9B-2EF3,U+2F00-2FD5,U+2FF0-2FFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c50d59fc3c5fc6ea.woff2",
+      "sha256": "c50d59fc3c5fc6ea78528554fd928e3a88ca2ef0612c3b49cdaa4daf0821e905",
+      "bytes": 82240,
+      "unicodeRange": "U+3000-3029,U+3030,U+3033-303E,U+3041-3096,U+3099-30FF,U+3105-312F,U+31A0-31E5,U+31EF-31FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9226bb4535463398.woff2",
+      "sha256": "9226bb4535463398b782159a72b9a9d5796c3b1becd3fdbff11317aabb66baea",
+      "bytes": 68868,
+      "unicodeRange": "U+3220-325F,U+3280-332B,U+332D-33FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-4909bd0164e297c0.woff2",
+      "sha256": "4909bd0164e297c041a55d33a06d9f68f54dd345536674769b1593bda590ad1c",
+      "bytes": 19364,
+      "unicodeRange": "U+3401-3406,U+340C,U+340E,U+3427,U+342B-342C,U+342E,U+3431-3432,U+3437,U+3440-3441,U+3447,U+344A,U+344C,U+3451-3452,U+3456-3457,U+345A,U+3463,U+3468-346A,U+346C,U+3472-3473,U+347A,U+3487-3488,U+3492-3493,U+34A3,U+34B2-34B3,U+34B5,U+34B8-34BA,U+34BC,U+34C1,U+34C7,U+34DB,U+34DF,U+34E4-34E6,U+34FE,U+3502,U+3509,U+3510,U+3515,U+351F,U+3522,U+353B,U+353E,U+3541,U+3551,U+3558,U+355C-355E,U+3560,U+3563,U+3565,U+356E,U+3571,U+3576-3578,U+3585,U+358A,U+359E,U+35A1,U+35A6,U+35A8,U+35AD,U+35B5,U+35B8,U+35BF,U+35C1,U+35C4-35C5,U+35CE-35CF,U+35D1-35D2,U+35D8,U+35DA,U+35F0-35F1,U+35F3-35F4,U+35FE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ebfb6fe14bdfcea4.woff2",
+      "sha256": "ebfb6fe14bdfcea4471ea9a6d487a300c0f0ae7c426768db12cb67ee92312fd5",
+      "bytes": 19184,
+      "unicodeRange": "U+3604-3606,U+360E,U+3614,U+3617,U+361A-361B,U+361D,U+3625,U+362B,U+362D,U+362F-3631,U+3635,U+364A,U+364D,U+3653,U+3658,U+365F,U+3661,U+3666,U+3681,U+3687,U+3690-3691,U+3696,U+3699,U+36A2-36A3,U+36AC,U+36B0,U+36B5,U+36B7,U+36BB,U+36BD,U+36C3-36C5,U+36CF,U+36DA,U+36E2,U+36E4,U+36F9,U+372E,U+3737,U+373A,U+3740,U+3743,U+3749,U+374B,U+3751,U+3757,U+375B,U+3760-3762,U+3769,U+376B-376C,U+3775,U+3779,U+377F,U+378D-378E,U+3793,U+3797-3798,U+379E,U+37A2,U+37C1-37C3,U+37D6,U+37E2,U+37E4,U+37E8,U+37F4,U+37FD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-423a522bbb4effc9.woff2",
+      "sha256": "423a522bbb4effc9c5e0d026d1c1d796e37bb137eb07e3fc116eeb1a94dca6d1",
+      "bytes": 17072,
+      "unicodeRange": "U+3800,U+3804,U+3807,U+3813,U+3819,U+3823,U+382F,U+3836,U+383E,U+3840,U+384C,U+3851,U+3853,U+385C,U+3861,U+3898,U+38CA,U+38D5-38D6,U+38E1,U+38E3,U+38E7-38E9,U+38EE,U+38F3-38F4,U+38F8-38FA,U+3905,U+3907,U+3909,U+390F,U+3915,U+3917-391A,U+391E,U+3925,U+392D,U+3941,U+3944,U+394F,U+3960,U+3963,U+3966,U+396B,U+396E-3970,U+3975,U+39AE,U+39B8,U+39C0-39C1,U+39C5,U+39CC,U+39CE-39D2,U+39DF,U+39E1,U+39E3,U+39E5,U+39EC,U+39EF,U+39F1,U+39F8,U+39FB,U+39FE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-8d4869c5fc4388e6.woff2",
+      "sha256": "8d4869c5fc4388e639e891fe42f73714aedc598bd451a85b079c0bd9985270e3",
+      "bytes": 20776,
+      "unicodeRange": "U+3A02-3A04,U+3A11,U+3A17-3A18,U+3A28,U+3A2A-3A2B,U+3A3B,U+3A3F,U+3A46,U+3A4B-3A4C,U+3A50,U+3A52,U+3A57,U+3A59,U+3A5C,U+3A5F,U+3A66-3A67,U+3A6E,U+3A73,U+3A75,U+3A8D,U+3A90,U+3A97,U+3A9A,U+3A9F,U+3AB7,U+3ABA,U+3AC3,U+3AD6-3AD7,U+3ADA,U+3ADD,U+3AEA,U+3AF0,U+3AF3,U+3B09-3B0A,U+3B0E,U+3B1A,U+3B1C,U+3B1F,U+3B22,U+3B24,U+3B2A,U+3B30,U+3B35,U+3B37,U+3B39-3B3A,U+3B3F,U+3B49,U+3B4E,U+3B55,U+3B5C,U+3B60,U+3B6D,U+3B74,U+3B77,U+3B87-3B88,U+3B8D,U+3B9D,U+3BA3-3BA4,U+3BB6,U+3BBE,U+3BC3,U+3BCA,U+3BCD,U+3BED,U+3BF0-3BF1,U+3BF3"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d3cbdc7020f5a8c3.woff2",
+      "sha256": "d3cbdc7020f5a8c345df55a1272b676dfe0c25352b93777ded6118521139c89f",
+      "bytes": 20292,
+      "unicodeRange": "U+3C00,U+3C0D,U+3C0F,U+3C26,U+3C35,U+3C43,U+3C54,U+3C6E,U+3C7F,U+3CAA,U+3CB2,U+3CB9-3CBA,U+3CC2-3CC4,U+3CC7,U+3CCC,U+3CD2,U+3CD5,U+3CD8,U+3CDA,U+3CDE,U+3CE0,U+3CED,U+3CF2,U+3CFA,U+3CFD,U+3D0C,U+3D11,U+3D14,U+3D18-3D19,U+3D1E,U+3D22-3D23,U+3D29,U+3D31,U+3D3A,U+3D48-3D49,U+3D4E,U+3D50,U+3D58,U+3D5C,U+3D64-3D65,U+3D72,U+3D81-3D83,U+3D86,U+3D88-3D89,U+3D8B,U+3D90,U+3D99-3D9A,U+3D9D,U+3D9F,U+3DA5-3DA6,U+3DB2,U+3DB6,U+3DC0,U+3DCD,U+3DD4,U+3DDB,U+3DDF,U+3DE7,U+3DEB,U+3DEE,U+3DFB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-7f8379c439c2e10e.woff2",
+      "sha256": "7f8379c439c2e10e70e6b74d705deed8ee9bec6be5b3a6ec6d9e9cf8db72d9e2",
+      "bytes": 17064,
+      "unicodeRange": "U+3E05-3E06,U+3E0C,U+3E10,U+3E30,U+3E3F,U+3E4E,U+3E60,U+3E62,U+3E66-3E68,U+3E6D,U+3E74,U+3E80,U+3E83-3E84,U+3E8A,U+3E94,U+3EA2,U+3EAD,U+3ECB,U+3ED0,U+3EDA,U+3EDE,U+3EEA-3EEC,U+3EFD,U+3F06,U+3F08,U+3F0E,U+3F13,U+3F1D,U+3F41,U+3F4E-3F4F,U+3F52,U+3F54,U+3F57-3F58,U+3F5E,U+3F72,U+3F75,U+3F77,U+3F80,U+3F8A,U+3F8C,U+3F93,U+3F97,U+3FA6,U+3FAE,U+3FB1,U+3FB5,U+3FB9,U+3FC9,U+3FD4,U+3FD7,U+3FDA,U+3FDC,U+3FE0,U+3FE2,U+3FED,U+3FF8,U+3FFA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-dab7b1e7412e1b3b.woff2",
+      "sha256": "dab7b1e7412e1b3b95577b1e572d278098f49aba3549cf2c9739625f404a4d84",
+      "bytes": 13988,
+      "unicodeRange": "U+4007,U+4009,U+4010,U+4026,U+402F,U+4034,U+4039,U+4045,U+4053,U+4056,U+4058,U+4065,U+406A,U+406F,U+4093,U+4096,U+40AB,U+40AE,U+40BB,U+40C5,U+40C9,U+40CE,U+40D7-40D8,U+40DA,U+40DF-40E0,U+40E5,U+40EE,U+40F0,U+40FF,U+4103,U+4105,U+4109,U+410D,U+4137,U+413B,U+4148,U+414F,U+415F,U+4163,U+4180-4181,U+4189,U+41B4,U+41BF,U+41D3,U+41E6,U+41ED-41EE,U+41F2-41F3,U+41F6,U+41FD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-5956188896d42f21.woff2",
+      "sha256": "5956188896d42f215c73b83a5c141c1b8fb119476bd8f25c8f2c4364d778e5de",
+      "bytes": 15124,
+      "unicodeRange": "U+4204-4205,U+4207,U+420E,U+4230,U+4242,U+4261,U+4264,U+426C,U+4272,U+4275,U+4280,U+4286,U+4293,U+42AA,U+42B7,U+42B9,U+42C6,U+42CE,U+42D6,U+42DA-42DB,U+42DD,U+42F2,U+4302,U+4308,U+4325,U+432B,U+4337,U+4339,U+433B,U+433D,U+4341,U+4343,U+4349,U+4350-4351,U+4361,U+4367,U+4383,U+4396,U+43AC,U+43B1,U+43CD,U+43D3,U+43D9-43DA,U+43DD,U+43E0-43E1,U+43EE,U+43F0,U+43F2,U+43FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2475e85bdf7495f0.woff2",
+      "sha256": "2475e85bdf7495f04bc017a7bf231c45f0772bbb05d6bfe57fe846674ca7c8d0",
+      "bytes": 19680,
+      "unicodeRange": "U+4403,U+4408,U+440B-440C,U+4417,U+441B-441C,U+4422,U+4425,U+4453,U+445B,U+4472,U+4476,U+447A,U+447D,U+4491,U+4495,U+4499,U+449F,U+44A3-44A4,U+44A9,U+44B3,U+44B5,U+44B7,U+44BE-44BF,U+44C2-44C3,U+44D4-44D6,U+44DB,U+44DD-44DE,U+44E3-44E4,U+44E8,U+44EA-44EC,U+44EE,U+4508,U+450D,U+4515,U+451B,U+4525,U+4532,U+4543,U+4545,U+4548,U+4552,U+4561,U+456D,U+456F,U+4577,U+457A,U+458F,U+4599,U+459D,U+45A2,U+45AC,U+45AE,U+45B0,U+45B3,U+45B8,U+45C1,U+45C6,U+45D0,U+45D6,U+45DB,U+45E5,U+45E9-45EC,U+45F4,U+45FB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ef79284a13979229.woff2",
+      "sha256": "ef79284a13979229a703e17fd831a3fc7c488ed6173a5f4b347773f943ee2238",
+      "bytes": 13020,
+      "unicodeRange": "U+4606,U+460C,U+460F,U+4611,U+4615,U+461A,U+4625,U+462E,U+463C,U+4641,U+4646,U+464C,U+4653,U+4661,U+4665,U+4680,U+468E,U+46A1,U+46AE-46AF,U+46CA,U+46D0,U+46E1,U+4707,U+470C,U+4723,U+4729,U+473A,U+474B,U+4754,U+4759,U+475F,U+4764,U+4768,U+477C,U+4781,U+478D,U+4793,U+479A,U+47D3,U+47D8,U+47E1,U+47E6-47E7,U+47E9,U+47F4,U+47FD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2d8324fabb82dd22.woff2",
+      "sha256": "2d8324fabb82dd22a4a166b0a994329a7f3a820c327d21fc202c962d95c5d06c",
+      "bytes": 14384,
+      "unicodeRange": "U+4800,U+480A,U+4815-4816,U+4821,U+4831,U+4836-4837,U+4844,U+484E,U+486D,U+4875,U+487E,U+4880-4882,U+488D,U+48A2,U+48B5,U+48BA,U+48BC,U+48C5,U+48D3,U+48D8,U+48FA,U+490C,U+4928,U+493C,U+4947,U+4951,U+4955,U+495B,U+4965,U+497A,U+497D,U+4982-4983,U+4985-4986,U+4989,U+499B,U+499F,U+49B0,U+49B6-49B7,U+49D1,U+49E1,U+49E7,U+49FA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-750838d9e101434a.woff2",
+      "sha256": "750838d9e101434a6ac24f8327d1de544627f3e73bd3e1a6a71a9a2acd85ca61",
+      "bytes": 12384,
+      "unicodeRange": "U+4A04,U+4A12,U+4A1E,U+4A26,U+4A29,U+4A2C,U+4A3A-4A3B,U+4A44,U+4A6C,U+4A7A,U+4A8D,U+4AB4,U+4AB8,U+4ABC,U+4AC8,U+4ACC,U+4ACF,U+4B03,U+4B23,U+4B30,U+4B38,U+4B3B,U+4B54,U+4B72,U+4B7E,U+4B84,U+4BC0,U+4BC2,U+4BC4-4BC5,U+4BCA-4BCB,U+4BD2,U+4BE7-4BE8,U+4BFC"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-49ab020471ee2665.woff2",
+      "sha256": "49ab020471ee26657117d399b6dad58f28b97f9ae327033ce2de041225c37577",
+      "bytes": 24320,
+      "unicodeRange": "U+4C00,U+4C04,U+4C07,U+4C16-4C17,U+4C1B,U+4C1F-4C20,U+4C33,U+4C3B,U+4C3D-4C3E,U+4C40,U+4C4B,U+4C57,U+4C5A-4C5B,U+4C64,U+4C75,U+4C77,U+4C7B,U+4C7D,U+4C81,U+4C85,U+4C97-4C98,U+4C9D-4CA4,U+4CB3,U+4CC4,U+4CC7,U+4CCD,U+4CD1,U+4CD7-4CD8,U+4CED,U+4CF2,U+4D07-4D09,U+4D13-4D1A,U+4D25,U+4D35,U+4D38,U+4D51-4D52,U+4D5A,U+4D64,U+4D77,U+4D8A,U+4D95,U+4D97,U+4DA7,U+4DAD-4DAE,U+4DB6-4DFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b97d8aff5fa6575a.woff2",
+      "sha256": "b97d8aff5fa6575a7cd529cfcae26ca1ef43c009e8b944dec6e617d03e854d66",
+      "bytes": 66140,
+      "unicodeRange": "U+4E00-4FFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a5c52f284db751c9.woff2",
+      "sha256": "a5c52f284db751c939300476d02e72a54f798288af829be6dadb6fd170216705",
+      "bytes": 98556,
+      "unicodeRange": "U+5000-51FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-3242e9bd97dd8188.woff2",
+      "sha256": "3242e9bd97dd81885f8fe0b8ad0acb77880738521fc70a616e085bff146b23a7",
+      "bytes": 85772,
+      "unicodeRange": "U+5200-53FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-48cc8656dfc55700.woff2",
+      "sha256": "48cc8656dfc557000dbf233ae63b5b4841397355c71fbd3dc7658796f4b020a1",
+      "bytes": 80896,
+      "unicodeRange": "U+5400-55FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-72c793787e32c261.woff2",
+      "sha256": "72c793787e32c26196c36a99b9b85f91f3b5ef741f11dc90c32920f7dac305e2",
+      "bytes": 98976,
+      "unicodeRange": "U+5600-57FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-8dc39f77f05ae57e.woff2",
+      "sha256": "8dc39f77f05ae57e5ee0d1503e4d0a7cb9193b8fd454cd030459b024571165fe",
+      "bytes": 101044,
+      "unicodeRange": "U+5800-59FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a7c70a96cda4aabf.woff2",
+      "sha256": "a7c70a96cda4aabfd99948746caaffa3e96d3ce449a7d06ca2b67c1d70910c4b",
+      "bytes": 115620,
+      "unicodeRange": "U+5A00-5BFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a5077497f85a7c7c.woff2",
+      "sha256": "a5077497f85a7c7ce35b303fde7c35a0365c7296e4bd96e9238c46333e38ed40",
+      "bytes": 95524,
+      "unicodeRange": "U+5C00-5DFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d74f83db423ab50d.woff2",
+      "sha256": "d74f83db423ab50ddca48e8d06c664661081868f682220d8b5ee244a88254380",
+      "bytes": 93016,
+      "unicodeRange": "U+5E00-5FFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9af995cda3f1675e.woff2",
+      "sha256": "9af995cda3f1675e8d47c28f2b6df4f299e536fd4b176e3e7c3dcc782feb1720",
+      "bytes": 109100,
+      "unicodeRange": "U+6000-61FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-892c558f1abc5908.woff2",
+      "sha256": "892c558f1abc59089fec91c6cb6f6b84f9323a71f35618e9fa4430c36feefc3c",
+      "bytes": 94520,
+      "unicodeRange": "U+6200-63FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-cc88e2607c77a470.woff2",
+      "sha256": "cc88e2607c77a4700e7f714516c5fceebab69fe0891e6c187e1e6592aa3daf23",
+      "bytes": 122688,
+      "unicodeRange": "U+6400-65FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-f328f422b11a3730.woff2",
+      "sha256": "f328f422b11a373009702cca97b75ff7452411a0f5c3b65026ec092c47532df9",
+      "bytes": 85244,
+      "unicodeRange": "U+6600-67FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-78f042b9048ba28e.woff2",
+      "sha256": "78f042b9048ba28e70388cf6895d3f9878586fbd554efd0bc0c0f1da2ba0ff11",
+      "bytes": 98732,
+      "unicodeRange": "U+6800-69FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a97ffe3365c3caba.woff2",
+      "sha256": "a97ffe3365c3cabad656f5d693b17d81584ba88a4fe33cfacb8bdd4d73ef5cbb",
+      "bytes": 125828,
+      "unicodeRange": "U+6A00-6BFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-e49835ffb26063ec.woff2",
+      "sha256": "e49835ffb26063ec652d7c2c5c9867323f15600c31756d7ba6633b7f8875ef5f",
+      "bytes": 88212,
+      "unicodeRange": "U+6C00-6DFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-4e3a7bec78050a82.woff2",
+      "sha256": "4e3a7bec78050a8225220423c38b648043a81be9304fa90fd12e37a747b75616",
+      "bytes": 122064,
+      "unicodeRange": "U+6E00-6FFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-5f540f2023817169.woff2",
+      "sha256": "5f540f2023817169ff48f000fdc0ead8db99444550d6c4446f7218fa1055c437",
+      "bytes": 118948,
+      "unicodeRange": "U+7000-71FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-8763b387b81489ef.woff2",
+      "sha256": "8763b387b81489efb28933e6c126f8ad50fa50b43349ae32585380c060e2e289",
+      "bytes": 103040,
+      "unicodeRange": "U+7200-73FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-3ec39d5e692653d2.woff2",
+      "sha256": "3ec39d5e692653d24b6168cf1962bfc6a8f59c6fb8cdb5b742b301337ce9c8b4",
+      "bytes": 104160,
+      "unicodeRange": "U+7400-75FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-361d06d3ff98834f.woff2",
+      "sha256": "361d06d3ff98834f35869f7bd87ffa04bccaec9897e8eac765268c6983db6527",
+      "bytes": 104388,
+      "unicodeRange": "U+7600-77FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2521cb339a9cc149.woff2",
+      "sha256": "2521cb339a9cc14980cb88bc5db4937f2636dadccae06e345498a221273481cf",
+      "bytes": 94524,
+      "unicodeRange": "U+7800-79FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-7ae2f3f20cebff72.woff2",
+      "sha256": "7ae2f3f20cebff72dc36cd83d40fee91b327cfd455135e9d9ff4295c161c34df",
+      "bytes": 110932,
+      "unicodeRange": "U+7A00-7BFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-e18b0771fd37aaba.woff2",
+      "sha256": "e18b0771fd37aabaff5fb2324adbbde8c42dc760909c5622e0f46d00a23063de",
+      "bytes": 114476,
+      "unicodeRange": "U+7C00-7DFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d5c65e49a2778444.woff2",
+      "sha256": "d5c65e49a27784443b22c01efe769273a110d654c8710e26469256082a21d82f",
+      "bytes": 120024,
+      "unicodeRange": "U+7E00-7FFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-4af96701a4781bab.woff2",
+      "sha256": "4af96701a4781bab4840c3e42e558afc7779f7f3c9bd90b12a4411f708eecb5a",
+      "bytes": 101496,
+      "unicodeRange": "U+8000-81FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-f72f8db75f3fbaf2.woff2",
+      "sha256": "f72f8db75f3fbaf261a045d6142f22cfcc2d5954a3f11084fc326c7a5dd788a5",
+      "bytes": 86976,
+      "unicodeRange": "U+8200-83FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6a5144e78e1ea9db.woff2",
+      "sha256": "6a5144e78e1ea9db6d5950957b8d9066b4e416ebdc120cd4a98ceb37079f6a8b",
+      "bytes": 116316,
+      "unicodeRange": "U+8400-85FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b484096fc6966739.woff2",
+      "sha256": "b484096fc69667399365cd48d51193fda66ba90e590a908d442f3f1bb24f7a32",
+      "bytes": 118388,
+      "unicodeRange": "U+8600-87FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a18c50c1a1c16494.woff2",
+      "sha256": "a18c50c1a1c16494742542352b7030a8b6b50c4d14fb8fc5da28fa03b6776a72",
+      "bytes": 118112,
+      "unicodeRange": "U+8800-89FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-fa0e41d599e1fdb8.woff2",
+      "sha256": "fa0e41d599e1fdb8939c1c7a0f9c06fb1a28f6c369e5fbdd69db013a83b86390",
+      "bytes": 102088,
+      "unicodeRange": "U+8A00-8BFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-8b2611c511041c1a.woff2",
+      "sha256": "8b2611c511041c1a3e1d06cd953d1b05a478a521e8daf4dbb498ae22a878c69f",
+      "bytes": 102820,
+      "unicodeRange": "U+8C00-8DFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-7f9a9135fe488b02.woff2",
+      "sha256": "7f9a9135fe488b020084e6b3b165380e0107bb1a0292cdace0f7aae8e67d8ba1",
+      "bytes": 105248,
+      "unicodeRange": "U+8E00-8FFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-918165ec07c4ce29.woff2",
+      "sha256": "918165ec07c4ce29caf261c04b72b9534bcefe6c2451075ba97e994b079f53cc",
+      "bytes": 102856,
+      "unicodeRange": "U+9000-91FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-902c4a98d84c9f31.woff2",
+      "sha256": "902c4a98d84c9f312c209dec3ce3480925b23dcde80d92fed74154362ab2fc01",
+      "bytes": 115568,
+      "unicodeRange": "U+9200-93FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c2203f1626953849.woff2",
+      "sha256": "c2203f1626953849b089d0499d6b5b2342079b2522214723575585565b640ab4",
+      "bytes": 106920,
+      "unicodeRange": "U+9400-95FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b429f0fe5ccddc0a.woff2",
+      "sha256": "b429f0fe5ccddc0aec030de50b071771bb155f323842d2d46ce9eab749af3411",
+      "bytes": 109856,
+      "unicodeRange": "U+9600-97FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-99ab53593e546327.woff2",
+      "sha256": "99ab53593e5463279fa5394d7f667fce44ae8d912b258e64d28165ea4f739c64",
+      "bytes": 110236,
+      "unicodeRange": "U+9800-99FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9d9d2ca5e5ec4734.woff2",
+      "sha256": "9d9d2ca5e5ec47344f4cb8a06352623b9017dc93ac78de6b269301db94d1f81d",
+      "bytes": 128172,
+      "unicodeRange": "U+9A00-9BFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-06c6de5876d0a9e3.woff2",
+      "sha256": "06c6de5876d0a9e35ed8a94481df29b323b88f0b4764764aa286b05284bd6fb6",
+      "bytes": 129964,
+      "unicodeRange": "U+9C00-9DFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b86e53e7058088dd.woff2",
+      "sha256": "b86e53e7058088dd2faf8548406440c75cfc3a0ac4defa0fc929a5bb5029f652",
+      "bytes": 129612,
+      "unicodeRange": "U+9E00-9FFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b57d25cad88c6db3.woff2",
+      "sha256": "b57d25cad88c6db3096fa1ebf1643fd411583bbf1f97b71ca9d8fa6b3ec2b961",
+      "bytes": 3756,
+      "unicodeRange": "U+A4D0-A4FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-bc6769659b3057bb.woff2",
+      "sha256": "bc6769659b3057bb2278c8845e05be74da733cc0c3cf90a496ccac14fc3ae2a0",
+      "bytes": 2972,
+      "unicodeRange": "U+A700-A716,U+A71B-A71C,U+A730-A731,U+A78E,U+A792-A793,U+A7AF,U+A7B5,U+A7F1-A7F4,U+A7F9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-56a743a38769905d.woff2",
+      "sha256": "56a743a38769905dfde7083486e6171045be804d1cc12e16423aed0076deb072",
+      "bytes": 1244,
+      "unicodeRange": "U+AB53"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2acedb7ab4d3900d.woff2",
+      "sha256": "2acedb7ab4d3900df028dac713821ab8062824a901bf8b5947d684cecd2d42d8",
+      "bytes": 2432,
+      "unicodeRange": "U+F92C,U+F979,U+F995,U+F9E7,U+F9F1"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-5c296c4e4d699542.woff2",
+      "sha256": "5c296c4e4d6995423511a529ae7a9732e38494d3825983fe5558d81d0b0deb5b",
+      "bytes": 5960,
+      "unicodeRange": "U+FA0C-FA0F,U+FA11,U+FA13-FA14,U+FA18,U+FA1F-FA21,U+FA23-FA24,U+FA27-FA29,U+FB00-FB06"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-4af5c378e9bb25ea.woff2",
+      "sha256": "4af5c378e9bb25ea6c4089e115c2f7ed248e69817b72e482a779fe2dad4220da",
+      "bytes": 60528,
+      "unicodeRange": "U+FE10-FE19,U+FE30-FE52,U+FE54-FE66,U+FE68-FE6B,U+FF01-FF9F,U+FFE0-FFE6,U+FFE8,U+FFFC-FFFD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-79224eee18bf02ba.woff2",
+      "sha256": "79224eee18bf02bae62555d4a25ecffda9c0943d8ec812dd84041b0f9e36db00",
+      "bytes": 1228,
+      "unicodeRange": "U+107A5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d85dd0a2c724cdaf.woff2",
+      "sha256": "d85dd0a2c724cdafdeea6af6af123f167c0fd7404a535ddba07d9741ba828fc0",
+      "bytes": 1212,
+      "unicodeRange": "U+11FB0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c0d5725c16b6e69c.woff2",
+      "sha256": "c0d5725c16b6e69c7ad5d7ad16b8d5af2cc90bd5b6af7d0704218e733037c7f5",
+      "bytes": 1532,
+      "unicodeRange": "U+16FE2-16FE3,U+16FF2-16FF3"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-e0f670d4a8647b45.woff2",
+      "sha256": "e0f670d4a8647b45e4aa72bfd3ea78993d32540c0f32559b92b9746e57b126bd",
+      "bytes": 1504,
+      "unicodeRange": "U+1B123,U+1B126"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b58975aaef63cf82.woff2",
+      "sha256": "b58975aaef63cf8215585fc27ebf36b9dceaf827c87791ac621df5859c240d03",
+      "bytes": 2436,
+      "unicodeRange": "U+1D300-1D356,U+1D360-1D376"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c703cbd9d7be8f74.woff2",
+      "sha256": "c703cbd9d7be8f74742b69124470fd4edfa7ac7789877d8e31969691bf8a9b8c",
+      "bytes": 23464,
+      "unicodeRange": "U+1F000-1F02B,U+1F100,U+1F10B-1F10C,U+1F110-1F129,U+1F12F"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d828b1a18b368028.woff2",
+      "sha256": "d828b1a18b3680289c3b6c41108d093ab2e6fed83d7066ceb9a01bdb54e8b0e5",
+      "bytes": 1160,
+      "unicodeRange": "U+1F7FC"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-5838c75acd5c13b5.woff2",
+      "sha256": "5838c75acd5c13b5c114b87e2f0cc47b935d8cdb94b6fbfeac98a86dad403b13",
+      "bytes": 3868,
+      "unicodeRange": "U+1FA60-1FA6D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-f30e7dbd226adac8.woff2",
+      "sha256": "f30e7dbd226adac87d3108733f977f6f243cf2818fefbc92d0870fcb9d451778",
+      "bytes": 4076,
+      "unicodeRange": "U+2000B,U+2003E,U+2005E,U+20086-20087,U+20089-2008A,U+20092,U+200A2,U+200A4,U+200CA-200CD,U+200D1,U+200D3,U+200DC,U+2010C,U+2010E,U+20164,U+201A2,U+201A8-201A9,U+201BE,U+201D4,U+201EE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-922a9b787529ea9d.woff2",
+      "sha256": "922a9b787529ea9db302071cda47759a4605ccabde08d1831f5e6c43558719f7",
+      "bytes": 4284,
+      "unicodeRange": "U+2020C,U+20213,U+20242,U+2028E,U+2029F,U+202C6,U+20302,U+2032B,U+20350,U+20371,U+20381,U+203B7,U+203F9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-56fb16e41f62dc3b.woff2",
+      "sha256": "56fb16e41f62dc3b6f33002b1ca4e2d8963a824b5bd0ca184962f048f7be56d9",
+      "bytes": 3300,
+      "unicodeRange": "U+2042D,U+2044A,U+20509,U+20542,U+20545-20547,U+20584,U+20587,U+205D6,U+205FB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c51c0ce75df0fed6.woff2",
+      "sha256": "c51c0ce75df0fed6e5e0242a52c7cf93291c830a9aae536a027132c2454f9b47",
+      "bytes": 3260,
+      "unicodeRange": "U+20628,U+20676,U+206A4,U+2070E,U+20731,U+2074F,U+20779,U+207A9,U+207AD,U+207B0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-0f689497dee940aa.woff2",
+      "sha256": "0f689497dee940aaf8ae9704ddac96b93462b77a237a53f47012d447d5491769",
+      "bytes": 3304,
+      "unicodeRange": "U+20803,U+20807,U+2081D,U+2083A,U+20895,U+208B9,U+2097C,U+2099D,U+209DA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2c186ab46c082dcc.woff2",
+      "sha256": "2c186ab46c082dccd0012bd65d0d378928036120e3370eadddf0d2dca0ebae05",
+      "bytes": 3112,
+      "unicodeRange": "U+20A44,U+20AB1,U+20AD3,U+20B1D,U+20B24,U+20B6F,U+20B9F,U+20BB5,U+20BBE,U+20BD7,U+20BE5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-89deb46b35318bfd.woff2",
+      "sha256": "89deb46b35318bfd9390e3ea28184fc496ab8adb91e27e0a7fb5c6cbaefc85ab",
+      "bytes": 5208,
+      "unicodeRange": "U+20C41,U+20C53,U+20C78,U+20C8E,U+20C96,U+20CBF,U+20CCF-20CD0,U+20CD4-20CD5,U+20CFC,U+20D15,U+20D1F,U+20D45,U+20D5D,U+20D71,U+20D7C,U+20D7F,U+20DA7,U+20DE1,U+20DFF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-0eba73822dee78b1.woff2",
+      "sha256": "0eba73822dee78b1a52b3c6a7c0a771dde6e2218de6fcaff40dda075d571d647",
+      "bytes": 8680,
+      "unicodeRange": "U+20E01,U+20E0E-20E0F,U+20E64,U+20E6D,U+20E73,U+20E76-20E77,U+20E95-20E96,U+20E98,U+20E9D,U+20EA2,U+20ED7-20ED8,U+20EF3,U+20EF9-20EFA,U+20F1F,U+20F2D-20F2E,U+20F3B,U+20F4C,U+20F5F,U+20F7E,U+20F90,U+20F96,U+20FB4,U+20FBC,U+20FEA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-f146485591234300.woff2",
+      "sha256": "f1464855912343006531954eb76c8519f6e580062fc9129422a744a367c8a515",
+      "bytes": 5372,
+      "unicodeRange": "U+21014,U+2105C,U+2106F,U+21075-21076,U+2107B,U+210AB,U+210BF,U+210C1,U+210C9,U+210F6,U+21145,U+211CC,U+211D9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-4773e4d756c7409e.woff2",
+      "sha256": "4773e4d756c7409edc3e96927606214db35402de085765da604008af642ae7c5",
+      "bytes": 4424,
+      "unicodeRange": "U+21201,U+2123D,U+21255,U+21274,U+2127B,U+212D7,U+212E4,U+212FD,U+2131B,U+21334,U+21336,U+21344,U+2134C,U+21377,U+2139A,U+213C4,U+213CB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-63b615a090af7eb3.woff2",
+      "sha256": "63b615a090af7eb39e21f058a6861ea9607306b43630878cb6ada016e8b6e9f9",
+      "bytes": 2880,
+      "unicodeRange": "U+21413,U+2144D,U+2146D-2146E,U+21484,U+215D7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-aee3e083412f6d4c.woff2",
+      "sha256": "aee3e083412f6d4c1970134618a1172ccb466feaa62b9c70377096a684f728fb",
+      "bytes": 4140,
+      "unicodeRange": "U+21647,U+21681,U+216A6,U+216B4,U+216DF,U+216F0,U+21706,U+21742,U+21757,U+2176D,U+217D3,U+217DA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-cc25ea39d591051c.woff2",
+      "sha256": "cc25ea39d591051c2378d7adfe486f1bb45691c4b5764af6f8eaed1bc50e5f28",
+      "bytes": 2676,
+      "unicodeRange": "U+2180D,U+21883,U+218BD,U+2197C,U+219C3,U+219F3"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c6bba4e5f2f558e6.woff2",
+      "sha256": "c6bba4e5f2f558e68580ea84e06b0ec0d5f50d753bb5b95399b1265a1ba86787",
+      "bytes": 2608,
+      "unicodeRange": "U+21A18,U+21A25,U+21A4B,U+21B36,U+21BC1-21BC2"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-8fac4b03a777ced2.woff2",
+      "sha256": "8fac4b03a777ced2912d3d9321a35645ed3d1ae64a2eeb74419de68e536a8421",
+      "bytes": 4568,
+      "unicodeRange": "U+21C2A,U+21C52,U+21C56,U+21CA2,U+21CDE,U+21D2D,U+21D45,U+21D4C,U+21D62,U+21D78,U+21D92,U+21D9C,U+21DA1,U+21DA6,U+21DB7,U+21DD1,U+21DE0,U+21DEB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-5c60a7419e5066c0.woff2",
+      "sha256": "5c60a7419e5066c0d9f8bbd48da2e66f86fee3ecf41d665397f126cda652bc71",
+      "bytes": 4112,
+      "unicodeRange": "U+21E03,U+21E33-21E34,U+21E8E,U+21ED5,U+21F0F,U+21F1E,U+21F57,U+21F76,U+21FD2,U+21FE8,U+21FFA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d6c9535c75b5af9a.woff2",
+      "sha256": "d6c9535c75b5af9a74cd6b82af483be8452832eb7589ad1340ead75b32090fe4",
+      "bytes": 2540,
+      "unicodeRange": "U+22016,U+22049,U+220C7,U+2217B,U+221A1"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b603ec687e484831.woff2",
+      "sha256": "b603ec687e484831c51c1b944ba7b03faa5d4c072d9ae881bac70a72ed608b65",
+      "bytes": 2452,
+      "unicodeRange": "U+22218,U+2231A,U+2231E,U+22342,U+22399,U+223AD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-3ee358eea49c1630.woff2",
+      "sha256": "3ee358eea49c1630d6f35ee390e515dfe6024fd9a2e44d38f02a94eae9f92559",
+      "bytes": 2832,
+      "unicodeRange": "U+22488-22489,U+224BC,U+224C1,U+224C9,U+224CC,U+224DC,U+224E1,U+2251B,U+225B3"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ee9e4f0fb8017753.woff2",
+      "sha256": "ee9e4f0fb801775397a0d25a103045b91d027ba3d02fe479d9f6c06c37a553fe",
+      "bytes": 2344,
+      "unicodeRange": "U+22650,U+226F3,U+22775,U+227B5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-4a427037cab5bebb.woff2",
+      "sha256": "4a427037cab5bebb7ecb45c4cab9bdc570e974d643dd01b5af228a2bdafeacf9",
+      "bytes": 2992,
+      "unicodeRange": "U+2285B,U+22871,U+228AB,U+2295E,U+2298F"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-fe387c11149513c3.woff2",
+      "sha256": "fe387c11149513c3ccb7afa4047d6882bdc682b2ac98f3eec64c0a0c99c0f0dc",
+      "bytes": 5452,
+      "unicodeRange": "U+22A83,U+22A8F,U+22AB1,U+22AB8,U+22ACF,U+22AD3,U+22AD5,U+22AE6,U+22AEC,U+22B38,U+22B43,U+22B46,U+22B4F-22B50,U+22BA5-22BA6,U+22BCA,U+22BED,U+22BFE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-1a6cdda00e935791.woff2",
+      "sha256": "1a6cdda00e93579137b549b7871b019f36214d06c260f9a6f57833c72fe22819",
+      "bytes": 7040,
+      "unicodeRange": "U+22C1D,U+22C24,U+22C49,U+22C4B,U+22C51,U+22C55,U+22C62,U+22C64,U+22CB4,U+22CB8,U+22CC2,U+22CC6,U+22CDF,U+22CEA,U+22D08,U+22D4C,U+22D67,U+22D6E,U+22D80,U+22D8D,U+22DE1,U+22DEC"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c5eae03370cd28c7.woff2",
+      "sha256": "c5eae03370cd28c7540ec3012187e56143a4f61124f278db88055fb160845981",
+      "bytes": 2912,
+      "unicodeRange": "U+22EB3,U+22F0C,U+22F1B,U+22F7E,U+22F96"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-acc6c4954734e3a2.woff2",
+      "sha256": "acc6c4954734e3a2d66884200b87b8c424e51ef0108b57c7d7dad963eeb0ed13",
+      "bytes": 2472,
+      "unicodeRange": "U+23073-23074,U+231B6,U+231C3-231C4,U+231F5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-30b3f3f49f76292a.woff2",
+      "sha256": "30b3f3f49f76292a6392bf009586a832b8b89c87c9b80d1a9cab2b96f8f4b64e",
+      "bytes": 3936,
+      "unicodeRange": "U+23236,U+232C9,U+23350,U+23372,U+233B4,U+233D0,U+233D2-233D3,U+233D5,U+233DA,U+233DF,U+233E2,U+233E4"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d3047fa4cbabbad6.woff2",
+      "sha256": "d3047fa4cbabbad6148850b0571371f73b5d62e084daf5b6df3d87189fa9caa8",
+      "bytes": 3664,
+      "unicodeRange": "U+2343F,U+2344A-2344B,U+23451,U+23465,U+234E4,U+23519,U+2355A,U+23594,U+235C4,U+235CB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-7f3b04c588b05aa3.woff2",
+      "sha256": "7f3b04c588b05aa346712d2c674fafe21628f4ea862244939643f58b3bebb160",
+      "bytes": 6360,
+      "unicodeRange": "U+23617,U+23638-2363A,U+23647,U+2365C,U+236BA,U+236EE,U+2370C,U+2371C,U+2373F,U+23763-23764,U+237C4,U+237E7,U+237F4,U+237FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-f61c66e8ed7fddcc.woff2",
+      "sha256": "f61c66e8ed7fddcc9d9a25d49e0958dfb224019f719f6b27eb3d6f46bb767c24",
+      "bytes": 1972,
+      "unicodeRange": "U+23824,U+2383D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-cab02e763b9839ec.woff2",
+      "sha256": "cab02e763b9839ecc11d0fc103c6edb3262892aa02fe623b9b0eb62fdb7de018",
+      "bytes": 3124,
+      "unicodeRange": "U+23A3C,U+23A95,U+23A98,U+23B02,U+23B20,U+23B36,U+23B72,U+23B88"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-64a41103774ecbde.woff2",
+      "sha256": "64a41103774ecbdee58814219480a33c769d8b8d7c0c634a94dade19d497fc15",
+      "bytes": 5136,
+      "unicodeRange": "U+23C5D,U+23C7C,U+23C7F,U+23C97-23C98,U+23CA9,U+23CB7,U+23CFE,U+23D00,U+23D0E,U+23D13,U+23D18,U+23D40,U+23D66,U+23DD3,U+23DF9-23DFA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-02eac1fecc8d9b6c.woff2",
+      "sha256": "02eac1fecc8d9b6c0891ac58c486e5d61364042c598ae68d5af7e0715ee2ca5c",
+      "bytes": 3264,
+      "unicodeRange": "U+23E23-23E24,U+23E8C,U+23EF8,U+23F0E,U+23F7D-23F7E"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c913f4fca8bf1968.woff2",
+      "sha256": "c913f4fca8bf19680d14e4459bd7e1dc67f1331b7ac8d0195321e8f4543b6dc4",
+      "bytes": 3552,
+      "unicodeRange": "U+24096,U+240D2,U+24103,U+2418A,U+241A2,U+241AC,U+241B5,U+241C6,U+241FE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-533211bd7066d99a.woff2",
+      "sha256": "533211bd7066d99a265939e294bd837cdce9174c99797665b13268bb8577a3ac",
+      "bytes": 4276,
+      "unicodeRange": "U+24259,U+242B6,U+242EE,U+2430D,U+24319,U+24350,U+24352,U+24364,U+243BC,U+243F6"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-715a83e397bfc45c.woff2",
+      "sha256": "715a83e397bfc45caa9acedf7b210b7f1a60ef01a92f8069cf6abc74ad916747",
+      "bytes": 2568,
+      "unicodeRange": "U+24419,U+24430,U+244B9,U+244D3"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-5596812782eb9d74.woff2",
+      "sha256": "5596812782eb9d74644a751a69194d56fb03dbdcfcea2e5eb0d6fe98e9f2910e",
+      "bytes": 4168,
+      "unicodeRange": "U+24605,U+24629,U+2462F,U+246A5,U+246D8,U+2477D,U+2479A,U+247A4,U+247B6,U+247E0,U+247E5,U+247EF,U+247F1"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-73dbd2d0f3548a59.woff2",
+      "sha256": "73dbd2d0f3548a59a985dae0f703194752436248aa70e4f45e64df54a8c25829",
+      "bytes": 2456,
+      "unicodeRange": "U+2486F,U+24896,U+248E9,U+249DB,U+249DF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-82b490867ae1eac0.woff2",
+      "sha256": "82b490867ae1eac0ccde80edc36c8679e56d8a43d528d9fdc1568a7199c6d27b",
+      "bytes": 4904,
+      "unicodeRange": "U+24A01,U+24A0F,U+24A12,U+24A4D,U+24A7D,U+24A8C,U+24AC9,U+24B56,U+24B5B,U+24B62,U+24B6F,U+24BE5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ec02417752fd53c4.woff2",
+      "sha256": "ec02417752fd53c48c3c099b5f4e6f30e0cffca2430fab4c94fed60e4820cece",
+      "bytes": 4364,
+      "unicodeRange": "U+24C09,U+24C16,U+24C1A,U+24C1C,U+24C48,U+24C59,U+24C8D,U+24CC8,U+24D14,U+24D21,U+24D50,U+24D80,U+24D83,U+24DB8,U+24DEA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-aef144c8543b398f.woff2",
+      "sha256": "aef144c8543b398f2146406fef541696de08c007781c69308c39fa27ed63b592",
+      "bytes": 4396,
+      "unicodeRange": "U+24E01,U+24E0E,U+24E31,U+24E37,U+24E6A,U+24E85,U+24E8B,U+24EA5,U+24EA7,U+24EAA,U+24ECA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-05f8e810ce940fde.woff2",
+      "sha256": "05f8e810ce940fde9c5ba3138051032e9bdcf2736ead27f2386e0fcd59e37a56",
+      "bytes": 4252,
+      "unicodeRange": "U+2504A,U+25050,U+25055,U+25062,U+2506B,U+25122,U+25128,U+2512B,U+25148,U+2517B,U+2517E,U+251A7,U+251A9,U+251CD,U+251E2,U+251E5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-00a8dd03d3437626.woff2",
+      "sha256": "00a8dd03d343762673b98bf793c1995a87983ffb659cf523030dffc7ca642149",
+      "bytes": 2784,
+      "unicodeRange": "U+2521E,U+2524C,U+25273,U+2531A,U+25349,U+2538A"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-babfc8e43459fda4.woff2",
+      "sha256": "babfc8e43459fda45f2456c0449a4a8dd3bdcd8c38c52f15ec5ee0c92ca0503b",
+      "bytes": 4896,
+      "unicodeRange": "U+2542E,U+25435,U+2546A,U+2546E,U+2548E,U+254D9,U+2550E,U+25532,U+2554D,U+25562,U+25566,U+25584,U+255A7-255A8,U+255FD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a9720eb054b94112.woff2",
+      "sha256": "a9720eb054b94112fd192d784737e363799e9abc5a2e8cb9cfb1fb5bbe5c00c1",
+      "bytes": 2556,
+      "unicodeRange": "U+2560C,U+256F1,U+25771,U+257A9,U+257B4,U+257C7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-1adf2eecae8961b6.woff2",
+      "sha256": "1adf2eecae8961b6ca4b0fb5455d1918301e1ec1469452945ff40aee43a1e544",
+      "bytes": 3532,
+      "unicodeRange": "U+2591A,U+2592E,U+25977,U+25997,U+259C4,U+259D1,U+259D4"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-53c678f14f23255c.woff2",
+      "sha256": "53c678f14f23255c0504111fa34829061681ba4a36df0c400299ebdbf9d3c745",
+      "bytes": 4272,
+      "unicodeRange": "U+25AD7,U+25AE3-25AE4,U+25AF1,U+25B1E,U+25B20,U+25B2F,U+25B9C,U+25BB2,U+25BBE,U+25BDF,U+25BE5,U+25BE8"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ef947c1815b4c134.woff2",
+      "sha256": "ef947c1815b4c134910d42090f5f4f730b5191ebd3df59d0f110c909aef9e05e",
+      "bytes": 3828,
+      "unicodeRange": "U+25C14,U+25C4B,U+25C64,U+25C7C,U+25CBB,U+25D0A,U+25DA1,U+25DD1"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-7329b302f36dd9fa.woff2",
+      "sha256": "7329b302f36dd9fa5dcd4ca26986b59889aa991332d9b754ebe12dc373336905",
+      "bytes": 6116,
+      "unicodeRange": "U+25E2E,U+25E49,U+25E56,U+25E62,U+25E65,U+25E86,U+25EC2,U+25ED7-25ED8,U+25EE8,U+25EF5,U+25F23,U+25F5C,U+25FBA,U+25FD4,U+25FDD,U+25FE0,U+25FFB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c020d25f40901d58.woff2",
+      "sha256": "c020d25f40901d586817f5fb06be248292519effa9984d21ba62a73cfdad3e98",
+      "bytes": 2996,
+      "unicodeRange": "U+2600C,U+26017,U+26060,U+260B3,U+260C2,U+260ED"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ae30dc6a26bbf41d.woff2",
+      "sha256": "ae30dc6a26bbf41d4a0dcb08afbf3522d49f940476f99cfad14140290b13243a",
+      "bytes": 5068,
+      "unicodeRange": "U+26216,U+26220-26221,U+26246,U+2624E,U+26258,U+2626B,U+26270,U+26286,U+26291,U+26293,U+2630A,U+2634B-2634C,U+26351,U+26369,U+26393,U+263F4"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ed1d5875799272d3.woff2",
+      "sha256": "ed1d5875799272d3bf7c098ff3184557a5634ce3e7548cc18e6fd16f318c947c",
+      "bytes": 2928,
+      "unicodeRange": "U+26402,U+2640C,U+2648D,U+26548,U+26553,U+265D2"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-f89985b659395083.woff2",
+      "sha256": "f89985b6593950831d1280d09b95a5a43b93f2b4c1649aaff3bed7821c4d75dd",
+      "bytes": 3852,
+      "unicodeRange": "U+26676,U+26678,U+2667E,U+266B0,U+266E8,U+26706,U+2671D,U+2677C,U+267A6,U+267CC,U+267EA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-60b906fe60e480d6.woff2",
+      "sha256": "60b906fe60e480d60eb65de6e3d21172fcfe5bb4fa05a818b56dba3df4f6a143",
+      "bytes": 3840,
+      "unicodeRange": "U+2683F,U+2688A,U+268DD,U+268EA,U+26900,U+2690E,U+26951,U+2696F,U+269DD,U+269F2,U+269FA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6821a7e40ead9479.woff2",
+      "sha256": "6821a7e40ead94799aca9cd132cb0a0fc927ada5aa17fc76b660e2769ffdf4f2",
+      "bytes": 3848,
+      "unicodeRange": "U+26A1E,U+26A29,U+26A2D,U+26A58,U+26A8C,U+26AB7,U+26ABD,U+26AFF,U+26B01,U+26B4C,U+26B5C"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-8ec8193e55adce16.woff2",
+      "sha256": "8ec8193e55adce16f75fac86d3ab5e3958776c8d4536ae5899adc2d2294cf332",
+      "bytes": 3624,
+      "unicodeRange": "U+26C0F,U+26C21,U+26C29,U+26C73,U+26CC6,U+26CDD,U+26CEF,U+26D4F,U+26D9F"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b9fde0ace975f990.woff2",
+      "sha256": "b9fde0ace975f9907d4655070ed33ce4789a836c038b632e5d3efe10ef118a77",
+      "bytes": 3732,
+      "unicodeRange": "U+26E05,U+26E40,U+26E65,U+26ED8,U+26F94,U+26FF6-26FF8"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-777847c1e79e4796.woff2",
+      "sha256": "777847c1e79e4796261719d1eaa911145a617e669cfef1d1d0989df184621bad",
+      "bytes": 2916,
+      "unicodeRange": "U+270F4,U+270FD,U+2710D,U+27139"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-eebc57874c8b448b.woff2",
+      "sha256": "eebc57874c8b448b15cdf97d713b655bcc937a127816ed7a8b473cf30152dfad",
+      "bytes": 3528,
+      "unicodeRange": "U+2725F,U+27285,U+27304,U+27371,U+273A5,U+273DA-273DB,U+273FE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-e03ecb810bcb9ec4.woff2",
+      "sha256": "e03ecb810bcb9ec4d3d38d82b79f20556d9d2813899b4a584c1ae761661a354a",
+      "bytes": 2616,
+      "unicodeRange": "U+27410,U+27449,U+27486,U+274BD,U+275E9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-f2627dcc9ad1542f.woff2",
+      "sha256": "f2627dcc9ad1542f9b81abfd439e62fc58fb884a19c71f628e8ff7d0280aa780",
+      "bytes": 4272,
+      "unicodeRange": "U+27607,U+27614-27615,U+27631,U+27684,U+27693,U+2770E,U+27723,U+27741,U+27752,U+277C4,U+277F0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-e17ded0bb63b298e.woff2",
+      "sha256": "e17ded0bb63b298e41b1979cba00073527aa4153c08efcc91e24cdd203da2580",
+      "bytes": 2376,
+      "unicodeRange": "U+278B2,U+2797A,U+27985,U+279A0,U+279A7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b9211b3b81c1358f.woff2",
+      "sha256": "b9211b3b81c1358f2b39c128abf3e9792de9779ef7bff7b8cfee23c975c71da2",
+      "bytes": 4332,
+      "unicodeRange": "U+27A3E-27A3F,U+27A63,U+27A84,U+27AF4,U+27B2A,U+27B99,U+27BAA,U+27BB3,U+27BBE,U+27BC7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6b7bb96ff1bed306.woff2",
+      "sha256": "6b7bb96ff1bed3066e668323b0b827957415b4d446205a6f265e6c3aef2b219d",
+      "bytes": 2972,
+      "unicodeRange": "U+27C0E,U+27C35,U+27CB8,U+27D2A,U+27D48,U+27DA0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-bc346861590c6db8.woff2",
+      "sha256": "bc346861590c6db8e675780cccc4675035ea3cfa96b875395315936d42822e7d",
+      "bytes": 3120,
+      "unicodeRange": "U+27E10,U+27EAF,U+27EF4,U+27FB7,U+27FC1,U+27FEC,U+27FF3,U+27FF9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9db6fbaa2e6b624b.woff2",
+      "sha256": "9db6fbaa2e6b624b18e36c4967666fddab5312f24077ae8cfd9d1fec8b142346",
+      "bytes": 4564,
+      "unicodeRange": "U+28001,U+2808A,U+280BB,U+280BD-280BF,U+280C5,U+280E9,U+280F0,U+2812E,U+28154,U+2815D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-3b2a2e2bdeabf771.woff2",
+      "sha256": "3b2a2e2bdeabf77145590c0dd7364c10c03f0267de73763c86d51d39d540233c",
+      "bytes": 4472,
+      "unicodeRange": "U+28207,U+28263,U+28277,U+28282,U+282CC-282CD,U+282E2,U+282F3,U+2837D,U+2838A,U+283CD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d89c8ee671ece0c3.woff2",
+      "sha256": "d89c8ee671ece0c3d85a0ed7282031fb2c1def8d27e96eaa96184695ae7194c9",
+      "bytes": 3936,
+      "unicodeRange": "U+28408,U+2840C,U+28455,U+28468,U+28487,U+284C8,U+284DC,U+2856B,U+28595,U+285C8-285C9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-b4911e1dc8f17d13.woff2",
+      "sha256": "b4911e1dc8f17d134ec23d0cbe3d4a83ed5074ae5494198be885729746e91b66",
+      "bytes": 2916,
+      "unicodeRange": "U+2866C,U+28678,U+28695,U+28697,U+286D7,U+286FA,U+287AA,U+287E0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-137932c4833e3ca4.woff2",
+      "sha256": "137932c4833e3ca40bae6752fbff90ac9a9412331296c730e5b1812d4840aa55",
+      "bytes": 3864,
+      "unicodeRange": "U+28891,U+28946,U+28948-28949,U+2896B,U+28987-28988,U+289A1,U+289BA-289BB,U+289C0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9220568ae7e3ed66.woff2",
+      "sha256": "9220568ae7e3ed669c84187475cf2d82396038365f6e31bb01bde654b728b57b",
+      "bytes": 6244,
+      "unicodeRange": "U+28A0F,U+28A1B,U+28A1E,U+28A29,U+28A43,U+28A71,U+28A99,U+28ACD,U+28ADD,U+28AE4,U+28B46,U+28B49,U+28B4E,U+28BC1,U+28BEF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-1bcb4bba42f91b2f.woff2",
+      "sha256": "1bcb4bba42f91b2fb0f3a0d4f6d099270a2ff5e0225632ff41019ba9ee7c3c0e",
+      "bytes": 5140,
+      "unicodeRange": "U+28C3E,U+28C47,U+28C4D-28C4F,U+28C51,U+28C53-28C54,U+28CCA,U+28CCD,U+28CD2,U+28D10,U+28D71,U+28D99,U+28DFB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c70dbb9c6682affc.woff2",
+      "sha256": "c70dbb9c6682affc365880c11fca2d7cea3f2842c8f30f567a6bd21db0a4acf8",
+      "bytes": 4336,
+      "unicodeRange": "U+28E0F,U+28E1F,U+28E36,U+28E39,U+28E89,U+28E93,U+28E99,U+28EE7,U+28EEB,U+28EF6,U+28F32,U+28F7B,U+28FF8"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-22f0fbb9a062f77e.woff2",
+      "sha256": "22f0fbb9a062f77eb374d213f41cea4800709561fa0ebfa5795eeb6a60870c7f",
+      "bytes": 2048,
+      "unicodeRange": "U+2925C,U+292A0,U+292B1"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6fcf980b0b9e2153.woff2",
+      "sha256": "6fcf980b0b9e2153773f1e15802c762a0bed20e7f96621d79f441a7a38a2b00e",
+      "bytes": 3472,
+      "unicodeRange": "U+2945D,U+2947E,U+29490,U+294BA,U+294D0,U+294E5,U+295CF,U+295D7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-fb5f33d61e50df9d.woff2",
+      "sha256": "fb5f33d61e50df9d8574dc4184de2afc2bb0e8e2bf4f66d3151062dc87610a20",
+      "bytes": 4872,
+      "unicodeRange": "U+2967F,U+2969F,U+296A8,U+296C3,U+296E9,U+296F0,U+29704,U+29719,U+29730,U+2974E,U+29750-29751,U+297B0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-673e4eff5b4f8e6b.woff2",
+      "sha256": "673e4eff5b4f8e6bb433e84745fd877b19d633defee162db8187b2323c30331a",
+      "bytes": 2344,
+      "unicodeRange": "U+2980C-2980D,U+29810,U+298C6"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-38c88a2c7f2d75fb.woff2",
+      "sha256": "38c88a2c7f2d75fb69d5690ab679cd922f2a1a708662b6a1610930e4a86e5922",
+      "bytes": 2308,
+      "unicodeRange": "U+29A02,U+29A72,U+29B9C"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2aec13ae4fb36178.woff2",
+      "sha256": "2aec13ae4fb361789ec61ea20d49a67e71508bdf92f41de6d5b10f19a501a0e5",
+      "bytes": 3828,
+      "unicodeRange": "U+29C18,U+29D71,U+29D98,U+29DAF,U+29DD3,U+29DD5,U+29DDB,U+29DF6"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-32e61d6b25068f36.woff2",
+      "sha256": "32e61d6b25068f369737766ffbdcb9eed3d617d0519a87870f82013dea8a9e81",
+      "bytes": 9488,
+      "unicodeRange": "U+29E15,U+29E19,U+29E36,U+29E3D,U+29E49,U+29E4E,U+29E8A,U+29EAC,U+29EC4,U+29EDB,U+29EE9,U+29EF8,U+29F27,U+29F30,U+29F48,U+29F70,U+29F7C,U+29F7E,U+29F83,U+29F87,U+29F8C,U+29FCE,U+29FD7,U+29FFA"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-19554091f920d3bd.woff2",
+      "sha256": "19554091f920d3bd1b05fff8f27b4a5e1a8a43d939b0d8992ff2fe2bea44befd",
+      "bytes": 5020,
+      "unicodeRange": "U+2A00B,U+2A01A,U+2A02F,U+2A04E-2A04F,U+2A082,U+2A0BA,U+2A0F9,U+2A133,U+2A190,U+2A1E1"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9cbaa35bb5810fe5.woff2",
+      "sha256": "9cbaa35bb5810fe5da5f1574cafc98b86f21c70a2a7203fad91a927f38fdd341",
+      "bytes": 2416,
+      "unicodeRange": "U+2A248,U+2A38A,U+2A38C,U+2A3AD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-42e9090fdf5ce04d.woff2",
+      "sha256": "42e9090fdf5ce04d595149a78cc395f986c4a0128321bd34dc4057cebdf9a81a",
+      "bytes": 2480,
+      "unicodeRange": "U+2A41E,U+2A437,U+2A590,U+2A5F1"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-00725d6568f061eb.woff2",
+      "sha256": "00725d6568f061eb8aa58c0b1df5beaf900bcbb3f897d65f1540c8480a4ef634",
+      "bytes": 4148,
+      "unicodeRange": "U+2A602,U+2A612,U+2A61A,U+2A64A,U+2A6B2,U+2A6D7-2A6DD,U+2A736,U+2A79D,U+2A7DD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-258599f1ce1f86b4.woff2",
+      "sha256": "258599f1ce1f86b4d8114177ba1a3a8d865227a82bcb908c0bf7e6c9deb85cd8",
+      "bytes": 3360,
+      "unicodeRange": "U+2A833,U+2A838,U+2A83D,U+2A8AE,U+2A8BC,U+2A8DD,U+2A8FB,U+2A917,U+2A970,U+2A9F7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6a9676a6dac90cd8.woff2",
+      "sha256": "6a9676a6dac90cd8a93751f2ca0412a5fb2b63002043eac77c3499fb98e8240d",
+      "bytes": 3116,
+      "unicodeRange": "U+2AA07,U+2AA0A,U+2AA17,U+2AA30,U+2AA36,U+2AA58,U+2AB62,U+2AB8B"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-0dc7d5f15170cbff.woff2",
+      "sha256": "0dc7d5f15170cbff3b266ac20e889ed9e7e8bc3b6e3a0067562c00ba9d342da0",
+      "bytes": 2008,
+      "unicodeRange": "U+2AC77,U+2AC94,U+2ADFD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-0598ed05f3658b56.woff2",
+      "sha256": "0598ed05f3658b56270c40baebf5d67008c36f33ddd020cfdb237f15c57c4f7c",
+      "bytes": 2884,
+      "unicodeRange": "U+2AE5A,U+2AED0,U+2AED5,U+2AF47,U+2AF94,U+2AFA2,U+2AFA6,U+2AFD6"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c9c107ea89263e8c.woff2",
+      "sha256": "c9c107ea89263e8c8069ec65e0b8d29febf7de67406b1a06529eec06751a005b",
+      "bytes": 5460,
+      "unicodeRange": "U+2B061,U+2B088,U+2B0D1,U+2B11B,U+2B11F-2B120,U+2B124-2B125,U+2B127-2B128,U+2B12B,U+2B137-2B138,U+2B18F,U+2B1E6,U+2B1ED"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ba806db65b98a306.woff2",
+      "sha256": "ba806db65b98a306452e4e55442c842516029d1c05364555fbb42bb7427859dc",
+      "bytes": 5676,
+      "unicodeRange": "U+2B21F,U+2B230,U+2B241,U+2B2BB,U+2B2CC,U+2B2F7,U+2B300,U+2B328,U+2B35F,U+2B362-2B363,U+2B36F,U+2B372,U+2B37B,U+2B37D,U+2B393,U+2B3AB,U+2B3CB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-679e628854378a55.woff2",
+      "sha256": "679e628854378a551823346afbab0b0eaa7467678fc881cac68426bc9d559675",
+      "bytes": 9424,
+      "unicodeRange": "U+2B404,U+2B410-2B411,U+2B413,U+2B416,U+2B418,U+2B461,U+2B4A2,U+2B4E7,U+2B4E9,U+2B4EF,U+2B4F4,U+2B4F6,U+2B4F9,U+2B4FC,U+2B507,U+2B50D-2B50E,U+2B536,U+2B583,U+2B592,U+2B594,U+2B598,U+2B5AE-2B5AF,U+2B5B3,U+2B5B9,U+2B5E0,U+2B5E6-2B5E7,U+2B5E9,U+2B5EB,U+2B5EE,U+2B5F0,U+2B5F4"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-46b33319fcce68b2.woff2",
+      "sha256": "46b33319fcce68b2e1544f5781c1e2834e65dcff66dd7a82cffaefcf4a0f813b",
+      "bytes": 12992,
+      "unicodeRange": "U+2B61C-2B61D,U+2B624-2B628,U+2B62A,U+2B62C-2B62D,U+2B688-2B689,U+2B690,U+2B692,U+2B694-2B696,U+2B6A5,U+2B6AA,U+2B6AD,U+2B6DA,U+2B6DE,U+2B6E3,U+2B6E9-2B6EA,U+2B6ED,U+2B6F3,U+2B6F6,U+2B6F8,U+2B728,U+2B72C,U+2B737,U+2B739-2B73B,U+2B74F,U+2B758,U+2B75B,U+2B77A-2B77B,U+2B7A9,U+2B7BC,U+2B7C2,U+2B7C5,U+2B7E6-2B7E7,U+2B7F7,U+2B7F9,U+2B7FC"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-27b71419214696ee.woff2",
+      "sha256": "27b71419214696ee1680b76f88967b1f2485675967d5965263b996be2cf317d2",
+      "bytes": 3948,
+      "unicodeRange": "U+2B806,U+2B80A,U+2B81B-2B81C,U+2B81E,U+2B826,U+2B892,U+2B8B8,U+2B8C6,U+2B8CA,U+2B9EF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9859bd6b4b0b9ab6.woff2",
+      "sha256": "9859bd6b4b0b9ab64b39c43a45f68132a5fcbcff5661a11baa46fa43b06c5fd6",
+      "bytes": 5228,
+      "unicodeRange": "U+2BA4F,U+2BA51,U+2BA5B,U+2BA6B,U+2BA74,U+2BA81,U+2BA98,U+2BAA9,U+2BAC7,U+2BAE6,U+2BAFE,U+2BB37,U+2BB5F,U+2BB62,U+2BB6A,U+2BB7C,U+2BB83,U+2BB85,U+2BBDC"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-4088b2e0cc7d3afc.woff2",
+      "sha256": "4088b2e0cc7d3afc6e3d636a8f7350ff69162bbb6c08b9923ae26f57c6bdd706",
+      "bytes": 4432,
+      "unicodeRange": "U+2BC02,U+2BC1B,U+2BC21,U+2BC30,U+2BC56,U+2BCA6,U+2BCB7,U+2BD58,U+2BD77,U+2BD7C,U+2BD87,U+2BDC0,U+2BDF7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-557c54cb335c75e8.woff2",
+      "sha256": "557c54cb335c75e8352a3dbd28effda3f52e1dd9d4d9dc5eb7de19fc021a1279",
+      "bytes": 1804,
+      "unicodeRange": "U+2BE29,U+2BE6F,U+2BF1D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-2b035111b13917ae.woff2",
+      "sha256": "2b035111b13917ae9be765475e2f1c1fce642aaf85d30b89cc3f98d2bfcb5e77",
+      "bytes": 4656,
+      "unicodeRange": "U+2C029-2C02A,U+2C081,U+2C0A9,U+2C0AD,U+2C0C0,U+2C0CA,U+2C0D8,U+2C129,U+2C1AE,U+2C1D5,U+2C1D8-2C1D9,U+2C1DE,U+2C1F9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9824e88115b22fe9.woff2",
+      "sha256": "9824e88115b22fe92b6907eda9338caf435e4994eff09d7c6babd4981147ca50",
+      "bytes": 3796,
+      "unicodeRange": "U+2C267,U+2C27C,U+2C288,U+2C2A4,U+2C2B6,U+2C317,U+2C35B,U+2C361,U+2C364,U+2C386,U+2C3DF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-65cb1e66a41e5e77.woff2",
+      "sha256": "65cb1e66a41e5e7795c89826c4f3fa11a05df2992d4e015fb2b0ce9191d0cbad",
+      "bytes": 2996,
+      "unicodeRange": "U+2C457,U+2C488,U+2C494,U+2C497,U+2C542,U+2C58B,U+2C591,U+2C59E"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-057e273bbdc739d9.woff2",
+      "sha256": "057e273bbdc739d9e3a0c51973898ba87ba8947609f7c51f14b014a6a47ba294",
+      "bytes": 6632,
+      "unicodeRange": "U+2C613,U+2C618,U+2C61C-2C61D,U+2C621-2C622,U+2C629,U+2C62B-2C62D,U+2C62F,U+2C635,U+2C642,U+2C646-2C647,U+2C64A-2C64B,U+2C72C,U+2C72F,U+2C79F,U+2C7C1,U+2C7FD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-1b748cafd07f147a.woff2",
+      "sha256": "1b748cafd07f147a444e1db4fe482a833608a995d12ba110e8be3246a5af6cb4",
+      "bytes": 4452,
+      "unicodeRange": "U+2C805,U+2C816,U+2C88A,U+2C8C0,U+2C8D9,U+2C8DE,U+2C8E1,U+2C8F3,U+2C907,U+2C90A,U+2C91D,U+2C930,U+2C9B0,U+2C9C0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a88e3e98a040d539.woff2",
+      "sha256": "a88e3e98a040d539c1f9378545b5f80c63cf83dc1325e9f59594830e7d560601",
+      "bytes": 9804,
+      "unicodeRange": "U+2CA02,U+2CA0E,U+2CA7D,U+2CA8D,U+2CAA9,U+2CB29,U+2CB2B,U+2CB2D-2CB2E,U+2CB31-2CB32,U+2CB38-2CB3B,U+2CB3F,U+2CB41,U+2CB4A,U+2CB4E,U+2CB5A-2CB5B,U+2CB63-2CB64,U+2CB69,U+2CB6C,U+2CB6F,U+2CB72-2CB74,U+2CB76,U+2CB78,U+2CB7C,U+2CBA4-2CBA5,U+2CBB1,U+2CBB4,U+2CBBF-2CBC0,U+2CBCE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-1ed9ab124798dc3d.woff2",
+      "sha256": "1ed9ab124798dc3d9366bc40d4948deba864253ec09e3846d7aae58b0fd8f9fe",
+      "bytes": 8044,
+      "unicodeRange": "U+2CC56,U+2CC5F,U+2CC66,U+2CCB1,U+2CCBD,U+2CCC7,U+2CCF5-2CCF6,U+2CCFD,U+2CCFF,U+2CD02-2CD03,U+2CD0A,U+2CD10,U+2CD68,U+2CD81,U+2CD8B,U+2CD8D,U+2CD8F-2CD90,U+2CD9F-2CDA0,U+2CDA7-2CDA8,U+2CDAD-2CDAE,U+2CDD5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-246f38c68e651523.woff2",
+      "sha256": "246f38c68e651523d5cd83e49980be43077483ed04097eb811487e5ced42c181",
+      "bytes": 5736,
+      "unicodeRange": "U+2CE01,U+2CE05,U+2CE08,U+2CE0A,U+2CE18,U+2CE1A,U+2CE22-2CE23,U+2CE26,U+2CE29-2CE2A,U+2CE31,U+2CE7C,U+2CE88,U+2CE93,U+2CEAD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-bf030b1708894d21.woff2",
+      "sha256": "bf030b1708894d2162f8dd04b1f5e44d76fc046fbdd9291c5daaa840f0c7b21d",
+      "bytes": 2308,
+      "unicodeRange": "U+2D026,U+2D075,U+2D079,U+2D11B"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ed0e1154c91ab64b.woff2",
+      "sha256": "ed0e1154c91ab64b15bb92969af1d1edcbda12e053016bb49a7779780a277185",
+      "bytes": 1852,
+      "unicodeRange": "U+2D25D,U+2D382,U+2D39C"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-04ad5233badeae6e.woff2",
+      "sha256": "04ad5233badeae6e01966e5fdf9af095c81ff7ef2ef712c247a35324fb6a5d71",
+      "bytes": 1376,
+      "unicodeRange": "U+2D544,U+2D546"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a2f32e93569f3809.woff2",
+      "sha256": "a2f32e93569f3809c162cef41087a57a25d21633512b113fc93cd006a5835ada",
+      "bytes": 1920,
+      "unicodeRange": "U+2D613,U+2D64F,U+2D6A6,U+2D70C"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a297b28c44b5b310.woff2",
+      "sha256": "a297b28c44b5b310cef5ab4be244f781f350f4b054e3cf2afd089a270539f74d",
+      "bytes": 2100,
+      "unicodeRange": "U+2D8C7,U+2D8E7,U+2D930"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-95e39bf7166e13d4.woff2",
+      "sha256": "95e39bf7166e13d4e8a3cdab9dcb721e0ea3fee84b9f62d09281b42c009d9183",
+      "bytes": 1416,
+      "unicodeRange": "U+2DA86"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-40ef06f16079d090.woff2",
+      "sha256": "40ef06f16079d090ff5d6d39ad5a8b4aef4a64e50276c1951ddb7e3c3d02f158",
+      "bytes": 1864,
+      "unicodeRange": "U+2DC4A,U+2DCFF,U+2DD0A"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-040fe8dcc27b16c0.woff2",
+      "sha256": "040fe8dcc27b16c014de5b872411c84de1f901c87bda9c0917861de2492f3721",
+      "bytes": 1384,
+      "unicodeRange": "U+2DE5C"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-87b18ae44349ffb5.woff2",
+      "sha256": "87b18ae44349ffb5ba14adc5a866c206f3aaa7b2b4ac9e22f5a2bb946178dcdc",
+      "bytes": 2168,
+      "unicodeRange": "U+2E014,U+2E0B9,U+2E0C4,U+2E18F"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9fd6c544d5e10ce2.woff2",
+      "sha256": "9fd6c544d5e10ce2589caf18e595a07c72534abf79786b729e26b94ea26a26f3",
+      "bytes": 3324,
+      "unicodeRange": "U+2E261-2E262,U+2E264,U+2E267-2E268,U+2E26A-2E26C,U+2E26F"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ca3076cfcd46d618.woff2",
+      "sha256": "ca3076cfcd46d618813aec9aa802dc2ed58a53363d9e282b49385c5bf8a2a876",
+      "bytes": 3264,
+      "unicodeRange": "U+2E41A,U+2E428,U+2E502,U+2E505,U+2E50A,U+2E581,U+2E5B1,U+2E5FB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-9dde2491d3ac1cd3.woff2",
+      "sha256": "9dde2491d3ac1cd3052911a3ac03e03773dcc4ddf9a4bee9a3505e524c09fa7f",
+      "bytes": 3312,
+      "unicodeRange": "U+2E64A-2E64B,U+2E774-2E775,U+2E778-2E77A"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c97329f450d5d742.woff2",
+      "sha256": "c97329f450d5d742a2053ca21eb8d8b28c16c9e40f5ab2676adab1f49297305f",
+      "bytes": 3884,
+      "unicodeRange": "U+2E81E,U+2E8F2-2E8F7,U+2E932,U+2E9F4-2E9F5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-50099ec27e288db3.woff2",
+      "sha256": "50099ec27e288db3713249d9a34e79516fdb0685fb82830d5304c211555b8133",
+      "bytes": 7992,
+      "unicodeRange": "U+2EA3B,U+2EA5B,U+2EA5D-2EA5E,U+2EAA5,U+2EAC2,U+2EB1B-2EB24,U+2EB65-2EB66,U+2EB68,U+2EB6A,U+2EB70,U+2EB87,U+2EBD9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-35bb8cc78f230f8b.woff2",
+      "sha256": "35bb8cc78f230f8b00fcb11b0257272bb0918f30bb284a8e386a1513ab960d26",
+      "bytes": 2500,
+      "unicodeRange": "U+2EC63,U+2EC7B,U+2ED3F,U+2EDCC-2EDCD,U+2EDF5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-62cf5b3434c789a5.woff2",
+      "sha256": "62cf5b3434c789a5dcccc8ed32353e201c42c9770e10871e57d0e42f739cede5",
+      "bytes": 1660,
+      "unicodeRange": "U+2EE5D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-db46fbe5f5fed2bd.woff2",
+      "sha256": "db46fbe5f5fed2bd5194daf1a9b6e589cf48ff594cc81c38a733524adf37fa47",
+      "bytes": 1776,
+      "unicodeRange": "U+2F80F,U+2F89B,U+2F8D2"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-e40254b30bd93617.woff2",
+      "sha256": "e40254b30bd9361769ca90817d4b053a6af67287d985fb14d50058480ee29aab",
+      "bytes": 5428,
+      "unicodeRange": "U+30002,U+30008-30009,U+30021-30022,U+30053,U+3005C,U+30061,U+3006C,U+30072,U+300DD,U+300EE,U+300F7,U+3011D,U+30149-3014A,U+30170,U+30174,U+30179,U+3018A,U+30196,U+301B3,U+301BB,U+301DB,U+301E2-301E3,U+301F0"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-1804248a0dd68209.woff2",
+      "sha256": "1804248a0dd682095470780f1a84df2b67dba034d9e1e79daee488e6144f3573",
+      "bytes": 4248,
+      "unicodeRange": "U+30270,U+302C0,U+302D9,U+302DB-302DC,U+302DE,U+302F7,U+302FB,U+30300,U+30302,U+30335,U+3033B,U+3034E,U+30370-30371"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ddfc6618e9def049.woff2",
+      "sha256": "ddfc6618e9def0492433168bbecd7c7d3e9b059b089601350d6ac14cef0de668",
+      "bytes": 4496,
+      "unicodeRange": "U+30409,U+30414,U+3043A,U+3043F,U+3044A,U+3044C,U+30450,U+3045D-3045E,U+304CC,U+304E2-304E3,U+304E8,U+304ED,U+3057A,U+305D1,U+305DD,U+305F6"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-77dd7d8082a3c106.woff2",
+      "sha256": "77dd7d8082a3c106d5ae7d8b981d70a296d327d7d254c7ea658acbd2865f3372",
+      "bytes": 3356,
+      "unicodeRange": "U+3067D,U+306D1,U+306D3,U+306E6,U+306EC,U+306F4,U+30708,U+30776,U+30787,U+307D8"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-a96f8ccdae6a0e50.woff2",
+      "sha256": "a96f8ccdae6a0e502942babbdd5765f4479af31e1c8a9fbc4fb6352e49a0b654",
+      "bytes": 4280,
+      "unicodeRange": "U+30831,U+30842,U+30849,U+30853,U+30858,U+308F2,U+308FB,U+30915,U+3094C,U+30955,U+30969,U+30993,U+309AA-309AB,U+309C9"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d86bbdd423beac96.woff2",
+      "sha256": "d86bbdd423beac9620b3c853f16498ea139abf4a8a617ecdf7e966fbdffb269f",
+      "bytes": 4580,
+      "unicodeRange": "U+30A1B,U+30A62,U+30AA9,U+30AB1,U+30ABF,U+30AFE,U+30B04,U+30B0A,U+30B15,U+30B43,U+30B4B,U+30B5D,U+30B87,U+30BF2,U+30BF6,U+30BFC"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d7f8c1bb031544b0.woff2",
+      "sha256": "d7f8c1bb031544b0ad51fef880e5019a41897eaa3b15611d74d18e31d88372e1",
+      "bytes": 6016,
+      "unicodeRange": "U+30C21,U+30C28,U+30C2B,U+30C53,U+30C5F,U+30C69,U+30C71-30C72,U+30CBD,U+30CC7,U+30D4B,U+30D55,U+30D5D-30D5F,U+30D67,U+30D74,U+30D7C,U+30D8A,U+30DDF-30DE0,U+30DE3,U+30DE5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-acd5b99cd41b9b6b.woff2",
+      "sha256": "acd5b99cd41b9b6bc34f4fc9c102bcf1a2653f2a1a6369e9e778d43d56c35fa9",
+      "bytes": 6272,
+      "unicodeRange": "U+30E01,U+30E04,U+30E6C,U+30E70,U+30E72,U+30E79,U+30EDD-30EDE,U+30F03,U+30F57,U+30F59-30F5A,U+30F5F,U+30F64,U+30F74,U+30F7D,U+30F82,U+30FA0,U+30FAB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-646fa9d960ed0349.woff2",
+      "sha256": "646fa9d960ed0349b50d8dec465dd16c8379f5bbfe1ba2a5f7c9eb0a2ea597d4",
+      "bytes": 6920,
+      "unicodeRange": "U+31090,U+310A8-310AA,U+310B1,U+310EA,U+310F1,U+310FA,U+31148,U+3114B-3114C,U+31151,U+3115B,U+311A5,U+311D2,U+311DD,U+311E3,U+311EB,U+311EE,U+311F1,U+311F3,U+311F6,U+311FE"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-6c20f07ae02f0bd1.woff2",
+      "sha256": "6c20f07ae02f0bd18b332d617717ca677788e454f3c8a383bdeb9720de303e4f",
+      "bytes": 4684,
+      "unicodeRange": "U+3124D,U+31250,U+31254,U+31257,U+31275,U+3127B-3127C,U+31283,U+31288,U+3128A,U+312AC,U+3132E,U+313BC,U+313FF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-21d829fcea1cc0ce.woff2",
+      "sha256": "21d829fcea1cc0ce87c53c2c473dc3e942d3a18526c5e7dc75671727b3b1be8c",
+      "bytes": 1608,
+      "unicodeRange": "U+3158E,U+31592"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-24e6a4383211d958.woff2",
+      "sha256": "24e6a4383211d958a102267a33f54a9a4af41c2571e2d7a70d38735e85216fb2",
+      "bytes": 1376,
+      "unicodeRange": "U+3176B-3176C"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-03dee70a5d355326.woff2",
+      "sha256": "03dee70a5d35532640a3d7b496c7da1c79a1b2b7ae3eaa2102fcf10f7c736e63",
+      "bytes": 2032,
+      "unicodeRange": "U+31AC9,U+31B92,U+31B9C"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-fc056ef9d40b735d.woff2",
+      "sha256": "fc056ef9d40b735d5dc97362eac4f72de999caf753c714881a6d9d41e7453aa9",
+      "bytes": 2224,
+      "unicodeRange": "U+31C7F,U+31D1F,U+31D31,U+31DE5"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-aba0f8e4eacb94a6.woff2",
+      "sha256": "aba0f8e4eacb94a66660f0de75e338162b94f6272e7696b76425483bf875d93f",
+      "bytes": 1736,
+      "unicodeRange": "U+31E07,U+31E4D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-29270458c02c60d7.woff2",
+      "sha256": "29270458c02c60d77708045923391aaaf6e73f771d7d8a21ee9765667c21c4a1",
+      "bytes": 2548,
+      "unicodeRange": "U+32003,U+32070,U+3208E,U+321F4,U+321FD"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-301fe2eaac6f5ef6.woff2",
+      "sha256": "301fe2eaac6f5ef695088a7a472aa92dcb077e3c568f7c676896fda7bb8f1d20",
+      "bytes": 3048,
+      "unicodeRange": "U+32217,U+322C4,U+322E4,U+3235B,U+3236D,U+3237F,U+323BF"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c240c6fbb1721226.woff2",
+      "sha256": "c240c6fbb17212263b8a9adea9842c29219af8c74c33ba6f3d77a5e6c32d6f8a",
+      "bytes": 1732,
+      "unicodeRange": "U+324D6"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-00109e3eaa72d82b.woff2",
+      "sha256": "00109e3eaa72d82b5c37f37239331615a5a23246f2a3b54a41837e5c0c544b14",
+      "bytes": 1856,
+      "unicodeRange": "U+32625,U+3263F,U+3277B"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-901049589e67fb4c.woff2",
+      "sha256": "901049589e67fb4c8cd778f664165822aea1a371c042faaa4463cb9e7e332149",
+      "bytes": 1828,
+      "unicodeRange": "U+32800,U+3280D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-dce076cad521b18c.woff2",
+      "sha256": "dce076cad521b18cb64f6b9a2c2f8dd8e0450e14bc4cb478b73a79a97c504b89",
+      "bytes": 1320,
+      "unicodeRange": "U+32A14"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-bd72238ba05cc1ce.woff2",
+      "sha256": "bd72238ba05cc1ce751b5dd554de74a79f558a7b22810269995bd13180c4748b",
+      "bytes": 2144,
+      "unicodeRange": "U+32C39,U+32C3C,U+32DB9,U+32DC7"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-ae327f9a448f0d58.woff2",
+      "sha256": "ae327f9a448f0d5858d5d61e0dcf2efe03a0755e0d369366de41d8e4114d536f",
+      "bytes": 1668,
+      "unicodeRange": "U+32E30,U+32F9D"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-c5eeaf5ea64f3d4f.woff2",
+      "sha256": "c5eeaf5ea64f3d4f5175a7a104309c85ee0c23e8a2f87dc0788ef675212ec9b9",
+      "bytes": 1864,
+      "unicodeRange": "U+33069,U+3312E,U+331EB"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-cf054ad80255fbd7.woff2",
+      "sha256": "cf054ad80255fbd77c3476fc016b39a3305c54295026283079cf4daa022ea5d2",
+      "bytes": 2400,
+      "unicodeRange": "U+332E9,U+332ED-332EE,U+332F3,U+33398"
+    },
+    {
+      "file": "CalileonCJKSerif-Regular-d10784af616b48b1.woff2",
+      "sha256": "d10784af616b48b1a31287e7e5476d02aecef80dd8affdc67ddd9a7f124b60ce",
+      "bytes": 1560,
+      "unicodeRange": "U+FFFFD"
+    }
+  ],
+  "sourceFamily": "LXGW Neo ZhiSong",
+  "webFamily": "Calileon CJK Serif"
+}

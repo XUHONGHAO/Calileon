@@ -382,6 +382,8 @@ export interface AppState {
   currentItemRoughness: number;
   currentItemOpacity: number;
   currentItemFontFamily: FontFamilyValues;
+  /** Follow the editor language until the user explicitly selects a font. */
+  currentItemFontFamilyIsDefault: boolean;
   currentItemFontSize: number;
   currentItemTextAlign: TextAlign;
   currentItemStartArrowhead: Arrowhead | null;

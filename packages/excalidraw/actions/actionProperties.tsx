@@ -896,7 +896,10 @@ export const actionIncreaseFontSize = register({
 type ChangeFontFamilyData = Partial<
   Pick<
     AppState,
-    "openPopup" | "currentItemFontFamily" | "currentHoveredFontFamily"
+    | "openPopup"
+    | "currentItemFontFamily"
+    | "currentItemFontFamilyIsDefault"
+    | "currentHoveredFontFamily"
   >
 > & {
   /** cache of selected & editing elements populated on opened popup */
@@ -958,6 +961,7 @@ export const actionChangeFontFamily = register<{
 
     if (currentItemFontFamily) {
       nextFontFamily = currentItemFontFamily;
+      nextAppState.currentItemFontFamilyIsDefault = false;
       nextCaptureUpdateAction = CaptureUpdateAction.IMMEDIATELY;
     } else if (currentHoveredFontFamily) {
       nextFontFamily = currentHoveredFontFamily;

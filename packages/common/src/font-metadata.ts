@@ -9,6 +9,8 @@ import { FONT_FAMILY, FONT_FAMILY_FALLBACKS } from "./constants";
  * Encapsulates font metrics with additional font metadata.
  * */
 export interface FontMetadata {
+  /** Official display name, in the font's own script, independent of UI locale. */
+  displayName?: string;
   /** for head & hhea metrics read the woff2 with https://fontdrop.info/ */
   metrics: {
     /** head.unitsPerEm metric */
@@ -33,6 +35,42 @@ export interface FontMetadata {
 }
 
 export const FONT_METADATA: Record<number, FontMetadata> = {
+  [FONT_FAMILY["LXGW WenKai GB"]]: {
+    displayName: "霞鹜文楷 GB",
+    metrics: {
+      unitsPerEm: 1000,
+      ascender: 928,
+      descender: -256,
+      lineHeight: 1.25,
+    },
+  },
+  [FONT_FAMILY["LXGW WenKai TC"]]: {
+    displayName: "霞鶩文楷 TC",
+    metrics: {
+      unitsPerEm: 1000,
+      ascender: 928,
+      descender: -256,
+      lineHeight: 1.25,
+    },
+  },
+  [FONT_FAMILY["Calileon CJK Serif"]]: {
+    displayName: "霞鶩新緻宋",
+    metrics: {
+      unitsPerEm: 2048,
+      ascender: 1802,
+      descender: -246,
+      lineHeight: 1.25,
+    },
+  },
+  [FONT_FAMILY["Calileon CJK Sans"]]: {
+    displayName: "霞鶩晰黑",
+    metrics: {
+      unitsPerEm: 2048,
+      ascender: 1802,
+      descender: -246,
+      lineHeight: 1.25,
+    },
+  },
   [FONT_FAMILY.Excalifont]: {
     metrics: {
       unitsPerEm: 1000,
@@ -131,6 +169,18 @@ export const FONT_METADATA: Record<number, FontMetadata> = {
     local: true,
     fallback: true,
   },
+};
+
+/** Branding belongs in the picker, not in persisted IDs or CSS family names. */
+export const getFontFamilyDisplayName = (
+  fontFamily: FontFamilyValues,
+  fallbackName = "Unknown",
+) => {
+  const name =
+    FONT_METADATA[fontFamily]?.displayName ??
+    Object.entries(FONT_FAMILY).find(([, id]) => id === fontFamily)?.[0] ??
+    fallbackName;
+  return `Calileon ${name}`;
 };
 
 /** Unicode ranges defined by google fonts */

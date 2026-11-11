@@ -42,6 +42,10 @@ import { LilitaFontFaces } from "./Lilita";
 import { NunitoFontFaces } from "./Nunito";
 import { VirgilFontFaces } from "./Virgil";
 import { XiaolaiFontFaces } from "./Xiaolai";
+import { WenKaiGBFontFaces } from "./LXGWWenKaiGB";
+import { WenKaiTCFontFaces } from "./LXGWWenKaiTC";
+import { NeoZhiSongFontFaces } from "./CalileonCJKSerif";
+import { XiHeiFontFaces } from "./CalileonCJKSans";
 
 export class Fonts {
   // it's ok to track fonts across multiple instances only once, so let's use
@@ -206,7 +210,17 @@ export class Fonts {
     const fontFaces = await new PromisePool(iterator, concurrency).all();
 
     // dedup just in case (i.e. could be the same font faces with 0 glyphs)
-    return Array.from(new Set(fontFaces));
+    const licenses = families.flatMap((family) =>
+      (Fonts.registered.get(family)?.fontFaces ?? [])
+        .map((face) => face.license)
+        .filter((license): license is string => !!license),
+    );
+    return [
+      ...Array.from(new Set(licenses)).map(
+        (license) => `/* ${license.replaceAll("*/", "* /")} */`,
+      ),
+      ...Array.from(new Set(fontFaces)),
+    ];
   }
 
   private static async loadFontFaces(
@@ -347,8 +361,8 @@ export class Fonts {
       this.registered.set(fontFamily, {
         metadata,
         fontFaces: fontFacesDecriptors.map(
-          ({ uri, descriptors }) =>
-            new ExcalidrawFontFace(family, uri, descriptors),
+          ({ uri, descriptors, license }) =>
+            new ExcalidrawFontFace(family, uri, descriptors, license),
         ),
       });
     }
@@ -385,6 +399,10 @@ export class Fonts {
     init("Cascadia", ...CascadiaFontFaces);
     init("Comic Shanns", ...ComicShannsFontFaces);
     init("Excalifont", ...ExcalifontFontFaces);
+    init("LXGW WenKai GB", ...WenKaiGBFontFaces);
+    init("LXGW WenKai TC", ...WenKaiTCFontFaces);
+    init("Calileon CJK Serif", ...NeoZhiSongFontFaces);
+    init("Calileon CJK Sans", ...XiHeiFontFaces);
     // keeping for backwards compatibility reasons, uses system font (Helvetica on MacOS, Arial on Win)
     init("Helvetica", ...HelveticaFontFaces);
     // used for server-side pdf & png export instead of helvetica (technically does not need metrics, but kept in for consistency)
@@ -467,4 +485,6 @@ export class Fonts {
 export interface ExcalidrawFontFaceDescriptor {
   uri: string;
   descriptors?: FontFaceDescriptors;
+  /** Redistributed font license, also included in embedded SVG font CSS. */
+  license?: string;
 }
